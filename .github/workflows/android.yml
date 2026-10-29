@@ -6,6 +6,11 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'Создать GitHub Release с этим тегом (например, v0.1.0); пусто — просто сборка'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -66,14 +71,17 @@ jobs:
             app/build/test-results/
           if-no-files-found: ignore
 
+      # Релиз: по пушу тега v* или вручную (workflow_dispatch с release=vX.Y.Z) —
+      # во втором случае gh сам создаёт тег на собранном коммите.
       - name: GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.event.inputs.release, 'v')
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ github.event.inputs.release || github.ref_name }}
         run: |
           cp out/dirhamrub-release.apk "out/dirhamrub-$TAG.apk"
           gh release create "$TAG" "out/dirhamrub-$TAG.apk" \
+            --target "$GITHUB_SHA" \
             --title "Дирхамы в рубли $TAG" \
             --notes "APK для Android 8.0+. Как установить — см. README." \
             || gh release upload "$TAG" "out/dirhamrub-$TAG.apk" --clobber

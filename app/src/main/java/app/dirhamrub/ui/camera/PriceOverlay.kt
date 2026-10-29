@@ -1,7 +1,6 @@
 package app.dirhamrub.ui.camera
 
 import android.graphics.Paint
-import android.graphics.Typeface
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -9,57 +8,53 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
-import app.dirhamrub.ui.theme.AppTheme
+import kotlin.math.min
 
 /**
- * Метки цен поверх превью. Все строки и прямоугольники готовит [PricePipeline];
- * здесь только рисование заранее созданными Paint — без аллокаций в draw.
- * [frame] читается внутри draw, поэтому новый кадр перерисовывает Canvas без рекомпозиции.
+ * Метки цен поверх превью: уголки-«прицел» вокруг цены и пилюля с тенью и хвостиком.
+ * Все строки и контуры готовит [PricePipeline]; здесь только рисование заранее созданными
+ * Paint — без аллокаций в draw. [frame] читается внутри draw, поэтому новый кадр
+ * перерисовывает Canvas без рекомпозиции.
  */
 @Composable
 fun PriceOverlay(
     frame: State<LabelFrame>,
-    mainTypeface: Typeface?,
-    subTypeface: Typeface?,
     metrics: LabelMetrics,
     modifier: Modifier = Modifier,
 ) {
-    val colors = AppTheme.colors
-    val density = LocalDensity.current
-    val paints = remember(colors, mainTypeface, subTypeface, metrics) {
-        val accent = colors.accent.toArgb()
-        val stroke = with(density) { 2f * this.density }
+    val density = LocalDensity.current.density
+    val paints = remember(metrics, density) {
         OverlayPaints(
-            boxStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            corner = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE
-                strokeWidth = stroke
-                color = accent
+                strokeWidth = 3f * density
+                strokeCap = Paint.Cap.ROUND
             },
-            boxFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            boxFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL },
+            bubble = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.FILL
-                color = accent
+                // Тень отделяет пилюлю от пёстрого фона ценника.
+                setShadowLayer(6f * density, 0f, 2f * density, 0x66000000)
             },
-            pill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL },
             main = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 textSize = metrics.mainTextPx
-                typeface = mainTypeface
+                typeface = metrics.mainTypeface
                 color = android.graphics.Color.WHITE
             },
             sub = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 textSize = metrics.subTextPx
-                typeface = subTypeface
+                typeface = metrics.subTypeface
                 color = android.graphics.Color.WHITE
             },
             strike = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                strokeWidth = stroke * 0.75f
+                strokeWidth = 2f * density
                 color = android.graphics.Color.WHITE
             },
-            accent = accent,
-            old = 0xFF5D6975.toInt(),
-            radius = with(density) { 10f * this.density },
-            boxRadius = with(density) { 6f * this.density },
+            accent = METRO_RED,
+            old = OLD_PRICE,
+            boxRadius = 6f * density,
+            cornerLen = 14f * density,
         )
     }
     Canvas(modifier) {
@@ -70,42 +65,59 @@ fun PriceOverlay(
                 val l = labels[i]
                 val a = (l.alpha * 255f).toInt().coerceIn(0, 255)
                 val tint = if (l.isOld) paints.old else paints.accent
+                val b = l.box
 
+                // Лёгкая подсветка цены и уголки «прицела».
                 paints.boxFill.color = tint
-                paints.boxFill.alpha = (a * 0.18f).toInt()
-                c.drawRoundRect(l.box, paints.boxRadius, paints.boxRadius, paints.boxFill)
-                paints.boxStroke.color = tint
-                paints.boxStroke.alpha = if (l.isOld) (a * 0.7f).toInt() else a
-                c.drawRoundRect(l.box, paints.boxRadius, paints.boxRadius, paints.boxStroke)
+                paints.boxFill.alpha = (a * 0.14f).toInt()
+                c.drawRoundRect(b, paints.boxRadius, paints.boxRadius, paints.boxFill)
+                paints.corner.color = tint
+                paints.corner.alpha = if (l.isOld) (a * 0.7f).toInt() else a
+                val len = min(paints.cornerLen, min(b.width(), b.height()) / 2.5f)
+                c.drawLine(b.left, b.top, b.left + len, b.top, paints.corner)
+                c.drawLine(b.left, b.top, b.left, b.top + len, paints.corner)
+                c.drawLine(b.right, b.top, b.right - len, b.top, paints.corner)
+                c.drawLine(b.right, b.top, b.right, b.top + len, paints.corner)
+                c.drawLine(b.left, b.bottom, b.left + len, b.bottom, paints.corner)
+                c.drawLine(b.left, b.bottom, b.left, b.bottom - len, paints.corner)
+                c.drawLine(b.right, b.bottom, b.right - len, b.bottom, paints.corner)
+                c.drawLine(b.right, b.bottom, b.right, b.bottom - len, paints.corner)
 
-                paints.pill.color = tint
-                paints.pill.alpha = if (l.isOld) (a * 0.8f).toInt() else (a * 0.94f).toInt()
-                c.drawRoundRect(l.pill, paints.radius, paints.radius, paints.pill)
+                paints.bubble.color = tint
+                paints.bubble.alpha = if (l.isOld) (a * 0.85f).toInt() else a
+                c.drawPath(l.bubble, paints.bubble)
 
-                paints.main.alpha = a
+                paints.main.alpha = if (l.isOld) (a * 0.8f).toInt() else a
                 c.drawText(l.main, l.mainX, l.mainY, paints.main)
-                paints.sub.alpha = (a * 0.8f).toInt()
+                paints.sub.alpha = (a * 0.85f).toInt()
                 c.drawText(l.sub, l.subX, l.subY, paints.sub)
                 if (l.isOld) {
-                    // Старая цена — зачёркнутая и приглушённая.
+                    // Старая цена — зачёркнутая и серая.
                     paints.strike.alpha = a
-                    val y = l.mainY - metrics.mainTextPx * 0.3f
-                    c.drawLine(l.pill.left + metrics.padX * 0.6f, y, l.pill.right - metrics.padX * 0.6f, y, paints.strike)
+                    c.drawLine(l.strikeStart, l.strikeY, l.strikeEnd, l.strikeY, paints.strike)
                 }
             }
         }
     }
 }
 
+/**
+ * Поверх камеры цвета не зависят от темы: красный метро (светлый акцент) даёт белому тексту
+ * нужный контраст, серый — для старых цен.
+ */
+private const val METRO_RED = 0xFFC8272D.toInt()
+
+private const val OLD_PRICE = 0xFF5D6975.toInt()
+
 private class OverlayPaints(
-    val boxStroke: Paint,
+    val corner: Paint,
     val boxFill: Paint,
-    val pill: Paint,
+    val bubble: Paint,
     val main: Paint,
     val sub: Paint,
     val strike: Paint,
     val accent: Int,
     val old: Int,
-    val radius: Float,
     val boxRadius: Float,
+    val cornerLen: Float,
 )

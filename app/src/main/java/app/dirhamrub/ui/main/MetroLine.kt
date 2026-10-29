@@ -111,32 +111,32 @@ private fun StationRow(
             modifier = Modifier.width(78.dp),
             maxLines = 1,
         )
+        // Все суммы одним шрифтом: активная крупнее и ярче, остальные приглушены.
         Text(
             text = station.value,
-            style = if (active) type.number else type.mono.copy(fontSize = 18.sp, lineHeight = 22.sp),
-            color = colors.ink,
+            style = if (active) type.number.copy(fontSize = 24.sp, lineHeight = 30.sp) else type.number.copy(fontSize = 17.sp, lineHeight = 22.sp),
+            color = if (active) colors.ink else colors.muted,
             textAlign = TextAlign.End,
             maxLines = 1,
             softWrap = false,
             modifier = Modifier.weight(1f),
         )
-        if (active) {
-            Box(
-                Modifier
-                    .padding(start = 2.dp)
-                    .width(2.dp)
-                    .height(24.dp)
-                    .background(colors.accent),
-            )
-        }
+        // Курсор занимает место и у неактивных строк, чтобы валюты стояли в одной колонке.
+        Box(
+            Modifier
+                .padding(start = 2.dp)
+                .width(2.dp)
+                .height(26.dp)
+                .background(if (active) colors.accent else Color.Transparent),
+        )
         Text(
             text = station.unit,
             style = type.label,
             color = colors.muted,
             textAlign = TextAlign.Start,
             modifier = Modifier
-                .padding(start = 6.dp, end = 12.dp)
-                .width(32.dp),
+                .padding(start = 6.dp, end = 8.dp)
+                .width(34.dp),
         )
     }
 }

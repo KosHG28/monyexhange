@@ -13,7 +13,7 @@ android {
         targetSdk = 37
         // В CI номер сборки растёт, поэтому каждое новое APK ставится поверх старого.
         versionCode = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull() ?: 1
-        versionName = "0.1.1"
+        versionName = "0.1.2"
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
             // Для прогона на x86_64-эмуляторе в CI: ./gradlew assembleRelease -Pdirhamrub.x86=true

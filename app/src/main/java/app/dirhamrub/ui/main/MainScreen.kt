@@ -1,12 +1,9 @@
 package app.dirhamrub.ui.main
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,11 +25,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -43,18 +38,16 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.Card
-import app.dirhamrub.domain.Comparison
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.Numbers
-import app.dirhamrub.ui.short
 import app.dirhamrub.ui.theme.AppTheme
-import app.dirhamrub.ui.theme.motion
 import java.math.BigDecimal
 
 @Composable
@@ -95,19 +88,20 @@ fun MainScreen(
             ) {
                 BankCardsRow(
                     rates = state.rates,
+                    comparison = comparison,
                     selected = state.selected,
-                    cheaper = comparison.cheaper,
-                    savingsPercent = Numbers.percent(comparison.savingsPercent),
                     onSelect = onSelectCard,
-                    modifier = Modifier.padding(horizontal = 4.dp),
                 )
                 ResultBlock(
                     expression = if (state.expression.isCompound) state.expression.display() + " " + unit else null,
                     rub = Numbers.money(amounts.rub),
+                    subtitle = stringResource(
+                        if (state.selected == Card.KZT) R.string.result_by_kzt else R.string.result_by_cny,
+                        Numbers.money(amounts.aed),
+                    ),
                     rate = Numbers.rate(state.rate.rubPerAed, 2),
                     onOpenRate = onOpenRate,
                 )
-                ComparisonBlock(comparison)
             }
         }
         MetroLine(
@@ -159,7 +153,7 @@ private fun TopBar(onOpenCheat: () -> Unit) {
 }
 
 @Composable
-private fun ResultBlock(expression: String?, rub: String, rate: String, onOpenRate: () -> Unit) {
+private fun ResultBlock(expression: String?, rub: String, subtitle: String, rate: String, onOpenRate: () -> Unit) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val resultA11y = stringResource(R.string.result_a11y, rub)
@@ -191,6 +185,13 @@ private fun ResultBlock(expression: String?, rub: String, rate: String, onOpenRa
                     liveRegion = LiveRegionMode.Polite
                 },
         )
+        Text(
+            text = subtitle,
+            style = type.body.copy(fontSize = 14.sp),
+            color = colors.muted,
+            maxLines = 1,
+            textAlign = TextAlign.Center,
+        )
         Spacer(Modifier.height(4.dp))
         val pillA11y = stringResource(R.string.rate_pill_a11y, rate)
         Row(
@@ -213,91 +214,24 @@ private fun ResultBlock(expression: String?, rub: String, rate: String, onOpenRa
     }
 }
 
-/** «Юани 8 507 ₽ · Тенге 8 808 ₽ · экономия 301 ₽» и две полоски пропорционально сумме. */
-@Composable
-private fun ComparisonBlock(comparison: Comparison) {
-    val colors = AppTheme.colors
-    val type = AppTheme.type
-    val first = comparison.cheaper ?: Card.KZT
-    val order = listOf(first, first.other)
-    val rub = comparison.rubByCard
-    val max = rub.values.maxOrNull()?.takeIf { it.signum() > 0 }
-
-    val parts = order.map { card -> stringResource(R.string.compare_item, card.short(), Numbers.moneyWhole(rub.getValue(card))) }
-    val savings = Numbers.moneyWhole(comparison.savingsRub)
-    val text = buildString {
-        append(parts.joinToString(" · "))
-        if (comparison.cheaper != null && savings != "0") {
-            append(" · ")
-            append(stringResource(R.string.compare_savings, savings))
-        }
-    }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(text, style = type.label, color = colors.muted, textAlign = TextAlign.Center, maxLines = 2)
-        Spacer(Modifier.height(6.dp))
-        for (card in order) {
-            val fraction = if (max == null) 0f else rub.getValue(card).toFloat() / max.toFloat()
-            val color = if (card == comparison.cheaper) colors.good else colors.muted
-            ComparisonBar(card.symbol, fraction, color)
-            Spacer(Modifier.height(4.dp))
-        }
-    }
-}
-
-@Composable
-private fun ComparisonBar(symbol: String, fraction: Float, color: Color) {
-    val colors = AppTheme.colors
-    val animated by animateFloatAsState(fraction.coerceIn(0f, 1f), motion(300), label = "bar")
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clearAndSetSemantics {},
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(symbol, style = AppTheme.type.caption, color = colors.muted, modifier = Modifier.width(16.dp))
-        Box(
-            Modifier
-                .weight(1f)
-                .height(5.dp)
-                .clip(RoundedCornerShape(50))
-                .background(colors.line),
-        ) {
-            if (animated > 0f) {
-                Box(
-                    Modifier
-                        .fillMaxWidth(animated)
-                        .height(5.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(color),
-                )
-            }
-        }
-    }
-}
-
+/** Быстрые суммы в дирхамах: все семь в один ряд одинаковой ширины; 22 — проезд в метро. */
 @Composable
 private fun Chips(onChip: (BigDecimal) -> Unit) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(stringResource(R.string.chips_label), style = type.label, color = colors.muted, modifier = Modifier.padding(end = 2.dp))
         for (amount in MainViewModel.CHIPS) {
-            val label = if (amount.toInt() == 22) stringResource(R.string.chip_metro) else amount.toPlainString()
-            val a11y = stringResource(R.string.chip_a11y, label)
-            Box(
+            val metro = amount.toInt() == 22
+            val a11y = if (metro) stringResource(R.string.chip_metro_a11y) else stringResource(R.string.chip_a11y, amount.toPlainString())
+            Row(
                 modifier = Modifier
+                    .weight(1f)
                     .minimumInteractiveComponentSize()
+                    .height(40.dp)
                     .clip(RoundedCornerShape(50))
                     .background(colors.surface)
                     .border(1.dp, colors.line, RoundedCornerShape(50))
@@ -305,11 +239,23 @@ private fun Chips(onChip: (BigDecimal) -> Unit) {
                     .clearAndSetSemantics {
                         contentDescription = a11y
                         role = Role.Button
-                    }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                contentAlignment = Alignment.Center,
+                    },
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(label, style = type.monoStrong.copy(fontSize = 14.sp), color = colors.ink)
+                Text(amount.toPlainString(), style = type.monoStrong.copy(fontSize = 14.sp), color = colors.ink, maxLines = 1)
+                if (metro) {
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        text = "M",
+                        style = type.caption.copy(fontSize = 9.sp, lineHeight = 11.sp, fontWeight = FontWeight.Bold),
+                        color = colors.onAccent,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(colors.accent)
+                            .padding(horizontal = 3.dp, vertical = 1.dp),
+                    )
+                }
             }
         }
     }

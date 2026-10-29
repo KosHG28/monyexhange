@@ -194,18 +194,20 @@ private fun CameraContent(
     val lifecycleOwner = LocalLifecycleOwner.current
     val density = LocalDensity.current
 
-    val mainTypeface = remember { ResourcesCompat.getFont(context, R.font.golos_text_semibold) }
+    val mainTypeface = remember { ResourcesCompat.getFont(context, R.font.unbounded_semibold) }
     val subTypeface = remember { ResourcesCompat.getFont(context, R.font.golos_text_medium) }
     val metrics = remember(density) {
         with(density) {
             LabelMetrics(
-                mainTextPx = 16.sp.toPx(),
-                subTextPx = 11.sp.toPx(),
-                padX = 10.dp.toPx(),
-                padY = 5.dp.toPx(),
-                lineGap = 1.dp.toPx(),
-                gap = 6.dp.toPx(),
+                mainTextPx = 17.sp.toPx(),
+                subTextPx = 11.5.sp.toPx(),
+                padX = 12.dp.toPx(),
+                padY = 6.dp.toPx(),
+                lineGap = 2.dp.toPx(),
+                gap = 3.dp.toPx(),
                 margin = 8.dp.toPx(),
+                radius = 12.dp.toPx(),
+                tail = 6.dp.toPx(),
                 mainTypeface = mainTypeface,
                 subTypeface = subTypeface,
             )
@@ -325,8 +327,6 @@ private fun CameraContent(
         val hitSlop = with(density) { 8.dp.toPx() }
         PriceOverlay(
             frame = frame,
-            mainTypeface = mainTypeface,
-            subTypeface = subTypeface,
             metrics = metrics,
             modifier = Modifier
                 .fillMaxSize()

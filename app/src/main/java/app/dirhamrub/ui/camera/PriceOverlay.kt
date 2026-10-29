@@ -12,7 +12,8 @@ import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.min
 
 /**
- * Метки цен поверх превью: уголки-«прицел» вокруг цены и пилюля с тенью и хвостиком.
+ * Метки цен поверх превью: уголки-«прицел» вокруг цены и пилюля с тенью и хвостиком;
+ * старая цена — серая компактная метка.
  * Все строки и контуры готовит [PricePipeline]; здесь только рисование заранее созданными
  * Paint — без аллокаций в draw. [frame] читается внутри draw, поэтому новый кадр
  * перерисовывает Canvas без рекомпозиции.
@@ -45,10 +46,6 @@ fun PriceOverlay(
             sub = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 textSize = metrics.subTextPx
                 typeface = metrics.subTypeface
-                color = android.graphics.Color.WHITE
-            },
-            strike = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                strokeWidth = 2f * density
                 color = android.graphics.Color.WHITE
             },
             accent = METRO_RED,
@@ -87,15 +84,13 @@ fun PriceOverlay(
                 paints.bubble.alpha = if (l.isOld) (a * 0.85f).toInt() else a
                 c.drawPath(l.bubble, paints.bubble)
 
-                paints.main.alpha = if (l.isOld) (a * 0.8f).toInt() else a
-                c.drawText(l.main, l.mainX, l.mainY, paints.main)
-                paints.sub.alpha = (a * 0.85f).toInt()
-                c.drawText(l.sub, l.subX, l.subY, paints.sub)
-                if (l.isOld) {
-                    // Старая цена — зачёркнутая и серая.
-                    paints.strike.alpha = a
-                    c.drawLine(l.strikeStart, l.strikeY, l.strikeEnd, l.strikeY, paints.strike)
+                if (l.main.isNotEmpty()) {
+                    paints.main.alpha = a
+                    c.drawText(l.main, l.mainX, l.mainY, paints.main)
                 }
+                // У старой цены одна приглушённая строка «было … AED ≈ … ₽».
+                paints.sub.alpha = if (l.isOld) (a * 0.95f).toInt() else (a * 0.85f).toInt()
+                c.drawText(l.sub, l.subX, l.subY, paints.sub)
             }
         }
     }
@@ -115,7 +110,6 @@ private class OverlayPaints(
     val bubble: Paint,
     val main: Paint,
     val sub: Paint,
-    val strike: Paint,
     val accent: Int,
     val old: Int,
     val boxRadius: Float,

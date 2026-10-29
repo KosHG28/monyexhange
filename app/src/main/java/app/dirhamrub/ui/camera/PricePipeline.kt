@@ -37,10 +37,6 @@ class PriceLabel(
     val sub: String,
     val subX: Float,
     val subY: Float,
-    /** Зачёркивание суммы у старой цены. */
-    val strikeY: Float,
-    val strikeStart: Float,
-    val strikeEnd: Float,
     /** Рубли по выбранной и другой карте — для шторки и TalkBack. */
     val rubSelected: BigDecimal,
     val rubOther: BigDecimal,
@@ -151,61 +147,76 @@ class PricePipeline(private val metrics: LabelMetrics) {
         val otherRate = rates.getValue(selected.other)
         val m = metrics
         val labels = ArrayList<PriceLabel>(lastTracked.size)
-        val placed = ArrayList<RectF>(lastTracked.size)
         shownAt.keys.retainAll(lastTracked.mapTo(HashSet()) { it.id })
 
-        // Сверху вниз: так раздвигание вниз не уводит метку под соседнюю.
-        for (t in lastTracked.sortedBy { it.box.top }) {
+        // Препятствия: рамки всех найденных цен (метка не должна закрывать чужую цену)
+        // и уже поставленные пилюли.
+        val boxes = lastTracked.associate { it.id to RectF(it.box.left, it.box.top, it.box.right, it.box.bottom) }
+        val placed = ArrayList<RectF>(lastTracked.size)
+
+        // Сначала актуальные цены по убыванию скоринга — им достаются лучшие места, потом старые.
+        val order = lastTracked.sortedWith(compareBy<TrackedPrice> { it.isOld }.thenByDescending { it.score })
+        for (t in order) {
             val rubSelected = t.value.multiply(selectedRate.rubPerAed, MC)
             val rubOther = t.value.multiply(otherRate.rubPerAed, MC)
-            val main = "≈ ${Numbers.cheat(rubSelected)} ₽"
             // Распознанная цена в AED — чтобы сразу видеть, правильно ли прочитан ценник.
             val aed = "${Numbers.money(t.value)} AED"
-            val other = "${selected.other.symbol} ${Numbers.cheat(rubOther)} ₽"
-            val sub = if (t.isOld) "было $aed · $other" else "$aed · $other"
+            val main: String
+            val sub: String
+            if (t.isOld) {
+                // Старая цена — компактная однострочная метка.
+                main = ""
+                sub = "было $aed ≈ ${Numbers.cheat(rubSelected)} ₽"
+            } else {
+                main = "≈ ${Numbers.cheat(rubSelected)} ₽"
+                sub = "$aed · ${selected.other.symbol} ${Numbers.cheat(rubOther)} ₽"
+            }
 
-            val mainW = mainPaint.measureText(main)
+            val mainW = if (main.isEmpty()) 0f else mainPaint.measureText(main)
             val subW = subPaint.measureText(sub)
-            val mainH = mainMetrics.descent - mainMetrics.ascent
+            val mainH = if (main.isEmpty()) 0f else mainMetrics.descent - mainMetrics.ascent + m.lineGap
             val subH = subMetrics.descent - subMetrics.ascent
+            val padY = if (t.isOld) m.padY * 0.7f else m.padY
             val pillW = maxOf(mainW, subW) + 2 * m.padX
-            val pillH = mainH + m.lineGap + subH + 2 * m.padY
+            val pillH = mainH + subH + 2 * padY
 
-            val box = RectF(t.box.left, t.box.top, t.box.right, t.box.bottom)
+            val box = boxes.getValue(t.id)
             var left = box.centerX() - pillW / 2f
             if (viewWidth > 0f) left = left.coerceIn(m.margin, maxOf(m.margin, viewWidth - m.margin - pillW))
-            // Пилюля над ценой; если сверху не помещается — под ней.
-            var above = true
-            var top = box.top - m.gap - m.tail - pillH
-            if (top < topInset + m.margin) {
-                above = false
-                top = box.bottom + m.gap + m.tail
-            }
-            val pill = RectF(left, top, left + pillW, top + pillH)
+            val aboveTop = box.top - m.gap - m.tail - pillH
+            val belowTop = box.bottom + m.gap + m.tail
+            val pill = RectF(left, aboveTop, left + pillW, aboveTop + pillH)
 
-            // Перекрывающиеся метки раздвигаем по вертикали.
-            var moved = true
-            var guard = 0
-            while (moved && guard++ < 12) {
-                moved = false
-                for (other2 in placed) {
-                    if (RectF.intersects(pill, other2)) {
-                        pill.offsetTo(pill.left, other2.bottom + m.gap)
-                        moved = true
-                    }
+            fun blocked(r: RectF): Boolean =
+                r.top < topInset + m.margin ||
+                    (viewHeight > 0f && r.bottom > viewHeight - bottomInset) ||
+                    placed.any { RectF.intersects(r, it) } ||
+                    boxes.any { (id, b) -> id != t.id && RectF.intersects(r, b) }
+
+            // Над ценой; если занято — под ней; если и там занято — сдвигаем вниз до свободного места.
+            var above = true
+            if (blocked(pill)) {
+                pill.offsetTo(left, belowTop)
+                above = false
+                var guard = 0
+                while (blocked(pill) && guard++ < 16) {
+                    val hit = placed.firstOrNull { RectF.intersects(pill, it) }
+                        ?: boxes.entries.firstOrNull { (id, b) -> id != t.id && RectF.intersects(pill, b) }?.value
+                        ?: break
+                    pill.offsetTo(left, hit.bottom + m.gap)
                 }
             }
             if (viewHeight > 0f && pill.bottom > viewHeight - bottomInset) {
-                pill.offsetTo(pill.left, maxOf(topInset, viewHeight - bottomInset - pillH))
+                pill.offsetTo(left, maxOf(topInset, viewHeight - bottomInset - pillH))
             }
             placed += pill
 
             val bubble = bubblePath(pill, box, above, m)
 
             val mainX = pill.centerX() - mainW / 2f
-            val mainY = pill.top + m.padY - mainMetrics.ascent
+            val mainY = pill.top + padY - mainMetrics.ascent
             val subX = pill.centerX() - subW / 2f
-            val subY = mainY + mainMetrics.descent + m.lineGap - subMetrics.ascent
+            val subY = pill.top + padY + mainH - subMetrics.ascent
 
             val first = shownAt.getOrPut(t.id) { lastNowMs }
             val appear = ((lastNowMs - first) / APPEAR_MS.toFloat()).coerceIn(0f, 1f)
@@ -215,9 +226,6 @@ class PricePipeline(private val metrics: LabelMetrics) {
                 box = box, pill = pill, bubble = bubble,
                 main = main, mainX = mainX, mainY = mainY,
                 sub = sub, subX = subX, subY = subY,
-                strikeY = mainY + (mainMetrics.ascent + mainMetrics.descent) / 2f,
-                strikeStart = mainX - m.padX * 0.2f,
-                strikeEnd = mainX + mainW + m.padX * 0.2f,
                 rubSelected = rubSelected, rubOther = rubOther,
             )
         }

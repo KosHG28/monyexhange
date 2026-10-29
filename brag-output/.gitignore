@@ -1,0 +1,5 @@
+# Промежуточные файлы рендера: пересобираются из index.html, render.mjs и music.py
+work/stills/
+work/*.png
+work/*.wav
+work/video-noaudio.mp4

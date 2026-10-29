@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Курс по чеку — brag</title>
+<style>
+@font-face { font-family: "Inter Tight"; font-weight: 300; src: url("../../app/src/main/res/font/inter_tight_light.ttf"); }
+@font-face { font-family: "Inter Tight"; font-weight: 400; src: url("../../app/src/main/res/font/inter_tight_regular.ttf"); }
+@font-face { font-family: "Inter Tight"; font-weight: 500; src: url("../../app/src/main/res/font/inter_tight_medium.ttf"); }
+@font-face { font-family: "Inter Tight"; font-weight: 600; src: url("../../app/src/main/res/font/inter_tight_semibold.ttf"); }
+:root {
+  --bg: #EDF0F3; --surface: #FFFFFF; --ink: #15202A; --muted: #5D6975; --line: #D5DCE3;
+  --accent: #C8272D; --accent-soft: #FBEAE9; --good: #1D6E43; --warn: #9A6400;
+  --good-on-card: #7BE3AE; --warn-on-card: #FFD27A; --bad-on-card: #FF9A9A; --star: #FFD66B;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); }
+body { font-family: "Inter Tight", "Inter", "DejaVu Sans", sans-serif; color: var(--ink);
+       font-feature-settings: "tnum"; -webkit-font-smoothing: antialiased; position: relative; }
+.abs { position: absolute; }
+.scene { position: absolute; inset: 0; will-change: opacity, transform; }
+
+/* Подписи слева */
+.cap { position: absolute; left: 120px; width: 680px; top: 0; height: 1080px;
+       display: flex; flex-direction: column; justify-content: center; }
+.kicker { font-size: 32px; font-weight: 500; color: var(--accent); letter-spacing: 0.2px; margin-bottom: 22px; }
+.headline { font-size: 76px; line-height: 1.1; font-weight: 600; letter-spacing: -1.8px; }
+.headline .m { color: var(--muted); font-weight: 500; }
+.word { display: inline-block; will-change: transform, opacity; }
+
+/* Видоискатель */
+.vf { position: absolute; overflow: hidden; border-radius: 48px; background: #1a1411;
+      box-shadow: 0 40px 80px rgba(21, 32, 42, 0.22); }
+.vf .world { position: absolute; inset: -60px; }
+.vf .wall { position: absolute; inset: 0;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(255, 196, 120, 0.35) 0 60px, transparent 140px),
+    radial-gradient(circle at 78% 14%, rgba(255, 230, 190, 0.28) 0 40px, transparent 120px),
+    radial-gradient(circle at 92% 58%, rgba(120, 190, 255, 0.16) 0 50px, transparent 150px),
+    radial-gradient(circle at 8% 78%, rgba(255, 150, 90, 0.22) 0 50px, transparent 160px),
+    linear-gradient(180deg, #4a3a2e 0%, #2b211b 55%, #1b1512 100%); }
+.vf .shelf { position: absolute; left: 0; right: 0; height: 44px;
+  background: linear-gradient(180deg, #c9ced3 0%, #8c949b 60%, #5d646a 100%);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5); }
+.vf .goods { position: absolute; border-radius: 18px 18px 6px 6px; opacity: 0.9; }
+.tag { position: absolute; background: #fbfaf6; border-radius: 10px; overflow: hidden;
+       box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45); color: #1b1b1b;
+       font-family: "Inter", "DejaVu Sans", sans-serif; font-feature-settings: normal; }
+.tag .band { background: #ffd54a; color: #1b1b1b; font-weight: 800; letter-spacing: 3px; text-align: center; }
+.tag .name { font-weight: 600; text-align: center; color: #333; letter-spacing: 0.5px; }
+.tag .price { font-weight: 800; text-align: center; letter-spacing: -2px; line-height: 1; }
+.tag .price .t { display: inline-block; }
+.tag .price small { font-weight: 700; letter-spacing: 0; }
+.tag .was { text-align: center; color: #555; font-weight: 600; }
+.tag .was span { text-decoration: line-through; text-decoration-thickness: 3px; }
+
+/* AR-метка: как PriceOverlay */
+.ar-box { position: absolute; border-radius: 14px; }
+.ar-corner { position: absolute; border-color: var(--accent); border-style: solid; border-width: 0; }
+.pill { position: absolute; color: #fff; text-align: center; white-space: nowrap;
+        border-radius: 31px; filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.45)); transform-origin: 50% 100%; }
+.pill .bg { position: absolute; inset: 0; border-radius: inherit; background: var(--accent); }
+.pill .tail { position: absolute; left: 50%; width: 0; height: 0; margin-left: -16px;
+              border-left: 16px solid transparent; border-right: 16px solid transparent; }
+.pill.up .tail { bottom: -15px; border-top: 16px solid var(--accent); }
+.pill.down { transform-origin: 50% 0%; }
+.pill.down .tail { top: -15px; border-bottom: 16px solid var(--accent); }
+.pill.old .bg { background: #5D6975; }
+.pill.old.up .tail { border-top-color: #5D6975; }
+.pill .main, .pill .sub { position: relative; font-family: "Inter Tight", sans-serif; font-feature-settings: "tnum"; }
+.pill .main { font-weight: 600; }
+.pill .sub { font-weight: 500; opacity: 0.85; }
+.hint { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; color: #fff;
+        font-weight: 600; font-size: 34px; padding: 18px 34px; border-radius: 999px; background: rgba(0, 0, 0, 0.55); }
+
+/* Иконка приложения */
+.icon { border-radius: 26%; background: var(--accent); overflow: hidden; box-shadow: 0 20px 44px rgba(200, 39, 45, 0.32); }
+.icon svg { width: 100%; height: 100%; display: block; }
+
+/* Чек */
+.receipt { position: absolute; background: var(--surface); padding: 54px 58px 84px;
+           filter: drop-shadow(0 30px 50px rgba(21, 32, 42, 0.14)); }
+.receipt .title { display: flex; align-items: center; gap: 20px; font-size: 42px; font-weight: 600; margin-bottom: 26px; }
+.mini-card { width: 70px; height: 46px; border-radius: 10px; }
+.sec { font-size: 28px; font-weight: 500; color: var(--muted); margin: 8px 0 6px; }
+.row { display: flex; align-items: center; height: 92px; }
+.row .lbl { font-size: 34px; }
+.row .dots { flex: 1; height: 16px; margin: 0 14px; align-self: center;
+             background-image: radial-gradient(circle, var(--muted) 2.2px, transparent 2.6px);
+             background-size: 11px 16px; background-repeat: repeat-x; background-position: 0 100%; opacity: 0.85; }
+.field { min-width: 236px; height: 78px; border-radius: 22px; background: var(--bg); border: 2px solid var(--line);
+         font-size: 38px; font-weight: 500; display: flex; align-items: center; justify-content: flex-end; padding: 0 22px; }
+.field .caret { width: 3px; height: 44px; background: var(--accent); margin-left: 4px; }
+.row .cur { width: 84px; text-align: center; font-size: 34px; color: var(--muted); }
+.dash { height: 3px; margin: 18px 0; background-image: linear-gradient(90deg, var(--line) 0 14px, transparent 14px 24px);
+        background-size: 24px 3px; }
+.result { margin-top: 12px; }
+.result .big { font-size: 70px; font-weight: 400; letter-spacing: -1px; }
+.result .big .m { color: var(--muted); }
+.result .basis { font-size: 31px; color: var(--muted); margin-top: 6px; }
+.result .basis b { color: var(--warn); font-weight: 500; }
+
+/* Карты */
+.ring { position: absolute; border-radius: 42px; border: 4px solid var(--accent); }
+.card { position: absolute; width: 312px; height: 190px; border-radius: 34px; overflow: hidden; color: #fff; }
+.card .mark { position: absolute; right: -6px; bottom: -58px; font-size: 168px; font-weight: 300; line-height: 1; }
+.card .in { position: absolute; inset: 0; padding: 21px 25px; display: flex; flex-direction: column; }
+.card .nm { font-size: 24px; font-weight: 500; opacity: 0.92; display: flex; justify-content: space-between; }
+.card .nm .star { color: var(--star); }
+.card .sum { margin-top: auto; font-size: 42px; font-weight: 500; line-height: 1.12; }
+.card .rt { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 22px; }
+.card .rt .r { opacity: 0.88; }
+.card .chip { font-size: 20px; font-weight: 600; padding: 2px 10px; border-radius: 15px; background: rgba(0, 0, 0, 0.28); }
+.addtile { position: absolute; width: 122px; height: 190px; border-radius: 34px; border: 3px dashed var(--line);
+           display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 56px; font-weight: 300; }
+.hero { position: absolute; text-align: center; font-size: 150px; font-weight: 300; letter-spacing: -3px; line-height: 1.1; white-space: nowrap; }
+.hero .m { color: var(--muted); }
+.herosub { position: absolute; text-align: center; font-size: 32px; color: var(--muted); white-space: nowrap; }
+.rateline { position: absolute; height: 92px; border: 2px solid var(--line); border-radius: 999px; display: flex; align-items: center;
+            font-size: 31px; white-space: nowrap; padding: 0 12px 0 34px; background: var(--bg); }
+.rateline .rate { font-weight: 500; }
+.rateline .dot, .rateline .cb { color: var(--muted); }
+.rateline .vs { font-weight: 500; margin-left: 12px; }
+.rateline .rf { color: var(--accent); font-weight: 600; width: 70px; text-align: center; }
+.tap { position: absolute; border-radius: 50%; border: 4px solid rgba(21, 32, 42, 0.5); background: rgba(21, 32, 42, 0.10); }
+
+/* Корзина в камере */
+.basket { position: absolute; background: var(--surface); border-radius: 38px; display: flex; align-items: center;
+          padding: 10px 10px 10px 34px; color: var(--ink); }
+.basket .l1 { font-size: 27px; font-weight: 500; color: var(--muted); }
+.basket .l2 { font-size: 46px; font-weight: 400; }
+.basket .x { width: 92px; text-align: center; font-size: 40px; color: var(--muted); }
+.basket .btn { background: var(--accent); color: #fff; font-size: 31px; font-weight: 600; border-radius: 28px; padding: 0 30px;
+               height: 92px; display: flex; align-items: center; }
+.cardchip { position: absolute; display: flex; align-items: center; gap: 16px; padding: 14px 28px 14px 16px; border-radius: 999px;
+            background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 31px; font-weight: 600; }
+.cardchip .sw { width: 52px; height: 34px; border-radius: 8px; }
+
+/* Финал */
+.final { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.final .ttl { font-size: 150px; font-weight: 600; letter-spacing: -4px; margin-top: 44px; line-height: 1.05; }
+.final .sub { font-size: 46px; color: var(--muted); margin-top: 22px; }
+.final .syms { display: flex; gap: 34px; margin-top: 54px; font-size: 44px; font-weight: 300; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- Значок: ic_launcher_foreground.xml на красном фоне -->
+<template id="iconTpl">
+  <svg viewBox="0 0 108 108" aria-hidden="true">
+    <rect width="108" height="108" fill="#C8272D"/>
+    <g transform="translate(54 54) rotate(-28) scale(0.86) translate(-54 -54)">
+      <path fill="#FFFFFF" fill-rule="evenodd" d="M54,22 L72,40 L72,80 Q72,86 66,86 L42,86 Q36,86 36,80 L36,40 Z M54,33 m-4,0 a4,4 0,1 0,8 0 a4,4 0,1 0,-8 0 Z"/>
+      <path fill="none" stroke="#C8272D" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" d="M50,48 L50,77 M46,69 L59,69 M46,62 L58,62 Q63,62 63,55 Q63,48 58,48 L50,48"/>
+    </g>
+  </svg>
+</template>
+
+<!-- Видоискатель сцен 1–2 -->
+<div class="scene" id="vfA">
+  <div class="vf" id="vf1" style="left:900px; top:90px; width:900px; height:900px;">
+    <div class="world" id="world1">
+      <div class="wall"></div>
+      <div class="goods" style="left:110px; top:40px; width:200px; height:340px; background:linear-gradient(180deg,#7a4a2a,#3b2414);"></div>
+      <div class="goods" style="left:340px; top:80px; width:220px; height:300px; background:linear-gradient(180deg,#a0703c,#5b3a1a);"></div>
+      <div class="goods" style="left:590px; top:50px; width:200px; height:330px; background:linear-gradient(180deg,#6f3b22,#341a0d);"></div>
+      <div class="goods" style="left:820px; top:100px; width:160px; height:280px; background:linear-gradient(180deg,#8a5b30,#47301a);"></div>
+      <div class="shelf" style="top:380px;"></div>
+      <div class="tag" id="tag1" style="left:230px; top:400px; width:620px;">
+        <div class="band" style="font-size:26px; padding:10px 0;">PRICE</div>
+        <div class="price" style="font-size:150px; margin:26px 0 10px;"><span class="t" id="digits1">89.00</span> <small style="font-size:44px;">AED</small></div>
+        <div class="name" style="font-size:28px; margin:8px 0 26px;">MEDJOOL DATES · 1 KG</div>
+      </div>
+      <div id="ar1" class="abs" style="inset:0;"></div>
+    </div>
+    <div class="hint" id="hint1" style="bottom:44px;">Наведите на ценник · Карта ₸</div>
+  </div>
+</div>
+
+<!-- Сцена 1: хук -->
+<div class="scene" id="s1">
+  <div class="cap">
+    <div class="kicker" id="s1k">Ценник в Дубае: 89 AED</div>
+    <div class="headline" id="s1h"></div>
+  </div>
+</div>
+
+<!-- Сцена 2: раскрытие -->
+<div class="scene" id="s2">
+  <div class="cap">
+    <div class="icon" id="s2icon" style="width:150px; height:150px; margin-bottom:44px;"></div>
+    <div class="headline" id="s2t" style="font-size:110px; letter-spacing:-3px;">Курс по чеку</div>
+    <div class="headline" id="s2s" style="font-size:52px; letter-spacing:-0.6px; font-weight:500; color:var(--muted); margin-top:26px; line-height:1.18;"></div>
+  </div>
+</div>
+
+<!-- Сцена 3: чеки -->
+<div class="scene" id="s3">
+  <div class="cap"><div class="kicker">Свои карты и чеки</div><div class="headline" id="s3h"></div></div>
+  <div class="receipt" id="rcpt" style="left:930px; top:70px; width:860px;">
+    <div class="title"><div class="mini-card" style="background:linear-gradient(135deg,#14B3A6,#0B5C6E);"></div>Карта ₸</div>
+    <div class="sec">Пополнение</div>
+    <div class="row"><span class="lbl">Отправил</span><span class="dots"></span><span class="field" id="f1"></span><span class="cur">₽</span></div>
+    <div class="row"><span class="lbl">Пришло</span><span class="dots"></span><span class="field" id="f2"></span><span class="cur">₸</span></div>
+    <div class="dash"></div>
+    <div class="sec">Покупки по карте</div>
+    <div class="row"><span class="lbl">Списали</span><span class="dots"></span><span class="field" id="f3"></span><span class="cur">₸</span></div>
+    <div class="row"><span class="lbl">За</span><span class="dots"></span><span class="field" id="f4"></span><span class="cur">AED</span></div>
+    <div class="dash"></div>
+    <div class="result" id="res">
+      <div class="big">1 AED = 23,24 <span class="m">₽</span></div>
+      <div class="basis">по чекам · <b>+4,7 % к ЦБ</b></div>
+    </div>
+  </div>
+</div>
+
+<!-- Сцена 4: карты и сверка с ЦБ -->
+<div class="scene" id="s4">
+  <div class="cap"><div class="kicker">Курс ЦБ РФ рядом</div><div class="headline" id="s4h"></div></div>
+  <div id="cards"></div>
+  <div class="hero" id="hero"></div>
+  <div class="herosub" id="herosub"></div>
+  <div class="rateline" id="rateline"></div>
+  <div class="tap" id="tap"></div>
+</div>
+
+<!-- Сцена 5: полка -->
+<div class="scene" id="s5">
+  <div class="cap"><div class="kicker">Камера «Ценник»</div><div class="headline" id="s5h"></div></div>
+  <div class="vf" id="vf2" style="left:860px; top:90px; width:960px; height:900px;">
+    <div class="world" id="world2">
+      <div class="wall"></div>
+      <div class="goods" style="left:110px; top:60px; width:230px; height:300px; background:linear-gradient(180deg,#2f6a8a,#173547);"></div>
+      <div class="goods" style="left:420px; top:30px; width:240px; height:330px; background:linear-gradient(180deg,#c7a24a,#6a5320);"></div>
+      <div class="goods" style="left:740px; top:80px; width:250px; height:280px; background:linear-gradient(180deg,#8f2f2f,#4a1414);"></div>
+      <div class="shelf" style="top:360px;"></div>
+      <div class="tag" id="tA" style="left:78px; top:470px; width:270px;">
+        <div class="band" style="font-size:18px; padding:7px 0;">PRICE</div>
+        <div class="price" style="font-size:80px; margin:16px 0 20px;"><span class="t" id="dA">12.50</span></div>
+      </div>
+      <div class="tag" id="tB" style="left:405px; top:400px; width:270px;">
+        <div class="band" style="font-size:18px; padding:7px 0; background:#e8453c; color:#fff;">OFFER</div>
+        <div class="was" style="font-size:26px; margin-top:12px;">WAS <span id="dBw">45.00</span></div>
+        <div class="price" style="font-size:80px; margin:4px 0 20px;"><span class="t" id="dB">35.00</span></div>
+      </div>
+      <div class="tag" id="tC" style="left:732px; top:470px; width:270px;">
+        <div class="band" style="font-size:18px; padding:7px 0;">PRICE</div>
+        <div class="price" style="font-size:80px; margin:16px 0 20px;"><span class="t" id="dC">89.00</span></div>
+      </div>
+      <div id="ar2" class="abs" style="inset:0;"></div>
+    </div>
+    <div class="cardchip" id="chip2" style="left:30px; top:30px;"><div class="sw" style="background:linear-gradient(135deg,#3F51B5,#1A237E);"></div>Карта $</div>
+    <div class="basket" id="basket" style="left:26px; right:26px; bottom:26px; height:112px;">
+      <div style="flex:1;"><div class="l1">Отмечено: 3 · 136,50 AED</div><div class="l2">≈ 3 088 ₽</div></div>
+      <div class="x">✕</div>
+      <div class="btn">В калькулятор</div>
+    </div>
+  </div>
+</div>
+
+<!-- Сцена 6: финал -->
+<div class="scene" id="s6">
+  <div class="final">
+    <div class="icon" id="s6icon" style="width:220px; height:220px;"></div>
+    <div class="ttl" id="s6t">Курс по чеку</div>
+    <div class="sub" id="s6s">Android · APK на GitHub</div>
+    <div class="syms" id="syms"></div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const prog = (t, s, d) => clamp((t - s) / d);
+const eo = (x) => 1 - Math.pow(1 - x, 3);
+const eio = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const eb = (x) => { const c1 = 1.5, c3 = c1 + 1; return x <= 0 ? 0 : 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const lerp = (a, b, k) => a + (b - a) * k;
+const BEAT = 0.5;
+
+for (const id of ["s2icon", "s6icon"]) $(id).appendChild($("iconTpl").content.cloneNode(true));
+
+/* Слова заголовков появляются по одному. */
+function words(el, text) {
+  el.innerHTML = "";
+  const out = [];
+  text.split(" ").forEach((w, i, arr) => {
+    if (w === "\n") { el.appendChild(document.createElement("br")); return; }
+    const s = document.createElement("span");
+    s.className = "word";
+    s.textContent = w;
+    el.appendChild(s);
+    out.push(s);
+    if (i < arr.length - 1 && arr[i + 1] !== "\n") el.appendChild(document.createTextNode(" "));
+  });
+  return out;
+}
+const W1 = words($("s1h"), "Сколько это в рублях — \n на самом деле?");
+const W2 = words($("s2s"), "Цена в рублях — \n прямо поверх ценника.");
+const W3 = words($("s3h"), "Курс — по вашим чекам, \n а не по табличке банка.");
+const W4 = words($("s4h"), "Сразу видно, \n какой картой \n платить.");
+const W5 = words($("s5h"), "Дирхамы, лиры, баты, донги — \n 10 валют трат.");
+function showWords(ws, t, start, step = 0.07) {
+  ws.forEach((w, i) => {
+    const k = eo(prog(t, start + i * step, 0.35));
+    w.style.opacity = k;
+    w.style.transform = `translateY(${(1 - k) * 34}px)`;
+  });
+}
+function rise(el, t, start, dist = 30, dur = 0.4) {
+  const k = eo(prog(t, start, dur));
+  el.style.opacity = k;
+  el.style.transform = `translateY(${(1 - k) * dist}px)`;
+}
+/* Сцена уходит за 0,25 с до склейки: старое уходит, потом входит новое. */
+function sceneEnv(el, t, start, end, outDur = 0.25) {
+  const vis = t >= start - 0.001 && t < end;
+  el.style.display = vis ? "block" : "none";
+  if (!vis) return false;
+  const k = eio(prog(t, end - outDur, outDur));
+  el.style.opacity = 1 - k;
+  el.style.transform = `translateY(${-k * 24}px)`;
+  return true;
+}
+
+/* ---------- AR-метки: уголки, подсветка, пилюля с хвостиком ---------- */
+function relRect(el, world) {
+  const a = el.getBoundingClientRect(), b = world.getBoundingClientRect();
+  return { x: a.left - b.left, y: a.top - b.top, w: a.width, h: a.height };
+}
+function makeLabel(host, box, opt) {
+  const pad = opt.pad ?? 12;
+  const r = { x: box.x - pad, y: box.y - pad * 0.5, w: box.w + pad * 2, h: box.h + pad };
+  const fill = document.createElement("div");
+  fill.className = "ar-box";
+  Object.assign(fill.style, { left: r.x + "px", top: r.y + "px", width: r.w + "px", height: r.h + "px",
+    background: opt.old ? "rgba(93,105,117,0.14)" : "rgba(200,39,45,0.14)" });
+  host.appendChild(fill);
+  const corners = [];
+  const len = Math.min(opt.corner ?? 36, Math.min(r.w, r.h) / 2.5);
+  const bw = opt.stroke ?? 7;
+  for (const [cx, cy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+    const c = document.createElement("div");
+    c.className = "ar-corner";
+    Object.assign(c.style, { width: len + "px", height: len + "px",
+      borderColor: opt.old ? "#5D6975" : "#C8272D",
+      [cy ? "borderBottomWidth" : "borderTopWidth"]: bw + "px",
+      [cx ? "borderRightWidth" : "borderLeftWidth"]: bw + "px",
+      [cx ? "borderBottomRightRadius" : "borderBottomLeftRadius"]: cy ? "10px" : "0",
+      [cx ? "borderTopRightRadius" : "borderTopLeftRadius"]: cy ? "0" : "10px" });
+    host.appendChild(c);
+    corners.push({ el: c, cx, cy });
+  }
+  const pill = document.createElement("div");
+  pill.className = "pill " + (opt.below ? "down" : "up") + (opt.old ? " old" : "");
+  pill.innerHTML = `<div class="bg"></div><div class="tail"></div>` +
+    (opt.main ? `<div class="main" style="font-size:${opt.mainPx}px; line-height:1.2;">${opt.main}</div>` : "") +
+    `<div class="sub" style="font-size:${opt.subPx}px; line-height:1.25;">${opt.sub}</div>`;
+  Object.assign(pill.style, { padding: `${opt.padY}px ${opt.padX}px` });
+  host.appendChild(pill);
+  const pw = pill.offsetWidth, ph = pill.offsetHeight;
+  const gap = opt.gap ?? 26;
+  let left = r.x + r.w / 2 - pw / 2 + (opt.shift ?? 0);
+  const top = opt.below ? r.y + r.h + gap : r.y - gap - ph;
+  Object.assign(pill.style, { left: left + "px", top: top + "px" });
+  const tail = pill.querySelector(".tail");
+  tail.style.left = (r.x + r.w / 2 - left) + "px";
+  return { r, fill, corners, pill, len };
+}
+function drawLabel(L, t, lockAt, popAt) {
+  const lk = eo(prog(t, lockAt, 0.4));
+  const spread = (1 - lk) * 70;
+  const a = prog(t, lockAt, 0.15);
+  for (const { el, cx, cy } of L.corners) {
+    const x = L.r.x + (cx ? L.r.w - L.len : 0) + (cx ? spread : -spread);
+    const y = L.r.y + (cy ? L.r.h - L.len : 0) + (cy ? spread : -spread);
+    el.style.transform = `translate(${x}px, ${y}px)`;
+    el.style.left = "0px"; el.style.top = "0px";
+    el.style.opacity = a;
+  }
+  L.fill.style.opacity = lk;
+  const pk = prog(t, popAt, 0.42);
+  L.pill.style.opacity = clamp(pk * 4);
+  L.pill.style.transform = `scale(${0.35 + 0.65 * eb(pk)})`;
+}
+
+let A1, A2;
+function layoutLabels() {
+  const w1 = $("world1");
+  A1 = makeLabel($("ar1"), relRect($("digits1"), w1), {
+    main: "≈ 2 068 ₽", sub: "89 AED · ЦБ 1 976 ₽", mainPx: 58, subPx: 34, padX: 40, padY: 18, gap: 30, corner: 40, stroke: 8, pad: 16,
+  });
+  const w2 = $("world2");
+  const common = { mainPx: 38, subPx: 23, padX: 24, padY: 11, gap: 20, corner: 26, stroke: 6, pad: 10 };
+  A2 = [
+    makeLabel($("ar2"), relRect($("dA"), w2), { ...common, main: "≈ 283 ₽", sub: "12,50 AED · ЦБ 277,50 ₽" }),
+    makeLabel($("ar2"), relRect($("dB"), w2), { ...common, main: "≈ 792 ₽", sub: "35 AED · ЦБ 777 ₽", below: true }),
+    makeLabel($("ar2"), relRect($("dC"), w2), { ...common, main: "≈ 2 013 ₽", sub: "89 AED · ЦБ 1 976 ₽" }),
+    makeLabel($("ar2"), relRect($("dBw"), w2), { ...common, main: "", sub: "было 45 AED ≈ 1 018 ₽", old: true, padY: 8, gap: 16, pad: 6, corner: 16, stroke: 5 }),
+  ];
+}
+
+/* ---------- Сцена 3: чек ---------- */
+const typing = [
+  { el: "f1", start: 7.0, states: ["1", "15", "150", "1 500", "15 000"] },
+  { el: "f2", start: 7.625, states: ["8", "80", "809", "8 090", "80 900"] },
+  { el: "f3", start: 8.25, states: ["2", "27", "275", "2 757", "2 757,", "2 757,4", "2 757,48"] },
+  { el: "f4", start: 9.125, states: ["2", "22"] },
+];
+const KEY = 0.125;
+function zigzag(el) {
+  const w = el.offsetWidth, h = el.offsetHeight, tooth = 40, depth = 24, r = 40;
+  const n = Math.round(w / tooth), step = w / n;
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    pts.push(`${(w - i * step).toFixed(1)}px ${h - depth}px`);
+    if (i < n) pts.push(`${(w - i * step - step / 2).toFixed(1)}px ${h}px`);
+  }
+  el.style.clipPath = `polygon(0 ${r}px, ${r * 0.3}px ${r * 0.3}px, ${r}px 0, ${w - r}px 0, ${w - r * 0.3}px ${r * 0.3}px, ${w}px ${r}px, ${pts.join(", ")}, 0 ${h - depth}px)`;
+}
+
+/* ---------- Сцена 4: карты ---------- */
+const CARDS = [
+  { name: "Карта ₸", mark: "₸", g: ["#14B3A6", "#0B5C6E"], m: "#BFF3EC", sum: "2 068 ₽", rate: "23,24 ₽/AED", vs: "+4,7 %", c: "var(--warn-on-card)" },
+  { name: "Карта $", mark: "$", g: ["#3F51B5", "#1A237E"], m: "#C5CAE9", sum: "2 013 ₽", rate: "22,62 ₽/AED", vs: "+1,9 %", c: "var(--good-on-card)" },
+  { name: "Карта ₽", mark: "₽", g: ["#8E1B22", "#3E0A0F"], m: "#E2C275", sum: "2 140 ₽", rate: "24,04 ₽/AED", vs: "+8,3 %", c: "var(--bad-on-card)" },
+];
+const CX0 = 860, CY = 150, CW = 312, CGAP = 19 + 16;
+const cardEls = CARDS.map((c, i) => {
+  const d = document.createElement("div");
+  d.className = "card";
+  d.style.background = `linear-gradient(135deg, ${c.g[0]}, ${c.g[1]})`;
+  d.innerHTML = `<div class="mark" style="color:${c.m}; opacity:.2">${c.mark}</div>
+    <div class="in"><div class="nm"><span>${c.name}</span><span class="star" style="opacity:0">★</span></div>
+    <div class="sum">${c.sum}</div>
+    <div class="rt"><span class="r">${c.rate}</span><span class="chip" style="color:${c.c}">${c.vs}</span></div></div>`;
+  $("cards").appendChild(d);
+  return d;
+});
+const ring = document.createElement("div"); ring.className = "ring"; $("cards").appendChild(ring);
+const add = document.createElement("div"); add.className = "addtile"; add.textContent = "+"; $("cards").appendChild(add);
+const cardX = (i) => CX0 + i * (CW + CGAP);
+const UI_CX = 1340;
+
+function heroHTML(n) { return `${n} <span class="m">₽</span>`; }
+function fmt(n) { return Math.round(n).toLocaleString("ru-RU").replace(/ /g, " "); }
+function setRateLine(sel) {
+  const el = $("rateline");
+  const r = sel ? { rate: "1 AED = 22,62 ₽", vs: "+1,9 %", c: "var(--good)" } : { rate: "1 AED = 23,24 ₽", vs: "+4,7 %", c: "var(--warn)" };
+  el.innerHTML = `<span class="rate">${r.rate}</span><span class="dot">&nbsp;&nbsp;·&nbsp;&nbsp;</span><span class="cb">ЦБ 22,20</span><span class="vs" style="color:${r.c}">${r.vs}</span><span class="rf">↻</span>`;
+  el.style.left = (UI_CX - el.offsetWidth / 2) + "px";
+}
+
+/* ---------- Сцена 6 ---------- */
+const SYMS = ["AED", "₺", "฿", "$", "€", "¥", "₸", "₾", "֏", "₫"];
+const symEls = SYMS.map((s) => { const d = document.createElement("span"); d.textContent = s; $("syms").appendChild(d); return d; });
+
+var ready = false;
+async function init() {
+  await document.fonts.ready;
+  await Promise.all([...document.fonts].map((f) => f.load().catch(() => {})));
+  for (const id of ["s1", "s2", "s3", "s4", "s5", "s6", "vfA"]) $(id).style.display = "block";
+  // Поля чека заполняем итоговым текстом, чтобы размеры не прыгали.
+  for (const f of typing) $(f.el).textContent = f.states[f.states.length - 1];
+  zigzag($("rcpt"));
+  layoutLabels();
+  setRateLine(false);
+  ready = true;
+  render(0);
+}
+
+function render(t) {
+  /* Видоискатель 1–2: от первого кадра до 6,5 с */
+  if (sceneEnv($("vfA"), t, 0, 6.5)) {
+    const sway = Math.min(1, 0.35 + 0.65 * (1 - eo(prog(t, 0.4, 0.8))));
+    const zoom = 1 + 0.05 * eio(prog(t, 3.0, 3.3));
+    $("world1").style.transform =
+      `translate(${Math.sin(t * 1.7) * 9 * sway}px, ${Math.cos(t * 1.3) * 7 * sway}px) rotate(${Math.sin(t * 1.1) * 0.5 * sway}deg) scale(${zoom})`;
+    drawLabel(A1, t, 0.5, 1.0);
+    $("hint1").style.opacity = 1 - eo(prog(t, 1.0, 0.3)) * 0.0;
+  }
+  /* 1: хук 0–3 */
+  if (sceneEnv($("s1"), t, 0, 3.0)) {
+    $("s1k").style.opacity = 1;
+    showWords(W1, t, 0.0, 0.06);
+  }
+  /* 2: раскрытие 3–6,5 */
+  if (sceneEnv($("s2"), t, 3.0, 6.5)) {
+    const ik = prog(t, 3.0, 0.45);
+    $("s2icon").style.opacity = clamp(ik * 3);
+    $("s2icon").style.transform = `scale(${0.4 + 0.6 * eb(ik)}) rotate(${(1 - eo(ik)) * -14}deg)`;
+    rise($("s2t"), t, 3.12, 40);
+    showWords(W2, t, 3.35, 0.06);
+  }
+  /* 3: чеки 6,5–11 */
+  if (sceneEnv($("s3"), t, 6.5, 11.0)) {
+    showWords(W3, t, 6.55, 0.06);
+    const rk = eo(prog(t, 6.5, 0.5));
+    $("rcpt").style.opacity = rk;
+    $("rcpt").style.transform = `translateY(${(1 - rk) * 60}px)`;
+    for (const f of typing) {
+      const n = Math.floor((t - f.start) / KEY) + 1;
+      const el = $(f.el);
+      const done = t >= f.start + f.states.length * KEY;
+      const active = t >= f.start - 0.15 && !done;
+      const txt = n <= 0 ? "" : f.states[Math.min(n, f.states.length) - 1];
+      el.innerHTML = `<span>${txt}</span>` + (active ? `<span class="caret" style="opacity:${(Math.floor(t * 4) % 2) ? 0.35 : 1}"></span>` : "");
+      el.style.borderColor = active ? "var(--accent)" : "var(--line)";
+      el.style.background = active ? "#fff" : "var(--bg)";
+    }
+    const pk = prog(t, 9.5, 0.45);
+    $("res").style.opacity = clamp(pk * 3);
+    $("res").style.transform = `scale(${0.85 + 0.15 * eb(pk)})`;
+    $("res").style.transformOrigin = "0 50%";
+  }
+  /* 4: карты 11–15 */
+  if (sceneEnv($("s4"), t, 11.0, 15.0)) {
+    showWords(W4, t, 11.05, 0.06);
+    const sel = t >= 12.5;
+    cardEls.forEach((el, i) => {
+      const k = eo(prog(t, 11.0 + i * 0.25, 0.5));
+      const isSel = sel ? i === 1 : i === 0;
+      el.style.left = cardX(i) + (1 - k) * 260 + "px";
+      el.style.top = CY + "px";
+      el.style.opacity = k * (isSel ? 1 : 0.82);
+      const chip = el.querySelector(".chip");
+      const ck = eb(prog(t, 11.75 + i * 0.125, 0.35));
+      chip.style.display = "inline-block";
+      chip.style.transform = `scale(${ck})`;
+      chip.style.opacity = clamp(ck * 2);
+      const star = el.querySelector(".star");
+      if (i === 1) {
+        const sk = prog(t, 12.6, 0.4);
+        star.style.opacity = clamp(sk * 3);
+        star.style.display = "inline-block";
+        star.style.transform = `scale(${0.3 + 0.7 * eb(sk)}) rotate(${(1 - eo(sk)) * 90}deg)`;
+      }
+    });
+    const ak = eo(prog(t, 11.75, 0.5));
+    add.style.left = cardX(3) + (1 - ak) * 200 + "px"; add.style.top = CY + "px"; add.style.opacity = ak;
+    // Обводка выбранной карты переезжает с ₸ на $.
+    const mk = eio(prog(t, 12.5, 0.35));
+    const rx = lerp(cardX(0), cardX(1), mk);
+    Object.assign(ring.style, { left: rx - 8 + "px", top: CY - 8 + "px", width: CW + 16 + "px", height: 190 + 16 + "px",
+      opacity: eo(prog(t, 11.5, 0.3)) });
+    // Тап по карте $.
+    const tk = prog(t, 12.4, 0.5);
+    const tap = $("tap");
+    const ts = 40 + 90 * eo(tk);
+    Object.assign(tap.style, { width: ts + "px", height: ts + "px", left: cardX(1) + CW / 2 - ts / 2 + "px", top: CY + 95 - ts / 2 + "px",
+      opacity: t < 12.4 ? 0 : (1 - tk) * 0.9 });
+    // Крупная сумма: 2 068 → 2 013.
+    const nk = eio(prog(t, 12.5, 0.45));
+    const hero = $("hero");
+    hero.innerHTML = heroHTML(fmt(lerp(2068, 2013, nk)));
+    const hk = eo(prog(t, 11.3, 0.5));
+    hero.style.opacity = hk;
+    hero.style.left = UI_CX - hero.offsetWidth / 2 + "px";
+    hero.style.top = 450 + (1 - hk) * 30 + "px";
+    const hs = $("herosub");
+    hs.textContent = sel ? "89 AED · Карта $ · по чекам" : "89 AED · Карта ₸ · по чекам";
+    hs.style.opacity = eo(prog(t, 11.45, 0.5));
+    hs.style.left = UI_CX - hs.offsetWidth / 2 + "px";
+    hs.style.top = "640px";
+    if ((t >= 12.5) !== render.sel) { setRateLine(t >= 12.5); render.sel = t >= 12.5; }
+    const rl = $("rateline");
+    const lk = eo(prog(t, 11.6, 0.5));
+    rl.style.opacity = lk;
+    rl.style.top = 730 + (1 - lk) * 30 + "px";
+  }
+  /* 5: полка 15–18 */
+  if (sceneEnv($("s5"), t, 15.0, 18.0)) {
+    showWords(W5, t, 15.05, 0.06);
+    const vk = eo(prog(t, 15.0, 0.45));
+    $("vf2").style.opacity = vk;
+    $("vf2").style.transform = `translateY(${(1 - vk) * 50}px)`;
+    $("world2").style.transform = `translate(${Math.sin(t * 1.6) * 6}px, ${Math.cos(t * 1.2) * 5}px)`;
+    drawLabel(A2[0], t, 15.15, 15.5);
+    drawLabel(A2[2], t, 15.4, 15.75);
+    drawLabel(A2[1], t, 15.65, 16.0);
+    drawLabel(A2[3], t, 15.65, 16.125);
+    const bk = eo(prog(t, 16.5, 0.45));
+    $("basket").style.opacity = bk;
+    $("basket").style.transform = `translateY(${(1 - bk) * 140}px)`;
+    $("chip2").style.opacity = eo(prog(t, 15.2, 0.3));
+  }
+  /* 6: финал 18–21 */
+  if (sceneEnv($("s6"), t, 18.0, 21.5)) {
+    const ik = prog(t, 18.0, 0.5);
+    $("s6icon").style.opacity = clamp(ik * 3);
+    $("s6icon").style.transform = `scale(${0.4 + 0.6 * eb(ik)}) rotate(${(1 - eo(ik)) * -14}deg)`;
+    rise($("s6t"), t, 18.15, 40);
+    rise($("s6s"), t, 18.35, 30);
+    symEls.forEach((s, i) => rise(s, t, 18.75 + i * 0.125, 20, 0.35));
+  }
+}
+render.sel = false;
+init();
+</script>
+</body>
+</html>

@@ -1,6 +1,13 @@
 package app.dirhamrub.ui.main
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import app.dirhamrub.data.SettingsRepository
+import app.dirhamrub.data.StoredState
+import app.dirhamrub.data.settingsDataStore
 import app.dirhamrub.domain.Amounts
 import app.dirhamrub.domain.Card
 import app.dirhamrub.domain.CardRate
@@ -13,14 +20,19 @@ import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.Receipt
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.time.LocalDate
 
 data class MainUiState(
+    /** Сохранённое состояние уже прочитано из DataStore. */
+    val loaded: Boolean = false,
     val selected: Card = Card.CNY,
     val rates: Map<Card, CardRate> = Defaults.rates(),
     val active: Line = Line.AED,
@@ -39,9 +51,27 @@ data class MainUiState(
         }
 }
 
-class MainViewModel : ViewModel() {
+class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
     private val _state = MutableStateFlow(MainUiState())
     val state: StateFlow<MainUiState> = _state.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            val stored = repository.load()
+            _state.value = MainUiState(
+                loaded = true,
+                selected = stored.selected,
+                rates = stored.rates,
+                active = stored.active,
+                expression = stored.expression,
+            )
+            // Сохраняем не чаще раза в 300 мс: collectLatest отменяет отложенную запись при новом нажатии.
+            _state.collectLatest { s ->
+                delay(SAVE_DELAY_MS)
+                repository.save(StoredState(s.selected, s.rates, s.active, s.expression))
+            }
+        }
+    }
 
     fun press(key: Key) = _state.update { it.copy(expression = it.expression.press(key)) }
 
@@ -96,6 +126,15 @@ class MainViewModel : ViewModel() {
     }
 
     companion object {
+        private const val SAVE_DELAY_MS = 300L
+
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]!!
+                MainViewModel(SettingsRepository(app.settingsDataStore))
+            }
+        }
+
         val CHIPS: List<BigDecimal> = listOf(5, 10, 22, 50, 100, 200, 500).map { BigDecimal(it) }
         val CHEAT: List<BigDecimal> = listOf(1, 5, 10, 20, 50, 100, 200, 500, 1000).map { BigDecimal(it) }
 

@@ -21,11 +21,14 @@ import app.dirhamrub.ui.theme.AppTheme
 
 /** Корень интерфейса: главный экран и шторки. */
 @Composable
-fun DirhamApp(vm: MainViewModel = viewModel(factory = MainViewModel.Factory)) {
+fun DirhamApp(
+    startInCamera: Boolean = false,
+    vm: MainViewModel = viewModel(factory = MainViewModel.Factory),
+) {
     val state by vm.state.collectAsStateWithLifecycle()
     var cheatOpen by rememberSaveable { mutableStateOf(false) }
     var rateOpen by rememberSaveable { mutableStateOf(false) }
-    var cameraOpen by rememberSaveable { mutableStateOf(false) }
+    var cameraOpen by rememberSaveable { mutableStateOf(startInCamera) }
 
     if (!state.loaded) {
         // DataStore читается за доли секунды; до этого — пустой фон без мигания стартовых чисел.

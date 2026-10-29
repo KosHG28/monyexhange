@@ -87,4 +87,13 @@
     <string name="permission_allow">Разрешить камеру</string>
     <string name="permission_denied">Доступ к камере запрещён. Включите его в настройках: Разрешения → Камера.</string>
     <string name="permission_settings">Открыть настройки</string>
+
+    <!-- Отчёт о падении -->
+    <string name="crash_title">Приложение упало в прошлый раз</string>
+    <string name="crash_copy">Скопировать и закрыть</string>
+    <string name="crash_share">Отправить</string>
+
+    <!-- Ярлык на иконке -->
+    <string name="shortcut_camera_short">Ценник</string>
+    <string name="shortcut_camera_long">Камера: рубли поверх ценников</string>
 </resources>

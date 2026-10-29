@@ -16,6 +16,8 @@ android {
         versionName = "0.1.0"
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            // Для прогона на x86_64-эмуляторе в CI: ./gradlew assembleRelease -Pdirhamrub.x86=true
+            if (providers.gradleProperty("dirhamrub.x86").isPresent) abiFilters += "x86_64"
         }
     }
 

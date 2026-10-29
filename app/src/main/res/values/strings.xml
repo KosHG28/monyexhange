@@ -1,33 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Дирхамы в рубли</string>
-    <string name="title_kzt">Тенге в рубли</string>
-    <string name="source_switch_a11y">Валюта цен: %1$s</string>
-    <string name="source_aed_name">дирхамы</string>
-    <string name="source_kzt_name">тенге</string>
+    <string name="app_name">Курс по чеку</string>
+    <string name="save">Сохранить</string>
+
+    <!-- Шапка и валюты -->
+    <string name="currency_button_a11y">Траты в: %1$s, итог в: %2$s. Сменить валюты</string>
+    <string name="currency_sheet_spend">Где тратите</string>
+    <string name="currency_sheet_home">Итог считать в</string>
+    <string name="cheat_button">Шпаргалка</string>
 
     <!-- Карты -->
-    <string name="card_kzt">Карта в тенге</string>
-    <string name="card_cny">Карта в юанях</string>
-    <string name="card_kzt_short">Тенге</string>
-    <string name="card_cny_short">Юани</string>
-    <string name="card_rate_line">%1$s ₽ за %2$s · %3$s</string>
-    <string name="card_date_receipts">чеки %1$s</string>
-    <string name="card_date_manual">вручную %1$s</string>
-    <string name="card_cheaper">дешевле на %1$s %%</string>
-    <string name="card_savings">−%1$s ₽ · дешевле на %2$s %%</string>
-    <string name="card_a11y">%1$s: покупка %2$s рублей, курс %3$s рубля за %4$s, %5$s</string>
+    <string name="card_rate_line">%1$s %2$s за %3$s</string>
+    <string name="card_vs_official">%1$s %% к ЦБ</string>
+    <string name="card_basis_receipts">по чекам</string>
+    <string name="card_basis_estimate">оценка</string>
+    <string name="card_basis_official">курс ЦБ</string>
+    <string name="card_basis_manual">вручную</string>
+    <string name="card_no_rate">нет курса</string>
+    <string name="card_best">лучшая · −%1$s %%</string>
+    <string name="card_add">Добавить карту</string>
+    <string name="card_add_hint">Добавьте свою карту и чеки — посчитаем ваш реальный курс. Пока считаем по курсу ЦБ.</string>
+    <string name="card_default_name">Карта %1$s</string>
+    <string name="card_a11y">%1$s: покупка %2$s, курс %3$s</string>
 
     <!-- Главный экран -->
-    <string name="cheat_button">Шпаргалка</string>
-    <string name="rate_pill">%1$s = %2$s ₽</string>
-    <string name="rate_pill_a11y">Курс: %1$s равно %2$s рубля. Изменить курс</string>
-    <string name="result_a11y">Итого %1$s рублей</string>
-    <string name="result_by_kzt">%1$s %2$s по карте в тенге</string>
-    <string name="result_by_cny">%1$s %2$s по карте в юанях</string>
-    <string name="line_aed">Дирхамы</string>
-    <string name="line_kzt">Тенге</string>
-    <string name="line_rub">Рубли</string>
+    <string name="rate_pill">%1$s = %2$s %3$s</string>
+    <string name="rate_pill_a11y">Курс: %1$s равно %2$s %3$s. Изменить карту</string>
+    <string name="result_a11y">Итого %1$s</string>
+    <string name="result_by_card">%1$s · %2$s</string>
+    <string name="result_by_official">%1$s · по курсу ЦБ</string>
+    <string name="result_no_rate">Нет курса: добавьте карту или обновите курсы ЦБ</string>
+    <string name="official_line">ЦБ на %1$s: %2$s = %3$s %4$s</string>
+    <string name="official_loading">Обновляем курсы ЦБ…</string>
+    <string name="official_missing">Курсы ЦБ не загружены</string>
+    <string name="official_failed">Нет связи — курсы ЦБ от %1$s</string>
+    <string name="official_refresh">Обновить курсы ЦБ</string>
     <string name="line_a11y">%1$s: %2$s %3$s</string>
     <string name="line_a11y_active">ввод сюда</string>
     <string name="chip_a11y">%1$s %2$s</string>
@@ -37,33 +44,35 @@
     <string name="key_equals">Равно</string>
     <string name="key_comma">Запятая</string>
     <string name="price_tag_button">Ценник</string>
-    <string name="price_tag_a11y">Ценник: камера с рублями поверх цен</string>
+    <string name="price_tag_a11y">Ценник: камера с суммами поверх цен</string>
 
     <!-- Шпаргалка -->
     <string name="cheat_title">Шпаргалка</string>
-    <string name="cheat_subtitle">Сколько стоит в рублях по каждой карте</string>
-        <string name="cheat_col_rub">₽ · %1$s</string>
-    <string name="close">Закрыть</string>
+    <string name="cheat_subtitle">%1$s → %2$s по каждой карте и по курсу ЦБ</string>
+    <string name="cheat_official">ЦБ</string>
 
-    <!-- Шторка «Курс» -->
-    <string name="rate_title">Курс · %1$s</string>
-    <string name="rate_manual_title">Вручную</string>
-    <string name="rate_manual_prefix">1 AED =</string>
-    <string name="rate_manual_suffix">₽</string>
-    <string name="rate_manual_apply">Сохранить</string>
-    <string name="rate_current_manual">Сейчас: вручную, %1$s</string>
-    <string name="rate_current_receipts">Сейчас: по чекам, %1$s</string>
-    <string name="receipt_title">Курс по чекам</string>
-    <string name="receipt_transfer">Перевод</string>
+    <!-- Редактор карты -->
+    <string name="editor_title_new">Новая карта</string>
+    <string name="editor_title_edit">Карта</string>
+    <string name="editor_name">Название</string>
+    <string name="editor_name_hint">Например, Kaspi или Tinkoff</string>
+    <string name="editor_currency">Валюта карты</string>
+    <string name="receipt_transfer">Пополнение</string>
     <string name="receipt_sent">Отправил</string>
     <string name="receipt_got">Пришло</string>
-    <string name="receipt_purchase">Покупка по карте</string>
+    <string name="receipt_transfer_hint">Без чека пополнения курс к итоговой валюте берётся по ЦБ.</string>
+    <string name="receipt_purchases">Покупки по карте</string>
     <string name="receipt_paid">Списали</string>
     <string name="receipt_for">За</string>
-    <string name="receipt_invalid">Заполните все четыре числа</string>
-    <string name="receipt_apply">Взять этот курс</string>
-    <string name="receipt_reset">Вернуть чек от %1$s</string>
-    <string name="receipt_result">1 AED = %1$s ₽</string>
+    <string name="receipt_add">+ чек покупки</string>
+    <string name="receipt_remove">Удалить чек</string>
+    <string name="receipt_purchases_hint">По чеку в нужной валюте курс точный. Для других валют — курс ЦБ с наценкой карты по её чекам.</string>
+    <string name="editor_manual">Вручную: %1$s =</string>
+    <string name="editor_manual_hint">Пусто — считать по чекам</string>
+    <string name="editor_result">%1$s = %2$s %3$s</string>
+    <string name="editor_no_result">Добавьте чек или обновите курсы ЦБ</string>
+    <string name="editor_delete">Удалить карту</string>
+    <string name="editor_pick_currency">Выбрать валюту</string>
 
     <!-- Камера -->
     <string name="camera_back">Назад</string>
@@ -72,12 +81,13 @@
     <string name="camera_pause">Заморозить кадр</string>
     <string name="camera_resume">Продолжить</string>
     <string name="camera_card_switch">Карта: %1$s. Переключить</string>
-    <string name="camera_hint">Наведите на ценник</string>
+    <string name="camera_official">ЦБ</string>
+    <string name="camera_hint">Наведите на ценник · %1$s</string>
     <string name="camera_paused">Кадр заморожен</string>
-    <string name="camera_label_a11y">%1$s %2$s, около %3$s рублей</string>
-    <string name="camera_label_old_a11y">Старая цена %1$s %2$s, около %3$s рублей</string>
+    <string name="camera_label_a11y">%1$s %2$s, около %3$s %4$s</string>
+    <string name="camera_label_old_a11y">Старая цена %1$s %2$s, около %3$s %4$s</string>
     <string name="camera_basket">Отмечено: %1$d · %2$s %3$s</string>
-    <string name="camera_basket_rub">≈ %1$s ₽</string>
+    <string name="camera_basket_total">≈ %1$s %2$s</string>
     <string name="camera_basket_to_calc">В калькулятор</string>
     <string name="camera_basket_clear">Очистить отмеченное</string>
     <string name="price_sheet_old">старая цена</string>
@@ -87,7 +97,7 @@
 
     <!-- Разрешение -->
     <string name="permission_title">Нужна камера</string>
-    <string name="permission_text">Приложение читает цены на ценниках прямо в видоискателе и рисует поверх них сумму в рублях. Всё работает на телефоне, без интернета: кадры никуда не отправляются и не сохраняются.</string>
+    <string name="permission_text">Приложение читает цены на ценниках прямо в видоискателе и рисует поверх них сумму в вашей валюте. Распознавание работает на телефоне: кадры никуда не отправляются и не сохраняются.</string>
     <string name="permission_allow">Разрешить камеру</string>
     <string name="permission_denied">Доступ к камере запрещён. Включите его в настройках: Разрешения → Камера.</string>
     <string name="permission_settings">Открыть настройки</string>
@@ -99,5 +109,5 @@
 
     <!-- Ярлык на иконке -->
     <string name="shortcut_camera_short">Ценник</string>
-    <string name="shortcut_camera_long">Камера: рубли поверх ценников</string>
+    <string name="shortcut_camera_long">Камера: суммы поверх ценников</string>
 </resources>

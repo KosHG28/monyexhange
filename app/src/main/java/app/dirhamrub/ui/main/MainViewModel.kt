@@ -5,22 +5,21 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import app.dirhamrub.data.SettingsRepository
-import app.dirhamrub.data.StoredState
+import app.dirhamrub.data.CbrClient
+import app.dirhamrub.data.WalletRepository
 import app.dirhamrub.data.settingsDataStore
-import app.dirhamrub.domain.Amounts
-import app.dirhamrub.domain.Card
-import app.dirhamrub.domain.CardRate
-import app.dirhamrub.domain.Comparison
-import app.dirhamrub.domain.Converter
-import app.dirhamrub.domain.Defaults
 import app.dirhamrub.domain.Expression
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
+import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
-import app.dirhamrub.domain.Pricing
-import app.dirhamrub.domain.Receipt
-import app.dirhamrub.domain.Source
+import app.dirhamrub.domain.wallet.BankCard
+import app.dirhamrub.domain.wallet.CardQuote
+import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.OfficialRates
+import app.dirhamrub.domain.wallet.RateEngine
+import app.dirhamrub.domain.wallet.Wallet
+import app.dirhamrub.domain.wallet.WalletQuote
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,27 +28,54 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
-import java.time.LocalDate
+import java.util.UUID
+
+/** Одна сумма в трёх валютах: трат, итоговой и выбранной карты (null — курса нет). */
+data class Totals(val spend: BigDecimal, val home: BigDecimal?, val card: BigDecimal?) {
+    fun of(line: Line): BigDecimal? = when (line) {
+        Line.SPEND -> spend
+        Line.HOME -> home
+        Line.CARD -> card
+    }
+}
 
 data class MainUiState(
     /** Сохранённое состояние уже прочитано из DataStore. */
     val loaded: Boolean = false,
-    val selected: Card = Card.CNY,
-    val rates: Map<Card, CardRate> = Defaults.rates(),
-    /** Валюта вводимых цен: дирхамы или тенге. */
-    val source: Source = Source.AED,
-    val active: Line = Line.SOURCE,
+    val wallet: Wallet = Wallet(),
+    val official: OfficialRates? = null,
+    val ratesLoading: Boolean = false,
+    val ratesFailed: Boolean = false,
+    val active: Line = Line.SPEND,
     val expression: Expression = Expression(),
 ) {
-    val rate: CardRate get() = rates.getValue(selected)
-    val amounts: Amounts get() = Converter.amounts(expression.value, active, selected, source, rates)
-    val comparison: Comparison get() = Converter.compare(amounts.source, source, rates)
+    val quote: WalletQuote by lazy { RateEngine.quoteAll(wallet, official) }
+    val selectedCard: BankCard? get() = wallet.selected
+    val selectedQuote: CardQuote? get() = quote.of(selectedCard?.id)
 
-    /** Рубли за единицу валюты цен по выбранной карте. */
-    val rubPerUnit: BigDecimal get() = Pricing.rubPerUnit(selected, source, rates)
+    /** Курс для расчёта: выбранная карта, а без карт — курс ЦБ. */
+    val homePerUnit: BigDecimal? get() = selectedQuote?.homePerUnit ?: quote.official
+    val cardPerUnit: BigDecimal? get() = selectedQuote?.cardPerUnit
 
-    /** Строка «валюта карты» не нужна, если карта в той же валюте, что и цены (тенге за тенге). */
-    val showCardLine: Boolean get() = !(source == Source.KZT && selected == Card.KZT)
+    /** Строка валюты карты нужна, только если она отличается от валют трат и итога. */
+    val showCardLine: Boolean
+        get() = selectedQuote != null && selectedCard!!.currency != wallet.spend && selectedCard!!.currency != wallet.home
+
+    val totals: Totals by lazy {
+        val v = expression.value
+        val hp = homePerUnit
+        val cp = cardPerUnit
+        val spend = when (active) {
+            Line.SPEND -> v
+            Line.HOME -> hp?.let { divideOrZero(v, it) } ?: BigDecimal.ZERO
+            Line.CARD -> cp?.let { divideOrZero(v, it) } ?: BigDecimal.ZERO
+        }
+        Totals(
+            spend = spend,
+            home = if (active == Line.HOME) v else hp?.let { spend.multiply(it, MC) },
+            card = if (active == Line.CARD) v else cp?.let { spend.multiply(it, MC) },
+        )
+    }
 
     /** Текст активной строки: набираемое число или итог выражения «22 + 15,5». */
     val activeText: String
@@ -60,57 +86,70 @@ data class MainUiState(
         }
 }
 
-class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
+class MainViewModel(private val repository: WalletRepository) : ViewModel() {
     private val _state = MutableStateFlow(MainUiState())
     val state: StateFlow<MainUiState> = _state.asStateFlow()
+    private var officialFetchedAt = 0L
 
     init {
         viewModelScope.launch {
             val stored = repository.load()
+            officialFetchedAt = stored.officialFetchedAt
             _state.value = MainUiState(
                 loaded = true,
-                selected = stored.selected,
-                rates = stored.rates,
-                source = stored.source,
-                active = stored.active,
+                wallet = stored.wallet,
+                official = stored.official,
+                active = if (stored.active == Line.CARD && stored.wallet.cards.isEmpty()) Line.SPEND else stored.active,
                 expression = stored.expression,
             )
+            refreshRates(force = false)
             // Сохраняем не чаще раза в 300 мс: collectLatest отменяет отложенную запись при новом нажатии.
             _state.collectLatest { s ->
                 delay(SAVE_DELAY_MS)
-                repository.save(StoredState(s.selected, s.rates, s.source, s.active, s.expression))
+                repository.saveSession(s.wallet, s.active, s.expression)
             }
         }
     }
 
     fun press(key: Key) = _state.update { it.copy(expression = it.expression.press(key)) }
 
-    fun selectCard(card: Card) = _state.update { s ->
+    fun setActive(line: Line) = _state.update { s ->
+        if (s.active == line) s else s.copy(active = line, expression = Expression.of(s.totals.of(line) ?: BigDecimal.ZERO))
+    }
+
+    fun selectCard(id: String) = _state.update { s ->
         when {
-            s.selected == card -> s
-            // Сумма в валюте карты не должна прыгнуть: сначала переводим её в валюту цен.
-            s.active == Line.CARD -> s.copy(selected = card, active = Line.SOURCE, expression = Expression.of(s.amounts.source))
-            else -> s.copy(selected = card)
+            s.wallet.selectedId == id -> s
+            // Сумма в валюте карты не должна прыгнуть: сначала переводим её в валюту трат.
+            s.active == Line.CARD -> s.copy(
+                wallet = s.wallet.copy(selectedId = id),
+                active = Line.SPEND,
+                expression = Expression.of(s.totals.spend),
+            )
+            else -> s.copy(wallet = s.wallet.copy(selectedId = id))
         }
     }
 
-    /** Переключить валюту цен; сумма в рублях сохраняется и пересчитывается в новую валюту. */
-    fun setSource(source: Source) = _state.update { s ->
-        if (s.source == source) return@update s
-        val rub = s.amounts.rub
-        val next = s.copy(source = source, active = Line.SOURCE)
-        val amount = Converter.toSource(rub, Line.RUB, next.selected, source, next.rates)
+    /** Другая валюта трат: сохраняем сумму в итоговой валюте и пересчитываем в новую валюту. */
+    fun setSpend(currency: Currency) = _state.update { s ->
+        if (s.wallet.spend == currency) return@update s
+        val home = s.totals.home
+        val next = s.copy(wallet = s.wallet.copy(spend = currency), active = Line.SPEND)
+        val rate = next.homePerUnit
+        val amount = if (home != null && rate != null) divideOrZero(home, rate) else BigDecimal.ZERO
         next.copy(expression = Expression.of(amount))
     }
 
-    fun setActive(line: Line) = _state.update { s ->
-        if (s.active == line) s else s.copy(active = line, expression = Expression.of(s.amounts.of(line)))
+    /** Другая итоговая валюта: сумма в валюте трат остаётся. */
+    fun setHome(currency: Currency) = _state.update { s ->
+        if (s.wallet.home == currency) s
+        else s.copy(wallet = s.wallet.copy(home = currency), active = Line.SPEND, expression = Expression.of(s.totals.spend))
     }
 
-    /** Быстрая сумма в валюте цен: после «+» подставляется в выражение, иначе заменяет его. */
+    /** Быстрая сумма в валюте трат: после «+» подставляется в выражение, иначе заменяет его. */
     fun putAmount(amount: BigDecimal) = _state.update { s ->
-        if (s.active == Line.SOURCE) s.copy(expression = s.expression.putAmount(amount))
-        else s.copy(active = Line.SOURCE, expression = Expression.of(amount))
+        if (s.active == Line.SPEND) s.copy(expression = s.expression.putAmount(amount))
+        else s.copy(active = Line.SPEND, expression = Expression.of(amount))
     }
 
     /** Цены из камеры: одна — заменяет сумму, несколько — становятся выражением «a + b + c». */
@@ -120,55 +159,72 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
             1 -> Expression.of(items.single())
             else -> Expression(items.map { Numbers.plain(it) })
         }
-        s.copy(active = Line.SOURCE, expression = expression)
+        s.copy(active = Line.SPEND, expression = expression)
     }
 
-    fun setManualRate(card: Card, rate: BigDecimal): Boolean {
-        val current = _state.value.rates.getValue(card)
-        val updated = current.withManualRate(rate, LocalDate.now()) ?: return false
-        replaceRate(updated)
-        return true
+    fun saveCard(card: BankCard) = _state.update { s ->
+        s.copy(wallet = s.wallet.upsert(card).copy(selectedId = card.id))
     }
 
-    fun applyReceipt(card: Card, receipt: Receipt): Boolean {
-        val current = _state.value.rates.getValue(card)
-        val updated = current.withReceipt(receipt, LocalDate.now()) ?: return false
-        replaceRate(updated)
-        return true
+    fun deleteCard(id: String) = _state.update { s ->
+        val wallet = s.wallet.remove(id)
+        s.copy(wallet = wallet, active = if (wallet.cards.isEmpty() && s.active == Line.CARD) Line.SPEND else s.active)
     }
 
-    /** Вернуть стартовый чек от 29 октября вместе с его курсом. */
-    fun resetReceipt(card: Card) = replaceRate(Defaults.rate(card))
+    /** Пустая карта для редактора: валюта трат по умолчанию — первая, которой ещё нет среди карт. */
+    fun newCard(): BankCard {
+        val w = _state.value.wallet
+        val currency = listOf(w.spend, w.home).firstOrNull { c -> w.cards.none { it.currency == c } } ?: w.spend
+        return BankCard(id = UUID.randomUUID().toString(), name = "", currency = currency, style = w.nextStyle())
+    }
 
-    private fun replaceRate(rate: CardRate) = _state.update { s ->
-        s.copy(rates = s.rates + (rate.card to rate))
+    /** Курсы ЦБ: при запуске — если старше 6 часов, по кнопке — всегда. */
+    fun refreshRates(force: Boolean = true) {
+        val s = _state.value
+        if (s.ratesLoading) return
+        if (!force && s.official != null && System.currentTimeMillis() - officialFetchedAt < RATES_TTL_MS) return
+        _state.update { it.copy(ratesLoading = true, ratesFailed = false) }
+        viewModelScope.launch {
+            val rates = CbrClient.fetch()
+            if (rates != null) {
+                officialFetchedAt = System.currentTimeMillis()
+                repository.saveOfficial(rates, officialFetchedAt)
+            }
+            _state.update { it.copy(official = rates ?: it.official, ratesLoading = false, ratesFailed = rates == null) }
+        }
     }
 
     companion object {
         private const val SAVE_DELAY_MS = 300L
+        private const val RATES_TTL_MS = 6 * 60 * 60 * 1000L
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]!!
-                MainViewModel(SettingsRepository(app.settingsDataStore))
+                MainViewModel(WalletRepository(app.settingsDataStore))
             }
         }
 
-        /** Быстрые суммы; в дирхамах 22 — проезд в метро. */
-        fun chips(source: Source): List<BigDecimal> = when (source) {
-            Source.AED -> listOf(5, 10, 22, 50, 100, 200, 500)
-            Source.KZT -> listOf(500, 1000, 2000, 5000, 10000, 20000, 50000)
+        /** Быстрые суммы в валюте трат; у дирхама 22 — проезд в метро. */
+        fun chips(c: Currency): List<BigDecimal> = when (c) {
+            Currency.AED -> listOf(5, 10, 22, 50, 100, 200, 500)
+            Currency.TRY, Currency.THB -> listOf(50, 100, 200, 500, 1000, 2000, 5000)
+            Currency.CNY -> listOf(10, 20, 50, 100, 200, 500, 1000)
+            Currency.KZT, Currency.AMD -> listOf(500, 1000, 2000, 5000, 10000, 20000, 50000)
+            Currency.VND -> listOf(10000, 20000, 50000, 100000, 200000, 500000, 1000000)
+            else -> listOf(1, 5, 10, 20, 50, 100, 200)
         }.map { BigDecimal(it) }
 
-        fun cheat(source: Source): List<BigDecimal> = when (source) {
-            Source.AED -> listOf(1, 5, 10, 20, 50, 100, 200, 500, 1000)
-            Source.KZT -> listOf(100, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000)
+        /** Строки шпаргалки: девять сумм, от мелкой покупки до крупной. */
+        fun cheat(c: Currency): List<BigDecimal> = when (c) {
+            Currency.AED, Currency.CNY -> listOf(1, 5, 10, 20, 50, 100, 200, 500, 1000)
+            Currency.TRY, Currency.THB -> listOf(10, 50, 100, 200, 500, 1000, 2000, 5000, 10000)
+            Currency.KZT, Currency.AMD -> listOf(100, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000)
+            Currency.VND -> listOf(1000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000)
+            else -> listOf(1, 2, 5, 10, 20, 50, 100, 200, 500)
         }.map { BigDecimal(it) }
-
-        /** Курс для подписи: «22,45 ₽ за AED», а тенге — за 100 ₸, иначе число слишком мелкое. */
-        fun unitLabel(source: Source): BigDecimal = when (source) {
-            Source.AED -> BigDecimal.ONE
-            Source.KZT -> BigDecimal(100)
-        }
     }
 }
+
+internal fun divideOrZero(value: BigDecimal, divisor: BigDecimal): BigDecimal =
+    if (divisor.signum() == 0) BigDecimal.ZERO else value.divide(divisor, MC)

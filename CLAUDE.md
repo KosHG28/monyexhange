@@ -1,8 +1,10 @@
 # CLAUDE.md
 
-Личное Android-приложение «Дирхамы в рубли»: калькулятор AED → ₽ по курсу из банковских чеков
-(карты в тенге и в юанях) и AR-камера, рисующая рубли поверх ценников.
-Требования — `docs/SPEC.md` (источник истины), план — `docs/PLAN.md`, принятые решения — `docs/DECISIONS.md`.
+«Курс по чеку» (бывшие «Дирхамы в рубли»): калькулятор для путешественников. Пользователь заводит свои
+карты в любых валютах и чеки (пополнение, покупки); приложение считает реальный курс каждой карты для
+валюты трат → итоговой валюты, сверяет с курсом ЦБ РФ и рисует суммы поверх ценников в AR-камере.
+Исходная спецификация — `docs/SPEC.md` (версия 0.x), план — `docs/PLAN.md`, решения — `docs/DECISIONS.md`
+(раздел «Курс по чеку 1.0» описывает универсальную версию).
 
 ## Команды
 
@@ -28,21 +30,26 @@ CI: `.github/workflows/android.yml` — на каждый push тесты, lint,
 ```
 app/src/main/java/app/dirhamrub/
   domain/            чистый Kotlin, без android.* — всё покрыто тестами
-    Card, Receipt, CardRate, RateMath     курс карты из двух чеков
-    Numbers                               разбор ввода и форматирование ru-RU
-    Converter                             AED ⇄ ₽ ⇄ валюта карты, сравнение карт
-    Calculator                            выражение «22 + 15,5 + 8»
-    price/PriceParser                     цены из OCR-строк (скоринг, фильтры, старая цена)
+    Numbers, Calculator                   разбор и форматирование ru-RU, выражение «22 + 15,5», Line
+    wallet/Currency                       14 валют, из них 10 — валюты трат
+    wallet/Wallet                         карты, чеки пополнения/покупок, ручные курсы
+    wallet/RateEngine                     курс карты, наценка к ЦБ, лучшая карта
+    wallet/OfficialRates, CbrParser       курсы ЦБ РФ (XML и JSON-зеркало)
+    wallet/WalletCodec                    хранение кошелька и курсов (Properties)
+    price/PriceParser, PriceCurrency      цены из OCR-строк для каждой валюты трат
     price/PriceTracker                    стабилизация меток между кадрами
-  data/              DataStore (SettingsRepository)
-  ui/theme/          цвета, шрифты, тема
+  data/              WalletRepository (DataStore + перенос с 0.x), CbrClient (сеть)
+  ui/theme/          цвета, шрифты, тема, оформления карт
   ui/main/           главный экран + MainViewModel
-  ui/rate/           шторка «Курс»
+  ui/cards/          редактор карты и чеков
+  ui/currency/       выбор валюты трат и итоговой
   ui/cheat/          шпаргалка
+  ui/components/     бумажный чек, поля, выбор валюты
   ui/camera/         AR-камера: CameraX + ML Kit, оверлей на Canvas
 ```
 
-Поток данных: `SettingsRepository` (DataStore) → `MainViewModel` (`StateFlow<MainUiState>`) → экраны.
+Поток данных: `WalletRepository` (DataStore) + `CbrClient` → `MainViewModel` (`StateFlow<MainUiState>`,
+`RateEngine.quoteAll`) → экраны.
 Камера: `MlKitAnalyzer` (VIEW_REFERENCED, фоновый executor) → `OcrMapper` → `PriceParser` →
 `PriceTracker` → готовая раскладка меток → `StateFlow` → Canvas (в draw ничего не создаётся).
 
@@ -52,12 +59,12 @@ app/src/main/java/app/dirhamrub/
   (функции в `domain/Numbers.kt`). Никаких `Double` в расчётах курса.
 - `domain/` не импортирует `android.*` и `androidx.*` — его тесты должны идти на чистой JVM.
 - Любое изменение математики, форматирования или `PriceParser` — с unit-тестом.
-- Весь интерфейс на русском; строки — в `res/values/strings.xml`.
+- Весь интерфейс на русском; строки — в `res/values/strings.xml` (названия валют — в `Currency`).
 - Цвета только из `ui/theme` (`AppColors`), не хардкодить в экранах (исключение — «банковские» градиенты карт).
 - Цифры — tabular figures (`fontFeatureSettings = "tnum"`), моноширинные — JetBrains Mono.
 - Нажимаемые элементы ≥ 48 dp и с `contentDescription`/семантикой для TalkBack.
 - Анимации через `LocalReduceMotion`: при отключённых системных анимациях — без них.
 - Главный экран не вызывает системную клавиатуру; она есть только в шторке «Курс».
-- Сети нет и не нужно: не добавлять разрешение INTERNET.
+- Сеть — только для курсов ЦБ (`CbrClient`); всё остальное работает офлайн.
 - Новые неочевидные решения — строкой в `docs/DECISIONS.md`.
 - Коммит на этап, перед коммитом — тесты + lint + сборка (локально или в CI).

@@ -33,10 +33,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
-import app.dirhamrub.domain.Card
 import app.dirhamrub.domain.Line
-import app.dirhamrub.domain.Source
-import app.dirhamrub.ui.short
+import app.dirhamrub.domain.wallet.BankCard
+import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.motion
 
@@ -44,27 +43,27 @@ import app.dirhamrub.ui.theme.motion
 data class MetroStation(val line: Line, val label: String, val unit: String, val value: String)
 
 /**
- * Строки валюты цен (AED или ₸), рублей и валюты карты — на красной линии со станциями,
- * как схема Red Line. Активная станция залита, ввод идёт в неё. Строку карты прячем,
- * если карта в той же валюте, что и цены.
+ * Строки валюты трат, итоговой валюты и валюты карты — на красной линии со станциями,
+ * как схема Red Line. Активная станция залита, ввод идёт в неё. Строки карты нет,
+ * если её валюта совпадает с валютой трат или итога.
  */
 @Composable
 fun MetroLine(
     active: Line,
-    source: Source,
-    sourceValue: String,
-    rub: String,
-    card: Card,
+    spend: Currency,
+    spendValue: String,
+    home: Currency,
+    homeValue: String,
+    card: BankCard?,
     cardValue: String,
     showCard: Boolean,
     onSelect: (Line) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val sourceLabel = stringResource(if (source == Source.KZT) R.string.line_kzt else R.string.line_aed)
     val stations = buildList {
-        add(MetroStation(Line.SOURCE, sourceLabel, source.code, sourceValue))
-        add(MetroStation(Line.RUB, stringResource(R.string.line_rub), "₽", rub))
-        if (showCard) add(MetroStation(Line.CARD, card.short(), card.symbol, cardValue))
+        add(MetroStation(Line.SPEND, spend.shortRu, spend.symbol, spendValue))
+        add(MetroStation(Line.HOME, home.shortRu, home.symbol, homeValue))
+        if (showCard && card != null) add(MetroStation(Line.CARD, card.name, card.currency.symbol, cardValue))
     }
     Column(modifier.fillMaxWidth()) {
         stations.forEachIndexed { index, station ->

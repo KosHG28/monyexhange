@@ -2,6 +2,9 @@ package app.dirhamrub.domain
 
 import java.math.BigDecimal
 
+/** Строка «линии метро»: валюта трат, итоговая валюта, валюта карты. */
+enum class Line { SPEND, HOME, CARD }
+
 /** Клавиши своей клавиатуры калькулятора. */
 sealed interface Key {
     data class Digit(val digit: Int) : Key

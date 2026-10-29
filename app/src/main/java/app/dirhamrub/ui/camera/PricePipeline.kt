@@ -4,17 +4,13 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
-import app.dirhamrub.domain.Card
-import app.dirhamrub.domain.CardRate
-import app.dirhamrub.domain.Defaults
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
-import app.dirhamrub.domain.Pricing
-import app.dirhamrub.domain.Source
 import app.dirhamrub.domain.price.PriceCurrency
 import app.dirhamrub.domain.price.PriceParser
 import app.dirhamrub.domain.price.PriceTracker
 import app.dirhamrub.domain.price.TrackedPrice
+import app.dirhamrub.domain.wallet.Currency
 import com.google.mlkit.vision.text.Text
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,9 +36,8 @@ class PriceLabel(
     val sub: String,
     val subX: Float,
     val subY: Float,
-    /** Рубли по выбранной и другой карте — для шторки и TalkBack. */
-    val rubSelected: BigDecimal,
-    val rubOther: BigDecimal,
+    /** Сумма в итоговой валюте по выбранной карте (или ЦБ) — для шторки и TalkBack. */
+    val homeAmount: BigDecimal?,
 )
 
 class LabelFrame(val labels: List<PriceLabel>, val version: Long) {
@@ -84,9 +79,10 @@ class PricePipeline(private val metrics: LabelMetrics) {
     private val mainMetrics = mainPaint.fontMetrics
     private val subMetrics = subPaint.fontMetrics
 
-    @Volatile private var rates: Map<Card, CardRate> = Defaults.rates()
-    @Volatile private var selected: Card = Card.CNY
-    @Volatile private var source: Source = Source.AED
+    @Volatile private var spend: Currency = Currency.AED
+    @Volatile private var home: Currency = Currency.RUB
+    @Volatile private var homePerUnit: BigDecimal? = null
+    @Volatile private var officialPerUnit: BigDecimal? = null
     @Volatile private var viewWidth = 0f
     @Volatile private var viewHeight = 0f
     @Volatile private var topInset = 0f
@@ -103,18 +99,23 @@ class PricePipeline(private val metrics: LabelMetrics) {
     private val _frames = MutableStateFlow(LabelFrame.EMPTY)
     val frames: StateFlow<LabelFrame> = _frames.asStateFlow()
 
-    fun setRates(rates: Map<Card, CardRate>, selected: Card, source: Source) {
+    /**
+     * Валюты и курсы для подписей: [homePerUnit] — по выбранной карте (или ЦБ, если карт нет),
+     * [officialPerUnit] — курс ЦБ для второй строки (null — не показывать).
+     */
+    fun setRates(spend: Currency, home: Currency, homePerUnit: BigDecimal?, officialPerUnit: BigDecimal?) {
         synchronized(this) {
-            if (source != this.source) {
-                // Другая валюта цен — другой разбор ценников; старые метки сбрасываем.
-                parser = PriceParser(if (source == Source.KZT) PriceCurrency.KZT else PriceCurrency.AED)
+            if (spend != this.spend) {
+                // Другая валюта трат — другой разбор ценников; старые метки сбрасываем.
+                parser = PriceParser(PriceCurrency.of(spend.code))
                 tracker.clear()
                 shownAt.clear()
                 lastTracked = emptyList()
             }
-            this.rates = rates
-            this.selected = selected
-            this.source = source
+            this.spend = spend
+            this.home = home
+            this.homePerUnit = homePerUnit
+            this.officialPerUnit = officialPerUnit
             publish()
         }
     }
@@ -155,11 +156,10 @@ class PricePipeline(private val metrics: LabelMetrics) {
     }
 
     private fun publish() {
-        val rates = rates
-        val selected = selected
-        val currency = source
-        val rubPerSelected = Pricing.rubPerUnit(selected, currency, rates)
-        val rubPerOther = Pricing.rubPerUnit(selected.other, currency, rates)
+        val spend = spend
+        val home = home
+        val rate = homePerUnit
+        val official = officialPerUnit
         val m = metrics
         val labels = ArrayList<PriceLabel>(lastTracked.size)
         shownAt.keys.retainAll(lastTracked.mapTo(HashSet()) { it.id })
@@ -172,19 +172,20 @@ class PricePipeline(private val metrics: LabelMetrics) {
         // Сначала актуальные цены по убыванию скоринга — им достаются лучшие места, потом старые.
         val order = lastTracked.sortedWith(compareBy<TrackedPrice> { it.isOld }.thenByDescending { it.score })
         for (t in order) {
-            val rubSelected = t.value.multiply(rubPerSelected, MC)
-            val rubOther = t.value.multiply(rubPerOther, MC)
+            val homeAmount = rate?.let { t.value.multiply(it, MC) }
+            val officialAmount = official?.let { t.value.multiply(it, MC) }
+            val homeText = homeAmount?.let { "${Numbers.cheat(it)} ${home.symbol}" } ?: "—"
             // Распознанная цена — чтобы сразу видеть, правильно ли прочитан ценник.
-            val price = "${Numbers.money(t.value)} ${currency.code}"
+            val price = "${Numbers.money(t.value)} ${spend.symbol}"
             val main: String
             val sub: String
             if (t.isOld) {
                 // Старая цена — компактная однострочная метка.
                 main = ""
-                sub = "было $price ≈ ${Numbers.cheat(rubSelected)} ₽"
+                sub = "было $price ≈ $homeText"
             } else {
-                main = "≈ ${Numbers.cheat(rubSelected)} ₽"
-                sub = "$price · ${selected.other.symbol} ${Numbers.cheat(rubOther)} ₽"
+                main = "≈ $homeText"
+                sub = if (officialAmount != null) "$price · ЦБ ${Numbers.cheat(officialAmount)} ${home.symbol}" else price
             }
 
             val mainW = if (main.isEmpty()) 0f else mainPaint.measureText(main)
@@ -241,7 +242,7 @@ class PricePipeline(private val metrics: LabelMetrics) {
                 box = box, pill = pill, bubble = bubble,
                 main = main, mainX = mainX, mainY = mainY,
                 sub = sub, subX = subX, subY = subY,
-                rubSelected = rubSelected, rubOther = rubOther,
+                homeAmount = homeAmount,
             )
         }
         _frames.value = LabelFrame(labels, ++version)

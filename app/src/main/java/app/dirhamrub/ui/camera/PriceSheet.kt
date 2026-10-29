@@ -23,28 +23,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
-import app.dirhamrub.domain.Card
-import app.dirhamrub.domain.CardRate
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
-import app.dirhamrub.domain.Pricing
-import app.dirhamrub.domain.Source
+import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.WalletQuote
+import app.dirhamrub.ui.main.basisLabel
 import app.dirhamrub.ui.theme.AppTheme
-import app.dirhamrub.ui.title
 import java.math.BigDecimal
 
-/** Шторка по тапу на метку: цена (AED или ₸), рубли по обеим картам, «В калькулятор» и «+ к сумме». */
+/** Шторка по тапу на метку: цена, сумма по каждой карте и по ЦБ, «В калькулятор» и «+ к сумме». */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PriceSheet(
     amount: BigDecimal,
-    source: Source,
+    spend: Currency,
+    home: Currency,
     isOld: Boolean,
-    rates: Map<Card, CardRate>,
-    selected: Card,
+    quote: WalletQuote,
+    selectedId: String?,
     onToCalculator: () -> Unit,
     onAdd: () -> Unit,
     onDismiss: () -> Unit,
@@ -64,7 +64,7 @@ fun PriceSheet(
         ) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    text = "${Numbers.money(amount)} ${source.code}",
+                    text = "${Numbers.money(amount)} ${spend.symbol}",
                     style = type.hero.copy(fontSize = 34.sp, lineHeight = 40.sp),
                     color = if (isOld) colors.muted else colors.ink,
                     textDecoration = if (isOld) TextDecoration.LineThrough else null,
@@ -79,10 +79,9 @@ fun PriceSheet(
                 }
             }
             Spacer(Modifier.height(12.dp))
-            for (card in listOf(selected, selected.other)) {
-                val rub = amount.multiply(Pricing.rubPerUnit(card, source, rates), MC)
-                val inCard = amount.multiply(Pricing.cardPerUnit(card, source, rates), MC)
-                val isSelected = card == selected
+            val ordered = quote.quotes.sortedByDescending { it.card.id == selectedId }
+            for (q in ordered) {
+                val isSelected = q.card.id == selectedId
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -93,14 +92,31 @@ fun PriceSheet(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(card.title(), style = type.label, color = colors.muted)
-                        Text("${Numbers.money(inCard)} ${card.symbol}", style = type.mono.copy(fontSize = 13.sp), color = colors.muted)
+                        Text(q.card.name, style = type.label, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            "${Numbers.money(amount.multiply(q.cardPerUnit, MC))} ${q.card.currency.symbol} · ${basisLabel(q)}",
+                            style = type.mono.copy(fontSize = 12.sp),
+                            color = colors.muted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                     Text(
-                        "${Numbers.money(rub)} ₽",
+                        "${Numbers.money(amount.multiply(q.homePerUnit, MC))} ${home.symbol}",
                         style = if (isSelected) type.number else type.monoStrong.copy(fontSize = 18.sp),
                         color = if (isSelected) colors.ink else colors.muted,
                     )
+                }
+            }
+            quote.official?.let { o ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(stringResource(R.string.cheat_official), style = type.label, color = colors.muted, modifier = Modifier.weight(1f))
+                    Text("${Numbers.money(amount.multiply(o, MC))} ${home.symbol}", style = type.mono, color = colors.muted)
                 }
             }
             Spacer(Modifier.height(16.dp))

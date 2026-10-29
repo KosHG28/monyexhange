@@ -5,8 +5,11 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,10 +20,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,119 +38,154 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
-import app.dirhamrub.domain.Card
-import app.dirhamrub.domain.CardRate
-import app.dirhamrub.domain.Comparison
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
-import app.dirhamrub.domain.Pricing
-import app.dirhamrub.domain.RateSource
-import app.dirhamrub.domain.RuDates
-import app.dirhamrub.domain.Source
+import app.dirhamrub.domain.wallet.BankCard
+import app.dirhamrub.domain.wallet.CardQuote
+import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.RateBasis
+import app.dirhamrub.domain.wallet.WalletQuote
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.CardPalette
 import app.dirhamrub.ui.theme.motion
-import app.dirhamrub.ui.title
+import java.math.BigDecimal
 
 /** Пропорции банковской карты ISO/IEC 7810 ID-1. */
 private const val CARD_RATIO = 1.586f
 
 /**
- * Две мини-карты: на каждой — цена текущей покупки в рублях по этой карте и её курс.
- * Выбранная — в красной обводке с галочкой, на выгодной — зелёный бейдж с экономией.
+ * Карты пользователя в ряд (прокручивается, по две на экране) и плитка «Добавить карту».
+ * На каждой — цена текущей покупки в итоговой валюте, курс и разница с ЦБ; у лучшей — бейдж.
+ * Тап выбирает карту, тап по выбранной или долгое нажатие — редактор.
  */
 @Composable
 fun BankCardsRow(
-    rates: Map<Card, CardRate>,
-    source: Source,
-    comparison: Comparison,
-    selected: Card,
-    onSelect: (Card) -> Unit,
+    cards: List<BankCard>,
+    quote: WalletQuote,
+    selectedId: String?,
+    spend: Currency,
+    home: Currency,
+    amount: BigDecimal,
+    onSelect: (String) -> Unit,
+    onEdit: (BankCard) -> Unit,
+    onAdd: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val unit = MainViewModel.unitLabel(source)
-    val unitText = if (source == Source.KZT) "100 ₸" else source.code
-    val percent = Numbers.percent(comparison.savingsPercent)
-    val savings = Numbers.moneyWhole(comparison.savingsRub)
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        for (card in listOf(Card.KZT, Card.CNY)) {
-            val badge = when {
-                card != comparison.cheaper -> null
-                savings == "0" -> stringResource(R.string.card_cheaper, percent)
-                else -> stringResource(R.string.card_savings, savings, percent)
+    if (cards.isEmpty()) {
+        AddCardHint(onAdd, modifier)
+        return
+    }
+    val best = quote.best?.takeIf { quote.quotes.size > 1 }
+    val bestPercent = quote.bestSavingsPercent?.let(Numbers::percent)
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val cardWidth: Dp = (maxWidth - 8.dp) / 2
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(cards, key = { it.id }) { card ->
+                val q = quote.of(card.id)
+                BankCardView(
+                    card = card,
+                    quote = q,
+                    spend = spend,
+                    home = home,
+                    sum = q?.let { Numbers.moneyWhole(amount.multiply(it.homePerUnit, MC)) },
+                    selected = card.id == selectedId,
+                    badge = if (best != null && q == best && bestPercent != null && bestPercent != "0") {
+                        stringResource(R.string.card_best, bestPercent)
+                    } else {
+                        null
+                    },
+                    onClick = { if (card.id == selectedId) onEdit(card) else onSelect(card.id) },
+                    onLongClick = { onEdit(card) },
+                    modifier = Modifier.width(cardWidth),
+                )
             }
-            BankCard(
-                card = card,
-                rate = rates.getValue(card),
-                rateText = Numbers.rate(Pricing.rubPerUnit(card, source, rates).multiply(unit, MC), 2),
-                unitText = unitText,
-                rub = Numbers.moneyWhole(comparison.rubByCard.getValue(card)),
-                selected = card == selected,
-                badge = badge,
-                onClick = { onSelect(card) },
-                modifier = Modifier.weight(1f),
-            )
+            item(key = "add") { AddCardTile(onAdd, Modifier.width(cardWidth)) }
         }
     }
 }
 
+/** «22,45 ₽ за AED · по чекам · +4,7 % к ЦБ» — как посчитан курс карты. */
 @Composable
-private fun BankCard(
-    card: Card,
-    rate: CardRate,
-    rateText: String,
-    unitText: String,
-    rub: String,
+fun basisLabel(q: CardQuote): String {
+    val basis = stringResource(
+        when (q.basis) {
+            RateBasis.RECEIPTS -> R.string.card_basis_receipts
+            RateBasis.ESTIMATE -> R.string.card_basis_estimate
+            RateBasis.OFFICIAL -> R.string.card_basis_official
+            RateBasis.MANUAL -> R.string.card_basis_manual
+        },
+    )
+    val vs = q.vsOfficial?.takeIf { q.basis != RateBasis.OFFICIAL }?.let { signedPercent(it) }
+    return if (vs == null) basis else basis + " · " + stringResource(R.string.card_vs_official, vs)
+}
+
+/** «+4,7», «−1,2», «0». */
+fun signedPercent(value: BigDecimal): String {
+    val text = Numbers.percent(value.abs())
+    return when {
+        text == "0" -> "0"
+        value.signum() > 0 -> "+$text"
+        else -> "−$text"
+    }
+}
+
+@Composable
+private fun BankCardView(
+    card: BankCard,
+    quote: CardQuote?,
+    spend: Currency,
+    home: Currency,
+    sum: String?,
     selected: Boolean,
     badge: String?,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
+    val style = CardPalette.style(card.style)
     val scale by animateFloatAsState(if (selected) 1f else 0.96f, motion(), label = "cardScale")
     val dim by animateFloatAsState(if (selected) 1f else 0.62f, motion(), label = "cardDim")
     val elevation by animateDpAsState(if (selected) 12.dp else 0.dp, motion(), label = "cardShadow")
     val ring by animateFloatAsState(if (selected) 1f else 0f, motion(), label = "cardRing")
     val shape = RoundedCornerShape(16.dp)
-    val ringShape = RoundedCornerShape(20.dp)
 
-    val dateLine = stringResource(
-        if (rate.source == RateSource.MANUAL) R.string.card_date_manual else R.string.card_date_receipts,
-        RuDates.short(rate.date),
-    )
-    val title = card.title()
+    val rateLine = quote?.let {
+        val unit = Numbers.unitFor(it.homePerUnit)
+        stringResource(
+            R.string.card_rate_line,
+            Numbers.rate(it.homePerUnit.multiply(unit, MC), 2),
+            home.symbol,
+            if (unit.compareTo(BigDecimal.ONE) == 0) spend.symbol else "${Numbers.moneyWhole(unit)} ${spend.symbol}",
+        )
+    } ?: stringResource(R.string.card_no_rate)
+    val basis = quote?.let { basisLabel(it) }
+    val sumText = sum?.let { "$it ${home.symbol}" } ?: "—"
     val a11y = buildString {
-        append(stringResource(R.string.card_a11y, title, rub, rateText, unitText, dateLine))
+        append(stringResource(R.string.card_a11y, card.name, sumText, rateLine))
+        if (basis != null) append(", ").append(basis)
         if (badge != null) append(". ").append(badge)
     }
-
-    val gradient = when (card) {
-        Card.KZT -> Brush.linearGradient(listOf(CardPalette.tengeStart, CardPalette.tengeEnd))
-        Card.CNY -> Brush.linearGradient(listOf(CardPalette.yuanStart, CardPalette.yuanEnd))
-    }
-    val chipColor = if (card == Card.CNY) CardPalette.gold else CardPalette.silver
-    val markColor = if (card == Card.CNY) CardPalette.gold else CardPalette.tengeMark
-    val sumSize = if (rub.length > 9) 17.sp else 21.sp
+    val sumSize = if (sumText.length > 10) 16.sp else 20.sp
 
     Box(
         modifier = modifier
@@ -154,8 +194,8 @@ private fun BankCard(
                 scaleY = scale
                 alpha = dim
             }
-            // Обводка выбранной карты — с зазором цвета фона, как на макете.
-            .border(2.dp, colors.accent.copy(alpha = ring), ringShape)
+            // Обводка выбранной карты — с зазором цвета фона.
+            .border(2.dp, colors.accent.copy(alpha = ring), RoundedCornerShape(20.dp))
             .padding(4.dp),
     ) {
         Box(
@@ -164,38 +204,42 @@ private fun BankCard(
                 .aspectRatio(CARD_RATIO)
                 .shadow(elevation, shape, ambientColor = Color.Black, spotColor = Color.Black)
                 .clip(shape)
-                .background(gradient)
-                .semantics { contentDescription = a11y }
-                .selectable(selected = selected, onClick = onClick, role = Role.RadioButton),
+                .background(Brush.linearGradient(listOf(style.start, style.end)))
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                .clearAndSetSemantics {
+                    contentDescription = a11y
+                    this.selected = selected
+                    role = Role.RadioButton
+                },
         ) {
-            // Водяной знак валюты.
+            // Водяной знак валюты карты.
+            val mark = card.currency.symbol
             Text(
-                text = card.symbol,
-                style = type.hero.copy(fontSize = 96.sp, lineHeight = 96.sp),
-                color = markColor.copy(alpha = if (card == Card.CNY) 0.25f else 0.18f),
+                text = mark,
+                style = type.hero.copy(fontSize = if (mark.length > 2) 44.sp else 92.sp, lineHeight = 96.sp),
+                color = style.mark.copy(alpha = 0.22f),
+                maxLines = 1,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .offset(x = 8.dp, y = 22.dp)
-                    .clearAndSetSemantics {},
+                    .offset(x = 8.dp, y = if (mark.length > 2) 4.dp else 22.dp),
             )
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 11.dp, vertical = 9.dp)
-                    .clearAndSetSemantics {},
+                    .padding(horizontal = 11.dp, vertical = 9.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = title,
+                        text = card.name,
                         style = type.label.copy(fontSize = 12.sp),
                         color = CardPalette.onCard.copy(alpha = 0.92f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    if (selected) CheckMark(if (card == Card.CNY) CardPalette.yuanStart else CardPalette.tengeEnd)
+                    if (selected) EditMark(style.end)
                 }
-                Spacer(Modifier.height(5.dp))
+                Spacer(Modifier.height(4.dp))
                 if (badge != null) {
                     Text(
                         text = badge,
@@ -209,45 +253,110 @@ private fun BankCard(
                             .padding(horizontal = 7.dp, vertical = 2.dp),
                     )
                 } else {
-                    CardChip(chipColor)
+                    CardChip(style.chip)
                 }
                 Spacer(Modifier.weight(1f))
                 Text(
-                    text = "$rub ₽",
+                    text = sumText,
                     style = type.hero.copy(fontSize = sumSize, lineHeight = sumSize * 1.15f),
                     color = CardPalette.onCard,
                     maxLines = 1,
                     softWrap = false,
                 )
                 Text(
-                    text = stringResource(R.string.card_rate_line, rateText, unitText, dateLine),
+                    text = rateLine,
                     style = type.caption.copy(fontSize = 10.5.sp, lineHeight = 13.sp),
-                    color = CardPalette.onCard.copy(alpha = 0.85f),
+                    color = CardPalette.onCard.copy(alpha = 0.88f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (basis != null) {
+                    Text(
+                        text = basis,
+                        style = type.caption.copy(fontSize = 10.sp, lineHeight = 12.sp),
+                        color = CardPalette.onCard.copy(alpha = 0.72f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
 }
 
-/** Белый кружок с галочкой у выбранной карты. */
+/** Плитка «+ Добавить карту» того же размера, что карта. */
 @Composable
-private fun CheckMark(tick: Color) {
-    Canvas(
+private fun AddCardTile(onAdd: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = AppTheme.colors
+    val label = stringResource(R.string.card_add)
+    Box(modifier.padding(4.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(CARD_RATIO)
+                .clip(RoundedCornerShape(16.dp))
+                .clickable(role = Role.Button, onClickLabel = label, onClick = onAdd)
+                .semantics { contentDescription = label },
+            contentAlignment = Alignment.Center,
+        ) {
+            val line = colors.line
+            Canvas(Modifier.fillMaxSize()) {
+                drawRoundRect(
+                    color = line,
+                    cornerRadius = CornerRadius(16.dp.toPx()),
+                    style = Stroke(width = 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 6.dp.toPx()))),
+                )
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(painterResource(R.drawable.ic_add), contentDescription = null, tint = colors.accent, modifier = Modifier.size(28.dp))
+                Text(label, style = AppTheme.type.label, color = colors.accent)
+            }
+        }
+    }
+}
+
+/** Пустой кошелёк: широкая плитка с объяснением. */
+@Composable
+private fun AddCardHint(onAdd: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = AppTheme.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(colors.surface)
+            .border(1.dp, colors.line, RoundedCornerShape(16.dp))
+            .clickable(role = Role.Button, onClick = onAdd)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(colors.accentSoft),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(R.drawable.ic_add), contentDescription = null, tint = colors.accent)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.card_add), style = AppTheme.type.bodyStrong, color = colors.ink)
+            Text(stringResource(R.string.card_add_hint), style = AppTheme.type.caption, color = colors.muted, textAlign = TextAlign.Start)
+        }
+    }
+}
+
+/** Белый кружок с карандашом у выбранной карты: тап по ней открывает редактор. */
+@Composable
+private fun EditMark(tint: Color) {
+    Box(
         Modifier
-            .size(18.dp)
+            .size(20.dp)
             .clip(CircleShape)
             .background(Color.White),
+        contentAlignment = Alignment.Center,
     ) {
-        val w = size.width
-        val stroke = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
-        val path = Path().apply {
-            moveTo(w * 0.28f, w * 0.52f)
-            lineTo(w * 0.44f, w * 0.68f)
-            lineTo(w * 0.73f, w * 0.36f)
-        }
-        drawPath(path, tick, style = stroke)
+        Icon(painterResource(R.drawable.ic_edit), contentDescription = null, tint = tint, modifier = Modifier.size(12.dp))
     }
 }
 

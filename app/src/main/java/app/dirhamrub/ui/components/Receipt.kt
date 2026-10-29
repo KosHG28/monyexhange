@@ -1,0 +1,166 @@
+package app.dirhamrub.ui.components
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.GenericShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import app.dirhamrub.ui.theme.AppTheme
+
+/** Чек со скруглённым верхом и зубчатым нижним краем. */
+val ReceiptShape = GenericShape { size, _ ->
+    val tooth = 14f * (size.width / 360f).coerceIn(1f, 3f)
+    val depth = tooth * 0.6f
+    val radius = 24f
+    moveTo(0f, radius)
+    quadraticTo(0f, 0f, radius, 0f)
+    lineTo(size.width - radius, 0f)
+    quadraticTo(size.width, 0f, size.width, radius)
+    lineTo(size.width, size.height - depth)
+    val count = (size.width / tooth).toInt().coerceAtLeast(1)
+    val step = size.width / count
+    var x = size.width
+    for (i in 0 until count) {
+        lineTo(x - step / 2f, size.height)
+        x -= step
+        lineTo(x, size.height - depth)
+    }
+    close()
+}
+
+@Composable
+fun ReceiptSection(title: String, modifier: Modifier = Modifier) {
+    Text(title, style = AppTheme.type.label, color = AppTheme.colors.muted, modifier = modifier.padding(vertical = 4.dp))
+}
+
+/**
+ * Строка чека «Отправил ........ [15 000] ₽»: подпись, точечные отточия, поле ввода, хвост
+ * (валюта или выбор валюты).
+ */
+@Composable
+fun ReceiptLine(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    description: String,
+    last: Boolean = false,
+    trailing: @Composable RowScope.() -> Unit,
+) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    val focus = LocalFocusManager.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = type.mono, color = colors.ink)
+        val dotColor = colors.muted
+        Canvas(
+            Modifier
+                .weight(1f)
+                .height(14.dp)
+                .padding(horizontal = 6.dp),
+        ) {
+            val step = 5.dp.toPx()
+            val r = 1.dp.toPx()
+            var x = r
+            while (x < size.width) {
+                drawCircle(dotColor, r, Offset(x, size.height - r))
+                x += step
+            }
+        }
+        NumberField(
+            value = value,
+            onValueChange = onValueChange,
+            style = type.monoStrong.copy(fontSize = 17.sp),
+            description = description,
+            imeAction = if (last) ImeAction.Done else ImeAction.Next,
+            onDone = { focus.clearFocus() },
+            modifier = Modifier.widthIn(min = 96.dp, max = 150.dp),
+        )
+        trailing()
+    }
+}
+
+/** Числовое поле с системной клавиатурой numberDecimal. */
+@Composable
+fun NumberField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    style: TextStyle,
+    description: String,
+    onDone: () -> Unit,
+    modifier: Modifier = Modifier,
+    imeAction: ImeAction = ImeAction.Done,
+) {
+    val colors = AppTheme.colors
+    BasicTextField(
+        value = value,
+        onValueChange = { text -> onValueChange(text.filter { it.isDigit() || it == ',' || it == '.' || it == ' ' }) },
+        singleLine = true,
+        textStyle = style.copy(color = colors.ink, textAlign = TextAlign.End),
+        cursorBrush = SolidColor(colors.accent),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = imeAction),
+        keyboardActions = KeyboardActions(onDone = { onDone() }),
+        modifier = modifier.semantics { contentDescription = description },
+        decorationBox = { inner ->
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(colors.bg)
+                    .border(1.dp, colors.line, RoundedCornerShape(10.dp))
+                    .heightIn(min = 44.dp)
+                    .padding(horizontal = 10.dp),
+                contentAlignment = Alignment.CenterEnd,
+            ) { inner() }
+        },
+    )
+}
+
+@Composable
+fun DashedDivider(modifier: Modifier = Modifier) {
+    val color = AppTheme.colors.line
+    Canvas(
+        modifier
+            .fillMaxWidth()
+            .height(2.dp),
+    ) {
+        drawLine(
+            color = color,
+            start = Offset(0f, size.height / 2f),
+            end = Offset(size.width, size.height / 2f),
+            strokeWidth = 1.5.dp.toPx(),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 5.dp.toPx())),
+        )
+    }
+}

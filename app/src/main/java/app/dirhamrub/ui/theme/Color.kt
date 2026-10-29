@@ -53,15 +53,25 @@ val DarkColors = AppColors(
 
 val LocalAppColors = staticCompositionLocalOf { LightColors }
 
-/** «Банковские» цвета мини-карт — одинаковые в обеих темах. */
+/** Оформление «банковской» карты: градиент, водяной знак, чип. Одинаково в обеих темах. */
+@Immutable
+data class CardStyle(val start: Color, val end: Color, val mark: Color, val chip: Color)
+
 object CardPalette {
-    val tengeStart = Color(0xFF14B3A6)
-    val tengeEnd = Color(0xFF0B5C6E)
-    val tengeMark = Color(0xFFBFF3EC)
-    val yuanStart = Color(0xFF8E1B22)
-    val yuanEnd = Color(0xFF3E0A0F)
-    val gold = Color(0xFFE2C275)
-    val goldDeep = Color(0xFFB8913E)
-    val silver = Color(0xFFDDE7EA)
     val onCard = Color(0xFFFFFFFF)
+    private val gold = Color(0xFFE2C275)
+    private val silver = Color(0xFFDDE7EA)
+
+    /** Семь оформлений по очереди для новых карт: бирюза, бордо с золотом, индиго, изумруд, янтарь, фиолет, графит. */
+    val styles: List<CardStyle> = listOf(
+        CardStyle(Color(0xFF14B3A6), Color(0xFF0B5C6E), Color(0xFFBFF3EC), silver),
+        CardStyle(Color(0xFF8E1B22), Color(0xFF3E0A0F), gold, gold),
+        CardStyle(Color(0xFF3F51B5), Color(0xFF1A237E), Color(0xFFC5CAE9), silver),
+        CardStyle(Color(0xFF2E9E62), Color(0xFF14502F), Color(0xFFC8F2D9), gold),
+        CardStyle(Color(0xFFE08A1E), Color(0xFF8A4A06), Color(0xFFFFE2B8), silver),
+        CardStyle(Color(0xFF7B3FA8), Color(0xFF3C1858), Color(0xFFE3C9F5), gold),
+        CardStyle(Color(0xFF4A5560), Color(0xFF1E252B), Color(0xFFD5DCE3), gold),
+    )
+
+    fun style(index: Int): CardStyle = styles[((index % styles.size) + styles.size) % styles.size]
 }

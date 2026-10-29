@@ -195,4 +195,39 @@ class PriceParserTest {
         assertFalse(kzt.parse(listOf(OcrBlock(listOf(line("AED", "45.00"))))).single().hasCurrency)
         assertTrue(v(line("5", "₸")).isEmpty())
     }
+
+    private fun vals(currency: PriceCurrency, vararg l: OcrLine) =
+        PriceParser(currency).parse(listOf(OcrBlock(l.toList()))).map { it.value.toPlainString() }
+
+    @Test
+    fun `доллары и евро`() {
+        assertEquals(listOf("12.99"), vals(PriceCurrency.USD, line("$12.99")))
+        assertEquals(listOf("5"), vals(PriceCurrency.USD, line("US$", "5")))
+        assertEquals(listOf("12.99"), vals(PriceCurrency.EUR, line("12,99", "€")))
+        assertEquals(listOf("1299.90"), vals(PriceCurrency.EUR, line("1.299,90", "EUR")))
+    }
+
+    @Test
+    fun `лира, бат, лари, драм, юань`() {
+        assertEquals(listOf("1299.90"), vals(PriceCurrency.TRY, line("1.299,90", "TL")))
+        assertEquals(listOf("89.90"), vals(PriceCurrency.TRY, line("₺89,90")))
+        assertEquals(listOf("250"), vals(PriceCurrency.THB, line("250", "THB")))
+        assertEquals(listOf("4.50"), vals(PriceCurrency.GEL, line("4.50", "₾")))
+        assertEquals(listOf("3500"), vals(PriceCurrency.AMD, line("3", "500", "AMD")))
+        assertEquals(listOf("38"), vals(PriceCurrency.CNY, line("¥38")))
+    }
+
+    @Test
+    fun `донг с точками между разрядами`() {
+        assertEquals(listOf("45000"), vals(PriceCurrency.VND, line("45.000đ")))
+        assertEquals(listOf("1250000"), vals(PriceCurrency.VND, line("1.250.000", "VND")))
+        // Меньше 1000 донгов — не цена.
+        assertTrue(vals(PriceCurrency.VND, line("500", "VND")).isEmpty())
+    }
+
+    @Test
+    fun `валюта по коду`() {
+        assertEquals(PriceCurrency.VND, PriceCurrency.of("VND"))
+        assertEquals(PriceCurrency.AED, PriceCurrency.of("XXX"))
+    }
 }

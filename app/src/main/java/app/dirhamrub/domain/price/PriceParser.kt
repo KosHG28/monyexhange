@@ -14,28 +14,86 @@ data class PriceCandidate(
 )
 
 /**
- * Валюта, цены в которой ищет [PriceParser]: подписи валюты рядом с числом и разумный диапазон.
+ * Валюта, цены в которой ищет [PriceParser]: подписи валюты рядом с числом, разумный диапазон,
+ * точка как разделитель разрядов («1.299,90 TL», «45.000 ₫») и с какой длины ряд цифр — уже не цена,
+ * а телефон или код.
  */
-class PriceCurrency(val pattern: Regex, val min: BigDecimal, val max: BigDecimal) {
+class PriceCurrency(
+    val pattern: Regex,
+    val min: BigDecimal,
+    val max: BigDecimal,
+    val dotThousands: Boolean = false,
+    val longRunDigits: Int = 7,
+) {
     companion object {
+        private fun words(vararg w: String) = "(?<![A-Za-z])(?:${w.joinToString("|")})(?![A-Za-z])\\.?"
+        private fun currency(pattern: String) = Regex(pattern, RegexOption.IGNORE_CASE)
+
         val AED = PriceCurrency(
-            Regex(
-                """(?<![A-Za-z])(?:AED|DHS|DH|DIRHAMS?)(?![A-Za-z])\.?|د\.?\s?إ|درهم""",
-                RegexOption.IGNORE_CASE,
-            ),
-            BigDecimal("0.5"),
-            BigDecimal("100000"),
+            currency(words("AED", "DHS", "DH", "DIRHAMS?") + "|د\\.?\\s?إ|درهم"),
+            BigDecimal("0.5"), BigDecimal("100000"),
         )
 
         /** Тенге: ₸, KZT, TENGE, «тг»; латинский OCR часто читает ₸ как одиночную T. */
         val KZT = PriceCurrency(
-            Regex(
-                """(?<![A-Za-z])(?:KZT|TENGE|TG|T)(?![A-Za-z])\.?|₸|(?<![А-Яа-я])(?:тг|тенге)(?![А-Яа-я])\.?""",
-                RegexOption.IGNORE_CASE,
-            ),
-            BigDecimal("10"),
-            BigDecimal("10000000"),
+            currency(words("KZT", "TENGE", "TG", "T") + "|₸|(?<![А-Яа-я])(?:тг|тенге)(?![А-Яа-я])\\.?"),
+            BigDecimal("10"), BigDecimal("10000000"), longRunDigits = 9,
         )
+
+        val TRY = PriceCurrency(
+            currency(words("TL", "TRY", "YTL") + "|₺"),
+            BigDecimal("1"), BigDecimal("1000000"), dotThousands = true,
+        )
+
+        val THB = PriceCurrency(
+            currency(words("THB", "BAHT", "BHT") + "|฿|บาท"),
+            BigDecimal("1"), BigDecimal("1000000"),
+        )
+
+        val USD = PriceCurrency(
+            currency(words("USD", "US") + "|\\$"),
+            BigDecimal("0.1"), BigDecimal("100000"),
+        )
+
+        val EUR = PriceCurrency(
+            currency(words("EUR", "EURO") + "|€"),
+            BigDecimal("0.1"), BigDecimal("100000"), dotThousands = true,
+        )
+
+        val CNY = PriceCurrency(
+            currency(words("CNY", "RMB", "YUAN") + "|[¥￥元]"),
+            BigDecimal("0.5"), BigDecimal("1000000"),
+        )
+
+        val GEL = PriceCurrency(
+            currency(words("GEL", "LARI") + "|₾|ლ"),
+            BigDecimal("0.1"), BigDecimal("100000"),
+        )
+
+        val AMD = PriceCurrency(
+            currency(words("AMD", "DRAM") + "|֏|դր\\.?"),
+            BigDecimal("10"), BigDecimal("10000000"), longRunDigits = 9,
+        )
+
+        /** Донг: «45.000đ», «45,000 VND»; одиночная d/đ сразу после числа — тоже донг. */
+        val VND = PriceCurrency(
+            currency(words("VND", "VNĐ", "DONG") + "|₫|(?<![A-Za-z])[đd](?![A-Za-z])"),
+            BigDecimal("1000"), BigDecimal("100000000"), dotThousands = true, longRunDigits = 10,
+        )
+
+        /** По трёхбуквенному коду; для неизвестной валюты — дирхамы. */
+        fun of(code: String): PriceCurrency = when (code) {
+            "KZT" -> KZT
+            "TRY" -> TRY
+            "THB" -> THB
+            "USD" -> USD
+            "EUR" -> EUR
+            "CNY" -> CNY
+            "GEL" -> GEL
+            "AMD" -> AMD
+            "VND" -> VND
+            else -> AED
+        }
     }
 }
 
@@ -115,14 +173,14 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         mask(DATE)
         mask(SLASHED)
         mask(TIME)
-        mask(DIGIT_RUN) { m -> m.value.count { it.isDigit() } >= LONG_RUN_DIGITS }
+        mask(DIGIT_RUN) { m -> m.value.count { it.isDigit() } >= currency.longRunDigits }
         mask(PHONE_PREFIX)
 
         val currencies = currency.pattern.findAll(text).map { it.range }.toList()
         val oldKeyword = OLD_WORD.containsMatchIn(text) ||
             (prevLine != null && OLD_WORD.containsMatchIn(prevLine.text) && NUMBER.find(prevLine.text) == null)
 
-        for (m in NUMBER.findAll(text)) {
+        for (m in (if (currency.dotThousands) NUMBER_DOT else NUMBER).findAll(text)) {
             if (m.range.any { masked[it] }) continue
             val numberText = m.value
             val after = text.substring(m.range.last + 1)
@@ -150,12 +208,12 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         }
     }
 
-    /** «1,299.00» → 1299.00, «49,95» → 49.95, «379» → 379. */
+    /** «1,299.00» → 1299.00, «49,95» → 49.95, «379» → 379; при [PriceCurrency.dotThousands] «1.299,90» → 1299.90. */
     private fun parseNumber(text: String): BigDecimal? {
-        val normalized = if (THOUSANDS.matches(text)) {
-            text.replace(",", "")
-        } else {
-            text.replace(',', '.')
+        val normalized = when {
+            currency.dotThousands && DOT_THOUSANDS.matches(text) -> text.replace(".", "").replace(',', '.')
+            THOUSANDS.matches(text) -> text.replace(",", "")
+            else -> text.replace(',', '.')
         }
         return normalized.toBigDecimalOrNull()
     }
@@ -278,7 +336,6 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
 
     companion object {
         private const val TALL_TEXT = 0.75f
-        private const val LONG_RUN_DIGITS = 7
         private const val CURRENCY_GAP = 2
         private const val GLUE_GAP = 0.8f
         private const val THOUSAND_GAP = 0.6f
@@ -287,6 +344,10 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         private const val STRUCK_DISTANCE = 2.5f
 
         private val NUMBER = Regex("""(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\d]|[.,]\d)""")
+        private val NUMBER_DOT = Regex(
+            """(?<![\d.,])(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\d]|[.,]\d)""",
+        )
+        private val DOT_THOUSANDS = Regex("""\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?""")
         private val THOUSANDS = Regex("""\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?""")
         private val FRACTION = Regex("""[.,]\d{1,2}$""")
 

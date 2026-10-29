@@ -1,8 +1,12 @@
 package app.dirhamrub.domain
 
 import java.math.BigDecimal
+import java.math.MathContext
 import java.math.RoundingMode
 import java.time.LocalDate
+
+/** Вся арифметика денег и курсов — в этой точности, округление только при показе. */
+val MC: MathContext = MathContext.DECIMAL64
 
 /** Неразрывный пробел — разделитель разрядов, чтобы суммы не переносились. */
 const val NBSP = ' '
@@ -58,15 +62,28 @@ object Numbers {
     fun percent(value: BigDecimal): String = format(stripZeros(value.setScale(1, RoundingMode.HALF_UP)))
 
     /**
-     * Курс перевода в удобную сторону: «1 ₽ = 5,3933 ₸», но «1 ¥ = 12,3 ₽»
-     * (если за рубль даётся меньше единицы валюты карты — переворачиваем).
+     * Курс в удобную сторону: «1 ₽ = 5,3933 ₸», но «1 ¥ = 12,3 ₽»
+     * (если за единицу [base] даётся меньше единицы [quote] — переворачиваем).
      */
-    fun transferRate(cardPerRub: BigDecimal, cardSymbol: String): String =
-        if (cardPerRub >= BigDecimal.ONE) {
-            "1 ₽ = ${rate(cardPerRub)} $cardSymbol"
+    fun transferRate(quotePerBase: BigDecimal, quoteSymbol: String, baseSymbol: String = "₽"): String =
+        if (quotePerBase >= BigDecimal.ONE) {
+            "1 $baseSymbol = ${rate(quotePerBase)} $quoteSymbol"
         } else {
-            "1 $cardSymbol = ${rate(BigDecimal.ONE.divide(cardPerRub, MC))} ₽"
+            "1 $quoteSymbol = ${rate(BigDecimal.ONE.divide(quotePerBase, MC))} $baseSymbol"
         }
+
+    /**
+     * Сколько единиц валюты брать для подписи курса, чтобы число не было слишком мелким:
+     * «1 AED = 22,45 ₽», но «100 ₸ = 18,54 ₽» и «10 000 ₫ = 31,2 ₽».
+     */
+    fun unitFor(perUnit: BigDecimal): BigDecimal {
+        if (perUnit >= BigDecimal.ONE) return BigDecimal.ONE
+        var unit = BigDecimal.TEN
+        while (perUnit.multiply(unit, MC) < BigDecimal.TEN && unit < MAX_UNIT) unit = unit.multiply(BigDecimal.TEN)
+        return unit
+    }
+
+    private val MAX_UNIT = BigDecimal(1_000_000)
 
     /** Ввод в процессе набора: «15000,5» → «15 000,5», хвостовая запятая сохраняется. */
     fun groupInput(raw: String): String {

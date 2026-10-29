@@ -21,7 +21,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,6 +34,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -72,6 +72,7 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -80,12 +81,11 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import app.dirhamrub.R
-import app.dirhamrub.domain.Card
-import app.dirhamrub.domain.CardRate
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
-import app.dirhamrub.domain.Pricing
-import app.dirhamrub.domain.Source
+import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.Wallet
+import app.dirhamrub.domain.wallet.WalletQuote
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.motion
 import com.google.mlkit.vision.text.TextRecognition
@@ -149,21 +149,21 @@ private fun CameraError(error: Throwable?, onBack: () -> Unit) {
 private val Scrim = Color(0xB3101820)
 
 /**
- * AR-камера ценников: живое превью, поверх каждой найденной цены — сумма в рублях.
- * [onToCalculator] получает цены в валюте цен (одну или отмеченные) и возвращает в калькулятор.
+ * AR-камера ценников: живое превью, поверх каждой найденной цены — сумма в итоговой валюте
+ * по выбранной карте и по курсу ЦБ.
+ * [onToCalculator] получает цены в валюте трат (одну или отмеченные) и возвращает в калькулятор.
  */
 @Composable
 fun CameraScreen(
-    rates: Map<Card, CardRate>,
-    source: Source,
-    selected: Card,
-    onSelectCard: (Card) -> Unit,
+    wallet: Wallet,
+    quote: WalletQuote,
+    onSelectCard: (String) -> Unit,
     onToCalculator: (List<BigDecimal>) -> Unit,
     onBack: () -> Unit,
 ) {
     LightSystemBars()
     CameraPermissionGate(onBack = onBack) {
-        CameraContent(rates, source, selected, onSelectCard, onToCalculator, onBack)
+        CameraContent(wallet, quote, onSelectCard, onToCalculator, onBack)
     }
 }
 
@@ -187,10 +187,9 @@ private fun LightSystemBars() {
 
 @Composable
 private fun CameraContent(
-    rates: Map<Card, CardRate>,
-    source: Source,
-    selected: Card,
-    onSelectCard: (Card) -> Unit,
+    wallet: Wallet,
+    quote: WalletQuote,
+    onSelectCard: (String) -> Unit,
     onToCalculator: (List<BigDecimal>) -> Unit,
     onBack: () -> Unit,
 ) {
@@ -218,7 +217,11 @@ private fun CameraContent(
         }
     }
     val pipeline = remember(metrics) { PricePipeline(metrics) }
-    LaunchedEffect(pipeline, rates, selected, source) { pipeline.setRates(rates, selected, source) }
+    val selectedQuote = quote.of(wallet.selected?.id)
+    val homePerUnit = selectedQuote?.homePerUnit ?: quote.official
+    LaunchedEffect(pipeline, wallet.spend, wallet.home, homePerUnit, quote.official) {
+        pipeline.setRates(wallet.spend, wallet.home, homePerUnit, quote.official.takeIf { selectedQuote != null })
+    }
 
     // Камера и распознавание: анализ ~720p на отдельном потоке, всегда только последний кадр.
     val executor = analysisExecutor
@@ -375,8 +378,9 @@ private fun CameraContent(
                 val desc = stringResource(
                     if (l.isOld) R.string.camera_label_old_a11y else R.string.camera_label_a11y,
                     Numbers.money(l.value),
-                    source.code,
-                    Numbers.moneyWhole(l.rubSelected),
+                    wallet.spend.code,
+                    l.homeAmount?.let(Numbers::moneyWhole) ?: "—",
+                    wallet.home.symbol,
                 )
                 with(density) {
                     Box(
@@ -396,7 +400,7 @@ private fun CameraContent(
         bindError?.let { CameraError(it, onBack) }
 
         TopControls(
-            selected = selected,
+            wallet = wallet,
             torch = torch,
             paused = paused,
             onBack = onBack,
@@ -409,11 +413,12 @@ private fun CameraContent(
             basket = basket,
             hint = when {
                 paused -> stringResource(R.string.camera_paused)
-                nothingFound -> stringResource(R.string.camera_hint)
+                nothingFound -> stringResource(R.string.camera_hint, "${wallet.spend.flag} ${wallet.spend.code}")
                 else -> null
             },
-            source = source,
-            rubPerUnit = Pricing.rubPerUnit(selected, source, rates),
+            spend = wallet.spend,
+            home = wallet.home,
+            homePerUnit = homePerUnit,
             onToCalculator = { onToCalculator(basket.mapNotNull { Numbers.parse(it) }) },
             onClear = { basket = emptyList() },
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -423,10 +428,11 @@ private fun CameraContent(
     sheet?.let { label ->
         PriceSheet(
             amount = label.value,
-            source = source,
+            spend = wallet.spend,
+            home = wallet.home,
             isOld = label.isOld,
-            rates = rates,
-            selected = selected,
+            quote = quote,
+            selectedId = wallet.selected?.id,
             onToCalculator = {
                 sheet = null
                 onToCalculator(listOf(label.value))
@@ -453,11 +459,11 @@ private fun FocusRing(at: Offset) {
 
 @Composable
 private fun TopControls(
-    selected: Card,
+    wallet: Wallet,
     torch: Boolean,
     paused: Boolean,
     onBack: () -> Unit,
-    onSelectCard: (Card) -> Unit,
+    onSelectCard: (String) -> Unit,
     onTorch: () -> Unit,
     onPause: () -> Unit,
 ) {
@@ -470,7 +476,7 @@ private fun TopControls(
     ) {
         RoundButton(R.drawable.ic_arrow_back, stringResource(R.string.camera_back), onBack)
         Spacer(Modifier.weight(1f))
-        CardToggle(selected, onSelectCard)
+        CardSwitch(wallet, onSelectCard)
         Spacer(Modifier.weight(1f))
         RoundButton(
             if (torch) R.drawable.ic_flash_on else R.drawable.ic_flash_off,
@@ -503,34 +509,46 @@ private fun RoundButton(icon: Int, description: String, onClick: () -> Unit, hig
     }
 }
 
-/** Переключатель карты ₸ / ¥. */
+/** Карта для меток: показывает валюту и название выбранной, тап — следующая карта. Без карт — «ЦБ». */
 @Composable
-private fun CardToggle(selected: Card, onSelect: (Card) -> Unit) {
+private fun CardSwitch(wallet: Wallet, onSelect: (String) -> Unit) {
     val colors = AppTheme.colors
-    val title = stringResource(if (selected == Card.KZT) R.string.card_kzt_short else R.string.card_cny_short)
+    val card = wallet.selected
+    val title = card?.name ?: stringResource(R.string.camera_official)
     val desc = stringResource(R.string.camera_card_switch, title)
     Row(
         modifier = Modifier
+            .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(50))
             .background(Scrim)
-            .padding(4.dp)
-            .semantics { contentDescription = desc },
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+            .clickable(role = Role.Button, enabled = wallet.cards.size > 1) {
+                val i = wallet.cards.indexOfFirst { it.id == card?.id }
+                onSelect(wallet.cards[(i + 1) % wallet.cards.size].id)
+            }
+            .semantics { contentDescription = desc }
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        for (card in listOf(Card.KZT, Card.CNY)) {
-            val isSelected = card == selected
+        if (card != null) {
             Box(
-                modifier = Modifier
-                    .size(width = 56.dp, height = 40.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(if (isSelected) colors.accent else Color.Transparent)
-                    .clickable(role = Role.RadioButton) { onSelect(card) }
-                    .semantics { this.selected = isSelected },
+                Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(colors.accent),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(card.symbol, style = AppTheme.type.title, color = Color.White)
+                Text(card.currency.symbol.take(2), style = AppTheme.type.bodyStrong, color = Color.White)
             }
+            Spacer(Modifier.width(8.dp))
         }
+        Text(
+            title,
+            style = AppTheme.type.bodyStrong,
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 140.dp),
+        )
     }
 }
 
@@ -538,8 +556,9 @@ private fun CardToggle(selected: Card, onSelect: (Card) -> Unit) {
 private fun BottomStrip(
     basket: List<String>,
     hint: String?,
-    source: Source,
-    rubPerUnit: BigDecimal,
+    spend: Currency,
+    home: Currency,
+    homePerUnit: BigDecimal?,
     onToCalculator: () -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
@@ -555,7 +574,7 @@ private fun BottomStrip(
     ) {
         if (basket.isNotEmpty()) {
             val total = basket.fold(BigDecimal.ZERO) { acc, s -> acc.add(Numbers.parse(s) ?: BigDecimal.ZERO, MC) }
-            val rub = total.multiply(rubPerUnit, MC)
+            val homeTotal = homePerUnit?.let { total.multiply(it, MC) }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -566,13 +585,13 @@ private fun BottomStrip(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        stringResource(R.string.camera_basket, basket.size, Numbers.money(total), source.code),
+                        stringResource(R.string.camera_basket, basket.size, Numbers.money(total), spend.symbol),
                         style = type.label,
                         color = colors.muted,
                         maxLines = 1,
                     )
                     Text(
-                        stringResource(R.string.camera_basket_rub, Numbers.moneyWhole(rub)),
+                        stringResource(R.string.camera_basket_total, homeTotal?.let(Numbers::moneyWhole) ?: "—", home.symbol),
                         style = type.number.copy(fontSize = 20.sp, lineHeight = 26.sp),
                         color = colors.ink,
                         maxLines = 1,

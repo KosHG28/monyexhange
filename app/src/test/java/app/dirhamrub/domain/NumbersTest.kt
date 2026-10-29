@@ -85,4 +85,16 @@ class NumbersTest {
         assertEquals("1${NBSP}мая", RuDates.long(LocalDate.of(2026, 5, 1)))
         assertEquals("29${NBSP}окт", RuDates.short(LocalDate.of(2026, 10, 29)))
     }
+
+    @Test
+    fun `курс в удобную сторону и единица для подписи`() {
+        assertEquals("1 ₽ = 5,3933 ₸", Numbers.transferRate(bd("5.393333"), "₸"))
+        assertEquals("1 ¥ = 12,3 ₽", Numbers.transferRate(bd("0.0813007"), "¥"))
+        assertEquals("1 $ = 2,7 ₾", Numbers.transferRate(bd("2.7"), "₾", "$"))
+        assertEquals(BigDecimal.ONE, Numbers.unitFor(bd("22.45")))
+        assertEquals(BigDecimal(100), Numbers.unitFor(bd("0.1854")))
+        assertEquals(BigDecimal(10000), Numbers.unitFor(bd("0.00312")))
+        assertEquals(BigDecimal.ONE, Numbers.unitFor(bd("2.5")))
+        assertEquals(BigDecimal(1_000_000), Numbers.unitFor(BigDecimal.ZERO))
+    }
 }

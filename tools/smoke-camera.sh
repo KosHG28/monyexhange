@@ -31,6 +31,13 @@ fail_if_crashed() {
     retrace_crash crash.txt
     exit 1
   fi
+  if adb logcat -d -s 'DirhamCamera:E' | grep -q 'E DirhamCamera\|E/DirhamCamera'; then
+    echo "=== ОШИБКА КАМЕРЫ: $1 ==="
+    adb logcat -d -s 'DirhamCamera:E' > camera-error.txt
+    cat camera-error.txt
+    retrace_crash camera-error.txt
+    exit 1
+  fi
   if [ -z "$(adb shell pidof "$PKG" | tr -d '\r')" ]; then
     echo "=== Процесс пропал: $1 ==="
     adb logcat -d -v brief '*:W' | tail -n 200

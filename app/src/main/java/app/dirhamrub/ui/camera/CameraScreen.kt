@@ -2,6 +2,7 @@ package app.dirhamrub.ui.camera
 
 import android.app.Activity
 import android.os.SystemClock
+import android.util.Log
 import android.util.Size
 import android.view.accessibility.AccessibilityManager
 import androidx.camera.core.FocusMeteringAction
@@ -22,6 +23,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -102,6 +104,45 @@ import kotlin.math.roundToInt
 private val analysisExecutor: Executor =
     Executors.newSingleThreadExecutor { r -> Thread(r, "price-analysis").apply { isDaemon = true } }
 
+private const val TAG = "DirhamCamera"
+
+/** Камера или распознавание не запустились: сообщение с текстом ошибки и кнопка «Назад». */
+@Composable
+private fun CameraError(error: Throwable?, onBack: () -> Unit) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(colors.bg)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(stringResource(R.string.camera_error), style = type.title, color = colors.ink)
+            Spacer(Modifier.heightIn(min = 8.dp))
+            Text(
+                text = error?.let { "${it::class.java.simpleName}: ${it.message.orEmpty()}" }.orEmpty(),
+                style = type.mono.copy(fontSize = 12.sp),
+                color = colors.muted,
+            )
+            Spacer(Modifier.heightIn(min = 20.dp))
+            Box(
+                Modifier
+                    .heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(colors.accent)
+                    .clickable(role = Role.Button, onClick = onBack)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(stringResource(R.string.camera_back), style = type.bodyStrong, color = colors.onAccent)
+            }
+        }
+    }
+}
+
 /** Полупрозрачная подложка кнопок поверх видоискателя. */
 private val Scrim = Color(0xB3101820)
 
@@ -175,7 +216,16 @@ private fun CameraContent(
 
     // Камера и распознавание: анализ ~720p на отдельном потоке, всегда только последний кадр.
     val executor = analysisExecutor
-    val recognizer = remember { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+    val recognizerResult = remember { runCatching { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) } }
+    val recognizer = recognizerResult.getOrNull()
+    if (recognizer == null) {
+        // Вместо вылета — понятное сообщение; текст ошибки виден и попадает в logcat.
+        val error = recognizerResult.exceptionOrNull()
+        LaunchedEffect(error) { Log.e(TAG, "Распознавание текста не запустилось", error) }
+        CameraError(error, onBack)
+        return
+    }
+    var bindError by remember { mutableStateOf<Throwable?>(null) }
     val camera = remember {
         LifecycleCameraController(context).apply {
             setEnabledUseCases(CameraController.IMAGE_ANALYSIS)
@@ -193,11 +243,21 @@ private fun CameraContent(
     }
     val analyzer = remember(pipeline) {
         MlKitAnalyzer(listOf(recognizer), ImageAnalysis.COORDINATE_SYSTEM_VIEW_REFERENCED, executor) { result ->
-            pipeline.onText(result.getValue(recognizer), SystemClock.uptimeMillis())
+            // Ошибка разбора одного кадра не должна ронять приложение: пропускаем кадр.
+            try {
+                pipeline.onText(result.getValue(recognizer), SystemClock.uptimeMillis())
+            } catch (e: Exception) {
+                Log.e(TAG, "Кадр не разобран", e)
+            }
         }
     }
     DisposableEffect(lifecycleOwner) {
-        camera.bindToLifecycle(lifecycleOwner)
+        try {
+            camera.bindToLifecycle(lifecycleOwner)
+        } catch (e: Exception) {
+            Log.e(TAG, "Камера не подключилась", e)
+            bindError = e
+        }
         onDispose {
             camera.clearImageAnalysisAnalyzer()
             camera.unbind()
@@ -327,6 +387,8 @@ private fun CameraContent(
                 }
             }
         }
+
+        bindError?.let { CameraError(it, onBack) }
 
         TopControls(
             selected = selected,

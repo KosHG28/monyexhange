@@ -1,0 +1,45 @@
+# План работ
+
+Источник требований — `docs/SPEC.md`. Решения по ходу — `docs/DECISIONS.md`.
+
+## Этап 1. Каркас
+- Gradle 9.8 (wrapper), AGP 9.4 со встроенным Kotlin, Kotlin 2.4 + Compose Compiler plugin, `libs.versions.toml`.
+- Один модуль `:app`, пустой `MainActivity` на Compose, ресурсы, манифест (портрет, CAMERA).
+- Ключ `keystore/app.keystore` для debug и release.
+- CI `.github/workflows/android.yml`: тесты, lint, debug + release APK, релиз по тегу `v*`.
+- `CLAUDE.md`, `docs/SPEC.md`, `docs/PLAN.md`, `docs/DECISIONS.md`.
+
+## Этап 2. Domain (чистый Kotlin, без android.*)
+- `Card`, `Receipt`, `CardRate`, `RateMath` (cardPerRub, cardPerAed, rubPerAed, выгода в %).
+- `Numbers`: разбор ввода, форматирование ru-RU (деньги, курсы, шпаргалка, курс перевода «в удобную сторону»), даты по-русски.
+- `Converter`: AED ⇄ ₽ ⇄ валюта карты, сравнение карт.
+- `Calculator`: выражение «22 + 15,5 + 8», ввод с клавиатуры, «=».
+- `price/PriceParser`: модель OCR (строки/слова с рамками), склейка частей, фильтры, скоринг, «старая цена».
+- `price/PriceTracker`: сопоставление между кадрами, EMA, 2 из 4, удержание 400 мс, ≤ 6 меток.
+- Unit-тесты на все контрольные значения из SPEC.
+
+## Этап 3. Главный экран
+- Тема: цвета SPEC (светлая/тёмная), шрифты Unbounded / Golos Text / JetBrains Mono, tnum.
+- Мини-карты (1,586:1, градиенты, водяные знаки, бейдж выгоды, анимация выбора).
+- Результат, плашка курса, сравнение с полосками, «линия метро», чипы, клавиатура, кнопка «Ценник».
+- Шпаргалка.
+- `MainViewModel` + `StateFlow`.
+
+## Этап 4. Шторка «Курс» + DataStore
+- Ручной курс, бумажный чек (зубчатый край, отточия, моноширинные цифры), итог на лету, две кнопки.
+- `SettingsRepository` на Preferences DataStore: карта, курсы/чеки/источник/дата, выражение и активная строка.
+
+## Этап 5. AR-камера
+- Разрешение CAMERA (объяснение, «Открыть настройки»).
+- `LifecycleCameraController` + `PreviewView` + `MlKitAnalyzer` (VIEW_REFERENCED), bundled Text Recognition v2.
+- Конвейер на фоновом executor: OCR → `PriceParser` → `PriceTracker` → раскладка меток.
+- Canvas-оверлей без аллокаций в draw; шторка метки; полоска «отмечено»; фонарик, пауза, зум, фокус, ₸/¥.
+
+## Этап 6. Полировка и релиз
+- Тёмная тема, адаптивная иконка, TalkBack-подписи, «уменьшить анимацию».
+- README по-русски, тег `v0.1.0` → GitHub Release с APK.
+
+## Проверка
+Android SDK в облачном окружении недоступен (dl.google.com закрыт), поэтому:
+- domain-код и его тесты гоняются локально JVM-харнессом (`tools/domain-check`);
+- полная сборка `testDebugUnitTest lintDebug assembleDebug assembleRelease` — в GitHub Actions после каждого пуша.

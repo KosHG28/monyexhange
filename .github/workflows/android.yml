@@ -1,0 +1,71 @@
+name: Android
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Android SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-37" "build-tools;36.0.0" > /dev/null
+
+      - name: Tests, lint, build
+        run: ./gradlew --stacktrace testDebugUnitTest lintDebug assembleDebug assembleRelease
+
+      - name: Collect APKs
+        if: success()
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/debug/app-debug.apk out/dirhamrub-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk out/dirhamrub-release.apk
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: dirhamrub-apk
+          path: out/*.apk
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: reports
+          path: |
+            app/build/reports/
+            app/build/test-results/
+          if-no-files-found: ignore
+
+      - name: GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cp out/dirhamrub-release.apk "out/dirhamrub-$TAG.apk"
+          gh release create "$TAG" "out/dirhamrub-$TAG.apk" \
+            --title "Дирхамы в рубли $TAG" \
+            --notes "APK для Android 8.0+. Как установить — см. README." \
+            || gh release upload "$TAG" "out/dirhamrub-$TAG.apk" --clobber

@@ -18,6 +18,8 @@ data class AppColors(
     val onAccent: Color,
     val good: Color,
     val goodSoft: Color,
+    /** Заметная, но не критичная наценка к ЦБ. */
+    val warn: Color,
     val isDark: Boolean,
 )
 
@@ -33,6 +35,7 @@ val LightColors = AppColors(
     onAccent = Color(0xFFFFFFFF),
     good = Color(0xFF1D6E43),
     goodSoft = Color(0xFFE3F2EA),
+    warn = Color(0xFF9A6400),
     isDark = false,
 )
 
@@ -48,6 +51,7 @@ val DarkColors = AppColors(
     onAccent = Color(0xFF1A0A0B),
     good = Color(0xFF5CCB92),
     goodSoft = Color(0xFF15301F),
+    warn = Color(0xFFE9B949),
     isDark = true,
 )
 
@@ -59,6 +63,12 @@ data class CardStyle(val start: Color, val end: Color, val mark: Color, val chip
 
 object CardPalette {
     val onCard = Color(0xFFFFFFFF)
+    /** Наценка к ЦБ и «лучшая» поверх градиента карты: светлые, на тёмной подложке. */
+    val goodOnCard = Color(0xFF7BE3AE)
+    val warnOnCard = Color(0xFFFFD27A)
+    val badOnCard = Color(0xFFFF9A9A)
+    val star = Color(0xFFFFD66B)
+    val chipScrim = Color(0x47000000)
     private val gold = Color(0xFFE2C275)
     private val silver = Color(0xFFDDE7EA)
 

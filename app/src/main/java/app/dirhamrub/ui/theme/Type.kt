@@ -10,17 +10,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 
-val Unbounded = FontFamily(Font(R.font.unbounded_semibold, FontWeight.SemiBold))
-
-val Golos = FontFamily(
-    Font(R.font.golos_text_regular, FontWeight.Normal),
-    Font(R.font.golos_text_medium, FontWeight.Medium),
-    Font(R.font.golos_text_semibold, FontWeight.SemiBold),
-)
-
-val JetBrainsMono = FontFamily(
-    Font(R.font.jetbrains_mono_regular, FontWeight.Normal),
-    Font(R.font.jetbrains_mono_medium, FontWeight.Medium),
+/** Единственный шрифт приложения: суммы тонким начертанием, текст — обычным и средним. */
+val InterTight = FontFamily(
+    Font(R.font.inter_tight_light, FontWeight.Light),
+    Font(R.font.inter_tight_regular, FontWeight.Normal),
+    Font(R.font.inter_tight_medium, FontWeight.Medium),
+    Font(R.font.inter_tight_semibold, FontWeight.SemiBold),
 )
 
 /** Цифры везде одинаковой ширины. */
@@ -30,17 +25,18 @@ private const val TNUM = "tnum"
 @Immutable
 data class AppType(
     /** Главное число экрана. */
-    val hero: TextStyle = TextStyle(fontFamily = Unbounded, fontWeight = FontWeight.SemiBold, fontSize = 44.sp, lineHeight = 52.sp, fontFeatureSettings = TNUM),
-    /** Значение активной строки и крупные суммы. */
-    val number: TextStyle = TextStyle(fontFamily = Unbounded, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, lineHeight = 28.sp, fontFeatureSettings = TNUM),
-    val title: TextStyle = TextStyle(fontFamily = Unbounded, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, lineHeight = 24.sp, fontFeatureSettings = TNUM),
-    val key: TextStyle = TextStyle(fontFamily = Golos, fontWeight = FontWeight.Medium, fontSize = 26.sp, lineHeight = 30.sp, fontFeatureSettings = TNUM),
-    val body: TextStyle = TextStyle(fontFamily = Golos, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 20.sp, fontFeatureSettings = TNUM),
-    val bodyStrong: TextStyle = TextStyle(fontFamily = Golos, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, fontFeatureSettings = TNUM),
-    val label: TextStyle = TextStyle(fontFamily = Golos, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 16.sp, fontFeatureSettings = TNUM),
-    val caption: TextStyle = TextStyle(fontFamily = Golos, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 15.sp, fontFeatureSettings = TNUM),
-    val mono: TextStyle = TextStyle(fontFamily = JetBrainsMono, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 20.sp, fontFeatureSettings = TNUM),
-    val monoStrong: TextStyle = TextStyle(fontFamily = JetBrainsMono, fontWeight = FontWeight.Medium, fontSize = 15.sp, lineHeight = 20.sp, fontFeatureSettings = TNUM),
+    val hero: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Light, fontSize = 60.sp, lineHeight = 66.sp, letterSpacing = (-1.2).sp, fontFeatureSettings = TNUM),
+    /** Значение поля ввода и крупные суммы. */
+    val number: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Normal, fontSize = 30.sp, lineHeight = 36.sp, letterSpacing = (-0.3).sp, fontFeatureSettings = TNUM),
+    val title: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, lineHeight = 24.sp, fontFeatureSettings = TNUM),
+    val key: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Normal, fontSize = 26.sp, lineHeight = 30.sp, fontFeatureSettings = TNUM),
+    val body: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 20.sp, fontFeatureSettings = TNUM),
+    val bodyStrong: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, fontFeatureSettings = TNUM),
+    val label: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 16.sp, fontFeatureSettings = TNUM),
+    val caption: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 15.sp, fontFeatureSettings = TNUM),
+    /** Курсы и суммы в строку: тот же шрифт, цифры одинаковой ширины. */
+    val mono: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 20.sp, fontFeatureSettings = TNUM),
+    val monoStrong: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Medium, fontSize = 15.sp, lineHeight = 20.sp, fontFeatureSettings = TNUM),
 )
 
 val LocalAppType = staticCompositionLocalOf { AppType() }

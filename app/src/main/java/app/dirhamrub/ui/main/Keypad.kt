@@ -28,13 +28,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.Key
 import app.dirhamrub.ui.theme.AppTheme
 
-private val KEY_HEIGHT = 54.dp
+private val KEY_HEIGHT = 58.dp
 private val KEY_GAP = 8.dp
 
 /**
@@ -88,7 +89,7 @@ private fun RowScope.KeyBase(
         modifier = Modifier
             .weight(1f)
             .height(KEY_HEIGHT)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(background)
             .combinedClickable(
                 onClick = {
@@ -126,8 +127,9 @@ private fun RowScope.TextKey(label: String, description: String, onClick: () -> 
 @Composable
 private fun RowScope.OperatorKey(label: String, description: String, onClick: () -> Unit) {
     val colors = AppTheme.colors
-    KeyBase(description, colors.accentSoft, onClick = onClick) {
-        Text(label, style = AppTheme.type.key, color = colors.accent)
+    // Знаки действий без подложки — только цветом: клавиатура спокойнее.
+    KeyBase(description, Color.Transparent, onClick = onClick) {
+        Text(label, style = AppTheme.type.key.copy(fontSize = 30.sp, fontWeight = FontWeight.Light), color = colors.accent)
     }
 }
 
@@ -136,7 +138,7 @@ private fun RowScope.BackspaceKey(onKey: (Key) -> Unit) {
     val colors = AppTheme.colors
     KeyBase(
         description = stringResource(R.string.key_backspace),
-        background = colors.accentSoft,
+        background = Color.Transparent,
         onLongClick = { onKey(Key.Clear) },
         onClick = { onKey(Key.Backspace) },
     ) {

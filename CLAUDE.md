@@ -61,7 +61,7 @@ app/src/main/java/app/dirhamrub/
 - Любое изменение математики, форматирования или `PriceParser` — с unit-тестом.
 - Весь интерфейс на русском; строки — в `res/values/strings.xml` (названия валют — в `Currency`).
 - Цвета только из `ui/theme` (`AppColors`), не хардкодить в экранах (исключение — «банковские» градиенты карт).
-- Цифры — tabular figures (`fontFeatureSettings = "tnum"`), моноширинные — JetBrains Mono.
+- Цифры — tabular figures (`fontFeatureSettings = "tnum"`), один шрифт — Inter Tight (`ui/theme/Type.kt`), суммы тонким начертанием.
 - Нажимаемые элементы ≥ 48 dp и с `contentDescription`/семантикой для TalkBack.
 - Анимации через `LocalReduceMotion`: при отключённых системных анимациях — без них.
 - Главный экран не вызывает системную клавиатуру; она есть только в шторке «Курс».

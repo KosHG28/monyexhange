@@ -197,8 +197,8 @@ private fun CameraContent(
     val lifecycleOwner = LocalLifecycleOwner.current
     val density = LocalDensity.current
 
-    val mainTypeface = remember { ResourcesCompat.getFont(context, R.font.unbounded_semibold) }
-    val subTypeface = remember { ResourcesCompat.getFont(context, R.font.golos_text_medium) }
+    val mainTypeface = remember { ResourcesCompat.getFont(context, R.font.inter_tight_semibold) }
+    val subTypeface = remember { ResourcesCompat.getFont(context, R.font.inter_tight_medium) }
     val metrics = remember(density) {
         with(density) {
             LabelMetrics(

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -40,7 +41,10 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,6 +57,7 @@ import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.ui.theme.AppTheme
 import java.math.BigDecimal
 
@@ -72,28 +77,29 @@ fun MainScreen(
 ) {
     val colors = AppTheme.colors
     val wallet = state.wallet
-    val totals = state.totals
-    val unit = when (state.active) {
-        Line.SPEND -> wallet.spend.symbol
-        Line.HOME -> wallet.home.symbol
-        Line.CARD -> state.selectedCard?.currency?.symbol.orEmpty()
+    // Ввод — в одной из валют, крупно — сумма в итоговой (или в валюте трат, если вводят итоговую),
+    // оставшаяся строка (обычно «Спишется с карты») — мелко под полем ввода.
+    val lines = buildList {
+        add(Line.SPEND)
+        if (wallet.home != wallet.spend) add(Line.HOME)
+        if (state.showCardLine) add(Line.CARD)
     }
+    val heroLine = if (state.active == Line.HOME) Line.SPEND else Line.HOME
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.bg)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(horizontal = 16.dp),
+            .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
         TopBar(wallet.spend, wallet.home, onOpenCurrencies, onOpenCheat)
-        // Верх экрана на низких телефонах прокручивается, низ (линия, чипы, клавиатура) всегда на месте.
+        // Верх экрана на низких телефонах прокручивается, низ (ввод, чипы, клавиатура) всегда на месте.
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
                     .heightIn(min = maxHeight),
-                verticalArrangement = Arrangement.SpaceEvenly,
+                verticalArrangement = Arrangement.SpaceBetween,
             ) {
                 BankCardsRow(
                     cards = wallet.cards,
@@ -101,37 +107,40 @@ fun MainScreen(
                     selectedId = wallet.selected?.id,
                     spend = wallet.spend,
                     home = wallet.home,
-                    amount = totals.spend,
+                    amount = state.totals.spend,
                     onSelect = onSelectCard,
                     onEdit = onEditCard,
                     onAdd = onAddCard,
+                    modifier = Modifier.padding(top = 6.dp),
                 )
-                ResultBlock(state, unit, onEditCard, onAddCard, onRefreshRates)
+                ResultBlock(state, heroLine, onEditCard, onAddCard, onRefreshRates)
+                Spacer(Modifier.height(12.dp))
             }
         }
-        MetroLine(
-            active = state.active,
-            spend = wallet.spend,
-            spendValue = valueText(state, Line.SPEND),
-            home = wallet.home,
-            homeValue = valueText(state, Line.HOME),
-            card = state.selectedCard,
-            cardValue = valueText(state, Line.CARD),
-            showCard = state.showCardLine,
-            onSelect = onSelectLine,
-        )
-        Spacer(Modifier.height(6.dp))
-        Chips(wallet.spend, onChip)
-        Spacer(Modifier.height(8.dp))
-        Keypad(onKey = onKey, onCamera = onOpenCamera)
-        Spacer(Modifier.height(8.dp))
+        Column(Modifier.padding(horizontal = 16.dp)) {
+            InputField(state, lines, onSelectLine)
+            for (line in lines) {
+                if (line != state.active && line != heroLine) SecondaryLine(state, line, onSelectLine)
+            }
+            Spacer(Modifier.height(10.dp))
+            Chips(wallet.spend, onChip)
+            Spacer(Modifier.height(10.dp))
+            Keypad(onKey = onKey, onCamera = onOpenCamera)
+            Spacer(Modifier.height(8.dp))
+        }
     }
 }
 
 private fun valueText(state: MainUiState, line: Line): String =
     if (state.active == line) state.activeText else state.totals.of(line)?.let(Numbers::money) ?: "—"
 
-/** Шапка: «🇦🇪 AED → ₽» (выбор валют) и шпаргалка. */
+private fun Line.currency(state: MainUiState): Currency? = when (this) {
+    Line.SPEND -> state.wallet.spend
+    Line.HOME -> state.wallet.home
+    Line.CARD -> state.selectedCard?.currency
+}
+
+/** Шапка: «🇦🇪 AED → ₽ ▾» (выбор валют) и шпаргалка. */
 @Composable
 private fun TopBar(spend: Currency, home: Currency, onOpenCurrencies: () -> Unit, onOpenCheat: () -> Unit) {
     val colors = AppTheme.colors
@@ -139,63 +148,58 @@ private fun TopBar(spend: Currency, home: Currency, onOpenCurrencies: () -> Unit
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(56.dp),
+            .height(60.dp)
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val a11y = stringResource(R.string.currency_button_a11y, spend.nameRu, home.nameRu)
+        val text = buildAnnotatedString {
+            append(spend.code)
+            withStyle(SpanStyle(color = colors.muted, fontWeight = FontWeight.Normal)) { append("  →  ") }
+            append(home.symbol)
+        }
         Row(
             modifier = Modifier
                 .weight(1f, fill = false)
+                .heightIn(min = 48.dp)
                 .clip(RoundedCornerShape(50))
                 .background(colors.surface)
-                .border(1.dp, colors.line, RoundedCornerShape(50))
                 .clickable(role = Role.Button, onClick = onOpenCurrencies)
                 .clearAndSetSemantics {
                     contentDescription = a11y
                     role = Role.Button
                     heading()
                 }
-                .heightIn(min = 48.dp)
-                .padding(horizontal = 14.dp),
+                .padding(start = 14.dp, end = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(spend.flag, fontSize = 20.sp)
+            Text(spend.flag, fontSize = 18.sp)
             Spacer(Modifier.width(8.dp))
-            Text(
-                text = "${spend.code} → ${home.symbol}",
-                style = type.title.copy(fontSize = 17.sp),
-                color = colors.ink,
-                maxLines = 1,
-            )
-            Spacer(Modifier.width(6.dp))
-            Text("▾", style = type.body, color = colors.muted)
+            Text(text, style = type.bodyStrong.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1)
+            Spacer(Modifier.width(8.dp))
+            Text("▾", style = type.caption, color = colors.muted)
         }
         Spacer(Modifier.weight(1f))
-        Text(
-            stringResource(R.string.app_name),
-            style = type.label,
-            color = colors.muted,
-            maxLines = 1,
-            modifier = Modifier.padding(end = 4.dp),
-        )
         val cheat = stringResource(R.string.cheat_button)
         Box(
             modifier = Modifier
                 .size(48.dp)
                 .clip(CircleShape)
+                .background(colors.surface)
                 .clickable(role = Role.Button, onClickLabel = cheat, onClick = onOpenCheat)
                 .semantics { contentDescription = cheat },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_list), contentDescription = null, tint = colors.accent, modifier = Modifier.size(24.dp))
+            Icon(painterResource(R.drawable.ic_table), contentDescription = null, tint = colors.ink, modifier = Modifier.size(22.dp))
         }
     }
 }
 
+/** Крупная сумма, чем посчитана, и одна строка курса со сверкой с ЦБ. */
 @Composable
 private fun ResultBlock(
     state: MainUiState,
-    unit: String,
+    heroLine: Line,
     onEditCard: (BankCard) -> Unit,
     onAddCard: () -> Unit,
     onRefreshRates: () -> Unit,
@@ -203,27 +207,31 @@ private fun ResultBlock(
     val colors = AppTheme.colors
     val type = AppTheme.type
     val wallet = state.wallet
-    val home = state.totals.home
-    val rate = state.homePerUnit
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = if (state.expression.isCompound) state.expression.display() + " " + unit else "",
-            style = type.mono.copy(fontSize = 14.sp),
-            color = colors.muted,
-            maxLines = 1,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        val heroText = home?.let { "${Numbers.money(it)} ${wallet.home.symbol}" } ?: "—"
+    val heroCurrency = heroLine.currency(state) ?: wallet.home
+    val heroValue = state.totals.of(heroLine)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        val number = heroValue?.let(Numbers::money) ?: "—"
+        val heroPlain = "$number ${heroCurrency.symbol}"
         val heroSize = when {
-            heroText.length > 15 -> 26.sp
-            heroText.length > 12 -> 32.sp
-            else -> 44.sp
+            heroPlain.length > 15 -> 38.sp
+            heroPlain.length > 11 -> 48.sp
+            else -> 60.sp
         }
-        val resultA11y = stringResource(R.string.result_a11y, heroText)
+        val resultA11y = stringResource(R.string.result_a11y, heroPlain)
         Text(
-            text = heroText,
-            style = type.hero.copy(fontSize = heroSize, lineHeight = heroSize * 1.18f),
+            text = buildAnnotatedString {
+                append(number)
+                if (heroValue != null) {
+                    append(" ")
+                    withStyle(SpanStyle(color = colors.muted)) { append(heroCurrency.symbol) }
+                }
+            },
+            style = type.hero.copy(fontSize = heroSize, lineHeight = heroSize * 1.12f),
             color = colors.ink,
             maxLines = 1,
             softWrap = false,
@@ -235,83 +243,215 @@ private fun ResultBlock(
                     liveRegion = LiveRegionMode.Polite
                 },
         )
-        val spendText = "${Numbers.money(state.totals.spend)} ${wallet.spend.symbol}"
+        val inputCurrency = state.active.currency(state) ?: wallet.spend
+        val inputText = "${state.totals.of(state.active)?.let(Numbers::money) ?: "—"} ${inputCurrency.symbol}"
         val card = state.selectedCard
+        val q = state.selectedQuote
         Text(
             text = when {
-                rate == null -> stringResource(R.string.result_no_rate)
-                card != null && state.selectedQuote != null -> stringResource(R.string.result_by_card, spendText, card.name)
-                else -> stringResource(R.string.result_by_official, spendText)
+                state.homePerUnit == null -> stringResource(R.string.result_no_rate)
+                card != null && q != null -> stringResource(R.string.result_by_card, inputText, card.name, basisShort(q))
+                else -> stringResource(R.string.result_by_official, inputText)
             },
             style = type.body.copy(fontSize = 14.sp),
             color = colors.muted,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 4.dp),
         )
-        Spacer(Modifier.height(4.dp))
-        if (rate != null) {
-            val u = Numbers.unitFor(rate)
-            val unitLabel = if (u.compareTo(BigDecimal.ONE) == 0) "1 ${wallet.spend.symbol}" else "${Numbers.moneyWhole(u)} ${wallet.spend.symbol}"
-            val rateText = Numbers.rate(rate.multiply(u, MC), 2)
-            val pillA11y = stringResource(R.string.rate_pill_a11y, unitLabel, rateText, wallet.home.symbol)
-            Row(
-                modifier = Modifier
-                    .minimumInteractiveComponentSize()
-                    .clip(RoundedCornerShape(50))
-                    .background(colors.accentSoft)
-                    .clickable(role = Role.Button) { if (card != null) onEditCard(card) else onAddCard() }
-                    .clearAndSetSemantics {
-                        contentDescription = pillA11y
-                        role = Role.Button
-                    }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(stringResource(R.string.rate_pill, unitLabel, rateText, wallet.home.symbol), style = type.monoStrong.copy(fontSize = 14.sp), color = colors.accent)
-                Spacer(Modifier.width(6.dp))
-                Icon(painterResource(R.drawable.ic_edit), contentDescription = null, tint = colors.accent, modifier = Modifier.size(16.dp))
-            }
-        }
-        OfficialLine(state, onRefreshRates)
+        Spacer(Modifier.height(12.dp))
+        RateLine(state, onEdit = { if (card != null) onEditCard(card) else onAddCard() }, onRefresh = onRefreshRates)
     }
 }
 
-/** «ЦБ на 29 окт: 1 AED = 22,19 ₽» и обновление курсов. */
+/**
+ * «1 ¥ = 12,75 ₽ · ЦБ 12,08 +5,5 % ↻»: курс выбранной карты, курс ЦБ на ту же единицу и наценка.
+ * Тап по курсу — редактор карты, по ↻ — обновить курсы ЦБ.
+ */
 @Composable
-private fun OfficialLine(state: MainUiState, onRefresh: () -> Unit) {
+private fun RateLine(state: MainUiState, onEdit: () -> Unit, onRefresh: () -> Unit) {
     val colors = AppTheme.colors
+    val type = AppTheme.type
     val wallet = state.wallet
-    val official = state.official
-    val perUnit = state.quote.official
-    val text = when {
-        state.ratesLoading -> stringResource(R.string.official_loading)
-        official == null -> stringResource(R.string.official_missing)
-        state.ratesFailed -> stringResource(R.string.official_failed, RuDates.short(official.date))
-        perUnit != null -> {
-            val u = Numbers.unitFor(perUnit)
-            stringResource(
-                R.string.official_line,
-                RuDates.short(official.date),
-                "${Numbers.moneyWhole(u)} ${wallet.spend.symbol}",
-                Numbers.rate(perUnit.multiply(u, MC), 2),
-                wallet.home.symbol,
-            )
-        }
-        else -> stringResource(R.string.official_missing)
+    val rate = state.homePerUnit
+    val official = state.quote.official
+    val q = state.selectedQuote
+    val byOfficial = q == null || q.basis == RateBasis.OFFICIAL
+    val u = Numbers.unitFor(rate ?: official ?: BigDecimal.ONE)
+    val unitLabel = if (u.compareTo(BigDecimal.ONE) == 0) "1 ${wallet.spend.symbol}" else "${Numbers.moneyWhole(u)} ${wallet.spend.symbol}"
+    val date = state.official?.let { RuDates.short(it.date) }
+    val officialText = when {
+        state.ratesLoading -> stringResource(R.string.official_loading_short)
+        official == null -> stringResource(R.string.official_missing_short)
+        byOfficial -> stringResource(R.string.official_on, date.orEmpty())
+        else -> stringResource(R.string.official_short, Numbers.rate(official.multiply(u, MC), 2))
     }
-    val refresh = stringResource(R.string.official_refresh)
+    val vs = q?.vsOfficial?.takeIf { !byOfficial && !state.ratesLoading }
+    val vsColor = vs?.let {
+        when (markupOf(it)) {
+            Markup.GOOD -> colors.good
+            Markup.WARN -> colors.warn
+            Markup.BAD -> colors.accent
+        }
+    }
+    val rateText = rate?.let { stringResource(R.string.rate_pill, unitLabel, Numbers.rate(it.multiply(u, MC), 2), wallet.home.symbol) }
+    val a11y = buildString {
+        if (rateText != null) append(stringResource(R.string.rate_pill_a11y, rateText)).append(". ")
+        append(officialText)
+        if (vs != null) append(", ").append(stringResource(R.string.card_vs_official, signedPercent(vs)))
+        if (state.ratesFailed && date != null) append(". ").append(stringResource(R.string.official_failed, date))
+    }
     Row(
         modifier = Modifier
-            .heightIn(min = 40.dp)
             .clip(RoundedCornerShape(50))
-            .clickable(role = Role.Button, onClickLabel = refresh, enabled = !state.ratesLoading, onClick = onRefresh)
-            .padding(horizontal = 10.dp),
+            .border(1.dp, colors.line, RoundedCornerShape(50)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text, style = AppTheme.type.caption.copy(fontSize = 12.5.sp), color = colors.muted, maxLines = 1)
-        Spacer(Modifier.width(6.dp))
-        Text("↻", style = AppTheme.type.bodyStrong, color = if (state.ratesLoading) colors.line else colors.accent)
+        Row(
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .clickable(role = Role.Button, onClick = onEdit)
+                .clearAndSetSemantics {
+                    contentDescription = a11y
+                    role = Role.Button
+                }
+                .padding(start = 16.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val small = type.body.copy(fontSize = 14.sp)
+            if (rateText != null) {
+                Text(rateText, style = small.copy(fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1)
+                Text("  ·  ", style = small, color = colors.muted, maxLines = 1)
+            }
+            Text(officialText, style = small, color = colors.muted, maxLines = 1)
+            if (vs != null && vsColor != null) {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    stringResource(R.string.percent_value, signedPercent(vs)),
+                    style = small.copy(fontWeight = FontWeight.Medium),
+                    color = vsColor,
+                    maxLines = 1,
+                )
+            }
+        }
+        val refresh = stringResource(R.string.official_refresh)
+        Box(
+            modifier = Modifier
+                .size(44.dp, 48.dp)
+                .clickable(role = Role.Button, onClickLabel = refresh, enabled = !state.ratesLoading, onClick = onRefresh)
+                .semantics { contentDescription = refresh },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "↻",
+                style = type.bodyStrong,
+                color = when {
+                    state.ratesLoading -> colors.line
+                    state.ratesFailed -> colors.warn
+                    else -> colors.accent
+                },
+            )
+        }
+    }
+}
+
+/** Поле ввода: валюта (тап — вводить в другой), выражение «22 + 15,5 =» и сумма. */
+@Composable
+private fun InputField(state: MainUiState, lines: List<Line>, onSelectLine: (Line) -> Unit) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    val line = state.active
+    val currency = line.currency(state) ?: state.wallet.spend
+    val label = if (line == Line.CARD) state.selectedCard?.name.orEmpty() else currency.shortRu
+    val value = valueText(state, line)
+    val next = lines.getOrNull((lines.indexOf(line) + 1) % lines.size)?.takeIf { it != line }
+    val a11y = stringResource(R.string.input_a11y, label, value, currency.symbol)
+    val switchLabel = stringResource(R.string.input_switch)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(colors.surface)
+            .padding(start = 6.dp, end = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .widthIn(max = 140.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .then(
+                    if (next != null) {
+                        Modifier.clickable(role = Role.Button, onClickLabel = switchLabel) { onSelectLine(next) }
+                    } else {
+                        Modifier
+                    },
+                )
+                .clearAndSetSemantics {
+                    contentDescription = a11y
+                    if (next != null) role = Role.Button
+                }
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label, style = type.label, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            if (next != null) Text(" ⇅", style = type.label, color = colors.accent, maxLines = 1)
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = if (state.expression.isCompound) state.expression.display() + " =" else "",
+            style = type.body.copy(fontSize = 14.sp),
+            color = colors.muted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = value,
+            style = if (value.length > 12) type.number.copy(fontSize = 24.sp, lineHeight = 30.sp) else type.number,
+            color = colors.ink,
+            maxLines = 1,
+            softWrap = false,
+        )
+        Text(
+            text = currency.symbol,
+            style = type.body.copy(fontSize = 18.sp),
+            color = colors.muted,
+            maxLines = 1,
+            textAlign = TextAlign.End,
+            modifier = Modifier.padding(start = 8.dp),
+        )
+    }
+}
+
+/** «Спишется с карты  3 438,58 ₸» — тап переносит ввод в эту валюту. */
+@Composable
+private fun SecondaryLine(state: MainUiState, line: Line, onSelectLine: (Line) -> Unit) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    val currency = line.currency(state) ?: return
+    val label = if (line == Line.CARD) stringResource(R.string.debit_card) else currency.shortRu
+    val value = valueText(state, line)
+    val a11y = stringResource(R.string.line_a11y, label, value, currency.symbol)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.input_here)) { onSelectLine(line) }
+            .clearAndSetSemantics {
+                contentDescription = a11y
+                role = Role.Button
+            }
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = type.body.copy(fontSize = 13.5.sp), color = colors.muted, maxLines = 1, modifier = Modifier.weight(1f))
+        Text("$value ${currency.symbol}", style = type.body.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1)
     }
 }
 
@@ -336,7 +476,6 @@ private fun Chips(spend: Currency, onChip: (BigDecimal) -> Unit) {
                     .height(40.dp)
                     .clip(RoundedCornerShape(50))
                     .background(colors.surface)
-                    .border(1.dp, colors.line, RoundedCornerShape(50))
                     .clickable(role = Role.Button) { onChip(amount) }
                     .clearAndSetSemantics {
                         contentDescription = a11y
@@ -345,7 +484,7 @@ private fun Chips(spend: Currency, onChip: (BigDecimal) -> Unit) {
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(label, style = type.monoStrong.copy(fontSize = 13.sp), color = colors.ink, maxLines = 1)
+                Text(label, style = type.label.copy(fontSize = 14.sp), color = colors.muted, maxLines = 1)
                 if (metro) {
                     Spacer(Modifier.width(3.dp))
                     Text(

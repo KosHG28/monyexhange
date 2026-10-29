@@ -10,14 +10,16 @@
     <string name="cheat_button">Шпаргалка</string>
 
     <!-- Карты -->
-    <string name="card_rate_line">%1$s %2$s за %3$s</string>
+    <string name="card_rate_short">%1$s %2$s/%3$s</string>
     <string name="card_vs_official">%1$s %% к ЦБ</string>
     <string name="card_basis_receipts">по чекам</string>
     <string name="card_basis_estimate">оценка</string>
     <string name="card_basis_official">курс ЦБ</string>
     <string name="card_basis_manual">вручную</string>
     <string name="card_no_rate">нет курса</string>
-    <string name="card_best">лучшая · −%1$s %%</string>
+    <string name="card_best_a11y">Самая выгодная карта, дешевле на %1$s %%</string>
+    <string name="card_edit_a11y">Изменить карту</string>
+    <string name="percent_value">%1$s %%</string>
     <string name="card_add">Добавить карту</string>
     <string name="card_add_hint">Добавьте свою карту и чеки — посчитаем ваш реальный курс. Пока считаем по курсу ЦБ.</string>
     <string name="card_default_name">Карта %1$s</string>
@@ -25,18 +27,22 @@
 
     <!-- Главный экран -->
     <string name="rate_pill">%1$s = %2$s %3$s</string>
-    <string name="rate_pill_a11y">Курс: %1$s равно %2$s %3$s. Изменить карту</string>
+    <string name="rate_pill_a11y">Курс: %1$s. Изменить карту</string>
     <string name="result_a11y">Итого %1$s</string>
-    <string name="result_by_card">%1$s · %2$s</string>
+    <string name="result_by_card">%1$s · %2$s · %3$s</string>
     <string name="result_by_official">%1$s · по курсу ЦБ</string>
     <string name="result_no_rate">Нет курса: добавьте карту или обновите курсы ЦБ</string>
-    <string name="official_line">ЦБ на %1$s: %2$s = %3$s %4$s</string>
-    <string name="official_loading">Обновляем курсы ЦБ…</string>
-    <string name="official_missing">Курсы ЦБ не загружены</string>
+    <string name="official_short">ЦБ %1$s</string>
+    <string name="official_on">по ЦБ на %1$s</string>
+    <string name="official_loading_short">ЦБ: обновляем…</string>
+    <string name="official_missing_short">ЦБ: нет курсов</string>
     <string name="official_failed">Нет связи — курсы ЦБ от %1$s</string>
     <string name="official_refresh">Обновить курсы ЦБ</string>
     <string name="line_a11y">%1$s: %2$s %3$s</string>
-    <string name="line_a11y_active">ввод сюда</string>
+    <string name="input_a11y">Ввод в валюте %1$s: %2$s %3$s</string>
+    <string name="input_switch">Вводить в другой валюте</string>
+    <string name="input_here">Вводить в этой валюте</string>
+    <string name="debit_card">Спишется с карты</string>
     <string name="chip_a11y">%1$s %2$s</string>
     <string name="chip_metro_a11y">22 дирхама, проезд в метро</string>
     <string name="key_backspace">Стереть. Долгое нажатие — очистить</string>

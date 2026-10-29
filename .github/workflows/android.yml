@@ -33,9 +33,7 @@ jobs:
 
       - name: Android SDK packages
         run: |
-          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$SDKM" --licenses > /dev/null || true
-          "$SDKM" --list 2>/dev/null | grep -E '^ *(platforms;android-3[5-9]|build-tools;3[5-9])' | sort -u || true
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
       - name: Tests, lint, build
         run: ./gradlew --stacktrace testDebugUnitTest lintDebug assembleDebug assembleRelease
@@ -47,15 +45,21 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk out/dirhamrub-debug.apk
           cp app/build/outputs/apk/release/app-release.apk out/dirhamrub-release.apk
 
+      # Квота хранилища артефактов общая на аккаунт; если она кончилась, сборка всё равно зелёная,
+      # а APK для установки публикуется через GitHub Release по тегу.
       - uses: actions/upload-artifact@v5
         if: success()
+        continue-on-error: true
         with:
           name: dirhamrub-apk
           path: out/*.apk
+          retention-days: 14
 
       - uses: actions/upload-artifact@v5
         if: failure()
+        continue-on-error: true
         with:
+          retention-days: 7
           name: reports
           path: |
             app/build/reports/

@@ -17,6 +17,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      LC_ALL: C.UTF-8
+      LANG: C.UTF-8
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
@@ -30,8 +33,9 @@ jobs:
 
       - name: Android SDK packages
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-37" "build-tools;36.0.0" > /dev/null
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" --list 2>/dev/null | grep -E '^ *(platforms;android-3[5-9]|build-tools;3[5-9])' | sort -u || true
 
       - name: Tests, lint, build
         run: ./gradlew --stacktrace testDebugUnitTest lintDebug assembleDebug assembleRelease
@@ -43,13 +47,13 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk out/dirhamrub-debug.apk
           cp app/build/outputs/apk/release/app-release.apk out/dirhamrub-release.apk
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: success()
         with:
           name: dirhamrub-apk
           path: out/*.apk
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: failure()
         with:
           name: reports

@@ -94,7 +94,7 @@ fun BankCardsRow(
     LazyRow(
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(horizontal = 16.dp - RING_GAP),
-        horizontalArrangement = Arrangement.spacedBy(10.dp - 2 * RING_GAP),
+        horizontalArrangement = Arrangement.spacedBy(10.dp - RING_GAP * 2),
     ) {
         items(cards, key = { it.id }) { card ->
             val q = quote.of(card.id)

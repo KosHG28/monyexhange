@@ -556,12 +556,20 @@ private fun BottomStrip(
                     .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    stringResource(R.string.camera_basket, basket.size, Numbers.money(total), Numbers.moneyWhole(rub)),
-                    style = type.bodyStrong,
-                    color = colors.ink,
-                    modifier = Modifier.weight(1f),
-                )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.camera_basket, basket.size, Numbers.money(total)),
+                        style = type.label,
+                        color = colors.muted,
+                        maxLines = 1,
+                    )
+                    Text(
+                        stringResource(R.string.camera_basket_rub, Numbers.moneyWhole(rub)),
+                        style = type.number.copy(fontSize = 20.sp, lineHeight = 26.sp),
+                        color = colors.ink,
+                        maxLines = 1,
+                    )
+                }
                 Box(
                     Modifier
                         .size(48.dp)

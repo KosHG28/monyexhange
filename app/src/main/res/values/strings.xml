@@ -72,7 +72,8 @@
     <string name="camera_paused">Кадр заморожен</string>
     <string name="camera_label_a11y">%1$s дирхамов, около %2$s рублей</string>
     <string name="camera_label_old_a11y">Старая цена %1$s дирхамов, около %2$s рублей</string>
-    <string name="camera_basket">Отмечено: %1$d · %2$s AED ≈ %3$s ₽</string>
+    <string name="camera_basket">Отмечено: %1$d · %2$s AED</string>
+    <string name="camera_basket_rub">≈ %1$s ₽</string>
     <string name="camera_basket_to_calc">В калькулятор</string>
     <string name="camera_basket_clear">Очистить отмеченное</string>
     <string name="price_sheet_old">старая цена</string>

@@ -29,16 +29,19 @@ import androidx.compose.ui.unit.dp
 import app.dirhamrub.R
 import app.dirhamrub.domain.Card
 import app.dirhamrub.domain.CardRate
+import app.dirhamrub.domain.Converter
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
+import app.dirhamrub.domain.Pricing
+import app.dirhamrub.domain.Source
 import app.dirhamrub.ui.main.MainViewModel
 import app.dirhamrub.ui.short
 import app.dirhamrub.ui.theme.AppTheme
 
-/** Шпаргалка: AED → рубли по обеим картам рядом и сумма в валюте выбранной карты. */
+/** Шпаргалка: цены (AED или ₸) → рубли по обеим картам рядом и сумма в валюте выбранной карты. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CheatSheet(rates: Map<Card, CardRate>, selected: Card, onDismiss: () -> Unit) {
+fun CheatSheet(rates: Map<Card, CardRate>, source: Source, selected: Card, onDismiss: () -> Unit) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     ModalBottomSheet(
@@ -69,32 +72,31 @@ fun CheatSheet(rates: Map<Card, CardRate>, selected: Card, onDismiss: () -> Unit
                     .background(colors.paper)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
-                val kzt = rates.getValue(Card.KZT)
-                val cny = rates.getValue(Card.CNY)
-                val selectedRate = rates.getValue(selected)
-                val header = type.label
+                // Колонка валюты карты не нужна, если карта в той же валюте, что и цены.
+                val showCard = !(source == Source.KZT && selected == Card.KZT)
+                val highlight = if (selected == Card.KZT) 1 else 2
                 CheatRow(
-                    cells = listOf(
-                        stringResource(R.string.cheat_col_aed),
-                        stringResource(R.string.cheat_col_rub, Card.KZT.short()),
-                        stringResource(R.string.cheat_col_rub, Card.CNY.short()),
-                        selected.symbol,
-                    ),
-                    style = header,
-                    highlight = if (selected == Card.KZT) 1 else 2,
+                    cells = buildList {
+                        add(source.code)
+                        add(stringResource(R.string.cheat_col_rub, Card.KZT.short()))
+                        add(stringResource(R.string.cheat_col_rub, Card.CNY.short()))
+                        if (showCard) add(selected.symbol)
+                    },
+                    style = type.label,
+                    highlight = highlight,
                     isHeader = true,
                 )
                 HorizontalDivider(color = colors.line)
-                for (aed in MainViewModel.CHEAT) {
+                for (amount in MainViewModel.cheat(source)) {
                     CheatRow(
-                        cells = listOf(
-                            aed.toPlainString(),
-                            Numbers.cheat(MainViewModel.rub(aed, kzt)),
-                            Numbers.cheat(MainViewModel.rub(aed, cny)),
-                            Numbers.cheat(aed.multiply(selectedRate.cardPerAed, MC)),
-                        ),
+                        cells = buildList {
+                            add(Numbers.moneyWhole(amount))
+                            add(Numbers.cheat(Converter.rub(amount, Card.KZT, source, rates)))
+                            add(Numbers.cheat(Converter.rub(amount, Card.CNY, source, rates)))
+                            if (showCard) add(Numbers.cheat(amount.multiply(Pricing.cardPerUnit(selected, source, rates), MC)))
+                        },
                         style = type.mono,
-                        highlight = if (selected == Card.KZT) 1 else 2,
+                        highlight = highlight,
                         isHeader = false,
                     )
                 }

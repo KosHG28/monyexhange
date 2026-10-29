@@ -16,6 +16,7 @@ import app.dirhamrub.domain.Expression
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.RateSource
 import app.dirhamrub.domain.Receipt
+import app.dirhamrub.domain.Source
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -28,13 +29,14 @@ val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(na
 data class StoredState(
     val selected: Card,
     val rates: Map<Card, CardRate>,
+    val source: Source,
     val active: Line,
     val expression: Expression,
 )
 
 /**
  * Хранит выбранную карту, курсы с чеками, источником и датой для обеих карт,
- * последнюю сумму (выражение) и активную строку. Числа — строками BigDecimal, без потерь.
+ * валюту цен, последнюю сумму (выражение) и активную строку. Числа — строками BigDecimal, без потерь.
  */
 class SettingsRepository(private val store: DataStore<Preferences>) {
 
@@ -46,6 +48,7 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     suspend fun save(state: StoredState) {
         store.edit { p ->
             p[SELECTED] = state.selected.name
+            p[SOURCE] = state.source.name
             p[ACTIVE] = state.active.name
             p[EXPRESSION] = state.expression.serialize()
             for (rate in state.rates.values) write(p, rate)
@@ -55,7 +58,9 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     private fun read(p: Preferences): StoredState = StoredState(
         selected = enumOr(p[SELECTED], Card.CNY),
         rates = Card.entries.associateWith { readRate(p, it) },
-        active = enumOr(p[ACTIVE], Line.AED),
+        source = enumOr(p[SOURCE], Source.AED),
+        // В 0.1.x строка цен называлась AED.
+        active = enumOr(p[ACTIVE]?.let { if (it == "AED") Line.SOURCE.name else it }, Line.SOURCE),
         expression = Expression.parse(p[EXPRESSION]),
     )
 
@@ -96,6 +101,7 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     private companion object {
         val SELECTED = stringPreferencesKey("selected_card")
         val ACTIVE = stringPreferencesKey("active_line")
+        val SOURCE = stringPreferencesKey("price_currency")
         val EXPRESSION = stringPreferencesKey("expression")
         val KZT = CardKeys("kzt")
         val CNY = CardKeys("cny")

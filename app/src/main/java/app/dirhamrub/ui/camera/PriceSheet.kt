@@ -30,15 +30,18 @@ import app.dirhamrub.domain.Card
 import app.dirhamrub.domain.CardRate
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
+import app.dirhamrub.domain.Pricing
+import app.dirhamrub.domain.Source
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.title
 import java.math.BigDecimal
 
-/** Шторка по тапу на метку: цена в AED, рубли по обеим картам, «В калькулятор» и «+ к сумме». */
+/** Шторка по тапу на метку: цена (AED или ₸), рубли по обеим картам, «В калькулятор» и «+ к сумме». */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PriceSheet(
-    aed: BigDecimal,
+    amount: BigDecimal,
+    source: Source,
     isOld: Boolean,
     rates: Map<Card, CardRate>,
     selected: Card,
@@ -61,7 +64,7 @@ fun PriceSheet(
         ) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    text = "${Numbers.money(aed)} AED",
+                    text = "${Numbers.money(amount)} ${source.code}",
                     style = type.hero.copy(fontSize = 34.sp, lineHeight = 40.sp),
                     color = if (isOld) colors.muted else colors.ink,
                     textDecoration = if (isOld) TextDecoration.LineThrough else null,
@@ -77,9 +80,8 @@ fun PriceSheet(
             }
             Spacer(Modifier.height(12.dp))
             for (card in listOf(selected, selected.other)) {
-                val rate = rates.getValue(card)
-                val rub = aed.multiply(rate.rubPerAed, MC)
-                val inCard = aed.multiply(rate.cardPerAed, MC)
+                val rub = amount.multiply(Pricing.rubPerUnit(card, source, rates), MC)
+                val inCard = amount.multiply(Pricing.cardPerUnit(card, source, rates), MC)
                 val isSelected = card == selected
                 Row(
                     modifier = Modifier

@@ -8,5 +8,14 @@ enum class Card(val code: String, val symbol: String) {
     val other: Card get() = if (this == KZT) CNY else KZT
 }
 
-/** Строка «линии метро» на главном экране. */
-enum class Line { AED, RUB, CARD }
+/**
+ * Валюта цен, которые вводятся и ищутся камерой: дирхамы в ОАЭ или тенге в Казахстане.
+ * [code] — подпись к суммам («AED», «₸»).
+ */
+enum class Source(val code: String) {
+    AED("AED"),
+    KZT("₸"),
+}
+
+/** Строка «линии метро» на главном экране: валюта цен, рубли, валюта карты. */
+enum class Line { SOURCE, RUB, CARD }

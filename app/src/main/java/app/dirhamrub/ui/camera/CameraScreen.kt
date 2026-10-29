@@ -84,6 +84,8 @@ import app.dirhamrub.domain.Card
 import app.dirhamrub.domain.CardRate
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
+import app.dirhamrub.domain.Pricing
+import app.dirhamrub.domain.Source
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.motion
 import com.google.mlkit.vision.text.TextRecognition
@@ -148,11 +150,12 @@ private val Scrim = Color(0xB3101820)
 
 /**
  * AR-камера ценников: живое превью, поверх каждой найденной цены — сумма в рублях.
- * [onToCalculator] получает цены в дирхамах (одну или отмеченные) и возвращает в калькулятор.
+ * [onToCalculator] получает цены в валюте цен (одну или отмеченные) и возвращает в калькулятор.
  */
 @Composable
 fun CameraScreen(
     rates: Map<Card, CardRate>,
+    source: Source,
     selected: Card,
     onSelectCard: (Card) -> Unit,
     onToCalculator: (List<BigDecimal>) -> Unit,
@@ -160,7 +163,7 @@ fun CameraScreen(
 ) {
     LightSystemBars()
     CameraPermissionGate(onBack = onBack) {
-        CameraContent(rates, selected, onSelectCard, onToCalculator, onBack)
+        CameraContent(rates, source, selected, onSelectCard, onToCalculator, onBack)
     }
 }
 
@@ -185,6 +188,7 @@ private fun LightSystemBars() {
 @Composable
 private fun CameraContent(
     rates: Map<Card, CardRate>,
+    source: Source,
     selected: Card,
     onSelectCard: (Card) -> Unit,
     onToCalculator: (List<BigDecimal>) -> Unit,
@@ -214,7 +218,7 @@ private fun CameraContent(
         }
     }
     val pipeline = remember(metrics) { PricePipeline(metrics) }
-    LaunchedEffect(pipeline, rates, selected) { pipeline.setRates(rates, selected) }
+    LaunchedEffect(pipeline, rates, selected, source) { pipeline.setRates(rates, selected, source) }
 
     // Камера и распознавание: анализ ~720p на отдельном потоке, всегда только последний кадр.
     val executor = analysisExecutor
@@ -371,6 +375,7 @@ private fun CameraContent(
                 val desc = stringResource(
                     if (l.isOld) R.string.camera_label_old_a11y else R.string.camera_label_a11y,
                     Numbers.money(l.value),
+                    source.code,
                     Numbers.moneyWhole(l.rubSelected),
                 )
                 with(density) {
@@ -407,7 +412,8 @@ private fun CameraContent(
                 nothingFound -> stringResource(R.string.camera_hint)
                 else -> null
             },
-            rubPerAed = rates.getValue(selected).rubPerAed,
+            source = source,
+            rubPerUnit = Pricing.rubPerUnit(selected, source, rates),
             onToCalculator = { onToCalculator(basket.mapNotNull { Numbers.parse(it) }) },
             onClear = { basket = emptyList() },
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -416,7 +422,8 @@ private fun CameraContent(
 
     sheet?.let { label ->
         PriceSheet(
-            aed = label.value,
+            amount = label.value,
+            source = source,
             isOld = label.isOld,
             rates = rates,
             selected = selected,
@@ -531,7 +538,8 @@ private fun CardToggle(selected: Card, onSelect: (Card) -> Unit) {
 private fun BottomStrip(
     basket: List<String>,
     hint: String?,
-    rubPerAed: BigDecimal,
+    source: Source,
+    rubPerUnit: BigDecimal,
     onToCalculator: () -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
@@ -547,7 +555,7 @@ private fun BottomStrip(
     ) {
         if (basket.isNotEmpty()) {
             val total = basket.fold(BigDecimal.ZERO) { acc, s -> acc.add(Numbers.parse(s) ?: BigDecimal.ZERO, MC) }
-            val rub = total.multiply(rubPerAed, MC)
+            val rub = total.multiply(rubPerUnit, MC)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -558,7 +566,7 @@ private fun BottomStrip(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        stringResource(R.string.camera_basket, basket.size, Numbers.money(total)),
+                        stringResource(R.string.camera_basket, basket.size, Numbers.money(total), source.code),
                         style = type.label,
                         color = colors.muted,
                         maxLines = 1,

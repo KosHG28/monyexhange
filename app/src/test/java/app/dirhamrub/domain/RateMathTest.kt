@@ -23,22 +23,22 @@ class RateMathTest {
 
     @Test
     fun `22 AED картой в тенге`() {
-        val a = Converter.fromAed(BigDecimal("22"), kzt)
+        val a = Converter.fromSource(BigDecimal("22"), Card.KZT, Source.AED, Defaults.rates())
         assertEquals("511,28", Numbers.money(a.rub))
         assertEquals("2${NBSP}757,48", Numbers.money(a.card))
     }
 
     @Test
     fun `379 AED картой в юанях и в тенге`() {
-        val a = Converter.fromAed(BigDecimal("379"), cny)
+        val a = Converter.fromSource(BigDecimal("379"), Card.CNY, Source.AED, Defaults.rates())
         assertEquals("8${NBSP}507,31", Numbers.money(a.rub))
         assertEquals("691,65", Numbers.money(a.card))
-        assertEquals("8${NBSP}807,89", Numbers.money(Converter.rub(BigDecimal("379"), kzt)))
+        assertEquals("8${NBSP}807,89", Numbers.money(Converter.rub(BigDecimal("379"), Card.KZT, Source.AED, Defaults.rates())))
     }
 
     @Test
     fun `юаневая карта дешевле на 3,4 процента`() {
-        val c = Converter.compare(BigDecimal("379"), Defaults.rates())
+        val c = Converter.compare(BigDecimal("379"), Source.AED, Defaults.rates())
         assertEquals(Card.CNY, c.cheaper)
         assertEquals("3,4", Numbers.percent(c.savingsPercent))
         assertEquals("301", Numbers.moneyWhole(c.savingsRub))
@@ -82,7 +82,7 @@ class RateMathTest {
     @Test
     fun `равные курсы — нет более выгодной карты`() {
         val rates = mapOf(Card.KZT to kzt, Card.CNY to cny.copy(rubPerAed = kzt.rubPerAed))
-        val c = Converter.compare(BigDecimal("10"), rates)
+        val c = Converter.compare(BigDecimal("10"), Source.AED, rates)
         assertNull(c.cheaper)
         assertEquals(0, c.savingsRub.signum())
     }

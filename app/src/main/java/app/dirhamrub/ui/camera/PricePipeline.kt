@@ -9,6 +9,9 @@ import app.dirhamrub.domain.CardRate
 import app.dirhamrub.domain.Defaults
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
+import app.dirhamrub.domain.Pricing
+import app.dirhamrub.domain.Source
+import app.dirhamrub.domain.price.PriceCurrency
 import app.dirhamrub.domain.price.PriceParser
 import app.dirhamrub.domain.price.PriceTracker
 import app.dirhamrub.domain.price.TrackedPrice
@@ -68,7 +71,7 @@ class LabelMetrics(
  * [onText] вызывается на фоновом executor-е анализатора; [frames] читает Canvas.
  */
 class PricePipeline(private val metrics: LabelMetrics) {
-    private val parser = PriceParser()
+    private var parser = PriceParser(PriceCurrency.AED)
     private val tracker = PriceTracker()
     private val mainPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = metrics.mainTextPx
@@ -83,6 +86,7 @@ class PricePipeline(private val metrics: LabelMetrics) {
 
     @Volatile private var rates: Map<Card, CardRate> = Defaults.rates()
     @Volatile private var selected: Card = Card.CNY
+    @Volatile private var source: Source = Source.AED
     @Volatile private var viewWidth = 0f
     @Volatile private var viewHeight = 0f
     @Volatile private var topInset = 0f
@@ -99,10 +103,20 @@ class PricePipeline(private val metrics: LabelMetrics) {
     private val _frames = MutableStateFlow(LabelFrame.EMPTY)
     val frames: StateFlow<LabelFrame> = _frames.asStateFlow()
 
-    fun setRates(rates: Map<Card, CardRate>, selected: Card) {
-        this.rates = rates
-        this.selected = selected
-        relayout()
+    fun setRates(rates: Map<Card, CardRate>, selected: Card, source: Source) {
+        synchronized(this) {
+            if (source != this.source) {
+                // Другая валюта цен — другой разбор ценников; старые метки сбрасываем.
+                parser = PriceParser(if (source == Source.KZT) PriceCurrency.KZT else PriceCurrency.AED)
+                tracker.clear()
+                shownAt.clear()
+                lastTracked = emptyList()
+            }
+            this.rates = rates
+            this.selected = selected
+            this.source = source
+            publish()
+        }
     }
 
     fun setViewport(width: Float, height: Float, top: Float, bottom: Float) {
@@ -143,8 +157,9 @@ class PricePipeline(private val metrics: LabelMetrics) {
     private fun publish() {
         val rates = rates
         val selected = selected
-        val selectedRate = rates.getValue(selected)
-        val otherRate = rates.getValue(selected.other)
+        val currency = source
+        val rubPerSelected = Pricing.rubPerUnit(selected, currency, rates)
+        val rubPerOther = Pricing.rubPerUnit(selected.other, currency, rates)
         val m = metrics
         val labels = ArrayList<PriceLabel>(lastTracked.size)
         shownAt.keys.retainAll(lastTracked.mapTo(HashSet()) { it.id })
@@ -157,19 +172,19 @@ class PricePipeline(private val metrics: LabelMetrics) {
         // Сначала актуальные цены по убыванию скоринга — им достаются лучшие места, потом старые.
         val order = lastTracked.sortedWith(compareBy<TrackedPrice> { it.isOld }.thenByDescending { it.score })
         for (t in order) {
-            val rubSelected = t.value.multiply(selectedRate.rubPerAed, MC)
-            val rubOther = t.value.multiply(otherRate.rubPerAed, MC)
-            // Распознанная цена в AED — чтобы сразу видеть, правильно ли прочитан ценник.
-            val aed = "${Numbers.money(t.value)} AED"
+            val rubSelected = t.value.multiply(rubPerSelected, MC)
+            val rubOther = t.value.multiply(rubPerOther, MC)
+            // Распознанная цена — чтобы сразу видеть, правильно ли прочитан ценник.
+            val price = "${Numbers.money(t.value)} ${currency.code}"
             val main: String
             val sub: String
             if (t.isOld) {
                 // Старая цена — компактная однострочная метка.
                 main = ""
-                sub = "было $aed ≈ ${Numbers.cheat(rubSelected)} ₽"
+                sub = "было $price ≈ ${Numbers.cheat(rubSelected)} ₽"
             } else {
                 main = "≈ ${Numbers.cheat(rubSelected)} ₽"
-                sub = "$aed · ${selected.other.symbol} ${Numbers.cheat(rubOther)} ₽"
+                sub = "$price · ${selected.other.symbol} ${Numbers.cheat(rubOther)} ₽"
             }
 
             val mainW = if (main.isEmpty()) 0f else mainPaint.measureText(main)

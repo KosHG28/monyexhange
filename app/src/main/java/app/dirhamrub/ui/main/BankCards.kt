@@ -50,9 +50,12 @@ import app.dirhamrub.R
 import app.dirhamrub.domain.Card
 import app.dirhamrub.domain.CardRate
 import app.dirhamrub.domain.Comparison
+import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
+import app.dirhamrub.domain.Pricing
 import app.dirhamrub.domain.RateSource
 import app.dirhamrub.domain.RuDates
+import app.dirhamrub.domain.Source
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.CardPalette
 import app.dirhamrub.ui.theme.motion
@@ -68,11 +71,14 @@ private const val CARD_RATIO = 1.586f
 @Composable
 fun BankCardsRow(
     rates: Map<Card, CardRate>,
+    source: Source,
     comparison: Comparison,
     selected: Card,
     onSelect: (Card) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val unit = MainViewModel.unitLabel(source)
+    val unitText = if (source == Source.KZT) "100 ₸" else source.code
     val percent = Numbers.percent(comparison.savingsPercent)
     val savings = Numbers.moneyWhole(comparison.savingsRub)
     Row(
@@ -90,6 +96,8 @@ fun BankCardsRow(
             BankCard(
                 card = card,
                 rate = rates.getValue(card),
+                rateText = Numbers.rate(Pricing.rubPerUnit(card, source, rates).multiply(unit, MC), 2),
+                unitText = unitText,
                 rub = Numbers.moneyWhole(comparison.rubByCard.getValue(card)),
                 selected = card == selected,
                 badge = badge,
@@ -104,6 +112,8 @@ fun BankCardsRow(
 private fun BankCard(
     card: Card,
     rate: CardRate,
+    rateText: String,
+    unitText: String,
     rub: String,
     selected: Boolean,
     badge: String?,
@@ -119,14 +129,13 @@ private fun BankCard(
     val shape = RoundedCornerShape(16.dp)
     val ringShape = RoundedCornerShape(20.dp)
 
-    val rateText = Numbers.rate(rate.rubPerAed, 2)
     val dateLine = stringResource(
         if (rate.source == RateSource.MANUAL) R.string.card_date_manual else R.string.card_date_receipts,
         RuDates.short(rate.date),
     )
     val title = card.title()
     val a11y = buildString {
-        append(stringResource(R.string.card_a11y, title, rub, rateText, dateLine))
+        append(stringResource(R.string.card_a11y, title, rub, rateText, unitText, dateLine))
         if (badge != null) append(". ").append(badge)
     }
 
@@ -211,7 +220,7 @@ private fun BankCard(
                     softWrap = false,
                 )
                 Text(
-                    text = stringResource(R.string.card_rate_line, rateText, dateLine),
+                    text = stringResource(R.string.card_rate_line, rateText, unitText, dateLine),
                     style = type.caption.copy(fontSize = 10.5.sp, lineHeight = 13.sp),
                     color = CardPalette.onCard.copy(alpha = 0.85f),
                     maxLines = 1,

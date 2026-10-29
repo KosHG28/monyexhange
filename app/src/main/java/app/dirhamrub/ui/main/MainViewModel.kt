@@ -17,14 +17,15 @@ import app.dirhamrub.domain.Defaults
 import app.dirhamrub.domain.Expression
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
-import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
+import app.dirhamrub.domain.Pricing
 import app.dirhamrub.domain.Receipt
+import app.dirhamrub.domain.Source
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
@@ -35,12 +36,20 @@ data class MainUiState(
     val loaded: Boolean = false,
     val selected: Card = Card.CNY,
     val rates: Map<Card, CardRate> = Defaults.rates(),
-    val active: Line = Line.AED,
+    /** Валюта вводимых цен: дирхамы или тенге. */
+    val source: Source = Source.AED,
+    val active: Line = Line.SOURCE,
     val expression: Expression = Expression(),
 ) {
     val rate: CardRate get() = rates.getValue(selected)
-    val amounts: Amounts get() = Converter.amounts(expression.value, active, rate)
-    val comparison: Comparison get() = Converter.compare(amounts.aed, rates)
+    val amounts: Amounts get() = Converter.amounts(expression.value, active, selected, source, rates)
+    val comparison: Comparison get() = Converter.compare(amounts.source, source, rates)
+
+    /** Рубли за единицу валюты цен по выбранной карте. */
+    val rubPerUnit: BigDecimal get() = Pricing.rubPerUnit(selected, source, rates)
+
+    /** Строка «валюта карты» не нужна, если карта в той же валюте, что и цены (тенге за тенге). */
+    val showCardLine: Boolean get() = !(source == Source.KZT && selected == Card.KZT)
 
     /** Текст активной строки: набираемое число или итог выражения «22 + 15,5». */
     val activeText: String
@@ -62,13 +71,14 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
                 loaded = true,
                 selected = stored.selected,
                 rates = stored.rates,
+                source = stored.source,
                 active = stored.active,
                 expression = stored.expression,
             )
             // Сохраняем не чаще раза в 300 мс: collectLatest отменяет отложенную запись при новом нажатии.
             _state.collectLatest { s ->
                 delay(SAVE_DELAY_MS)
-                repository.save(StoredState(s.selected, s.rates, s.active, s.expression))
+                repository.save(StoredState(s.selected, s.rates, s.source, s.active, s.expression))
             }
         }
     }
@@ -78,30 +88,39 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
     fun selectCard(card: Card) = _state.update { s ->
         when {
             s.selected == card -> s
-            // Сумма в валюте карты не должна прыгнуть: сначала переводим её в дирхамы.
-            s.active == Line.CARD -> s.copy(selected = card, active = Line.AED, expression = Expression.of(s.amounts.aed))
+            // Сумма в валюте карты не должна прыгнуть: сначала переводим её в валюту цен.
+            s.active == Line.CARD -> s.copy(selected = card, active = Line.SOURCE, expression = Expression.of(s.amounts.source))
             else -> s.copy(selected = card)
         }
+    }
+
+    /** Переключить валюту цен; сумма в рублях сохраняется и пересчитывается в новую валюту. */
+    fun setSource(source: Source) = _state.update { s ->
+        if (s.source == source) return@update s
+        val rub = s.amounts.rub
+        val next = s.copy(source = source, active = Line.SOURCE)
+        val amount = Converter.toSource(rub, Line.RUB, next.selected, source, next.rates)
+        next.copy(expression = Expression.of(amount))
     }
 
     fun setActive(line: Line) = _state.update { s ->
         if (s.active == line) s else s.copy(active = line, expression = Expression.of(s.amounts.of(line)))
     }
 
-    /** Быстрая сумма в дирхамах: после «+» подставляется в выражение, иначе заменяет его. */
-    fun putAed(aed: BigDecimal) = _state.update { s ->
-        if (s.active == Line.AED) s.copy(expression = s.expression.putAmount(aed))
-        else s.copy(active = Line.AED, expression = Expression.of(aed))
+    /** Быстрая сумма в валюте цен: после «+» подставляется в выражение, иначе заменяет его. */
+    fun putAmount(amount: BigDecimal) = _state.update { s ->
+        if (s.active == Line.SOURCE) s.copy(expression = s.expression.putAmount(amount))
+        else s.copy(active = Line.SOURCE, expression = Expression.of(amount))
     }
 
     /** Цены из камеры: одна — заменяет сумму, несколько — становятся выражением «a + b + c». */
-    fun putAedItems(items: List<BigDecimal>) = _state.update { s ->
+    fun putItems(items: List<BigDecimal>) = _state.update { s ->
         val expression = when (items.size) {
             0 -> s.expression
             1 -> Expression.of(items.single())
             else -> Expression(items.map { Numbers.plain(it) })
         }
-        s.copy(active = Line.AED, expression = expression)
+        s.copy(active = Line.SOURCE, expression = expression)
     }
 
     fun setManualRate(card: Card, rate: BigDecimal): Boolean {
@@ -135,10 +154,21 @@ class MainViewModel(private val repository: SettingsRepository) : ViewModel() {
             }
         }
 
-        val CHIPS: List<BigDecimal> = listOf(5, 10, 22, 50, 100, 200, 500).map { BigDecimal(it) }
-        val CHEAT: List<BigDecimal> = listOf(1, 5, 10, 20, 50, 100, 200, 500, 1000).map { BigDecimal(it) }
+        /** Быстрые суммы; в дирхамах 22 — проезд в метро. */
+        fun chips(source: Source): List<BigDecimal> = when (source) {
+            Source.AED -> listOf(5, 10, 22, 50, 100, 200, 500)
+            Source.KZT -> listOf(500, 1000, 2000, 5000, 10000, 20000, 50000)
+        }.map { BigDecimal(it) }
 
-        /** Сумма в рублях по курсу карты — для подписей и шпаргалки. */
-        fun rub(aed: BigDecimal, rate: CardRate): BigDecimal = aed.multiply(rate.rubPerAed, MC)
+        fun cheat(source: Source): List<BigDecimal> = when (source) {
+            Source.AED -> listOf(1, 5, 10, 20, 50, 100, 200, 500, 1000)
+            Source.KZT -> listOf(100, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000)
+        }.map { BigDecimal(it) }
+
+        /** Курс для подписи: «22,45 ₽ за AED», а тенге — за 100 ₸, иначе число слишком мелкое. */
+        fun unitLabel(source: Source): BigDecimal = when (source) {
+            Source.AED -> BigDecimal.ONE
+            Source.KZT -> BigDecimal(100)
+        }
     }
 }

@@ -40,10 +40,11 @@ fun DirhamApp(
         BackHandler { cameraOpen = false }
         CameraScreen(
             rates = state.rates,
+            source = state.source,
             selected = state.selected,
             onSelectCard = vm::selectCard,
             onToCalculator = { items ->
-                vm.putAedItems(items)
+                vm.putItems(items)
                 cameraOpen = false
             },
             onBack = { cameraOpen = false },
@@ -56,13 +57,14 @@ fun DirhamApp(
         onKey = vm::press,
         onSelectCard = vm::selectCard,
         onSelectLine = vm::setActive,
-        onChip = vm::putAed,
+        onSelectSource = vm::setSource,
+        onChip = vm::putAmount,
         onOpenRate = { rateOpen = true },
         onOpenCheat = { cheatOpen = true },
         onOpenCamera = { cameraOpen = true },
     )
     if (cheatOpen) {
-        CheatSheet(rates = state.rates, selected = state.selected, onDismiss = { cheatOpen = false })
+        CheatSheet(rates = state.rates, source = state.source, selected = state.selected, onDismiss = { cheatOpen = false })
     }
     if (rateOpen) {
         val card = state.selected

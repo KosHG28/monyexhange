@@ -182,4 +182,17 @@ class PriceParserTest {
         )
         assertEquals(setOf("8.50", "11.25"), found.map { it.value.toPlainString() }.toSet())
     }
+
+    @Test
+    fun `цены в тенге`() {
+        val kzt = PriceParser(PriceCurrency.KZT)
+        fun v(vararg l: OcrLine) = kzt.parse(listOf(OcrBlock(l.toList()))).map { it.value.toPlainString() }
+        assertEquals(listOf("1299"), v(line("1", "299", "₸")))
+        assertEquals(listOf("4590"), v(line("4590", "KZT")))
+        assertEquals(listOf("850"), v(line("850", "T")))
+        assertEquals(listOf("12500"), v(line("12", "500", "тг")))
+        // Дирхамы в режиме тенге не считаются ценой с валютой, а 5 ₸ — меньше диапазона.
+        assertFalse(kzt.parse(listOf(OcrBlock(listOf(line("AED", "45.00"))))).single().hasCurrency)
+        assertTrue(v(line("5", "₸")).isEmpty())
+    }
 }

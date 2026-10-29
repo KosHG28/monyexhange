@@ -14,21 +14,47 @@ data class PriceCandidate(
 )
 
 /**
- * Ищет цены в дирхамах в результате OCR.
+ * Валюта, цены в которой ищет [PriceParser]: подписи валюты рядом с числом и разумный диапазон.
+ */
+class PriceCurrency(val pattern: Regex, val min: BigDecimal, val max: BigDecimal) {
+    companion object {
+        val AED = PriceCurrency(
+            Regex(
+                """(?<![A-Za-z])(?:AED|DHS|DH|DIRHAMS?)(?![A-Za-z])\.?|د\.?\s?إ|درهم""",
+                RegexOption.IGNORE_CASE,
+            ),
+            BigDecimal("0.5"),
+            BigDecimal("100000"),
+        )
+
+        /** Тенге: ₸, KZT, TENGE, «тг»; латинский OCR часто читает ₸ как одиночную T. */
+        val KZT = PriceCurrency(
+            Regex(
+                """(?<![A-Za-z])(?:KZT|TENGE|TG|T)(?![A-Za-z])\.?|₸|(?<![А-Яа-я])(?:тг|тенге)(?![А-Яа-я])\.?""",
+                RegexOption.IGNORE_CASE,
+            ),
+            BigDecimal("10"),
+            BigDecimal("10000000"),
+        )
+    }
+}
+
+/**
+ * Ищет цены в результате OCR (по умолчанию — в дирхамах).
  *
  * 1. Склеивает разорванные части числа: «79» + «.95», «1,299» + «.00», копейки верхним индексом.
  * 2. Маскирует телефоны, длинные коды, даты и время, отбрасывает проценты, объём, вес, размеры.
  * 3. Оценивает каждую находку: валюта рядом, дробная часть, высота текста относительно кадра.
  * 4. Помечает старые цены: слово WAS/OLD/RRP рядом или мелкая и бо́льшая цена возле крупной новой.
  */
-class PriceParser {
+class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
 
     fun parse(blocks: List<OcrBlock>): List<PriceCandidate> {
         val raw = ArrayList<Raw>()
         for (block in blocks) {
             val lines = mergeSuperscripts(block.lines)
             val blockText = lines.joinToString("\n") { it.text }
-            val blockHasCurrency = CURRENCY.containsMatchIn(blockText)
+            val blockHasCurrency = currency.pattern.containsMatchIn(blockText)
             lines.forEachIndexed { index, line ->
                 val prevLine = if (index > 0) lines[index - 1] else null
                 parseLine(glueFragments(line.words), prevLine, blockHasCurrency, raw)
@@ -92,7 +118,7 @@ class PriceParser {
         mask(DIGIT_RUN) { m -> m.value.count { it.isDigit() } >= LONG_RUN_DIGITS }
         mask(PHONE_PREFIX)
 
-        val currencies = CURRENCY.findAll(text).map { it.range }.toList()
+        val currencies = currency.pattern.findAll(text).map { it.range }.toList()
         val oldKeyword = OLD_WORD.containsMatchIn(text) ||
             (prevLine != null && OLD_WORD.containsMatchIn(prevLine.text) && NUMBER.find(prevLine.text) == null)
 
@@ -104,7 +130,7 @@ class PriceParser {
             if (UNIT_AFTER.containsMatchIn(after)) continue
             if (BAD_BEFORE.containsMatchIn(before)) continue
             val value = parseNumber(numberText) ?: continue
-            if (value < MIN_PRICE || value > MAX_PRICE) continue
+            if (value < currency.min || value > currency.max) continue
 
             val hasCurrency = currencies.any { c ->
                 val gapBefore = m.range.first - c.last - 1
@@ -251,13 +277,11 @@ class PriceParser {
     }
 
     companion object {
-        val MIN_PRICE = BigDecimal("0.5")
-        val MAX_PRICE = BigDecimal("100000")
         private const val TALL_TEXT = 0.75f
         private const val LONG_RUN_DIGITS = 7
         private const val CURRENCY_GAP = 2
         private const val GLUE_GAP = 0.8f
-        private const val THOUSAND_GAP = 0.5f
+        private const val THOUSAND_GAP = 0.6f
         private const val SUPERSCRIPT_RATIO = 0.75f
         private const val STRUCK_HEIGHT_RATIO = 0.8f
         private const val STRUCK_DISTANCE = 2.5f
@@ -266,10 +290,6 @@ class PriceParser {
         private val THOUSANDS = Regex("""\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?""")
         private val FRACTION = Regex("""[.,]\d{1,2}$""")
 
-        private val CURRENCY = Regex(
-            """(?<![A-Za-z])(?:AED|DHS|DH|DIRHAMS?)(?![A-Za-z])\.?|د\.?\s?إ|درهم""",
-            RegexOption.IGNORE_CASE,
-        )
         private val OLD_WORD = Regex(
             """(?<![A-Za-z])(?:WAS|OLD|BEFORE|RRP|REG|REGULAR|ORIGINAL)(?![A-Za-z])""",
             RegexOption.IGNORE_CASE,

@@ -96,12 +96,11 @@ import kotlin.math.roundToInt
 /**
  * Один фоновый поток анализа на всё приложение. Его не останавливаем при уходе с экрана:
  * запоздалый результат ML Kit иначе упал бы в остановленный executor.
+ * Обычное статическое поле, а не `object` с `by lazy`: в release-сборке R8 такой объект
+ * на первом кадре экрана камеры давал NullPointerException.
  */
-private object AnalysisExecutor {
-    val instance: Executor by lazy {
-        Executors.newSingleThreadExecutor { r -> Thread(r, "price-analysis").apply { isDaemon = true } }
-    }
-}
+private val analysisExecutor: Executor =
+    Executors.newSingleThreadExecutor { r -> Thread(r, "price-analysis").apply { isDaemon = true } }
 
 /** Полупрозрачная подложка кнопок поверх видоискателя. */
 private val Scrim = Color(0xB3101820)
@@ -175,7 +174,7 @@ private fun CameraContent(
     LaunchedEffect(pipeline, rates, selected) { pipeline.setRates(rates, selected) }
 
     // Камера и распознавание: анализ ~720p на отдельном потоке, всегда только последний кадр.
-    val executor = AnalysisExecutor.instance
+    val executor = analysisExecutor
     val recognizer = remember { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
     val camera = remember {
         LifecycleCameraController(context).apply {

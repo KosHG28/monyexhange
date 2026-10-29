@@ -7,10 +7,28 @@ set -u
 APK=app/build/outputs/apk/release/app-release.apk
 PKG=app.dirhamrub
 
+MAPPING=app/build/outputs/mapping/release/mapping.txt
+
+# Расшифровка стека release-сборки (R8) по mapping.txt.
+retrace_crash() {
+  echo "=== Расшифровка (retrace) ==="
+  RETRACE="$ANDROID_HOME/cmdline-tools/latest/bin/retrace"
+  if [ -x "$RETRACE" ]; then "$RETRACE" "$MAPPING" "$1" || true; fi
+  echo "=== Классы из стека по mapping ==="
+  for c in $(grep -oE '(at |field .)[a-z0-9]+\.[a-zA-Z0-9]+' "$1" | sed -E 's/^(at |field .)//; s/\..*//' | sort -u); do
+    grep -E " -> $c:$" "$MAPPING" || true
+  done
+  grep -oE "'[a-z0-9]+ [a-z0-9]+\.[a-z0-9]+'" "$1" | tr -d "'" | while read -r t f; do
+    owner="${f%%.*}"; echo "поле $f типа $t:"; grep -E " -> ($owner|$t):$" "$MAPPING" || true
+  done
+}
+
 fail_if_crashed() {
   if adb logcat -d | grep -q 'FATAL EXCEPTION'; then
     echo "=== ПАДЕНИЕ: $1 ==="
-    adb logcat -d | grep -A 80 'FATAL EXCEPTION'
+    adb logcat -d -b crash -v raw > crash.txt
+    cat crash.txt
+    retrace_crash crash.txt
     exit 1
   fi
   if [ -z "$(adb shell pidof "$PKG" | tr -d '\r')" ]; then

@@ -13,7 +13,7 @@ import kotlin.math.min
 
 /**
  * Метки цен поверх превью: уголки-«прицел» вокруг цены и пилюля с тенью и хвостиком;
- * старая цена — серая компактная метка.
+ * старая цена — серая компактная метка; догадка (число без валюты) — графитовая метка с белым контуром.
  * Все строки и контуры готовит [PricePipeline]; здесь только рисование заранее созданными
  * Paint — без аллокаций в draw. [frame] читается внутри draw, поэтому новый кадр
  * перерисовывает Canvas без рекомпозиции.
@@ -33,6 +33,11 @@ fun PriceOverlay(
                 strokeCap = Paint.Cap.ROUND
             },
             boxFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL },
+            outline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 1.5f * density
+                color = android.graphics.Color.WHITE
+            },
             bubble = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.FILL
                 // Тень отделяет пилюлю от пёстрого фона ценника.
@@ -50,6 +55,7 @@ fun PriceOverlay(
             },
             accent = METRO_RED,
             old = OLD_PRICE,
+            unsure = UNSURE_PRICE,
             boxRadius = 6f * density,
             cornerLen = 14f * density,
         )
@@ -61,7 +67,11 @@ fun PriceOverlay(
             for (i in labels.indices) {
                 val l = labels[i]
                 val a = (l.alpha * 255f).toInt().coerceIn(0, 255)
-                val tint = if (l.isOld) paints.old else paints.accent
+                val tint = when {
+                    l.isOld -> paints.old
+                    l.unsure -> paints.unsure
+                    else -> paints.accent
+                }
                 val b = l.box
 
                 // Лёгкая подсветка цены и уголки «прицела».
@@ -83,6 +93,10 @@ fun PriceOverlay(
                 paints.bubble.color = tint
                 paints.bubble.alpha = if (l.isOld) (a * 0.85f).toInt() else a
                 c.drawPath(l.bubble, paints.bubble)
+                if (l.unsure) {
+                    paints.outline.alpha = (a * 0.7f).toInt()
+                    c.drawPath(l.bubble, paints.outline)
+                }
 
                 if (l.main.isNotEmpty()) {
                     paints.main.alpha = a
@@ -104,14 +118,19 @@ private const val METRO_RED = 0xFFC8272D.toInt()
 
 private const val OLD_PRICE = 0xFF5D6975.toInt()
 
+/** Догадка — тёмный графит: заметна, но не спорит с уверенными красными метками. */
+private const val UNSURE_PRICE = 0xFF2A3139.toInt()
+
 private class OverlayPaints(
     val corner: Paint,
     val boxFill: Paint,
+    val outline: Paint,
     val bubble: Paint,
     val main: Paint,
     val sub: Paint,
     val accent: Int,
     val old: Int,
+    val unsure: Int,
     val boxRadius: Float,
     val cornerLen: Float,
 )

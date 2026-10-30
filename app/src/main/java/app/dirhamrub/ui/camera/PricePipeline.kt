@@ -6,6 +6,7 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
+import app.dirhamrub.domain.price.Box
 import app.dirhamrub.domain.price.PriceCurrency
 import app.dirhamrub.domain.price.PriceParser
 import app.dirhamrub.domain.price.PriceTracker
@@ -22,6 +23,8 @@ class PriceLabel(
     val id: Long,
     val value: BigDecimal,
     val isOld: Boolean,
+    /** Догадка: крупное число без валюты и копеек — рисуется серой меткой с «?». */
+    val unsure: Boolean,
     /** Итоговая прозрачность 0..1 (появление и исчезновение). */
     val alpha: Float,
     /** Рамка вокруг цены на ценнике. */
@@ -144,7 +147,9 @@ class PricePipeline(private val metrics: LabelMetrics) {
     fun onText(text: Text?, nowMs: Long) {
         synchronized(this) {
             if (paused) return
-            val candidates = parser.parse(OcrMapper.map(text))
+            // Границы экрана: цены у левого и правого края могли обрезаться — их не показываем.
+            val bounds = if (viewWidth > 0f && viewHeight > 0f) Box(0f, 0f, viewWidth, viewHeight) else null
+            val candidates = parser.parse(OcrMapper.map(text), bounds)
             lastTracked = tracker.update(candidates, nowMs)
             lastNowMs = nowMs
             publish()
@@ -169,14 +174,14 @@ class PricePipeline(private val metrics: LabelMetrics) {
         val boxes = lastTracked.associate { it.id to RectF(it.box.left, it.box.top, it.box.right, it.box.bottom) }
         val placed = ArrayList<RectF>(lastTracked.size)
 
-        // Сначала актуальные цены по убыванию скоринга — им достаются лучшие места, потом старые.
-        val order = lastTracked.sortedWith(compareBy<TrackedPrice> { it.isOld }.thenByDescending { it.score })
+        // Сначала уверенные актуальные цены по убыванию скоринга — им достаются лучшие места, потом догадки и старые.
+        val order = lastTracked.sortedWith(compareBy<TrackedPrice> { it.isOld }.thenBy { !it.confident }.thenByDescending { it.score })
         for (t in order) {
             val homeAmount = rate?.let { t.value.multiply(it, MC) }
             val officialAmount = official?.let { t.value.multiply(it, MC) }
             val homeText = homeAmount?.let { "${Numbers.cheat(it)} ${home.symbol}" } ?: "—"
             // Распознанная цена — чтобы сразу видеть, правильно ли прочитан ценник.
-            val price = "${Numbers.money(t.value)} ${spend.symbol}"
+            val price = "${Numbers.money(t.value)} ${spend.symbol}" + if (t.confident) "" else "?"
             val main: String
             val sub: String
             if (t.isOld) {
@@ -237,7 +242,7 @@ class PricePipeline(private val metrics: LabelMetrics) {
             val first = shownAt.getOrPut(t.id) { lastNowMs }
             val appear = ((lastNowMs - first) / APPEAR_MS.toFloat()).coerceIn(0f, 1f)
             labels += PriceLabel(
-                id = t.id, value = t.value, isOld = t.isOld,
+                id = t.id, value = t.value, isOld = t.isOld, unsure = !t.confident,
                 alpha = t.alpha * (0.25f + 0.75f * appear),
                 box = box, pill = pill, bubble = bubble,
                 main = main, mainX = mainX, mainY = mainY,

@@ -127,6 +127,45 @@ class PriceParserTest {
     }
 
     @Test
+    fun `надпись на упаковке не цена, если в кадре есть ценник с валютой`() {
+        // Юбилейное «200 years» на бутылке Evian и ценник «10.00 AED» на полке.
+        val bottle = OcrBlock(listOf(line("200", x = 600f, y = 380f, h = 90f), line("YEARS", x = 610f, y = 480f, h = 14f)))
+        val tag = OcrBlock(listOf(line("WATER", y = 1000f), line("10.00", "AED", x = 360f, y = 1110f)))
+        assertEquals(listOf("10.00"), parser.parse(listOf(bottle, tag)).map { it.value.toPlainString() })
+    }
+
+    @Test
+    fun `без ценников с валютой крупное целое — догадка`() {
+        val c = parser.parse(listOf(OcrBlock(listOf(line("200", y = 380f, h = 90f))))).single()
+        assertFalse(c.confident)
+        assertTrue(parse(line("AED", "10.00")).single().confident)
+        assertTrue(parse(line("49.95")).single().confident)
+    }
+
+    @Test
+    fun `цена у края кадра отбрасывается`() {
+        val bounds = Box(0f, 0f, 923f, 2000f)
+        // Ценник уходит за правый край: «18» может быть «18.00» или «18.50».
+        val right = OcrBlock(listOf(line("AED", "18", x = 790f, y = 1150f)))
+        assertTrue(parser.parse(listOf(right), bounds).isEmpty())
+        // И за левый: «50» может быть «150».
+        val left = OcrBlock(listOf(line("50", "AED", x = 5f, y = 1150f)))
+        assertTrue(parser.parse(listOf(left), bounds).isEmpty())
+        // Тот же ценник посередине кадра — цена.
+        val middle = OcrBlock(listOf(line("AED", "18", x = 300f, y = 1150f)))
+        assertEquals(listOf("18"), parser.parse(listOf(middle), bounds).map { it.value.toPlainString() })
+        // Без границ кадра (тесты, старый вызов) — как раньше.
+        assertEquals(1, parser.parse(listOf(right)).size)
+    }
+
+    @Test
+    fun `два прочтения одного места — одна находка`() {
+        val a = OcrBlock(listOf(line("AED", "200")))
+        val b = OcrBlock(listOf(line("AED", "20")))
+        assertEquals(1, parser.parse(listOf(a, b)).size)
+    }
+
+    @Test
     fun `крупная цена выше по скорингу`() {
         val small = line("AED", "12.00", h = 20f)
         val big = line("AED", "45.00", y = 300f, h = 70f)

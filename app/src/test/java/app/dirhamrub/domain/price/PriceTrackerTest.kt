@@ -1,6 +1,7 @@
 package app.dirhamrub.domain.price
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.math.BigDecimal
@@ -15,6 +16,28 @@ class PriceTrackerTest {
         assertTrue(t.update(listOf(cand("10", 0f)), 0).isEmpty())
         assertTrue(t.update(emptyList(), 33).isEmpty())
         assertEquals(1, t.update(listOf(cand("10", 4f)), 66).size)
+    }
+
+    @Test
+    fun `два числа на одном месте — остаётся стабильное`() {
+        val t = PriceTracker()
+        // OCR читает на одном месте то «200», то «20»; «200» — чаще.
+        t.update(listOf(cand("200", 0f)), 0)
+        t.update(listOf(cand("20", 2f)), 33)
+        t.update(listOf(cand("200", 0f)), 66)
+        val shown = t.update(listOf(cand("20", 2f), cand("200", 1f)), 100)
+        assertEquals(listOf("200"), shown.map { it.value.toPlainString() })
+    }
+
+    @Test
+    fun `догадка остаётся догадкой`() {
+        val t = PriceTracker()
+        val guess = cand("200", 0f).copy(hasCurrency = false, confident = false)
+        t.update(listOf(guess), 0)
+        assertFalse(t.update(listOf(guess), 33).single().confident)
+        val sure = cand("15", 400f)
+        t.update(listOf(sure), 66)
+        assertTrue(t.update(listOf(sure, guess), 100).first { it.value.compareTo(BigDecimal("15")) == 0 }.confident)
     }
 
     @Test

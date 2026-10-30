@@ -11,6 +11,11 @@ data class PriceCandidate(
     val hasCurrency: Boolean,
     /** Старая цена (рядом WAS или она зачёркнута/перебита новой). */
     val isOld: Boolean,
+    /**
+     * Похоже на цену уверенно: валюта рядом или в том же блоке, или копейки. Голое крупное целое
+     * («200» на этикетке) — догадка, её метка рисуется иначе.
+     */
+    val confident: Boolean = true,
 )
 
 /**
@@ -103,11 +108,14 @@ class PriceCurrency(
  * 1. Склеивает разорванные части числа: «79» + «.95», «1,299» + «.00», копейки верхним индексом.
  * 2. Маскирует телефоны, длинные коды, даты и время, отбрасывает проценты, объём, вес, размеры.
  * 3. Оценивает каждую находку: валюта рядом, дробная часть, высота текста относительно кадра.
- * 4. Помечает старые цены: слово WAS/OLD/RRP рядом или мелкая и бо́льшая цена возле крупной новой.
+ * 4. Если в кадре есть цены с валютой, голые целые без валюты и копеек отбрасывает: это надписи
+ *    на упаковке («200 years» на бутылке), номера полок и т. п. Без таких цен — оставляет как догадку.
+ * 5. Отбрасывает числа у левого и правого края кадра [bounds]: ценник обрезан, «8» может быть «8.50» или «18».
+ * 6. Помечает старые цены: слово WAS/OLD/RRP рядом или мелкая и бо́льшая цена возле крупной новой.
  */
 class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
 
-    fun parse(blocks: List<OcrBlock>): List<PriceCandidate> {
+    fun parse(blocks: List<OcrBlock>, bounds: Box? = null): List<PriceCandidate> {
         val raw = ArrayList<Raw>()
         for (block in blocks) {
             val lines = mergeSuperscripts(block.lines)
@@ -133,10 +141,24 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
             r.score = score
             accepted += r
         }
-        markStruckOut(accepted)
-        return dedupe(accepted)
+        val anyCurrency = accepted.any { it.hasCurrency }
+        val kept = accepted.filter { r ->
+            when {
+                anyCurrency && !r.confident -> false
+                bounds != null && nearSideEdge(r.box, bounds) -> false
+                else -> true
+            }
+        }
+        markStruckOut(kept)
+        return dedupe(kept)
             .sortedByDescending { it.score }
-            .map { PriceCandidate(it.value, it.box, it.score, it.hasCurrency, it.isOld) }
+            .map { PriceCandidate(it.value, it.box, it.score, it.hasCurrency, it.isOld, it.confident) }
+    }
+
+    /** Число у левого или правого края (ближе 0,6 высоты цифр) или за ним — могло обрезаться. */
+    private fun nearSideEdge(box: Box, bounds: Box): Boolean {
+        val margin = EDGE_MARGIN * box.height
+        return box.left < bounds.left + margin || box.right > bounds.right - margin
     }
 
     private class Raw(
@@ -149,6 +171,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         var isOld: Boolean,
     ) {
         var score: Float = 0f
+        val confident: Boolean get() = hasCurrency || blockCurrency || hasFraction
     }
 
     private class Token(val text: String, val box: Box, val start: Int) {
@@ -319,12 +342,15 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         }
     }
 
-    /** OCR иногда отдаёт одно и то же дважды — оставляем лучшую находку. */
+    /**
+     * OCR иногда отдаёт одно и то же дважды, а то и два прочтения одного места («200» и «20») —
+     * на одном месте оставляем лучшую находку.
+     */
     private fun dedupe(items: List<Raw>): List<Raw> {
         val sorted = items.sortedByDescending { it.score }
         val out = ArrayList<Raw>(sorted.size)
         for (r in sorted) {
-            if (out.none { it.value.compareTo(r.value) == 0 && it.box.iou(r.box) > 0.5f }) out += r
+            if (out.none { it.box.iou(r.box) > SAME_PLACE_IOU }) out += r
         }
         return out
     }
@@ -342,6 +368,8 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         private const val SUPERSCRIPT_RATIO = 0.75f
         private const val STRUCK_HEIGHT_RATIO = 0.8f
         private const val STRUCK_DISTANCE = 2.5f
+        private const val EDGE_MARGIN = 0.6f
+        private const val SAME_PLACE_IOU = 0.5f
 
         private val NUMBER = Regex("""(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\d]|[.,]\d)""")
         private val NUMBER_DOT = Regex(

@@ -87,6 +87,8 @@ fun CardEditorSheet(
     onSave: (BankCard) -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
+    /** Добавить пустой чек покупки в этой валюте (если его ещё нет). */
+    addPurchaseFor: Currency? = null,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
@@ -103,12 +105,16 @@ fun CardEditorSheet(
     var sent by remember(card.id) { mutableStateOf(card.transfer?.sent?.let(::field).orEmpty()) }
     var sentCurrency by remember(card.id) { mutableStateOf(card.transfer?.sentCurrency ?: home) }
     var got by remember(card.id) { mutableStateOf(card.transfer?.got?.let(::field).orEmpty()) }
-    var nextKey by remember(card.id) { mutableStateOf(card.purchases.size) }
     val purchases = remember(card.id) {
         mutableStateListOf<PurchaseDraft>().apply {
             card.purchases.forEachIndexed { i, p -> add(PurchaseDraft(i, p.spend, field(p.paid), field(p.price), p.date)) }
+            // Открыли по подсказке «добавить чек»: сразу пустая строка покупки в валюте трат.
+            if (addPurchaseFor != null && card.purchases.none { it.spend == addPurchaseFor }) {
+                add(PurchaseDraft(card.purchases.size, addPurchaseFor, "", "", LocalDate.now()))
+            }
         }
     }
+    var nextKey by remember(card.id) { mutableStateOf(purchases.size) }
     var manual by remember(card.id) { mutableStateOf(card.manualFor(spend, home)?.homePerUnit?.let { Numbers.plain(it, 4) }.orEmpty()) }
 
     val defaultName = stringResource(R.string.card_default_name, currency.code)

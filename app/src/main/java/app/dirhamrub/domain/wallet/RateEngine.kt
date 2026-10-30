@@ -31,6 +31,29 @@ data class CardQuote(
     val vsOfficial: BigDecimal?,
 )
 
+/** Выбранная карта [selected] против самой дешёвой из остальных [other]. */
+data class CardComparison(val selected: CardQuote, val other: CardQuote) {
+    /** Выбранная не дороже остальных. */
+    val selectedIsBest: Boolean get() = selected.homePerUnit <= other.homePerUnit
+
+    /** Насколько выгодная из двух дешевле, в процентах от цены дорогой. */
+    val percent: BigDecimal
+        get() {
+            val high = selected.homePerUnit.max(other.homePerUnit)
+            if (high.signum() == 0) return BigDecimal.ZERO
+            return selected.homePerUnit.subtract(other.homePerUnit, MC).abs().divide(high, MC).multiply(HUNDRED, MC)
+        }
+
+    /** Оба курса измерены по чекам или заданы вручную — разница не оценочная. */
+    val isExact: Boolean get() = selected.basis.isExact && other.basis.isExact
+
+    /** Разница в итоговой валюте на покупку [amount] в валюте трат (≥ 0). */
+    fun difference(amount: BigDecimal): BigDecimal =
+        amount.multiply(selected.homePerUnit.subtract(other.homePerUnit, MC).abs(), MC)
+}
+
+private val RateBasis.isExact: Boolean get() = this == RateBasis.RECEIPTS || this == RateBasis.MANUAL
+
 /** Результат сравнения карт на одной сумме. */
 data class WalletQuote(
     val quotes: List<CardQuote>,
@@ -40,6 +63,13 @@ data class WalletQuote(
     val best: CardQuote? get() = quotes.minByOrNull { it.homePerUnit }
 
     fun of(id: String?): CardQuote? = quotes.firstOrNull { it.card.id == id }
+
+    /** Выбранная карта против самой дешёвой из остальных; null, если карта одна или не выбрана. */
+    fun compare(selectedId: String?): CardComparison? {
+        val selected = of(selectedId) ?: return null
+        val other = quotes.filter { it.card.id != selected.card.id }.minByOrNull { it.homePerUnit } ?: return null
+        return CardComparison(selected, other)
+    }
 
     /** Экономия лучшей карты против следующей по цене, в процентах; null, если карта одна. */
     val bestSavingsPercent: BigDecimal?

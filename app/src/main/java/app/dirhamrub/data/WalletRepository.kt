@@ -33,6 +33,8 @@ data class StoredState(
     val officialFetchedAt: Long,
     val active: Line,
     val expression: Expression,
+    /** Страна сети, для которой подсказку «переключить валюту» уже показали (приняли или закрыли). */
+    val countryHandled: String?,
 )
 
 /**
@@ -55,7 +57,12 @@ class WalletRepository(private val store: DataStore<Preferences>) {
                 else -> Line.SPEND
             },
             expression = Expression.parse(p[EXPRESSION]),
+            countryHandled = p[COUNTRY_HANDLED],
         )
+    }
+
+    suspend fun saveCountryHandled(iso: String) {
+        store.edit { p -> p[COUNTRY_HANDLED] = iso }
     }
 
     suspend fun saveSession(wallet: Wallet, active: Line, expression: Expression) {
@@ -115,5 +122,6 @@ class WalletRepository(private val store: DataStore<Preferences>) {
         val OFFICIAL_AT = longPreferencesKey("official_fetched_at")
         val ACTIVE = stringPreferencesKey("active_line")
         val EXPRESSION = stringPreferencesKey("expression")
+        val COUNTRY_HANDLED = stringPreferencesKey("country_handled")
     }
 }

@@ -2,14 +2,18 @@ package app.dirhamrub.ui.cheat
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -18,11 +22,14 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -33,12 +40,27 @@ import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.WalletQuote
 import app.dirhamrub.ui.main.MainViewModel
 import app.dirhamrub.ui.theme.AppTheme
+import app.dirhamrub.ui.theme.CardPalette
 import java.math.BigDecimal
 
-/** Шпаргалка: суммы в валюте трат → итоговая валюта по каждой карте и по курсу ЦБ. */
+/** Колонка шпаргалки: карта (с цветом её оформления) или ЦБ. */
+private class CheatColumn(val title: String, val dot: Color?, val rate: BigDecimal?, val selected: Boolean, val best: Boolean)
+
+/**
+ * Шпаргалка: суммы в валюте трат → итоговая валюта по каждой карте и по курсу ЦБ.
+ * Колонки подписаны цветной точкой карты; выбранная — жирным, самая дешёвая — зелёным;
+ * текущая сумма с главного экрана — отдельной подсвеченной строкой.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CheatSheet(quote: WalletQuote, spend: Currency, home: Currency, selectedId: String?, onDismiss: () -> Unit) {
+fun CheatSheet(
+    quote: WalletQuote,
+    spend: Currency,
+    home: Currency,
+    selectedId: String?,
+    amount: BigDecimal,
+    onDismiss: () -> Unit,
+) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     ModalBottomSheet(
@@ -61,28 +83,26 @@ fun CheatSheet(quote: WalletQuote, spend: Currency, home: Currency, selectedId: 
             )
             Text(stringResource(R.string.cheat_subtitle, spend.code, home.symbol), style = type.body, color = colors.muted)
             Spacer(Modifier.height(12.dp))
-            // Колонки: сумма, карты (по курсу каждой), ЦБ. Много карт — таблица прокручивается вбок.
-            val columns: List<Pair<String, BigDecimal?>> =
-                quote.quotes.map { it.card.name to it.homePerUnit } + (stringResource(R.string.cheat_official) to quote.official)
-            val highlight = quote.quotes.indexOfFirst { it.card.id == selectedId } + 1
+            val best = quote.best?.takeIf { quote.quotes.size > 1 }
+            // Колонки: карты (по курсу каждой) и ЦБ. Много карт — таблица прокручивается вбок.
+            val columns = quote.quotes.map {
+                CheatColumn(it.card.name, CardPalette.style(it.card.style).start, it.homePerUnit, it.card.id == selectedId, it == best)
+            } + CheatColumn(stringResource(R.string.cheat_official), null, quote.official, selected = false, best = false)
+            val amounts = MainViewModel.cheat(spend)
+            val current = amount.takeIf { it.signum() > 0 }
+            val rows = (amounts + listOfNotNull(current?.takeIf { a -> amounts.none { it.compareTo(a) == 0 } })).sorted()
             Column(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(colors.paper)
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(vertical = 8.dp),
             ) {
-                CheatRow(listOf(spend.code) + columns.map { it.first }, highlight, isHeader = true)
-                HorizontalDivider(color = colors.line)
-                for (amount in MainViewModel.cheat(spend)) {
-                    CheatRow(
-                        listOf(Numbers.moneyWhole(amount)) + columns.map { (_, rate) ->
-                            rate?.let { Numbers.cheat(amount.multiply(it, MC)) } ?: "—"
-                        },
-                        highlight,
-                        isHeader = false,
-                    )
+                HeaderRow(spend.code, columns)
+                HorizontalDivider(color = colors.line, modifier = Modifier.padding(horizontal = 12.dp))
+                for (value in rows) {
+                    ValueRow(value, columns, isCurrent = current != null && value.compareTo(current) == 0)
                 }
             }
         }
@@ -90,30 +110,75 @@ fun CheatSheet(quote: WalletQuote, spend: Currency, home: Currency, selectedId: 
 }
 
 @Composable
-private fun CheatRow(cells: List<String>, highlight: Int, isHeader: Boolean) {
+private fun HeaderRow(first: String, columns: List<CheatColumn>) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    Row(Modifier.padding(vertical = if (isHeader) 8.dp else 7.dp)) {
-        cells.forEachIndexed { i, cell ->
+    Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.Bottom) {
+        Text(first, style = type.label, color = colors.muted, modifier = Modifier.width(FIRST_WIDTH))
+        for (c in columns) {
+            Row(
+                modifier = Modifier
+                    .width(COLUMN_WIDTH)
+                    .padding(start = 8.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (c.dot != null) {
+                    Box(
+                        Modifier
+                            .padding(end = 5.dp)
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(c.dot),
+                    )
+                }
+                Text(
+                    text = c.title,
+                    style = if (c.selected) type.label.copy(fontWeight = FontWeight.SemiBold) else type.label,
+                    color = if (c.selected) colors.ink else colors.muted,
+                    textAlign = TextAlign.End,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ValueRow(value: BigDecimal, columns: List<CheatColumn>, isCurrent: Boolean) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    Row(
+        modifier = Modifier
+            .background(if (isCurrent) colors.accentSoft else Color.Transparent)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    ) {
+        Text(
+            text = Numbers.cheat(value),
+            style = if (isCurrent) type.monoStrong else type.mono,
+            color = if (isCurrent) colors.accent else colors.ink,
+            maxLines = 1,
+            modifier = Modifier.width(FIRST_WIDTH),
+        )
+        for (c in columns) {
             Text(
-                text = cell,
-                style = when {
-                    isHeader -> type.label
-                    i == highlight -> type.monoStrong
-                    else -> type.mono
-                },
+                text = c.rate?.let { Numbers.cheat(value.multiply(it, MC)) } ?: "—",
+                style = if (c.selected || isCurrent) type.monoStrong else type.mono,
                 color = when {
-                    isHeader -> colors.muted
-                    i == highlight -> colors.accent
+                    c.best -> colors.good
+                    c.rate == null -> colors.muted
                     else -> colors.ink
                 },
-                textAlign = if (i == 0) TextAlign.Start else TextAlign.End,
+                textAlign = TextAlign.End,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
-                    .width(if (i == 0) 72.dp else 88.dp)
-                    .padding(start = if (i == 0) 0.dp else 8.dp),
+                    .width(COLUMN_WIDTH)
+                    .padding(start = 8.dp),
             )
         }
     }
 }
+
+private val FIRST_WIDTH = 72.dp
+private val COLUMN_WIDTH = 96.dp

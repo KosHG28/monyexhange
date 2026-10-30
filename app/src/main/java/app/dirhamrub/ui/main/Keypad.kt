@@ -35,7 +35,7 @@ import app.dirhamrub.R
 import app.dirhamrub.domain.Key
 import app.dirhamrub.ui.theme.AppTheme
 
-private val KEY_HEIGHT = 58.dp
+private val KEY_HEIGHT = 54.dp
 private val KEY_GAP = 8.dp
 
 /**

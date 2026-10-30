@@ -48,6 +48,8 @@ data class MainUiState(
     val ratesFailed: Boolean = false,
     val active: Line = Line.SPEND,
     val expression: Expression = Expression(),
+    /** Страна сети, для которой подсказку о валюте уже приняли или закрыли. */
+    val countryHandled: String? = null,
 ) {
     val quote: WalletQuote by lazy { RateEngine.quoteAll(wallet, official) }
     val selectedCard: BankCard? get() = wallet.selected
@@ -101,6 +103,7 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
                 official = stored.official,
                 active = if (stored.active == Line.CARD && stored.wallet.cards.isEmpty()) Line.SPEND else stored.active,
                 expression = stored.expression,
+                countryHandled = stored.countryHandled,
             )
             refreshRates(force = false)
             // Сохраняем не чаще раза в 300 мс: collectLatest отменяет отложенную запись при новом нажатии.
@@ -160,6 +163,21 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
             else -> Expression(items.map { Numbers.plain(it) })
         }
         s.copy(active = Line.SPEND, expression = expression)
+    }
+
+    /** Подсказка «вы в другой стране»: [accept] — переключить валюту трат; больше для этой страны не показываем. */
+    fun handleCountry(iso: String, accept: Currency?) {
+        if (accept != null) setSpend(accept)
+        _state.update { it.copy(countryHandled = iso) }
+        viewModelScope.launch { repository.saveCountryHandled(iso) }
+    }
+
+    /** Соседняя карта (свайп по сумме): [step] = +1 — следующая, −1 — предыдущая; у края ряда ничего не делает. */
+    fun stepCard(step: Int) {
+        val w = _state.value.wallet
+        val i = w.cards.indexOfFirst { it.id == w.selected?.id }
+        val next = w.cards.getOrNull(i + step) ?: return
+        selectCard(next.id)
     }
 
     fun saveCard(card: BankCard) = _state.update { s ->

@@ -8,6 +8,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.unit.Dp
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -61,14 +66,15 @@ import app.dirhamrub.ui.theme.CardPalette
 import app.dirhamrub.ui.theme.motion
 import java.math.BigDecimal
 
-private val CARD_WIDTH = 164.dp
 private val CARD_HEIGHT = 100.dp
+private val ADD_WIDTH = 52.dp
 private val CARD_SHAPE = RoundedCornerShape(18.dp)
 /** Зазор между картой и обводкой выбранной: обводка рисуется в нём и не сдвигает соседей. */
 private val RING_GAP = 4.dp
 
 /**
- * Карты пользователя в ряд (прокручивается, видно две с половиной) и плитка «+».
+ * Карты пользователя в ряд (прокручивается) и плитка «+»: ширина карт — от ширины экрана,
+ * чтобы две карты и «+» помещались целиком.
  * На каждой — цена текущей покупки в итоговой валюте, курс и наценка к ЦБ; у лучшей — звезда.
  * Тап выбирает карту, тап по выбранной или долгое нажатие — редактор.
  */
@@ -89,28 +95,58 @@ fun BankCardsRow(
         AddCardHint(onAdd, modifier.padding(horizontal = 16.dp))
         return
     }
+    val listState = rememberLazyListState()
+    // Карту выбрали свайпом по сумме или в камере — докручиваем ряд, чтобы она была видна целиком.
+    LaunchedEffect(selectedId) {
+        val index = cards.indexOfFirst { it.id == selectedId }
+        if (index < 0) return@LaunchedEffect
+        val info = listState.layoutInfo
+        val item = info.visibleItemsInfo.firstOrNull { it.index == index }
+        if (item == null || item.offset < 0 || item.offset + item.size > info.viewportEndOffset) {
+            listState.animateScrollToItem(index)
+        }
+    }
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        // 16 dp поля + 2 карты + «+» + зазоры по 10 dp; обводке выбранной — по RING_GAP с каждой стороны.
+        val cardWidth = ((maxWidth - 16.dp * 2 - 10.dp * 2 - ADD_WIDTH) / 2).coerceIn(140.dp, 200.dp)
+        LazyRow(
+            state = listState,
+            contentPadding = PaddingValues(horizontal = 16.dp - RING_GAP),
+            horizontalArrangement = Arrangement.spacedBy(10.dp - RING_GAP * 2),
+        ) {
+            cardItems(cards, quote, selectedId, spend, home, amount, cardWidth, onSelect, onEdit)
+            item(key = "add") { AddCardTile(onAdd) }
+        }
+    }
+}
+
+private fun LazyListScope.cardItems(
+    cards: List<BankCard>,
+    quote: WalletQuote,
+    selectedId: String?,
+    spend: Currency,
+    home: Currency,
+    amount: BigDecimal,
+    cardWidth: Dp,
+    onSelect: (String) -> Unit,
+    onEdit: (BankCard) -> Unit,
+) {
     val best = quote.best?.takeIf { quote.quotes.size > 1 }
     val bestPercent = quote.bestSavingsPercent?.let(Numbers::percent)?.takeIf { it != "0" }
-    LazyRow(
-        modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = 16.dp - RING_GAP),
-        horizontalArrangement = Arrangement.spacedBy(10.dp - RING_GAP * 2),
-    ) {
-        items(cards, key = { it.id }) { card ->
-            val q = quote.of(card.id)
-            BankCardView(
-                card = card,
-                quote = q,
-                spend = spend,
-                home = home,
-                sum = q?.let { Numbers.moneyWhole(amount.multiply(it.homePerUnit, MC)) },
-                selected = card.id == selectedId,
-                best = if (best != null && q == best && bestPercent != null) stringResource(R.string.card_best_a11y, bestPercent) else null,
-                onClick = { if (card.id == selectedId) onEdit(card) else onSelect(card.id) },
-                onLongClick = { onEdit(card) },
-            )
-        }
-        item(key = "add") { AddCardTile(onAdd) }
+    items(cards, key = { it.id }) { card ->
+        val q = quote.of(card.id)
+        BankCardView(
+            card = card,
+            quote = q,
+            spend = spend,
+            home = home,
+            sum = q?.let { Numbers.moneyWhole(amount.multiply(it.homePerUnit, MC)) },
+            selected = card.id == selectedId,
+            best = if (best != null && q == best && bestPercent != null) stringResource(R.string.card_best_a11y, bestPercent) else null,
+            onClick = { if (card.id == selectedId) onEdit(card) else onSelect(card.id) },
+            onLongClick = { onEdit(card) },
+            width = cardWidth,
+        )
     }
 }
 
@@ -163,6 +199,7 @@ private fun BankCardView(
     best: String?,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    width: Dp,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
@@ -180,14 +217,16 @@ private fun BankCardView(
         )
     } ?: stringResource(R.string.card_no_rate)
     val vs = quote?.takeIf { it.basis != RateBasis.OFFICIAL }?.vsOfficial
-    val sumText = sum?.let { "$it ${home.symbol}" } ?: "—"
+    // Оценочный курс (нет чека покупки в валюте трат) — сумма со знаком «≈».
+    val approx = if (quote?.basis == RateBasis.ESTIMATE) "≈ " else ""
+    val sumText = sum?.let { "$approx$it ${home.symbol}" } ?: "—"
     val a11y = buildString {
         append(stringResource(R.string.card_a11y, card.name, sumText, rate))
         if (quote != null) append(", ").append(basisLabel(quote))
         if (best != null) append(". ").append(best)
     }
     val editLabel = stringResource(R.string.card_edit_a11y)
-    val sumSize = if (sumText.length > 10) 17.sp else 22.sp
+    val sumSize = if (sumText.length > 11) 17.sp else 22.sp
 
     // Обводка выбранной карты — в постоянном зазоре: размер и соседи не меняются.
     Box(
@@ -197,7 +236,7 @@ private fun BankCardView(
     ) {
         Box(
             modifier = Modifier
-                .size(CARD_WIDTH, CARD_HEIGHT)
+                .size(width, CARD_HEIGHT)
                 .graphicsLayer { alpha = dim }
                 .clip(CARD_SHAPE)
                 .background(Brush.linearGradient(listOf(style.start, style.end)))
@@ -286,7 +325,7 @@ private fun AddCardTile(onAdd: () -> Unit) {
     Box(Modifier.padding(RING_GAP)) {
         Box(
             modifier = Modifier
-                .size(64.dp, CARD_HEIGHT)
+                .size(ADD_WIDTH, CARD_HEIGHT)
                 .clip(CARD_SHAPE)
                 .clickable(role = Role.Button, onClickLabel = label, onClick = onAdd)
                 .semantics { contentDescription = label },

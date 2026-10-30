@@ -27,5 +27,27 @@ enum class Currency(val symbol: String, val nameRu: String, val shortRu: String,
         val SPEND: List<Currency> = listOf(AED, TRY, THB, USD, EUR, CNY, KZT, GEL, AMD, VND)
 
         fun byCode(code: String?): Currency? = entries.firstOrNull { it.name == code }
+
+        private val EURO_COUNTRIES = setOf(
+            "AT", "BE", "BG", "CY", "DE", "EE", "ES", "FI", "FR", "GR", "HR", "IE", "IT", "LT", "LU", "LV",
+            "MT", "NL", "PT", "SI", "SK", "AD", "MC", "SM", "VA", "ME", "XK",
+        )
+        private val DOLLAR_COUNTRIES = setOf("US", "PR", "GU", "VI", "AS", "MP", "EC", "SV", "PA")
+
+        /** Валюта трат по коду страны ISO 3166-1 (страна сотовой сети): «KZ» → тенге; null — страны нет в списке. */
+        fun forCountry(iso: String?): Currency? = when (val c = iso?.trim()?.uppercase()) {
+            null, "" -> null
+            "AE" -> AED
+            "TR" -> TRY
+            "TH" -> THB
+            "CN" -> CNY
+            "KZ" -> KZT
+            "GE" -> GEL
+            "AM" -> AMD
+            "VN" -> VND
+            in EURO_COUNTRIES -> EUR
+            in DOLLAR_COUNTRIES -> USD
+            else -> null
+        }
     }
 }

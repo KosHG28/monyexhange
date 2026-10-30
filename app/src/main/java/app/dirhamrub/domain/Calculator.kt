@@ -12,42 +12,83 @@ sealed interface Key {
     data object Backspace : Key
     data object Clear : Key
     data object Plus : Key
+    data object Times : Key
     data object Equals : Key
 }
 
+/** Знак между числами: «+» или «×» (умножение выполняется раньше сложения). */
+enum class Op(val symbol: Char, val stored: Char) {
+    PLUS('+', '+'),
+    TIMES('×', '*'),
+}
+
 /**
- * Выражение калькулятора: сумма слагаемых «22 + 15,5 + 8».
- * Слагаемые хранятся как набранный текст с запятой («15,» допустимо во время набора).
+ * Выражение калькулятора: «3 × 22 + 15,5 + 8» — сумма слагаемых, слагаемое может быть произведением.
+ * Числа хранятся как набранный текст с запятой («15,» допустимо во время набора), [ops] — знаки между ними
+ * (их на один меньше, чем чисел).
  * [fresh] — значение подставлено извне (чип, «=», смена строки): следующая цифра начинает число заново.
  */
 data class Expression(
     val terms: List<String> = listOf(""),
     val fresh: Boolean = false,
+    val ops: List<Op> = List(maxOf(0, terms.size - 1)) { Op.PLUS },
 ) {
     val isCompound: Boolean get() = terms.size > 1
     val isEmpty: Boolean get() = terms.all { it.isEmpty() }
 
+    /**
+     * Значение: сначала умножение, потом сложение. Недописанный хвост («3 × ») не считается —
+     * пока набирают второй множитель, видно 3, а не 0.
+     */
     val value: BigDecimal
-        get() = terms.fold(BigDecimal.ZERO) { acc, term -> acc.add(Numbers.parse(term) ?: BigDecimal.ZERO, MC) }
+        get() {
+            var count = terms.size
+            if (count > 1 && terms.last().isEmpty()) count--
+            var sum = BigDecimal.ZERO
+            var product = number(0)
+            for (i in 1 until count) {
+                if (ops[i - 1] == Op.TIMES) {
+                    product = product.multiply(number(i), MC)
+                } else {
+                    sum = sum.add(product, MC)
+                    product = number(i)
+                }
+            }
+            return sum.add(product, MC)
+        }
 
-    /** «22 + 15,5 + 8», при наборе следующего слагаемого — «22 + ». */
-    fun display(): String = terms.joinToString(" + ") { Numbers.groupInput(it) }
+    private fun number(i: Int): BigDecimal = Numbers.parse(terms[i]) ?: BigDecimal.ZERO
 
-    /** Последнее (редактируемое) слагаемое в виде для показа. */
+    /** «3 × 22 + 15,5», при наборе следующего числа — «3 × 22 + ». */
+    fun display(): String = buildString {
+        terms.forEachIndexed { i, term ->
+            if (i > 0) append(' ').append(ops[i - 1].symbol).append(' ')
+            append(Numbers.groupInput(term))
+        }
+    }
+
+    /** Последнее (редактируемое) число в виде для показа. */
     fun currentTerm(): String = Numbers.groupInput(terms.last())
 
-    fun serialize(): String = terms.joinToString("+")
+    /** «3*22+15,5»: умножение хранится звёздочкой, старые сохранения «22+15,5» читаются как раньше. */
+    fun serialize(): String = buildString {
+        terms.forEachIndexed { i, term ->
+            if (i > 0) append(ops[i - 1].stored)
+            append(term)
+        }
+    }
 
     fun press(key: Key): Expression = when (key) {
         is Key.Digit -> digit(key.digit)
         Key.Comma -> comma()
         Key.Backspace -> backspace()
         Key.Clear -> Expression()
-        Key.Plus -> plus()
+        Key.Plus -> operator(Op.PLUS)
+        Key.Times -> operator(Op.TIMES)
         Key.Equals -> equals()
     }
 
-    /** Подставить сумму в последнее слагаемое, если оно пустое (после «+»), иначе заменить выражение. */
+    /** Подставить сумму в последнее число, если оно пустое (после «+» или «×»), иначе заменить выражение. */
     fun putAmount(amount: BigDecimal): Expression =
         if (!fresh && isCompound && terms.last().isEmpty()) {
             copy(terms = terms.dropLast(1) + Numbers.plain(amount))
@@ -82,21 +123,25 @@ data class Expression(
     private fun backspace(): Expression {
         val last = terms.last()
         return when {
-            last.isEmpty() && terms.size > 1 -> Expression(terms.dropLast(1))
+            last.isEmpty() && terms.size > 1 -> Expression(terms.dropLast(1), ops = ops.dropLast(1))
             last.isEmpty() -> Expression()
             else -> replaceLast(last.dropLast(1))
         }
     }
 
-    private fun plus(): Expression {
+    /** «+» или «×». Сразу после знака — заменяет его («3 + ×» → «3 × »); на пустом месте — ничего. */
+    private fun operator(op: Op): Expression {
         val last = terms.last()
-        if (last.isEmpty() || terms.size >= MAX_TERMS) return copy(fresh = false)
-        return Expression(terms + "")
+        if (last.isEmpty()) {
+            return if (terms.size > 1) copy(ops = ops.dropLast(1) + op, fresh = false) else copy(fresh = false)
+        }
+        if (terms.size >= MAX_TERMS) return copy(fresh = false)
+        return Expression(terms + "", ops = ops + op)
     }
 
     private fun equals(): Expression = if (isEmpty) Expression() else of(value)
 
-    private fun replaceLast(text: String) = Expression(terms.dropLast(1) + text)
+    private fun replaceLast(text: String) = Expression(terms.dropLast(1) + text, ops = ops)
 
     companion object {
         const val MAX_INT_DIGITS = 9
@@ -109,11 +154,21 @@ data class Expression(
         /** Обратная операция к [serialize]; всё непонятное отбрасывается. */
         fun parse(stored: String?): Expression {
             if (stored.isNullOrEmpty()) return Expression()
-            val terms = stored.split('+').map { term ->
-                term.filter { it.isDigit() || it == ',' }
+            val terms = mutableListOf(StringBuilder())
+            val ops = mutableListOf<Op>()
+            for (ch in stored) {
+                val op = Op.entries.firstOrNull { it.stored == ch }
+                when {
+                    op != null -> {
+                        ops += op
+                        terms += StringBuilder()
+                    }
+                    ch.isDigit() || ch == ',' -> terms.last().append(ch)
+                }
             }
-            val valid = terms.all { it.isEmpty() || Numbers.parse(it) != null }
-            return if (valid && terms.isNotEmpty()) Expression(terms) else Expression()
+            val texts = terms.map { it.toString() }
+            val valid = texts.all { it.isEmpty() || Numbers.parse(it) != null }
+            return if (valid) Expression(texts, ops = ops) else Expression()
         }
     }
 }

@@ -27,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,6 +47,7 @@ private val KEY_GAP = 8.dp
 fun Keypad(onKey: (Key) -> Unit, onCamera: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(KEY_GAP)) {
         val plus = stringResource(R.string.key_plus)
+        val times = stringResource(R.string.key_times)
         val equals = stringResource(R.string.key_equals)
         val comma = stringResource(R.string.key_comma)
         KeyRow(
@@ -54,11 +56,12 @@ fun Keypad(onKey: (Key) -> Unit, onCamera: () -> Unit, modifier: Modifier = Modi
         )
         KeyRow(
             left = { DigitKey(4, onKey); DigitKey(5, onKey) },
-            right = { DigitKey(6, onKey); OperatorKey("+", plus) { onKey(Key.Plus) } },
+            // Долгое нажатие на «+» — «=»: свернуть выражение в одно число.
+            right = { DigitKey(6, onKey); OperatorKey("+", plus, onLongClick = { onKey(Key.Equals) }, longClickLabel = equals) { onKey(Key.Plus) } },
         )
         KeyRow(
             left = { DigitKey(1, onKey); DigitKey(2, onKey) },
-            right = { DigitKey(3, onKey); OperatorKey("=", equals) { onKey(Key.Equals) } },
+            right = { DigitKey(3, onKey); OperatorKey("×", times) { onKey(Key.Times) } },
         )
         KeyRow(
             left = { TextKey(",", comma) { onKey(Key.Comma) }; DigitKey(0, onKey) },
@@ -81,6 +84,7 @@ private fun RowScope.KeyBase(
     description: String,
     background: Color,
     onLongClick: (() -> Unit)? = null,
+    longClickLabel: String? = null,
     onClick: () -> Unit,
     content: @Composable () -> Unit,
 ) {
@@ -92,6 +96,7 @@ private fun RowScope.KeyBase(
             .clip(RoundedCornerShape(18.dp))
             .background(background)
             .combinedClickable(
+                onLongClickLabel = longClickLabel,
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     onClick()
@@ -106,6 +111,14 @@ private fun RowScope.KeyBase(
             .clearAndSetSemantics {
                 contentDescription = description
                 role = Role.Button
+                // Долгое нажатие доступно и из TalkBack.
+                val longClick = onLongClick
+                if (longClick != null) {
+                    this.onLongClick(label = longClickLabel) {
+                        longClick()
+                        true
+                    }
+                }
             },
         contentAlignment = Alignment.Center,
     ) { content() }
@@ -125,10 +138,16 @@ private fun RowScope.TextKey(label: String, description: String, onClick: () -> 
 }
 
 @Composable
-private fun RowScope.OperatorKey(label: String, description: String, onClick: () -> Unit) {
+private fun RowScope.OperatorKey(
+    label: String,
+    description: String,
+    onLongClick: (() -> Unit)? = null,
+    longClickLabel: String? = null,
+    onClick: () -> Unit,
+) {
     val colors = AppTheme.colors
     // Знаки действий без подложки — только цветом: клавиатура спокойнее.
-    KeyBase(description, Color.Transparent, onClick = onClick) {
+    KeyBase(description, Color.Transparent, onLongClick = onLongClick, longClickLabel = longClickLabel, onClick = onClick) {
         Text(label, style = AppTheme.type.key.copy(fontSize = 30.sp, fontWeight = FontWeight.Light), color = colors.accent)
     }
 }

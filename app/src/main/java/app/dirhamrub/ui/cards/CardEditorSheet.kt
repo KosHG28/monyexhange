@@ -1,5 +1,8 @@
 package app.dirhamrub.ui.cards
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -34,11 +37,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -51,6 +57,8 @@ import app.dirhamrub.domain.wallet.ManualRate
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.PurchaseReceipt
 import app.dirhamrub.domain.wallet.RateEngine
+import app.dirhamrub.domain.wallet.ReceiptScanner
+import app.dirhamrub.domain.wallet.ScannedReceipt
 import app.dirhamrub.domain.wallet.TransferReceipt
 import app.dirhamrub.ui.components.CurrencyChips
 import app.dirhamrub.ui.components.CurrencyDropdown
@@ -64,6 +72,13 @@ import app.dirhamrub.ui.theme.AppTheme
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.time.LocalDate
+
+/** Чтение скриншота банка: идёт, не нашли, нашли и заполнили чек. */
+private sealed interface ScanResult {
+    data object Reading : ScanResult
+    data object NotFound : ScanResult
+    data class Found(val receipt: ScannedReceipt) : ScanResult
+}
 
 /** Черновик чека покупки в редакторе: поля — как набрал пользователь. */
 private class PurchaseDraft(val key: Int, spend: Currency, paid: String, price: String, val date: LocalDate) {
@@ -116,6 +131,33 @@ fun CardEditorSheet(
     }
     var nextKey by remember(card.id) { mutableStateOf(purchases.size) }
     var manual by remember(card.id) { mutableStateOf(card.manualFor(spend, home)?.homePerUnit?.let { Numbers.plain(it, 4) }.orEmpty()) }
+
+    // Чек из скриншота: уведомление или операция в приложении банка → суммы в поля чека.
+    val context = LocalContext.current
+    var scan by remember(card.id) { mutableStateOf<ScanResult?>(null) }
+    val pickScreenshot = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scan = ScanResult.Reading
+        scope.launch {
+            val lines = readScreenshotLines(context, uri)
+            val receipt = lines?.let { ReceiptScanner.guess(it, currency, spend, home) }
+            when (receipt) {
+                is ScannedReceipt.Purchase -> {
+                    val draft = purchases.firstOrNull { it.spend == receipt.spend }
+                        ?: PurchaseDraft(nextKey++, receipt.spend, "", "", LocalDate.now()).also { purchases.add(it) }
+                    draft.paid = field(receipt.paid)
+                    draft.price = field(receipt.price)
+                }
+                is ScannedReceipt.Transfer -> {
+                    sent = field(receipt.sent)
+                    sentCurrency = receipt.sentCurrency
+                    got = field(receipt.got)
+                }
+                null -> Unit
+            }
+            scan = if (receipt == null) ScanResult.NotFound else ScanResult.Found(receipt)
+        }
+    }
 
     val defaultName = stringResource(R.string.card_default_name, currency.code)
     fun build(): BankCard {
@@ -177,6 +219,12 @@ fun CardEditorSheet(
             CurrencyChips(options = Currency.entries, selected = currency, onSelect = { currency = it })
             Spacer(Modifier.height(16.dp))
 
+            ScreenshotButton(
+                result = scan,
+                card = currency,
+                onClick = { pickScreenshot.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+            )
+            Spacer(Modifier.height(12.dp))
             // Бумажный чек: пополнение и покупки.
             Column(
                 modifier = Modifier
@@ -313,6 +361,61 @@ fun CardEditorSheet(
                 ) { Text(stringResource(R.string.editor_delete), style = type.bodyStrong, color = colors.accent) }
             }
         }
+    }
+}
+
+/** «Заполнить из скриншота банка» и что получилось. */
+@Composable
+private fun ScreenshotButton(result: ScanResult?, card: Currency, onClick: () -> Unit) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.surface)
+            .clickable(role = Role.Button, enabled = result != ScanResult.Reading, onClick = onClick)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(R.drawable.ic_screenshot), contentDescription = null, tint = colors.accent, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.scan_button), style = type.bodyStrong, color = colors.ink)
+            Text(stringResource(R.string.scan_hint), style = type.caption, color = colors.muted)
+        }
+    }
+    val message = when (result) {
+        null -> null
+        ScanResult.Reading -> stringResource(R.string.scan_reading)
+        ScanResult.NotFound -> stringResource(R.string.scan_not_found, card.symbol)
+        is ScanResult.Found -> when (val r = result.receipt) {
+            is ScannedReceipt.Purchase -> stringResource(
+                R.string.scan_purchase,
+                "${Numbers.money(r.paid)} ${card.symbol}",
+                "${Numbers.money(r.price)} ${r.spend.symbol}",
+            )
+            is ScannedReceipt.Transfer -> stringResource(
+                R.string.scan_transfer,
+                "${Numbers.money(r.sent)} ${r.sentCurrency.symbol}",
+                "${Numbers.money(r.got)} ${card.symbol}",
+            )
+        }
+    }
+    if (message != null) {
+        Text(
+            text = message,
+            style = type.caption.copy(fontSize = 13.sp),
+            color = when (result) {
+                ScanResult.NotFound -> colors.accent
+                is ScanResult.Found -> colors.good
+                else -> colors.muted
+            },
+            modifier = Modifier
+                .padding(top = 6.dp)
+                .semantics { liveRegion = LiveRegionMode.Polite },
+        )
     }
 }
 

@@ -31,9 +31,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -46,6 +46,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -67,6 +68,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
@@ -76,6 +78,7 @@ import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.wallet.BankCard
+import app.dirhamrub.domain.wallet.CardComparison
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.ui.theme.AppTheme
@@ -87,8 +90,41 @@ import kotlin.math.abs
 /** Подсказка «вы в другой стране»: [iso] — страна сотовой сети, [currency] — её валюта трат. */
 data class CountryOffer(val iso: String, val currency: Currency)
 
-/** Ниже этой высоты верхней части экрана крупная сумма мельче — чтобы карты, сумма и подсказки поместились. */
-private val COMPACT_TOP = 330.dp
+private val CARDS_TOP = 6.dp
+private val CARDS_HEIGHT = 108.dp
+private val ROW = 48.dp
+private val TEXT_ROW = 20.dp
+private const val HERO_SP = 60
+private const val HERO_COMPACT_SP = 46
+
+/** Сколько места нужно верху экрана: карты, сумма, подписи и строка ЦБ. */
+private fun topHeight(state: MainUiState, compact: Boolean): Dp {
+    val hero = ((if (compact) HERO_COMPACT_SP else HERO_SP) * 1.12f).dp
+    val basis = when {
+        basisAction(state) != null -> ROW
+        basisText(state) != null -> TEXT_ROW
+        else -> 0.dp
+    }
+    val compare = if (comparison(state) != null) ROW + 6.dp else 0.dp
+    return CARDS_TOP + CARDS_HEIGHT + hero + basis + compare + ROW
+}
+
+/** Подпись под суммой нужна только в особых случаях: курса нет, оценка, курс ЦБ, ручной курс. */
+private fun basisText(state: MainUiState): RateBasis? {
+    if (state.homePerUnit == null) return RateBasis.OFFICIAL
+    val q = state.selectedQuote ?: return null
+    return q.basis.takeIf { it != RateBasis.RECEIPTS }
+}
+
+/** Карта, которой не хватает чека покупки в валюте трат: курс — оценка или чистый ЦБ. */
+private fun basisAction(state: MainUiState): BankCard? {
+    val q = state.selectedQuote ?: return null
+    return q.card.takeIf { q.basis == RateBasis.ESTIMATE || q.basis == RateBasis.OFFICIAL }
+}
+
+/** Сравнение с самой дешёвой из остальных карт, если разница заметна. */
+private fun comparison(state: MainUiState): CardComparison? =
+    state.quote.compare(state.selectedCard?.id)?.takeIf { Numbers.percent(it.percent) != "0" }
 
 @Composable
 fun MainScreen(
@@ -127,12 +163,14 @@ fun MainScreen(
         TopBar(wallet.spend, wallet.home, onOpenCurrencies, onOpenCheat)
         // Верх экрана на низких телефонах прокручивается, низ (ввод, чипы, клавиатура) всегда на месте.
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val compact = maxHeight < COMPACT_TOP
+            // Крупная сумма мельче, только если иначе группа под картами не помещается без прокрутки.
+            val compact = maxHeight < topHeight(state, compact = false)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
                     .heightIn(min = maxHeight),
+                // Карты сверху, строка ЦБ снизу, сумма с подписями — посередине, отступы поровну.
                 verticalArrangement = Arrangement.SpaceBetween,
             ) {
                 Column {
@@ -147,11 +185,11 @@ fun MainScreen(
                         onSelect = onSelectCard,
                         onEdit = onEditCard,
                         onAdd = onAddCard,
-                        modifier = Modifier.padding(top = 6.dp),
+                        modifier = Modifier.padding(top = CARDS_TOP),
                     )
                 }
-                ResultBlock(state, heroLine, compact, onSelectCard, onStepCard, onAddReceipt, onRefreshRates)
-                Spacer(Modifier.height(4.dp))
+                ResultBlock(state, heroLine, compact, onSelectCard, onStepCard, onAddReceipt)
+                OfficialLine(state, onRefreshRates, Modifier.align(Alignment.CenterHorizontally))
             }
         }
         Column(Modifier.padding(horizontal = 16.dp)) {
@@ -297,7 +335,7 @@ private data class HeroKey(val cardId: String?, val spend: Currency, val home: C
 private class HeroContent(val key: HeroKey, val cardIndex: Int, val text: AnnotatedString, val size: Int)
 
 /**
- * Крупная сумма, чем посчитана, какая карта выгоднее и курс ЦБ.
+ * Крупная сумма, подпись (только если курс не по чекам) и какая карта выгоднее.
  * Свайп по блоку влево/вправо — соседняя карта.
  */
 @Composable
@@ -308,7 +346,6 @@ private fun ResultBlock(
     onSelectCard: (String) -> Unit,
     onStepCard: (Int) -> Unit,
     onAddReceipt: (BankCard) -> Unit,
-    onRefreshRates: () -> Unit,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
@@ -353,7 +390,7 @@ private fun ResultBlock(
         val estimate = q?.basis == RateBasis.ESTIMATE
         val number = heroValue?.let(Numbers::money) ?: "—"
         val heroPlain = (if (estimate && heroValue != null) "≈ " else "") + "$number ${heroCurrency.symbol}"
-        val base = if (compact) 48 else 60
+        val base = if (compact) HERO_COMPACT_SP else HERO_SP
         val heroSize = when {
             heroPlain.length > 15 -> base * 5 / 8
             heroPlain.length > 11 -> base * 4 / 5
@@ -418,61 +455,61 @@ private fun ResultBlock(
             )
         }
         Basis(state, onAddReceipt)
-        Comparison(state, onSelectCard)
-        OfficialLine(state, onRefreshRates)
-    }
-}
-
-/** «Карта в юанях · оценка · добавить чек ›»: по какой карте и насколько точно посчитано. */
-@Composable
-private fun Basis(state: MainUiState, onAddReceipt: (BankCard) -> Unit) {
-    val colors = AppTheme.colors
-    val type = AppTheme.type
-    val card = state.selectedCard
-    val q = state.selectedQuote
-    val style = type.body.copy(fontSize = 14.sp)
-    val text = when {
-        state.homePerUnit == null -> stringResource(R.string.result_no_rate)
-        card != null && q != null -> stringResource(R.string.result_card, card.name, basisShort(q))
-        else -> stringResource(R.string.result_by_official)
-    }
-    // Оценка (нет чека покупки в валюте трат) — предлагаем добавить чек, курс станет точным.
-    val hint = card?.takeIf { q?.basis == RateBasis.ESTIMATE }
-    val hintA11y = stringResource(R.string.add_receipt_a11y, state.wallet.spend.nameRu)
-    Row(
-        modifier = Modifier
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .then(if (hint != null) Modifier.clickable(role = Role.Button, onClickLabel = hintA11y) { onAddReceipt(hint) } else Modifier)
-            .padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = text,
-            style = style,
-            color = colors.muted,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f, fill = false),
-        )
-        if (hint != null) {
-            Text(stringResource(R.string.add_receipt), style = style.copy(fontWeight = FontWeight.Medium), color = colors.accent, maxLines = 1)
+        comparison(state)?.let { c ->
+            Spacer(Modifier.height(6.dp))
+            Comparison(state, c, onSelectCard)
         }
     }
 }
 
 /**
- * Какой картой платить: у выгодной — «На 13 ₽ (2,7 %) дешевле, чем «Карта в тенге»» зелёным;
- * у остальных — «Дешевле на 13 ₽ (2,7 %) — «Карта в юанях» ›», тап выбирает выгодную карту.
+ * «≈ оценка · добавить чек ›» — только когда курс не по чекам: тап открывает редактор с пустым чеком покупки.
+ * При курсе по чекам подписи нет: выбранная карта и так видна в рамке.
  */
 @Composable
-private fun Comparison(state: MainUiState, onSelectCard: (String) -> Unit) {
+private fun Basis(state: MainUiState, onAddReceipt: (BankCard) -> Unit) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    val c = state.quote.compare(state.selectedCard?.id) ?: return
+    val basis = basisText(state) ?: return
+    val style = type.body.copy(fontSize = 14.sp)
+    val q = state.selectedQuote
+    val text = if (state.homePerUnit == null || q == null) stringResource(R.string.result_no_rate) else basisShort(q)
+    val action = basisAction(state)
+    if (action == null) {
+        Text(text, style = style, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+        return
+    }
+    val hintA11y = stringResource(R.string.add_receipt_a11y, state.wallet.spend.nameRu)
+    Row(
+        modifier = Modifier
+            .heightIn(min = ROW)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClickLabel = hintA11y) { onAddReceipt(action) }
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = (if (basis == RateBasis.ESTIMATE) "≈ " else "") + text,
+            style = style,
+            color = colors.muted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        Text(stringResource(R.string.add_receipt), style = style.copy(fontWeight = FontWeight.Medium), color = colors.accent, maxLines = 1)
+    }
+}
+
+/**
+ * Какой картой платить. Выбрана выгодная — зелёная плашка «На 13 ₽ (2,7 %) дешевле, чем «Карта в тенге»»;
+ * иначе — кнопка «Дешевле на 13 ₽ (2,7 %) — «Карта в юанях» ›», тап выбирает выгодную карту.
+ * Обе одной высоты: при свайпе между картами ничего не прыгает.
+ */
+@Composable
+private fun Comparison(state: MainUiState, c: CardComparison, onSelectCard: (String) -> Unit) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
     val percent = Numbers.percent(c.percent)
-    if (percent == "0") return
     val amount = state.totals.spend
     val approx = if (c.isExact) "" else "≈"
     val diff = if (amount.signum() > 0) {
@@ -480,48 +517,35 @@ private fun Comparison(state: MainUiState, onSelectCard: (String) -> Unit) {
     } else {
         stringResource(R.string.compare_percent, approx + percent)
     }
-    val style = type.body.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium)
-    if (c.selectedIsBest) {
-        // Та же высота, что у кнопки ниже: при свайпе между картами ничего не прыгает.
-        Box(Modifier.heightIn(min = 48.dp).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
-            Text(
-                text = stringResource(R.string.compare_best, diff, c.other.card.name),
-                style = style,
-                color = colors.good,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-            )
-        }
-    } else {
-        val a11y = stringResource(R.string.compare_other_a11y, c.other.card.name, diff)
-        Box(
-            modifier = Modifier
-                .heightIn(min = 48.dp)
-                .clip(RoundedCornerShape(50))
-                .background(colors.accentSoft)
-                .clickable(role = Role.Button) { onSelectCard(c.other.card.id) }
-                .clearAndSetSemantics {
-                    contentDescription = a11y
-                    role = Role.Button
-                }
-                .padding(horizontal = 16.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = stringResource(R.string.compare_other, diff, c.other.card.name),
-                style = style,
-                color = colors.accent,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+    val best = c.selectedIsBest
+    val text = if (best) stringResource(R.string.compare_best, diff, c.other.card.name) else stringResource(R.string.compare_other, diff, c.other.card.name)
+    val a11y = if (best) text else stringResource(R.string.compare_other_a11y, c.other.card.name, diff)
+    Box(
+        modifier = Modifier
+            .heightIn(min = ROW)
+            .clip(RoundedCornerShape(50))
+            .background(if (best) colors.goodSoft else colors.accentSoft)
+            .then(if (best) Modifier else Modifier.clickable(role = Role.Button) { onSelectCard(c.other.card.id) })
+            .clearAndSetSemantics {
+                contentDescription = a11y
+                if (!best) role = Role.Button
+            }
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            style = type.body.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium),
+            color = if (best) colors.good else colors.accent,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
 /** «ЦБ: 100 ₸ = 17,65 ₽ · 30 окт ↻» — курс ЦБ на ту же единицу, дата и обновление по тапу. */
 @Composable
-private fun OfficialLine(state: MainUiState, onRefresh: () -> Unit) {
+private fun OfficialLine(state: MainUiState, onRefresh: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val wallet = state.wallet
@@ -545,8 +569,8 @@ private fun OfficialLine(state: MainUiState, onRefresh: () -> Unit) {
     }
     val refresh = stringResource(R.string.official_refresh)
     Row(
-        modifier = Modifier
-            .heightIn(min = 48.dp)
+        modifier = modifier
+            .heightIn(min = ROW)
             .clip(RoundedCornerShape(50))
             .clickable(role = Role.Button, onClickLabel = refresh, enabled = !state.ratesLoading, onClick = onRefresh)
             .semantics { contentDescription = text }
@@ -567,75 +591,106 @@ private fun OfficialLine(state: MainUiState, onRefresh: () -> Unit) {
     }
 }
 
-/** Поле ввода: валюта (тап — вводить в другой), выражение «22 + 15,5 =» и сумма. */
+/**
+ * Поле ввода: переключатель валюты «AED | ₽ | ¥» (во что вводим), выражение «3 × 22 + 15 =» и сумма.
+ * Если валюта одна (траты и итог совпадают, карты в третьей валюте нет) — просто подпись.
+ */
 @Composable
 private fun InputField(state: MainUiState, lines: List<Line>, onSelectLine: (Line) -> Unit) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val line = state.active
     val currency = line.currency(state) ?: state.wallet.spend
-    val label = if (line == Line.CARD) state.selectedCard?.name.orEmpty() else currency.shortRu
     val value = valueText(state, line)
-    val next = lines.getOrNull((lines.indexOf(line) + 1) % lines.size)?.takeIf { it != line }
-    val a11y = stringResource(R.string.input_a11y, label, value, currency.symbol)
-    val switchLabel = stringResource(R.string.input_switch)
+    val a11y = stringResource(R.string.input_a11y, lineName(state, line), value, currency.symbol)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 58.dp)
             .clip(RoundedCornerShape(18.dp))
             .background(colors.surface)
-            .padding(start = 6.dp, end = 16.dp),
+            .padding(start = 5.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier
-                .heightIn(min = 48.dp)
-                .widthIn(max = 140.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .then(
-                    if (next != null) {
-                        Modifier.clickable(role = Role.Button, onClickLabel = switchLabel) { onSelectLine(next) }
-                    } else {
-                        Modifier
-                    },
-                )
-                .clearAndSetSemantics {
-                    contentDescription = a11y
-                    if (next != null) role = Role.Button
-                }
-                .padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(label, style = type.label, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            if (next != null) Text(" ⇅", style = type.label, color = colors.accent, maxLines = 1)
+        if (lines.size > 1) {
+            InputSwitch(state, lines, onSelectLine)
+        } else {
+            Text(lineName(state, line), style = type.label, color = colors.muted, maxLines = 1, modifier = Modifier.padding(start = 11.dp))
         }
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = if (state.expression.isCompound) state.expression.display() + " =" else "",
-            style = type.body.copy(fontSize = 14.sp),
-            color = colors.muted,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.End,
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = value,
-            style = if (value.length > 12) type.number.copy(fontSize = 24.sp, lineHeight = 30.sp) else type.number,
-            color = colors.ink,
-            maxLines = 1,
-            softWrap = false,
-        )
-        Text(
-            text = currency.symbol,
-            style = type.body.copy(fontSize = 18.sp),
-            color = colors.muted,
-            maxLines = 1,
-            textAlign = TextAlign.End,
-            modifier = Modifier.padding(start = 8.dp),
-        )
+        Spacer(Modifier.width(10.dp))
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clearAndSetSemantics { contentDescription = a11y },
+            horizontalAlignment = Alignment.End,
+        ) {
+            if (state.expression.isCompound) {
+                Text(
+                    text = state.expression.display() + " =",
+                    style = type.body.copy(fontSize = 13.sp, lineHeight = 16.sp),
+                    color = colors.muted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    text = value,
+                    style = if (value.length > 11) type.number.copy(fontSize = 24.sp, lineHeight = 30.sp) else type.number,
+                    color = colors.ink,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+                Text(
+                    text = currency.symbol,
+                    style = type.body.copy(fontSize = 16.sp),
+                    color = colors.muted,
+                    maxLines = 1,
+                    modifier = Modifier.padding(start = 6.dp, bottom = 4.dp),
+                )
+            }
+        }
+    }
+}
+
+/** «Дирхамы», «Рубли» или название карты — для подписей и TalkBack. */
+private fun lineName(state: MainUiState, line: Line): String =
+    if (line == Line.CARD) state.selectedCard?.name.orEmpty() else (line.currency(state) ?: state.wallet.spend).shortRu
+
+/** Переключатель «AED | ₽ | ¥»: выбранная валюта подсвечена, у каждой кнопки 48 dp для пальца. */
+@Composable
+private fun InputSwitch(state: MainUiState, lines: List<Line>, onSelectLine: (Line) -> Unit) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    val label = stringResource(R.string.input_switch)
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.bg)
+            .semantics { contentDescription = label },
+    ) {
+        for (line in lines) {
+            val selected = line == state.active
+            val symbol = line.currency(state)?.symbol.orEmpty()
+            val name = stringResource(R.string.input_here_a11y, lineName(state, line))
+            Box(
+                modifier = Modifier
+                    .size(width = if (symbol.length > 2) 56.dp else 48.dp, height = 48.dp)
+                    .selectable(selected = selected, role = Role.Tab) { onSelectLine(line) }
+                    .semantics { contentDescription = name }
+                    .padding(4.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (selected) colors.accentSoft else Color.Transparent),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = symbol,
+                    style = type.label.copy(fontSize = 14.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium),
+                    color = if (selected) colors.accent else colors.muted,
+                    maxLines = 1,
+                )
+            }
+        }
     }
 }
 

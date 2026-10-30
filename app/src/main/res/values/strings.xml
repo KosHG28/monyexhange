@@ -31,10 +31,8 @@
 
     <!-- Главный экран -->
     <string name="result_a11y">Итого %1$s</string>
-    <string name="result_card">%1$s · %2$s</string>
     <string name="add_receipt">" · добавить чек ›"</string>
     <string name="add_receipt_a11y">Добавить чек покупки, %1$s — курс станет точным</string>
-    <string name="result_by_official">по курсу ЦБ</string>
     <string name="compare_amount">%1$s %2$s (%3$s %%)</string>
     <string name="compare_percent">%1$s %%</string>
     <string name="compare_best">На %1$s дешевле, чем «%2$s»</string>
@@ -50,13 +48,15 @@
     <string name="official_refresh">Обновить курсы ЦБ</string>
     <string name="line_a11y">%1$s: %2$s %3$s</string>
     <string name="input_a11y">Ввод в валюте %1$s: %2$s %3$s</string>
-    <string name="input_switch">Вводить в другой валюте</string>
+    <string name="input_switch">Валюта ввода</string>
+    <string name="input_here_a11y">Вводить в: %1$s</string>
     <string name="input_here">Вводить в этой валюте</string>
     <string name="debit_card">Спишется с карты</string>
     <string name="chip_a11y">%1$s %2$s</string>
     <string name="chip_metro_a11y">22 дирхама, проезд в метро</string>
     <string name="key_backspace">Стереть. Долгое нажатие — очистить</string>
-    <string name="key_plus">Плюс, сложить покупки</string>
+    <string name="key_plus">Плюс, сложить покупки. Долгое нажатие — равно</string>
+    <string name="key_times">Умножить: несколько одинаковых покупок</string>
     <string name="key_equals">Равно</string>
     <string name="key_comma">Запятая</string>
     <string name="price_tag_button">Ценник</string>
@@ -68,6 +68,12 @@
     <string name="cheat_official">ЦБ</string>
 
     <!-- Редактор карты -->
+    <string name="scan_button">Заполнить из скриншота банка</string>
+    <string name="scan_hint">Уведомление или операция — суммы найдём сами</string>
+    <string name="scan_reading">Читаем скриншот…</string>
+    <string name="scan_not_found">Не нашли сумму в %1$s и сумму в другой валюте. Попробуйте скриншот уведомления или операции.</string>
+    <string name="scan_purchase">Заполнили чек покупки: %1$s за %2$s. Проверьте и сохраните.</string>
+    <string name="scan_transfer">Заполнили пополнение: %1$s → %2$s. Проверьте и сохраните.</string>
     <string name="editor_title_new">Новая карта</string>
     <string name="editor_title_edit">Карта</string>
     <string name="editor_name">Название</string>

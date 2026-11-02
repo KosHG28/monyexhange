@@ -21,8 +21,11 @@ import kotlin.math.hypot
 
 /**
  * Готовая к отрисовке метка: строка, прямоугольники и контур посчитаны заранее, draw только рисует.
- * Метка в фокусе (цена ближе всех к центру экрана) — крупнее, с хвостиком и уголками «прицела»;
- * остальные — короткие плашки «224 ₽» прямо над ценой. Подробности фокуса — в карточке внизу экрана.
+ *
+ * Два вида. Вписанная ([embedded]): старая цена закрашена цветом бумаги ценника, сумма в итоговой валюте
+ * написана поверх цветом его цифр и подчёркнута красным (старая цена — зачёркнута).
+ * Плашка: метка в фокусе (цена ближе всех к центру экрана) — крупнее, с хвостиком и уголками «прицела»,
+ * остальные — короткие плашки «224 ₽» над ценой. Подробности фокуса — в карточке внизу экрана.
  */
 class PriceLabel(
     val id: Long,
@@ -42,11 +45,29 @@ class PriceLabel(
     val text: String,
     val textX: Float,
     val textY: Float,
+    /** Сумма вписана в ценник вместо старой цены. */
+    val embedded: Boolean = false,
+    /** Вписанная: цвет бумаги и цифр ценника (из кадра), размер шрифта, мягкий край и скругление подложки. */
+    val paper: Int = 0,
+    val ink: Int = 0,
+    val textSize: Float = 0f,
+    val feather: RectF = EMPTY_RECT,
+    val radius: Float = 0f,
+    /** Вписанная: подчёркивание (знак пересчёта) или зачёркивание у старой цены. */
+    val mark: RectF = EMPTY_RECT,
     /** Сумма в итоговой валюте по выбранной карте (или ЦБ) — для карточки, шторки и TalkBack. */
     val homeAmount: BigDecimal?,
     /** Сумма по курсу ЦБ — для карточки фокуса (null — не показывать). */
     val officialAmount: BigDecimal?,
 )
+
+private val EMPTY_RECT = RectF()
+
+/** Цвета ценника под ценой: бумага и цифры (ARGB). */
+class TagColors(val paper: Int, val ink: Int)
+
+/** Цена, у которой нужно взять цвета ценника: рамка «цена + валюта» в координатах экрана. */
+class SampleTarget(val id: Long, val left: Float, val top: Float, val right: Float, val bottom: Float)
 
 class LabelFrame(val labels: List<PriceLabel>, val version: Long) {
     val focus: PriceLabel? get() = labels.firstOrNull { it.focused }
@@ -99,6 +120,13 @@ class PricePipeline(private val metrics: LabelMetrics) {
     @Volatile var paused: Boolean = false
         private set
 
+    /** Вписывать суммы в ценники (иначе — плашки над ценами). */
+    @Volatile var embedded: Boolean = true
+        private set
+    private val embedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = metrics.mainTypeface }
+    /** Цвета ценников по меткам — их берёт из кадров [TagColorAnalyzer], сглаженно. */
+    private val colors = HashMap<Long, TagColors>()
+
     private var lastTracked: List<TrackedPrice> = emptyList()
     private var focusId = NO_FOCUS
     private var lastNowMs = 0L
@@ -127,6 +155,27 @@ class PricePipeline(private val metrics: LabelMetrics) {
             this.homePerUnit = homePerUnit
             this.officialPerUnit = officialPerUnit
             publish()
+        }
+    }
+
+    fun setEmbedded(value: Boolean) {
+        synchronized(this) {
+            embedded = value
+            publish()
+        }
+    }
+
+    /** Цены, у которых нужны цвета ценника (фоновый поток анализатора). */
+    fun sampleTargets(): List<SampleTarget> = synchronized(this) {
+        if (!embedded) return emptyList()
+        lastTracked.filter { it.confident }.map { SampleTarget(it.id, it.extent.left, it.extent.top, it.extent.right, it.extent.bottom) }
+    }
+
+    /** Новые цвета ценника для метки [id]: смешиваются с прежними, чтобы подложка не мигала. */
+    fun setColors(id: Long, paper: Int, ink: Int) {
+        synchronized(this) {
+            val old = colors[id]
+            colors[id] = if (old == null) TagColors(paper, ink) else TagColors(blend(old.paper, paper), blend(old.ink, ink))
         }
     }
 
@@ -174,7 +223,9 @@ class PricePipeline(private val metrics: LabelMetrics) {
         val rate = homePerUnit
         val official = officialPerUnit
         val m = metrics
-        shownAt.keys.retainAll(lastTracked.mapTo(HashSet()) { it.id })
+        val alive = lastTracked.mapTo(HashSet()) { it.id }
+        shownAt.keys.retainAll(alive)
+        colors.keys.retainAll(alive)
 
         // Фокус — актуальная цена ближе всех к центру свободной части экрана (уверенные важнее догадок).
         // Прежний фокус держим, пока он не заметно дальше нового: метка не прыгает от дрожания рук.
@@ -211,6 +262,14 @@ class PricePipeline(private val metrics: LabelMetrics) {
                 focused -> "≈ $amount"
                 else -> amount
             }
+            val first = shownAt.getOrPut(t.id) { lastNowMs }
+            val appear = ((lastNowMs - first) / APPEAR_MS.toFloat()).coerceIn(0f, 1f)
+            val alpha = t.alpha * (0.25f + 0.75f * appear)
+            // Вписываем только уверенные цены с пересчётом: догадку, выглядящую как настоящая цена, не рисуем.
+            if (embedded && t.confident && homeAmount != null) {
+                labels += embeddedLabel(t, focused, alpha, "${Numbers.cheat(homeAmount)} ${home.symbol}", homeAmount, official)
+                continue
+            }
             val paint = if (focused) mainPaint else subPaint
             val fm = if (focused) mainMetrics else subMetrics
             val padX = if (focused) m.padX else m.padX * 0.7f
@@ -244,11 +303,9 @@ class PricePipeline(private val metrics: LabelMetrics) {
             placed += pill
             val pointsDown = pill.bottom <= box.top
 
-            val first = shownAt.getOrPut(t.id) { lastNowMs }
-            val appear = ((lastNowMs - first) / APPEAR_MS.toFloat()).coerceIn(0f, 1f)
             labels += PriceLabel(
                 id = t.id, value = t.value, isOld = t.isOld, unsure = !t.confident, focused = focused,
-                alpha = t.alpha * (0.25f + 0.75f * appear),
+                alpha = alpha,
                 box = box, pill = pill,
                 bubble = bubblePath(pill, box, pointsDown, if (focused) m.radius else m.radius * 0.8f, tail),
                 text = text,
@@ -259,6 +316,66 @@ class PricePipeline(private val metrics: LabelMetrics) {
             )
         }
         _frames.value = LabelFrame(labels, ++version)
+    }
+
+    /**
+     * Сумма, вписанная в ценник: подложка цвета бумаги закрывает цену вместе с валютой, сумма — цветом цифр,
+     * той же высоты и от того же левого края; если она длиннее старой цены, подложка растёт вправо.
+     */
+    private fun embeddedLabel(
+        t: TrackedPrice,
+        focused: Boolean,
+        alpha: Float,
+        text: String,
+        homeAmount: BigDecimal,
+        official: BigDecimal?,
+    ): PriceLabel {
+        val h = t.box.height
+        val ext = t.extent
+        val c = colors[t.id]
+        val digitHeight = h * DIGIT_SHARE
+        embedPaint.textSize = digitHeight / DIGIT_TO_SIZE
+        val textW = embedPaint.measureText(text)
+        val padX = h * 0.2f
+        val padY = h * 0.14f
+        val left = ext.left - padX
+        val right = maxOf(ext.right + padX, left + textW + 2 * padX)
+        val patch = RectF(left, ext.top - padY, right, ext.bottom + padY)
+        val feather = RectF(patch.left - padY, patch.top - padY, patch.right + padY, patch.bottom + padY)
+        val textX = left + padX
+        val baseline = t.box.centerY + digitHeight / 2f
+        val thick = maxOf(2f, h * 0.06f)
+        // Старая цена — зачёркнута по середине цифр, новая — подчёркнута.
+        val markY = if (t.isOld) baseline - digitHeight / 2f - thick / 2f else baseline + h * 0.14f
+        return PriceLabel(
+            id = t.id, value = t.value, isOld = t.isOld, unsure = false, focused = focused,
+            alpha = alpha,
+            box = RectF(t.box.left, t.box.top, t.box.right, t.box.bottom),
+            pill = patch,
+            bubble = EMPTY_PATH,
+            text = text,
+            textX = textX,
+            textY = baseline,
+            embedded = true,
+            paper = c?.paper ?: DEFAULT_PAPER,
+            ink = c?.ink ?: DEFAULT_INK,
+            textSize = embedPaint.textSize,
+            feather = feather,
+            radius = h * 0.18f,
+            mark = RectF(textX, markY, textX + textW, markY + thick),
+            homeAmount = homeAmount,
+            officialAmount = official?.let { t.value.multiply(it, MC) },
+        )
+    }
+
+    /** Смешивание цветов: новое значение с весом [COLOR_SMOOTHING]. */
+    private fun blend(old: Int, new: Int): Int {
+        fun ch(shift: Int): Int {
+            val o = (old shr shift) and 0xFF
+            val n = (new shr shift) and 0xFF
+            return (o + (n - o) * COLOR_SMOOTHING).toInt().coerceIn(0, 255) shl shift
+        }
+        return (0xFF shl 24) or ch(16) or ch(8) or ch(0)
     }
 
     /** Скруглённая плашка; у фокуса — с треугольным хвостиком к цене, если плашка рядом с ней. */
@@ -288,5 +405,13 @@ class PricePipeline(private val metrics: LabelMetrics) {
         /** Прежний фокус держится, пока он не дальше нового от центра больше чем в 1,4 раза. */
         const val FOCUS_STICKY = 1.4f
         const val NO_FOCUS = -1L
+        /** Высота цифр — доля высоты рамки OCR; высота цифр Inter Tight — доля размера шрифта. */
+        const val DIGIT_SHARE = 0.78f
+        const val DIGIT_TO_SIZE = 0.727f
+        const val COLOR_SMOOTHING = 0.35f
+        /** Пока цвета ценника не взяты из кадра: светлая бумага и почти чёрные цифры. */
+        const val DEFAULT_PAPER = 0xFFF4F2EE.toInt()
+        const val DEFAULT_INK = 0xFF1E1E22.toInt()
+        val EMPTY_PATH = Path()
     }
 }

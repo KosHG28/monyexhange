@@ -21,6 +21,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,6 +37,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -75,7 +77,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -92,12 +93,14 @@ import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.motion
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-import kotlinx.coroutines.delay
 import java.math.BigDecimal
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Один фоновый поток анализа на всё приложение. Его не останавливаем при уходе с экрана:
@@ -150,6 +153,13 @@ private fun CameraError(error: Throwable?, onBack: () -> Unit) {
 /** Полупрозрачная подложка кнопок поверх видоискателя. */
 private val Scrim = Color(0xB3101820)
 
+/** Текст на белой выбранной кнопке поверх камеры. */
+private val OnWhite = Color(0xFF15202A)
+
+/** Через сколько удержания пальца метки скрываются (короткий тап не мигает). */
+private const val REVEAL_DELAY_MS = 220L
+private const val HOLD_HINT_MS = 4000L
+
 /**
  * AR-камера ценников: живое превью, поверх каждой найденной цены — сумма в итоговой валюте
  * по выбранной карте и по курсу ЦБ.
@@ -159,13 +169,15 @@ private val Scrim = Color(0xB3101820)
 fun CameraScreen(
     wallet: Wallet,
     quote: WalletQuote,
+    embedded: Boolean,
+    onEmbeddedChange: (Boolean) -> Unit,
     onSelectCard: (String) -> Unit,
     onToCalculator: (List<BigDecimal>) -> Unit,
     onBack: () -> Unit,
 ) {
     LightSystemBars()
     CameraPermissionGate(onBack = onBack) {
-        CameraContent(wallet, quote, onSelectCard, onToCalculator, onBack)
+        CameraContent(wallet, quote, embedded, onEmbeddedChange, onSelectCard, onToCalculator, onBack)
     }
 }
 
@@ -191,6 +203,8 @@ private fun LightSystemBars() {
 private fun CameraContent(
     wallet: Wallet,
     quote: WalletQuote,
+    embedded: Boolean,
+    onEmbeddedChange: (Boolean) -> Unit,
     onSelectCard: (String) -> Unit,
     onToCalculator: (List<BigDecimal>) -> Unit,
     onBack: () -> Unit,
@@ -219,6 +233,7 @@ private fun CameraContent(
     val pipeline = remember(metrics) { PricePipeline(metrics) }
     val selectedQuote = quote.of(wallet.selected?.id)
     val homePerUnit = selectedQuote?.homePerUnit ?: quote.official
+    LaunchedEffect(pipeline, embedded) { pipeline.setEmbedded(embedded) }
     LaunchedEffect(pipeline, wallet.spend, wallet.home, homePerUnit, quote.official) {
         pipeline.setRates(wallet.spend, wallet.home, homePerUnit, quote.official.takeIf { selectedQuote != null })
     }
@@ -251,7 +266,7 @@ private fun CameraContent(
         }
     }
     val analyzer = remember(pipeline) {
-        MlKitAnalyzer(listOf(recognizer), ImageAnalysis.COORDINATE_SYSTEM_VIEW_REFERENCED, executor) { result ->
+        val mlKit = MlKitAnalyzer(listOf(recognizer), ImageAnalysis.COORDINATE_SYSTEM_VIEW_REFERENCED, executor) { result ->
             // Ошибка разбора одного кадра не должна ронять приложение: пропускаем кадр.
             try {
                 pipeline.onText(result.getValue(recognizer), SystemClock.uptimeMillis())
@@ -259,6 +274,8 @@ private fun CameraContent(
                 Log.e(TAG, "Кадр не разобран", e)
             }
         }
+        // Перед распознаванием — цвета ценников вокруг найденных цен, для вписывания сумм.
+        TagColorAnalyzer(mlKit, pipeline)
     }
     DisposableEffect(lifecycleOwner) {
         try {
@@ -302,10 +319,23 @@ private fun CameraContent(
     }
 
     var sheet by remember { mutableStateOf<PriceLabel?>(null) }
+    val reveal = remember { mutableStateOf(false) }
     var basket by rememberSaveable { mutableStateOf(listOf<String>()) }
 
     val frame = pipeline.frames.collectAsState()
     val nothingFound by remember { derivedStateOf { frame.value.labels.isEmpty() } }
+    // Подсказка «удерживайте — оригинал»: один раз за сеанс камеры, на несколько секунд после первой цены.
+    var holdHint by remember { mutableStateOf(false) }
+    var holdHintShown by remember { mutableStateOf(false) }
+    val hasLabels = !nothingFound
+    LaunchedEffect(hasLabels, embedded) {
+        if (hasLabels && embedded && !holdHintShown) {
+            holdHintShown = true
+            holdHint = true
+            delay(HOLD_HINT_MS)
+            holdHint = false
+        }
+    }
     // Карточка фокуса перерисовывается только когда меняется её содержимое, а не на каждом кадре OCR.
     val focus by remember {
         derivedStateOf {
@@ -336,7 +366,8 @@ private fun CameraContent(
         }
 
         // Сверху — кнопки, снизу — карточка цены в фокусе и отмеченное: метки туда не ставим.
-        val topReserve = with(density) { (WindowInsets.safeDrawing.getTop(this) + 72.dp.roundToPx()).toFloat() }
+        // Сверху — кнопки и переключатель «В ценнике / Плашки».
+        val topReserve = with(density) { (WindowInsets.safeDrawing.getTop(this) + 124.dp.roundToPx()).toFloat() }
         val bottomReserve = with(density) {
             (WindowInsets.safeDrawing.getBottom(this) + (if (basket.isEmpty()) 120.dp else 196.dp).roundToPx()).toFloat()
         }
@@ -351,6 +382,7 @@ private fun CameraContent(
         PriceOverlay(
             frame = frame,
             metrics = metrics,
+            reveal = reveal,
             modifier = Modifier
                 .fillMaxSize()
                 .onSizeChanged { overlaySize = it }
@@ -367,7 +399,20 @@ private fun CameraContent(
                     }
                 }
                 .pointerInput(paused) {
-                    detectTapGestures { p ->
+                    detectTapGestures(
+                        // Удержание пальца — настоящие ценники без меток (короткий тап не мигает).
+                        onPress = {
+                            coroutineScope {
+                                val show = launch {
+                                    delay(REVEAL_DELAY_MS)
+                                    reveal.value = true
+                                }
+                                tryAwaitRelease()
+                                show.cancel()
+                                reveal.value = false
+                            }
+                        },
+                    ) { p ->
                         val hit = frame.value.labels.lastOrNull { l ->
                             (p.x >= l.pill.left - hitSlop && p.x <= l.pill.right + hitSlop &&
                                 p.y >= l.pill.top - hitSlop && p.y <= l.pill.bottom + hitSlop) ||
@@ -415,15 +460,18 @@ private fun CameraContent(
 
         bindError?.let { CameraError(it, onBack) }
 
-        TopControls(
-            wallet = wallet,
-            torch = torch,
-            paused = paused,
-            onBack = onBack,
-            onSelectCard = onSelectCard,
-            onTorch = { torch = !torch },
-            onPause = { paused = !paused },
-        )
+        Column(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing)) {
+            TopControls(
+                wallet = wallet,
+                torch = torch,
+                paused = paused,
+                onBack = onBack,
+                onSelectCard = onSelectCard,
+                onTorch = { torch = !torch },
+                onPause = { paused = !paused },
+            )
+            ModeSwitch(embedded, onEmbeddedChange, Modifier.align(Alignment.CenterHorizontally))
+        }
 
         Column(
             modifier = Modifier
@@ -449,6 +497,7 @@ private fun CameraContent(
                 basket = basket,
                 hint = when {
                     paused && nothingFound -> stringResource(R.string.camera_paused)
+                    holdHint -> stringResource(R.string.camera_hold_hint)
                     nothingFound -> stringResource(R.string.camera_hint, "${wallet.spend.flag} ${wallet.spend.code}")
                     else -> null
                 },
@@ -587,7 +636,6 @@ private fun TopControls(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.safeDrawing)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -607,6 +655,40 @@ private fun TopControls(
             onPause,
             highlighted = paused,
         )
+    }
+}
+
+/** «В ценнике | Плашки»: вписывать суммы в ценники или показывать плашками над ценами. */
+@Composable
+private fun ModeSwitch(embedded: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    val label = stringResource(R.string.camera_mode_a11y)
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(Scrim)
+            .semantics { contentDescription = label }
+            .padding(2.dp),
+    ) {
+        for (option in listOf(true, false)) {
+            val selected = option == embedded
+            val text = stringResource(if (option) R.string.camera_mode_embed else R.string.camera_mode_bubbles)
+            Box(
+                modifier = Modifier
+                    .heightIn(min = 44.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(if (selected) Color.White else Color.Transparent)
+                    .selectable(selected = selected, role = Role.Tab) { onChange(option) }
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text,
+                    style = AppTheme.type.label.copy(fontSize = 14.sp),
+                    color = if (selected) OnWhite else Color.White,
+                    maxLines = 1,
+                )
+            }
+        }
     }
 }
 

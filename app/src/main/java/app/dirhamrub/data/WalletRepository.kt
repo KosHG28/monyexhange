@@ -40,6 +40,8 @@ data class StoredState(
     val countryHandled: String?,
     /** Знакомство с приложением пройдено (или пропущено). */
     val onboardingDone: Boolean,
+    /** Камера вписывает суммы в ценники (иначе — плашки). */
+    val cameraEmbedded: Boolean,
 )
 
 /**
@@ -65,11 +67,16 @@ class WalletRepository(private val store: DataStore<Preferences>) {
             expression = Expression.parse(p[EXPRESSION]),
             countryHandled = p[COUNTRY_HANDLED],
             onboardingDone = p[ONBOARDING_DONE] ?: false,
+            cameraEmbedded = p[CAMERA_EMBEDDED] ?: true,
         )
     }
 
     suspend fun saveOfficialWeekAgo(rates: OfficialRates) {
         store.edit { p -> p[OFFICIAL_WEEK] = WalletCodec.encodeRates(rates) }
+    }
+
+    suspend fun saveCameraEmbedded(value: Boolean) {
+        store.edit { p -> p[CAMERA_EMBEDDED] = value }
     }
 
     suspend fun saveOnboardingDone() {
@@ -156,5 +163,6 @@ class WalletRepository(private val store: DataStore<Preferences>) {
         val COUNTRY_HANDLED = stringPreferencesKey("country_handled")
         val OFFICIAL_WEEK = stringPreferencesKey("official_week_ago")
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
+        val CAMERA_EMBEDDED = booleanPreferencesKey("camera_embedded")
     }
 }

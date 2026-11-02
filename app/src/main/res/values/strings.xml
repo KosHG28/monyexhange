@@ -109,6 +109,10 @@
     <string name="camera_paused">Кадр заморожен</string>
     <string name="camera_label_a11y">%1$s %2$s, около %3$s %4$s</string>
     <string name="camera_label_old_a11y">Старая цена %1$s %2$s, около %3$s %4$s</string>
+    <string name="camera_mode_a11y">Как показывать цены</string>
+    <string name="camera_mode_embed">В ценнике</string>
+    <string name="camera_mode_bubbles">Плашки</string>
+    <string name="camera_hold_hint">Удерживайте экран — оригинальные цены</string>
     <string name="camera_focus_cbr">ЦБ %1$s %2$s</string>
     <string name="camera_focus_old">было %1$s</string>
     <string name="camera_focus_open">Подробнее: все карты</string>

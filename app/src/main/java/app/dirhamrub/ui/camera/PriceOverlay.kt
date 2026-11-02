@@ -22,6 +22,7 @@ import kotlin.math.min
 fun PriceOverlay(
     frame: State<LabelFrame>,
     metrics: LabelMetrics,
+    reveal: State<Boolean>,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current.density
@@ -33,6 +34,8 @@ fun PriceOverlay(
                 strokeCap = Paint.Cap.ROUND
             },
             boxFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL },
+            patch = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL },
+            embed = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = metrics.mainTypeface },
             outline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE
                 strokeWidth = 1.5f * density
@@ -61,6 +64,8 @@ fun PriceOverlay(
         )
     }
     Canvas(modifier) {
+        // Палец на экране — показываем настоящие ценники без меток.
+        if (reveal.value) return@Canvas
         val labels = frame.value.labels
         drawIntoCanvas { canvas ->
             val c = canvas.nativeCanvas
@@ -70,6 +75,10 @@ fun PriceOverlay(
                     val l = labels[i]
                     if (l.focused != (pass == 1)) continue
                     val a = (l.alpha * 255f).toInt().coerceIn(0, 255)
+                    if (l.embedded) {
+                        drawEmbedded(c, l, a, paints)
+                        continue
+                    }
                     val tint = when {
                         l.isOld -> paints.old
                         l.unsure -> paints.unsure
@@ -112,6 +121,43 @@ fun PriceOverlay(
 }
 
 /**
+ * Сумма, вписанная в ценник: подложка цвета бумаги с мягким краем закрывает старую цену,
+ * сумма — цветом цифр, под ней красная черта (у старой цены — зачёркивание цветом цифр);
+ * у цены в фокусе — тонкие красные уголки.
+ */
+private fun drawEmbedded(c: android.graphics.Canvas, l: PriceLabel, a: Int, paints: OverlayPaints) {
+    paints.patch.color = l.paper
+    paints.patch.alpha = (a * 0.55f).toInt()
+    c.drawRoundRect(l.feather, l.radius * 1.6f, l.radius * 1.6f, paints.patch)
+    paints.patch.alpha = a
+    c.drawRoundRect(l.pill, l.radius, l.radius, paints.patch)
+
+    paints.embed.textSize = l.textSize
+    paints.embed.color = l.ink
+    paints.embed.alpha = a
+    c.drawText(l.text, l.textX, l.textY, paints.embed)
+
+    paints.patch.color = if (l.isOld) l.ink else paints.accent
+    paints.patch.alpha = a
+    c.drawRect(l.mark, paints.patch)
+
+    if (l.focused) {
+        val b = l.feather
+        val len = min(paints.cornerLen, min(b.width(), b.height()) / 3f)
+        paints.corner.color = paints.accent
+        paints.corner.alpha = a
+        c.drawLine(b.left, b.top, b.left + len, b.top, paints.corner)
+        c.drawLine(b.left, b.top, b.left, b.top + len, paints.corner)
+        c.drawLine(b.right, b.top, b.right - len, b.top, paints.corner)
+        c.drawLine(b.right, b.top, b.right, b.top + len, paints.corner)
+        c.drawLine(b.left, b.bottom, b.left + len, b.bottom, paints.corner)
+        c.drawLine(b.left, b.bottom, b.left, b.bottom - len, paints.corner)
+        c.drawLine(b.right, b.bottom, b.right - len, b.bottom, paints.corner)
+        c.drawLine(b.right, b.bottom, b.right, b.bottom - len, paints.corner)
+    }
+}
+
+/**
  * Поверх камеры цвета не зависят от темы: красный метро (светлый акцент) даёт белому тексту
  * нужный контраст, серый — для старых цен.
  */
@@ -125,6 +171,8 @@ private const val UNSURE_PRICE = 0xFF2A3139.toInt()
 private class OverlayPaints(
     val corner: Paint,
     val boxFill: Paint,
+    val patch: Paint,
+    val embed: Paint,
     val outline: Paint,
     val bubble: Paint,
     val main: Paint,

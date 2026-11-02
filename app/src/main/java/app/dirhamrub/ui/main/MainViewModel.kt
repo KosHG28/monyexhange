@@ -53,6 +53,8 @@ data class MainUiState(
     /** Страна сети, для которой подсказку о валюте уже приняли или закрыли. */
     val countryHandled: String? = null,
     val onboardingDone: Boolean = true,
+    /** Камера вписывает суммы в ценники (иначе — плашки над ценами). */
+    val cameraEmbedded: Boolean = true,
 ) {
     /** Изменение курса ЦБ валюты трат к итоговой за неделю, в процентах. */
     val weekTrend: BigDecimal? get() = official?.trendPercent(officialWeekAgo, wallet.spend, wallet.home)
@@ -113,6 +115,7 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
                 countryHandled = stored.countryHandled,
                 // Знакомство — только для нового пользователя: у перешедших со старых версий карты уже есть.
                 onboardingDone = stored.onboardingDone || stored.wallet.cards.isNotEmpty(),
+                cameraEmbedded = stored.cameraEmbedded,
             )
             refreshRates(force = false)
             // Сохраняем не чаще раза в 300 мс: collectLatest отменяет отложенную запись при новом нажатии.
@@ -244,6 +247,11 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
             }
             weekLoading = false
         }
+    }
+
+    fun setCameraEmbedded(value: Boolean) {
+        _state.update { it.copy(cameraEmbedded = value) }
+        viewModelScope.launch { repository.saveCameraEmbedded(value) }
     }
 
     /** Знакомство пройдено: больше не показываем. */

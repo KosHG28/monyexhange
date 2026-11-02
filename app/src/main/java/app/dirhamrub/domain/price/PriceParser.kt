@@ -16,6 +16,8 @@ data class PriceCandidate(
      * («200» на этикетке) — догадка, её метка рисуется иначе.
      */
     val confident: Boolean = true,
+    /** Цена вместе со знаком валюты рядом («17 990 ТГ») — что закрывать, когда сумма вписывается в ценник. */
+    val extent: Box = box,
 )
 
 /**
@@ -155,7 +157,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         markStruckOut(kept)
         return dedupe(kept)
             .sortedByDescending { it.score }
-            .map { PriceCandidate(it.value, it.box, it.score, it.hasCurrency, it.isOld, it.confident) }
+            .map { PriceCandidate(it.value, it.box, it.score, it.hasCurrency, it.isOld, it.confident, it.extent) }
     }
 
     /** Число у левого или правого края (ближе 0,6 высоты цифр) или за ним — могло обрезаться. */
@@ -172,6 +174,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         val hasFraction: Boolean,
         val digits: Int,
         var isOld: Boolean,
+        val extent: Box,
     ) {
         var score: Float = 0f
         val confident: Boolean get() = hasCurrency || blockCurrency || hasFraction
@@ -216,12 +219,14 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
             val value = parseNumber(numberText) ?: continue
             if (value < currency.min || value > currency.max) continue
 
-            val hasCurrency = currencies.any { c ->
+            val marker = currencies.firstOrNull { c ->
                 val gapBefore = m.range.first - c.last - 1
                 val gapAfter = c.first - m.range.last - 1
                 gapBefore in 0..CURRENCY_GAP || gapAfter in 0..CURRENCY_GAP
             }
+            val hasCurrency = marker != null
             val box = boxOf(tokens, m.range.first, m.range.last + 1) ?: continue
+            val extent = marker?.let { c -> boxOf(tokens, minOf(c.first, m.range.first), maxOf(c.last, m.range.last) + 1) } ?: box
             out += Raw(
                 value = value,
                 box = box,
@@ -230,6 +235,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
                 hasFraction = FRACTION.containsMatchIn(numberText),
                 digits = numberText.count { it.isDigit() },
                 isOld = oldKeyword,
+                extent = extent,
             )
         }
     }

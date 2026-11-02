@@ -14,6 +14,8 @@ data class TrackedPrice(
     val alpha: Float,
     /** См. [PriceCandidate.confident]. */
     val confident: Boolean = true,
+    /** Цена со знаком валюты, сглаженная как [box]. */
+    val extent: Box = box,
 )
 
 /**
@@ -41,6 +43,11 @@ class PriceTracker(
         var top: Float,
         var right: Float,
         var bottom: Float,
+        /** Отступы рамки «цена + валюта» от рамки цены — сглаживаются вместе с ней. */
+        var extentLeft: Float,
+        var extentTop: Float,
+        var extentRight: Float,
+        var extentBottom: Float,
         var score: Float,
         var hasCurrency: Boolean,
         var isOld: Boolean,
@@ -50,6 +57,7 @@ class PriceTracker(
         var shown: Boolean = false,
     ) {
         val box: Box get() = Box(left, top, right, bottom)
+        val extent: Box get() = Box(left - extentLeft, top - extentTop, right + extentRight, bottom + extentBottom)
     }
 
     private val tracks = ArrayList<Track>()
@@ -70,6 +78,8 @@ class PriceTracker(
                 val t = Track(
                     id = nextId++, value = c.value,
                     left = c.box.left, top = c.box.top, right = c.box.right, bottom = c.box.bottom,
+                    extentLeft = c.box.left - c.extent.left, extentTop = c.box.top - c.extent.top,
+                    extentRight = c.extent.right - c.box.right, extentBottom = c.extent.bottom - c.box.bottom,
                     score = c.score, hasCurrency = c.hasCurrency, isOld = c.isOld, confident = c.confident,
                     history = 1, lastSeenMs = nowMs,
                 )
@@ -80,6 +90,10 @@ class PriceTracker(
                 track.top += smoothing * (c.box.top - track.top)
                 track.right += smoothing * (c.box.right - track.right)
                 track.bottom += smoothing * (c.box.bottom - track.bottom)
+                track.extentLeft += smoothing * (c.box.left - c.extent.left - track.extentLeft)
+                track.extentTop += smoothing * (c.box.top - c.extent.top - track.extentTop)
+                track.extentRight += smoothing * (c.extent.right - c.box.right - track.extentRight)
+                track.extentBottom += smoothing * (c.extent.bottom - c.box.bottom - track.extentBottom)
                 track.score += smoothing * (c.score - track.score)
                 track.hasCurrency = track.hasCurrency || c.hasCurrency
                 track.isOld = c.isOld
@@ -110,7 +124,7 @@ class PriceTracker(
             .sortedByDescending { it.score }
             .take(maxLabels)
             .map { t ->
-                TrackedPrice(t.id, t.value, t.box, t.score, t.hasCurrency, t.isOld, alpha(t, nowMs), t.confident)
+                TrackedPrice(t.id, t.value, t.box, t.score, t.hasCurrency, t.isOld, alpha(t, nowMs), t.confident, t.extent)
             }
     }
 

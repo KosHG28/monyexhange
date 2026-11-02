@@ -166,6 +166,24 @@ class PriceParserTest {
     }
 
     @Test
+    fun `рамка для вписывания — цена вместе с валютой`() {
+        val l = line("Цена", "17", "990", "TF")
+        val c = PriceParser(PriceCurrency.KZT).parse(listOf(OcrBlock(listOf(l)))).single()
+        val tf = l.words.last().box
+        // Цифры — без «TF», рамка для вписывания — до правого края «TF».
+        assertTrue(c.box.right < tf.left)
+        assertEquals(tf.right, c.extent.right, 0.01f)
+        assertEquals(c.box.left, c.extent.left, 0.01f)
+        // Валюта перед числом: «AED 45.00» — рамка начинается с «AED».
+        val a = line("AED", "45.00")
+        val p = parse(a).single()
+        assertEquals(a.words.first().box.left, p.extent.left, 0.01f)
+        // Без валюты рамка совпадает с ценой.
+        val bare = parse(line("49.95")).single()
+        assertEquals(bare.box, bare.extent)
+    }
+
+    @Test
     fun `артикул через несколько слешей не цена`() {
         // Ценник Zara: «ART.: 9598/202/251» — «251» не цена, хотя набрано тем же кеглем.
         val art = OcrBlock(listOf(line("ART.:", "9598/202/251", y = 300f, h = 60f)))

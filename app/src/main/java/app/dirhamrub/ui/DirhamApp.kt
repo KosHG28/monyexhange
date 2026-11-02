@@ -103,6 +103,8 @@ fun DirhamApp(
         CameraScreen(
             wallet = state.wallet,
             quote = state.quote,
+            embedded = state.cameraEmbedded,
+            onEmbeddedChange = vm::setCameraEmbedded,
             onSelectCard = vm::selectCard,
             onToCalculator = { items ->
                 vm.putItems(items)

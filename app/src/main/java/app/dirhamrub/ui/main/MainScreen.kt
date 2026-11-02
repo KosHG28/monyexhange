@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -114,8 +115,11 @@ fun MainScreen(
             for (line in lines) {
                 if (line != state.active && line != heroLine) SecondaryLine(state, line, onSelectLine)
             }
-            Spacer(Modifier.height(8.dp))
-            Chips(wallet.spend, onChip)
+            // На коротком экране быстрые суммы уступают место сумме и подсказкам.
+            if (LocalConfiguration.current.screenHeightDp >= SHORT_SCREEN_DP) {
+                Spacer(Modifier.height(8.dp))
+                Chips(wallet.spend, onChip)
+            }
             Spacer(Modifier.height(8.dp))
             Keypad(onKey = onKey, onCamera = onOpenCamera)
             Spacer(Modifier.height(8.dp))

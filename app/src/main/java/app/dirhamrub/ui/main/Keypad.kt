@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -30,13 +31,27 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.Key
 import app.dirhamrub.ui.theme.AppTheme
 
-private val KEY_HEIGHT = 54.dp
+/** Высота клавиш: на коротких экранах ниже, чтобы сумма и подсказки не уходили под прокрутку. */
+@Composable
+private fun keyHeight(): Dp {
+    val h = LocalConfiguration.current.screenHeightDp
+    return when {
+        h < SHORT_SCREEN_DP -> 44.dp
+        h < MEDIUM_SCREEN_DP -> 48.dp
+        else -> 54.dp
+    }
+}
+
+/** Ниже этой высоты экрана (dp) — короткий телефон: клавиши ниже, быстрых сумм нет. */
+internal const val SHORT_SCREEN_DP = 760
+private const val MEDIUM_SCREEN_DP = 820
 private val KEY_GAP = 8.dp
 
 /**
@@ -92,7 +107,7 @@ private fun RowScope.KeyBase(
     Box(
         modifier = Modifier
             .weight(1f)
-            .height(KEY_HEIGHT)
+            .height(keyHeight())
             .clip(RoundedCornerShape(18.dp))
             .background(background)
             .combinedClickable(

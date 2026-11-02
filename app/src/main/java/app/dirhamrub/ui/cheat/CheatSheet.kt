@@ -2,8 +2,6 @@ package app.dirhamrub.ui.cheat
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,6 +26,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -116,31 +116,21 @@ private fun HeaderRow(first: String, columns: List<CheatColumn>) {
     Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.Bottom) {
         Text(first, style = type.label, color = colors.muted, modifier = Modifier.width(FIRST_WIDTH))
         for (c in columns) {
-            Row(
+            // Точка цвета карты — в начале названия, а не у края колонки.
+            Text(
+                text = buildAnnotatedString {
+                    if (c.dot != null) withStyle(SpanStyle(color = c.dot)) { append("● ") }
+                    append(c.title)
+                },
+                style = if (c.selected) type.label.copy(fontWeight = FontWeight.SemiBold) else type.label,
+                color = if (c.selected) colors.ink else colors.muted,
+                textAlign = TextAlign.End,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .width(COLUMN_WIDTH)
                     .padding(start = 8.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (c.dot != null) {
-                    Box(
-                        Modifier
-                            .padding(end = 5.dp)
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(c.dot),
-                    )
-                }
-                Text(
-                    text = c.title,
-                    style = if (c.selected) type.label.copy(fontWeight = FontWeight.SemiBold) else type.label,
-                    color = if (c.selected) colors.ink else colors.muted,
-                    textAlign = TextAlign.End,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            )
         }
     }
 }

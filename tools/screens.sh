@@ -32,12 +32,12 @@ adb shell settings put system font_scale 1.0
 WAIT=15 shot 01-main
 shot 02-cheat --es screen cheat
 shot 03-currencies --es screen currencies
-shot 04-editor --es screen editor
+WAIT=12 shot 04-editor --es screen editor
 WAIT=10 shot 05-camera --es screen camera
 
 adb shell cmd uimode night no
 shot 06-main-light
-shot 07-editor-light --es screen editor
+WAIT=12 shot 07-editor-light --es screen editor
 
 adb shell cmd uimode night yes
 adb shell settings put system font_scale 1.3

@@ -88,6 +88,22 @@ class WalletRepository(private val store: DataStore<Preferences>) {
         }
     }
 
+    /** Демо-состояние для скриншотов CI ([app.dirhamrub.diag.Demo]): всё сразу, курсы «только что скачаны». */
+    suspend fun saveDemo(wallet: Wallet, official: OfficialRates, weekAgo: OfficialRates, expression: Expression) {
+        store.edit { p ->
+            p.clear()
+            p[WALLET] = WalletCodec.encode(wallet)
+            p[ACTIVE] = Line.SPEND.name
+            p[EXPRESSION] = expression.serialize()
+            p[OFFICIAL] = WalletCodec.encodeRates(official)
+            p[OFFICIAL_AT] = System.currentTimeMillis()
+            p[OFFICIAL_WEEK] = WalletCodec.encodeRates(weekAgo)
+            p[ONBOARDING_DONE] = true
+            // Эмулятор CI «находится» в США — плашку «считать в USD?» на скриншотах не показываем.
+            p[COUNTRY_HANDLED] = "US"
+        }
+    }
+
     suspend fun saveOfficial(rates: OfficialRates, fetchedAt: Long) {
         store.edit { p ->
             p[OFFICIAL] = WalletCodec.encodeRates(rates)

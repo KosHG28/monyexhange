@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -17,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import app.dirhamrub.MainActivity
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.ui.camera.CameraScreen
@@ -43,14 +45,18 @@ private fun networkCountry(context: Context): String? =
 /** Корень интерфейса: главный экран, камера и шторки. */
 @Composable
 fun DirhamApp(
-    startInCamera: Boolean = false,
+    startScreen: String? = null,
     vm: MainViewModel = viewModel(factory = MainViewModel.Factory),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
-    var cheatOpen by rememberSaveable { mutableStateOf(false) }
-    var currenciesOpen by rememberSaveable { mutableStateOf(false) }
-    var cameraOpen by rememberSaveable { mutableStateOf(startInCamera) }
+    var cheatOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CHEAT) }
+    var currenciesOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CURRENCIES) }
+    var cameraOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CAMERA) }
     var editing by remember { mutableStateOf<Editing?>(null) }
+    // Скриншоты CI: сразу редактор выбранной карты.
+    LaunchedEffect(state.loaded) {
+        if (state.loaded && startScreen == MainActivity.SCREEN_EDITOR) state.wallet.selected?.let { editing = Editing(it, isNew = false) }
+    }
     val context = LocalContext.current
     // Страну сети перечитываем при каждом возвращении в приложение: прилетели — подсказка уже на месте.
     var country by remember { mutableStateOf<String?>(null) }

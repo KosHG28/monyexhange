@@ -20,7 +20,8 @@
 ```
 
 CI: `.github/workflows/android.yml` — на каждый push тесты, lint, debug и release APK (artifact
-`dirhamrub-apk`); на тег `v*` — GitHub Release с `dirhamrub-vX.Y.Z.apk`. Если тег не запушить
+`dirhamrub-apk`), дымовой тест камеры и скриншоты экранов на эмуляторе (пререлиз «screens»:
+`tools/screens.sh`, демо-данные — extra `demo` в отладочной сборке, экран — extra `screen`); на тег `v*` — GitHub Release с `dirhamrub-vX.Y.Z.apk`. Если тег не запушить
 (в облачном окружении пуш тегов запрещён), релиз создаёт ручной запуск workflow с `release=vX.Y.Z`.
 
 ## Архитектура

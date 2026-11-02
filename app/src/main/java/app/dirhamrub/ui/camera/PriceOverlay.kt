@@ -12,8 +12,8 @@ import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.min
 
 /**
- * Метки цен поверх превью: уголки-«прицел» вокруг цены и пилюля с тенью и хвостиком;
- * старая цена — серая компактная метка; догадка (число без валюты) — графитовая метка с белым контуром.
+ * Метки цен поверх превью. Фокус (цена ближе к центру) — крупная плашка с хвостиком и уголками «прицела»,
+ * остальные — короткие плашки над ценой; старая цена — серая, догадка (число без валюты) — графитовая с контуром.
  * Все строки и контуры готовит [PricePipeline]; здесь только рисование заранее созданными
  * Paint — без аллокаций в draw. [frame] читается внутри draw, поэтому новый кадр
  * перерисовывает Canvas без рекомпозиции.
@@ -64,47 +64,48 @@ fun PriceOverlay(
         val labels = frame.value.labels
         drawIntoCanvas { canvas ->
             val c = canvas.nativeCanvas
-            for (i in labels.indices) {
-                val l = labels[i]
-                val a = (l.alpha * 255f).toInt().coerceIn(0, 255)
-                val tint = when {
-                    l.isOld -> paints.old
-                    l.unsure -> paints.unsure
-                    else -> paints.accent
-                }
-                val b = l.box
+            // Сначала обычные плашки, фокус — поверх.
+            for (pass in 0..1) {
+                for (i in labels.indices) {
+                    val l = labels[i]
+                    if (l.focused != (pass == 1)) continue
+                    val a = (l.alpha * 255f).toInt().coerceIn(0, 255)
+                    val tint = when {
+                        l.isOld -> paints.old
+                        l.unsure -> paints.unsure
+                        else -> paints.accent
+                    }
+                    val b = l.box
+                    // Лёгкая подсветка цены: у фокуса заметнее и с уголками «прицела».
+                    paints.boxFill.color = tint
+                    paints.boxFill.alpha = (a * if (l.focused) 0.16f else 0.08f).toInt()
+                    c.drawRoundRect(b, paints.boxRadius, paints.boxRadius, paints.boxFill)
+                    if (l.focused) {
+                        paints.corner.color = tint
+                        paints.corner.alpha = a
+                        val len = min(paints.cornerLen, min(b.width(), b.height()) / 2.5f)
+                        c.drawLine(b.left, b.top, b.left + len, b.top, paints.corner)
+                        c.drawLine(b.left, b.top, b.left, b.top + len, paints.corner)
+                        c.drawLine(b.right, b.top, b.right - len, b.top, paints.corner)
+                        c.drawLine(b.right, b.top, b.right, b.top + len, paints.corner)
+                        c.drawLine(b.left, b.bottom, b.left + len, b.bottom, paints.corner)
+                        c.drawLine(b.left, b.bottom, b.left, b.bottom - len, paints.corner)
+                        c.drawLine(b.right, b.bottom, b.right - len, b.bottom, paints.corner)
+                        c.drawLine(b.right, b.bottom, b.right, b.bottom - len, paints.corner)
+                    }
 
-                // Лёгкая подсветка цены и уголки «прицела».
-                paints.boxFill.color = tint
-                paints.boxFill.alpha = (a * 0.14f).toInt()
-                c.drawRoundRect(b, paints.boxRadius, paints.boxRadius, paints.boxFill)
-                paints.corner.color = tint
-                paints.corner.alpha = if (l.isOld) (a * 0.7f).toInt() else a
-                val len = min(paints.cornerLen, min(b.width(), b.height()) / 2.5f)
-                c.drawLine(b.left, b.top, b.left + len, b.top, paints.corner)
-                c.drawLine(b.left, b.top, b.left, b.top + len, paints.corner)
-                c.drawLine(b.right, b.top, b.right - len, b.top, paints.corner)
-                c.drawLine(b.right, b.top, b.right, b.top + len, paints.corner)
-                c.drawLine(b.left, b.bottom, b.left + len, b.bottom, paints.corner)
-                c.drawLine(b.left, b.bottom, b.left, b.bottom - len, paints.corner)
-                c.drawLine(b.right, b.bottom, b.right - len, b.bottom, paints.corner)
-                c.drawLine(b.right, b.bottom, b.right, b.bottom - len, paints.corner)
-
-                paints.bubble.color = tint
-                paints.bubble.alpha = if (l.isOld) (a * 0.85f).toInt() else a
-                c.drawPath(l.bubble, paints.bubble)
-                if (l.unsure) {
-                    paints.outline.alpha = (a * 0.7f).toInt()
-                    c.drawPath(l.bubble, paints.outline)
+                    paints.bubble.color = tint
+                    // Соседние плашки чуть прозрачнее фокуса — взгляд сразу идёт к нему.
+                    paints.bubble.alpha = if (l.focused) a else (a * 0.88f).toInt()
+                    c.drawPath(l.bubble, paints.bubble)
+                    if (l.unsure) {
+                        paints.outline.alpha = (a * 0.7f).toInt()
+                        c.drawPath(l.bubble, paints.outline)
+                    }
+                    val text = if (l.focused) paints.main else paints.sub
+                    text.alpha = a
+                    c.drawText(l.text, l.textX, l.textY, text)
                 }
-
-                if (l.main.isNotEmpty()) {
-                    paints.main.alpha = a
-                    c.drawText(l.main, l.mainX, l.mainY, paints.main)
-                }
-                // У старой цены одна приглушённая строка «было … AED ≈ … ₽».
-                paints.sub.alpha = if (l.isOld) (a * 0.95f).toInt() else (a * 0.85f).toInt()
-                c.drawText(l.sub, l.subX, l.subY, paints.sub)
             }
         }
     }

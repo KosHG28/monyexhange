@@ -74,6 +74,8 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -198,21 +200,19 @@ private fun CameraContent(
     val density = LocalDensity.current
 
     val mainTypeface = remember { ResourcesCompat.getFont(context, R.font.inter_tight_semibold) }
-    val subTypeface = remember { ResourcesCompat.getFont(context, R.font.inter_tight_medium) }
     val metrics = remember(density) {
         with(density) {
             LabelMetrics(
-                mainTextPx = 17.sp.toPx(),
-                subTextPx = 11.5.sp.toPx(),
+                mainTextPx = 18.sp.toPx(),
+                subTextPx = 14.sp.toPx(),
                 padX = 12.dp.toPx(),
-                padY = 6.dp.toPx(),
-                lineGap = 2.dp.toPx(),
-                gap = 3.dp.toPx(),
+                padY = 7.dp.toPx(),
+                gap = 4.dp.toPx(),
                 margin = 8.dp.toPx(),
                 radius = 12.dp.toPx(),
                 tail = 6.dp.toPx(),
                 mainTypeface = mainTypeface,
-                subTypeface = subTypeface,
+                subTypeface = mainTypeface,
             )
         }
     }
@@ -306,6 +306,12 @@ private fun CameraContent(
 
     val frame = pipeline.frames.collectAsState()
     val nothingFound by remember { derivedStateOf { frame.value.labels.isEmpty() } }
+    // Карточка фокуса перерисовывается только когда меняется её содержимое, а не на каждом кадре OCR.
+    val focus by remember {
+        derivedStateOf {
+            frame.value.focus?.let { FocusInfo(it.id, it.value, it.isOld, it.unsure, it.homeAmount, it.officialAmount) }
+        }
+    }
     val a11y = remember {
         context.getSystemService(AccessibilityManager::class.java)?.isTouchExplorationEnabled == true
     }
@@ -329,15 +335,25 @@ private fun CameraContent(
             Image(bitmap, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         }
 
+        // Сверху — кнопки, снизу — карточка цены в фокусе и отмеченное: метки туда не ставим.
         val topReserve = with(density) { (WindowInsets.safeDrawing.getTop(this) + 72.dp.roundToPx()).toFloat() }
-        val bottomReserve = with(density) { (WindowInsets.safeDrawing.getBottom(this) + 80.dp.roundToPx()).toFloat() }
+        val bottomReserve = with(density) {
+            (WindowInsets.safeDrawing.getBottom(this) + (if (basket.isEmpty()) 120.dp else 196.dp).roundToPx()).toFloat()
+        }
         val hitSlop = with(density) { 8.dp.toPx() }
+        var overlaySize by remember { mutableStateOf(IntSize.Zero) }
+        LaunchedEffect(overlaySize, topReserve, bottomReserve) {
+            if (overlaySize != IntSize.Zero) {
+                pipeline.setViewport(overlaySize.width.toFloat(), overlaySize.height.toFloat(), topReserve, bottomReserve)
+            }
+        }
+        if (!paused) Reticle(topReserve, bottomReserve)
         PriceOverlay(
             frame = frame,
             metrics = metrics,
             modifier = Modifier
                 .fillMaxSize()
-                .onSizeChanged { pipeline.setViewport(it.width.toFloat(), it.height.toFloat(), topReserve, bottomReserve) }
+                .onSizeChanged { overlaySize = it }
                 .pointerInput(paused) {
                     if (!paused) {
                         detectTransformGestures { _, _, zoom, _ ->
@@ -409,20 +425,40 @@ private fun CameraContent(
             onPause = { paused = !paused },
         )
 
-        BottomStrip(
-            basket = basket,
-            hint = when {
-                paused -> stringResource(R.string.camera_paused)
-                nothingFound -> stringResource(R.string.camera_hint, "${wallet.spend.flag} ${wallet.spend.code}")
-                else -> null
-            },
-            spend = wallet.spend,
-            home = wallet.home,
-            homePerUnit = homePerUnit,
-            onToCalculator = { onToCalculator(basket.mapNotNull { Numbers.parse(it) }) },
-            onClear = { basket = emptyList() },
-            modifier = Modifier.align(Alignment.BottomCenter),
-        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            // Подробности — у одной цены, ближайшей к центру: на самом кадре только короткие плашки.
+            focus?.let { info ->
+                FocusCard(
+                    info = info,
+                    spend = wallet.spend,
+                    home = wallet.home,
+                    cardName = wallet.selected?.name,
+                    onOpen = { sheet = frame.value.labels.firstOrNull { it.id == info.id } },
+                    onAdd = { basket = basket + info.value.toPlainString() },
+                )
+            }
+            BottomStrip(
+                basket = basket,
+                hint = when {
+                    paused && nothingFound -> stringResource(R.string.camera_paused)
+                    nothingFound -> stringResource(R.string.camera_hint, "${wallet.spend.flag} ${wallet.spend.code}")
+                    else -> null
+                },
+                spend = wallet.spend,
+                home = wallet.home,
+                homePerUnit = homePerUnit,
+                onToCalculator = { onToCalculator(basket.mapNotNull { Numbers.parse(it) }) },
+                onClear = { basket = emptyList() },
+            )
+        }
     }
 
     sheet?.let { label ->
@@ -443,6 +479,87 @@ private fun CameraContent(
             },
             onDismiss = { sheet = null },
         )
+    }
+}
+
+/** Что показывает карточка фокуса; data class — чтобы сравнивать содержимое между кадрами. */
+private data class FocusInfo(
+    val id: Long,
+    val value: BigDecimal,
+    val isOld: Boolean,
+    val unsure: Boolean,
+    val homeAmount: BigDecimal?,
+    val officialAmount: BigDecimal?,
+)
+
+/**
+ * Карточка цены в фокусе: распознанная цена, крупно сумма в итоговой валюте, курс ЦБ и карта.
+ * Тап — шторка со всеми картами, «+» — добавить к отмеченному.
+ */
+@Composable
+private fun FocusCard(
+    info: FocusInfo,
+    spend: Currency,
+    home: Currency,
+    cardName: String?,
+    onOpen: () -> Unit,
+    onAdd: () -> Unit,
+) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    val price = "${Numbers.money(info.value)} ${spend.symbol}" + if (info.unsure) "?" else ""
+    val homeText = info.homeAmount?.let { "≈ ${Numbers.cheat(it)} ${home.symbol}" } ?: "—"
+    val details = listOfNotNull(
+        info.officialAmount?.let { stringResource(R.string.camera_focus_cbr, Numbers.cheat(it), home.symbol) },
+        cardName,
+    ).joinToString(" · ")
+    val head = if (info.isOld) stringResource(R.string.camera_focus_old, price) else price
+    val open = stringResource(R.string.camera_focus_open)
+    val a11y = "$head, $homeText" + if (details.isNotEmpty()) ", $details" else ""
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(colors.surface)
+            .clickable(role = Role.Button, onClickLabel = open, onClick = onOpen)
+            .semantics { contentDescription = a11y }
+            .padding(start = 18.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(head, style = type.label.copy(fontSize = 14.sp), color = colors.muted, maxLines = 1)
+            Text(
+                homeText,
+                style = type.number.copy(fontSize = 28.sp, lineHeight = 34.sp),
+                color = colors.ink,
+                maxLines = 1,
+            )
+            if (details.isNotEmpty()) {
+                Text(details, style = type.caption.copy(fontSize = 12.5.sp), color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        val add = stringResource(R.string.camera_focus_add)
+        Box(
+            Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(colors.accentSoft)
+                .clickable(role = Role.Button, onClickLabel = add, onClick = onAdd)
+                .semantics { contentDescription = add },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(R.drawable.ic_add), contentDescription = null, tint = colors.accent, modifier = Modifier.size(26.dp))
+        }
+    }
+}
+
+/** Прицел в центре свободной части экрана: цена под ним попадает в фокус. */
+@Composable
+private fun Reticle(topReserve: Float, bottomReserve: Float) {
+    Canvas(Modifier.fillMaxSize()) {
+        val center = Offset(size.width / 2f, (topReserve + size.height - bottomReserve) / 2f)
+        drawCircle(Color.White.copy(alpha = 0.55f), radius = 16.dp.toPx(), center = center, style = Stroke(1.5.dp.toPx()))
+        drawCircle(Color.White.copy(alpha = 0.8f), radius = 2.dp.toPx(), center = center)
     }
 }
 
@@ -566,10 +683,7 @@ private fun BottomStrip(
     val colors = AppTheme.colors
     val type = AppTheme.type
     Box(
-        modifier
-            .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(12.dp),
+        modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center,
     ) {
         if (basket.isNotEmpty()) {

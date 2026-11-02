@@ -44,13 +44,19 @@ data class MainUiState(
     val loaded: Boolean = false,
     val wallet: Wallet = Wallet(),
     val official: OfficialRates? = null,
+    /** Курсы ЦБ неделю назад — для стрелки «за неделю». */
+    val officialWeekAgo: OfficialRates? = null,
     val ratesLoading: Boolean = false,
     val ratesFailed: Boolean = false,
     val active: Line = Line.SPEND,
     val expression: Expression = Expression(),
     /** Страна сети, для которой подсказку о валюте уже приняли или закрыли. */
     val countryHandled: String? = null,
+    val onboardingDone: Boolean = true,
 ) {
+    /** Изменение курса ЦБ валюты трат к итоговой за неделю, в процентах. */
+    val weekTrend: BigDecimal? get() = official?.trendPercent(officialWeekAgo, wallet.spend, wallet.home)
+
     val quote: WalletQuote by lazy { RateEngine.quoteAll(wallet, official) }
     val selectedCard: BankCard? get() = wallet.selected
     val selectedQuote: CardQuote? get() = quote.of(selectedCard?.id)
@@ -101,9 +107,12 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
                 loaded = true,
                 wallet = stored.wallet,
                 official = stored.official,
+                officialWeekAgo = stored.officialWeekAgo,
                 active = if (stored.active == Line.CARD && stored.wallet.cards.isEmpty()) Line.SPEND else stored.active,
                 expression = stored.expression,
                 countryHandled = stored.countryHandled,
+                // Знакомство — только для нового пользователя: у перешедших со старых версий карты уже есть.
+                onboardingDone = stored.onboardingDone || stored.wallet.cards.isNotEmpty(),
             )
             refreshRates(force = false)
             // Сохраняем не чаще раза в 300 мс: collectLatest отменяет отложенную запись при новом нажатии.
@@ -200,7 +209,10 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
     fun refreshRates(force: Boolean = true) {
         val s = _state.value
         if (s.ratesLoading) return
-        if (!force && s.official != null && System.currentTimeMillis() - officialFetchedAt < RATES_TTL_MS) return
+        if (!force && s.official != null && System.currentTimeMillis() - officialFetchedAt < RATES_TTL_MS) {
+            refreshWeekAgo()
+            return
+        }
         _state.update { it.copy(ratesLoading = true, ratesFailed = false) }
         viewModelScope.launch {
             val rates = CbrClient.fetch()
@@ -209,12 +221,42 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
                 repository.saveOfficial(rates, officialFetchedAt)
             }
             _state.update { it.copy(official = rates ?: it.official, ratesLoading = false, ratesFailed = rates == null) }
+            refreshWeekAgo()
         }
+    }
+
+    private var weekLoading = false
+
+    /** Курсы неделю назад для стрелки тренда: качаем, только если их нет или они не за ту неделю. */
+    private fun refreshWeekAgo() {
+        val s = _state.value
+        val official = s.official ?: return
+        val target = official.date.minusDays(WEEK_DAYS)
+        val have = s.officialWeekAgo?.date
+        val fits = have != null && !have.isBefore(target.minusDays(WEEK_SLACK_DAYS)) && !have.isAfter(target.plusDays(WEEK_SLACK_DAYS))
+        if (weekLoading || fits) return
+        weekLoading = true
+        viewModelScope.launch {
+            val rates = CbrClient.fetchOn(target)
+            if (rates != null) {
+                repository.saveOfficialWeekAgo(rates)
+                _state.update { it.copy(officialWeekAgo = rates) }
+            }
+            weekLoading = false
+        }
+    }
+
+    /** Знакомство пройдено: больше не показываем. */
+    fun finishOnboarding() {
+        _state.update { it.copy(onboardingDone = true) }
+        viewModelScope.launch { repository.saveOnboardingDone() }
     }
 
     companion object {
         private const val SAVE_DELAY_MS = 300L
         private const val RATES_TTL_MS = 6 * 60 * 60 * 1000L
+        private const val WEEK_DAYS = 7L
+        private const val WEEK_SLACK_DAYS = 3L
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {

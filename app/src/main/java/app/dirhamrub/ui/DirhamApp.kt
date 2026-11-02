@@ -26,6 +26,7 @@ import app.dirhamrub.ui.currency.CurrencySheet
 import app.dirhamrub.ui.main.CountryOffer
 import app.dirhamrub.ui.main.MainScreen
 import app.dirhamrub.ui.main.MainViewModel
+import app.dirhamrub.ui.onboarding.OnboardingScreen
 import app.dirhamrub.ui.theme.AppTheme
 
 /** Карта в редакторе: новая или существующая; [addPurchase] — сразу добавить чек покупки в этой валюте. */
@@ -64,6 +65,33 @@ fun DirhamApp(
         return
     }
 
+    val offer = country?.let { iso ->
+        Currency.forCountry(iso)
+            ?.takeIf { it != state.wallet.spend && iso != state.countryHandled }
+            ?.let { CountryOffer(iso, it) }
+    }
+
+    if (!state.onboardingDone && !cameraOpen) {
+        fun finish() {
+            vm.finishOnboarding()
+            // Валюту трат только что выбрали сами — плашку «вы в другой стране» сразу не показываем.
+            country?.takeIf { Currency.forCountry(it) != null }?.let { vm.handleCountry(it, accept = null) }
+        }
+        OnboardingScreen(
+            spend = state.wallet.spend,
+            home = state.wallet.home,
+            suggested = country?.let { Currency.forCountry(it) },
+            onSpend = vm::setSpend,
+            onHome = vm::setHome,
+            onAddCard = {
+                finish()
+                editing = Editing(vm.newCard(), isNew = true)
+            },
+            onSkip = { finish() },
+        )
+        return
+    }
+
     if (cameraOpen) {
         BackHandler { cameraOpen = false }
         CameraScreen(
@@ -79,11 +107,6 @@ fun DirhamApp(
         return
     }
 
-    val offer = country?.let { iso ->
-        Currency.forCountry(iso)
-            ?.takeIf { it != state.wallet.spend && iso != state.countryHandled }
-            ?.let { CountryOffer(iso, it) }
-    }
     MainScreen(
         state = state,
         countryOffer = offer,

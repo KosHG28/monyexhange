@@ -41,7 +41,8 @@
     <string name="card_next">Следующая карта</string>
     <string name="card_prev">Предыдущая карта</string>
     <string name="result_no_rate">Нет курса: добавьте карту или обновите курсы ЦБ</string>
-    <string name="official_row">ЦБ: %1$s = %2$s %3$s · %4$s</string>
+    <string name="official_rate">ЦБ: %1$s = %2$s %3$s</string>
+    <string name="official_trend_a11y">за неделю %1$s %%</string>
     <string name="official_offline">" · нет связи"</string>
     <string name="official_loading_short">ЦБ: обновляем…</string>
     <string name="official_missing_short">ЦБ: нет курсов</string>
@@ -108,6 +109,10 @@
     <string name="camera_paused">Кадр заморожен</string>
     <string name="camera_label_a11y">%1$s %2$s, около %3$s %4$s</string>
     <string name="camera_label_old_a11y">Старая цена %1$s %2$s, около %3$s %4$s</string>
+    <string name="camera_focus_cbr">ЦБ %1$s %2$s</string>
+    <string name="camera_focus_old">было %1$s</string>
+    <string name="camera_focus_open">Подробнее: все карты</string>
+    <string name="camera_focus_add">Добавить к отмеченному</string>
     <string name="camera_basket">Отмечено: %1$d · %2$s %3$s</string>
     <string name="camera_basket_total">≈ %1$s %2$s</string>
     <string name="camera_basket_to_calc">В калькулятор</string>
@@ -132,4 +137,21 @@
     <!-- Ярлык на иконке -->
     <string name="shortcut_camera_short">Ценник</string>
     <string name="shortcut_camera_long">Камера: суммы поверх ценников</string>
+    <!-- Знакомство -->
+    <string name="onboarding_step">Шаг %1$d из %2$d</string>
+    <string name="onboarding_intro">Сколько на самом деле стоит покупка в поездке — по курсу вашей карты, а не по табло обменника.</string>
+    <string name="onboarding_feature_receipts">Реальный курс каждой карты — по чекам банка, можно со скриншота</string>
+    <string name="onboarding_feature_compare">Сверка с курсом ЦБ и подсказка, какой картой платить дешевле</string>
+    <string name="onboarding_feature_camera">Камера пересчитывает ценники прямо в магазине</string>
+    <string name="onboarding_start">Начать</string>
+    <string name="onboarding_next">Дальше</string>
+    <string name="onboarding_spend_title">Где тратите?</string>
+    <string name="onboarding_spend_lead">Валюту поездки можно сменить в любой момент в шапке.</string>
+    <string name="onboarding_card_title">Добавьте карту</string>
+    <string name="onboarding_card_lead">Карту, которой платите, и чек пополнения или покупки — посчитаем ваш реальный курс.</string>
+    <string name="onboarding_card_sample_name">Карта в юанях</string>
+    <string name="onboarding_card_sample_rate">22,45 ₽/AED · +2,2 % к ЦБ</string>
+    <string name="onboarding_card_hint">Чек можно не набирать: в редакторе карты есть «Заполнить из скриншота банка». Карт может быть сколько угодно, в любых валютах.</string>
+    <string name="onboarding_add_card">Добавить карту</string>
+    <string name="onboarding_skip">Пока без карты — по курсу ЦБ</string>
 </resources>

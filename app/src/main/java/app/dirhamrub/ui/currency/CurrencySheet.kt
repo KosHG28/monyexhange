@@ -103,7 +103,7 @@ private const val HOME_COLUMNS = 3
 
 /** Плитка валюты: флаг, код (и знак, если он не совпадает с кодом), в широкой — название. */
 @Composable
-private fun CurrencyTile(c: Currency, selected: Boolean, wide: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun CurrencyTile(c: Currency, selected: Boolean, wide: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val shape = RoundedCornerShape(14.dp)

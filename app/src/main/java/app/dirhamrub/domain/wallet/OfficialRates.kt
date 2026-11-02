@@ -18,6 +18,18 @@ data class OfficialRates(
     }
 
     private fun rub(c: Currency): BigDecimal? = if (c == Currency.RUB) BigDecimal.ONE else rubPerUnit[c]
+
+    /**
+     * Как изменился кросс-курс [from] → [to] по сравнению с более ранними курсами [earlier], в процентах:
+     * +0,4 — валюта трат подорожала на 0,4 %. null — нет курса или курсы не раньше этих.
+     */
+    fun trendPercent(earlier: OfficialRates?, from: Currency, to: Currency): BigDecimal? {
+        if (earlier == null || !earlier.date.isBefore(date)) return null
+        val now = cross(from, to) ?: return null
+        val before = earlier.cross(from, to) ?: return null
+        if (before.signum() == 0) return null
+        return now.divide(before, MC).subtract(BigDecimal.ONE, MC).multiply(BigDecimal(100), MC)
+    }
 }
 
 /**

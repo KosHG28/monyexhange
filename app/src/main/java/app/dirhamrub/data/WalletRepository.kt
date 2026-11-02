@@ -3,6 +3,7 @@ package app.dirhamrub.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -31,10 +32,14 @@ data class StoredState(
     val official: OfficialRates?,
     /** Когда курсы ЦБ скачаны (мс), 0 — никогда. */
     val officialFetchedAt: Long,
+    /** Курсы ЦБ неделю назад — для стрелки изменения. */
+    val officialWeekAgo: OfficialRates?,
     val active: Line,
     val expression: Expression,
     /** Страна сети, для которой подсказку «переключить валюту» уже показали (приняли или закрыли). */
     val countryHandled: String?,
+    /** Знакомство с приложением пройдено (или пропущено). */
+    val onboardingDone: Boolean,
 )
 
 /**
@@ -51,6 +56,7 @@ class WalletRepository(private val store: DataStore<Preferences>) {
             wallet = WalletCodec.decode(p[WALLET]) ?: legacyWallet(p) ?: Wallet(),
             official = WalletCodec.decodeRates(p[OFFICIAL]),
             officialFetchedAt = p[OFFICIAL_AT] ?: 0L,
+            officialWeekAgo = WalletCodec.decodeRates(p[OFFICIAL_WEEK]),
             active = when (p[ACTIVE]) {
                 "RUB", "HOME" -> Line.HOME
                 "CARD" -> Line.CARD
@@ -58,7 +64,16 @@ class WalletRepository(private val store: DataStore<Preferences>) {
             },
             expression = Expression.parse(p[EXPRESSION]),
             countryHandled = p[COUNTRY_HANDLED],
+            onboardingDone = p[ONBOARDING_DONE] ?: false,
         )
+    }
+
+    suspend fun saveOfficialWeekAgo(rates: OfficialRates) {
+        store.edit { p -> p[OFFICIAL_WEEK] = WalletCodec.encodeRates(rates) }
+    }
+
+    suspend fun saveOnboardingDone() {
+        store.edit { p -> p[ONBOARDING_DONE] = true }
     }
 
     suspend fun saveCountryHandled(iso: String) {
@@ -123,5 +138,7 @@ class WalletRepository(private val store: DataStore<Preferences>) {
         val ACTIVE = stringPreferencesKey("active_line")
         val EXPRESSION = stringPreferencesKey("expression")
         val COUNTRY_HANDLED = stringPreferencesKey("country_handled")
+        val OFFICIAL_WEEK = stringPreferencesKey("official_week_ago")
+        val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
     }
 }

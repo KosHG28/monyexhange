@@ -41,6 +41,18 @@ class PriceTrackerTest {
     }
 
     @Test
+    fun `при уверенной цене догадки скрыты`() {
+        val t = PriceTracker()
+        val guess = cand("251", 0f, y = 600f).copy(hasCurrency = false, confident = false)
+        val price = cand("17990", 0f, y = 1100f)
+        // Догадка успела набрать попадания в кадрах, где OCR не видел валюту у цены.
+        t.update(listOf(guess), 0)
+        assertEquals(listOf("251"), t.update(listOf(guess), 33).map { it.value.toPlainString() })
+        t.update(listOf(guess, price), 66)
+        assertEquals(listOf("17990"), t.update(listOf(guess, price), 100).map { it.value.toPlainString() })
+    }
+
+    @Test
     fun `одиночная вспышка не показывается`() {
         val t = PriceTracker()
         t.update(listOf(cand("10", 0f)), 0)

@@ -166,6 +166,14 @@ class PriceParserTest {
     }
 
     @Test
+    fun `артикул через несколько слешей не цена`() {
+        // Ценник Zara: «ART.: 9598/202/251» — «251» не цена, хотя набрано тем же кеглем.
+        val art = OcrBlock(listOf(line("ART.:", "9598/202/251", y = 300f, h = 60f)))
+        assertTrue(parser.parse(listOf(art)).isEmpty())
+        assertTrue(PriceParser(PriceCurrency.KZT).parse(listOf(art)).isEmpty())
+    }
+
+    @Test
     fun `крупная цена выше по скорингу`() {
         val small = line("AED", "12.00", h = 20f)
         val big = line("AED", "45.00", y = 300f, h = 70f)
@@ -230,6 +238,9 @@ class PriceParserTest {
         assertEquals(listOf("4590"), v(line("4590", "KZT")))
         assertEquals(listOf("850"), v(line("850", "T")))
         assertEquals(listOf("12500"), v(line("12", "500", "тг")))
+        // Кириллическое «ТГ» латинский OCR читает как «TF» или «Tr» — это тоже тенге.
+        assertTrue(kzt.parse(listOf(OcrBlock(listOf(line("17", "990", "TF"))))).single().hasCurrency)
+        assertTrue(kzt.parse(listOf(OcrBlock(listOf(line("17", "990", "Tr"))))).single().hasCurrency)
         // Дирхамы в режиме тенге не считаются ценой с валютой, а 5 ₸ — меньше диапазона.
         assertFalse(kzt.parse(listOf(OcrBlock(listOf(line("AED", "45.00"))))).single().hasCurrency)
         assertTrue(v(line("5", "₸")).isEmpty())

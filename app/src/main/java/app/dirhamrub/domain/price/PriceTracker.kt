@@ -22,6 +22,7 @@ data class TrackedPrice(
  * - сглаживает рамку экспоненциальным средним;
  * - показывает метку после [minHits] попаданий из [window] последних кадров;
  * - держит метку [holdMs] после пропажи, во второй половине срока — плавно гасит;
+ * - если среди меток есть уверенная цена — догадки (числа без валюты) скрывает;
  * - если на одном месте две метки с разными числами (OCR читает то «200», то «20») — оставляет ту,
  *   что видна стабильнее, при равенстве — с бо́льшим скорингом;
  * - отдаёт не больше [maxLabels] лучших по скорингу.
@@ -98,7 +99,11 @@ class PriceTracker(
         }
 
         val visible = ArrayList<Track>()
-        for (t in tracks.filter { it.shown }.sortedWith(compareByDescending<Track> { Integer.bitCount(it.history) }.thenByDescending { it.score })) {
+        // Есть уверенная цена (с валютой или копейками) — догадки без валюты не показываем: в соседних кадрах
+        // OCR не всегда видит валюту, и голые числа (артикул, размер) успевали проскочить серыми метками.
+        val shown = tracks.filter { it.shown }
+        val anyConfident = shown.any { it.confident && !it.isOld }
+        for (t in shown.filter { it.confident || !anyConfident }.sortedWith(compareByDescending<Track> { Integer.bitCount(it.history) }.thenByDescending { it.score })) {
             if (visible.none { samePlace(it.box, t.box) }) visible += t
         }
         return visible

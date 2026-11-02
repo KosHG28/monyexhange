@@ -39,9 +39,12 @@ class PriceCurrency(
             BigDecimal("0.5"), BigDecimal("100000"),
         )
 
-        /** Тенге: ₸, KZT, TENGE, «тг»; латинский OCR часто читает ₸ как одиночную T. */
+        /**
+         * Тенге: ₸, KZT, TENGE, «тг»; латинский OCR часто читает ₸ как одиночную T,
+         * а кириллическое «ТГ» — как «TF» или «Tr».
+         */
         val KZT = PriceCurrency(
-            currency(words("KZT", "TENGE", "TG", "T") + "|₸|(?<![А-Яа-я])(?:тг|тенге)(?![А-Яа-я])\\.?"),
+            currency(words("KZT", "TENGE", "TG", "TF", "TR", "T") + "|₸|(?<![А-Яа-я])(?:тг|тенге)(?![А-Яа-я])\\.?"),
             BigDecimal("10"), BigDecimal("10000000"), longRunDigits = 9,
         )
 
@@ -385,7 +388,8 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         )
 
         private val DATE = Regex("""\d{1,4}[./-]\d{1,2}[./-]\d{1,4}""")
-        private val SLASHED = Regex("""\d+\s?/\s?\d+""")
+        /** Дроби и артикулы через слеш целиком: «1/2», «9598/202/251» (раньше «251» в конце оставался числом). */
+        private val SLASHED = Regex("""\d+(?:\s?/\s?\d+)+""")
         private val TIME = Regex("""\d{1,2}:\d{2}(?::\d{2})?|\d{1,2}[.:]\d{2}\s?(?:am|pm)\b""", RegexOption.IGNORE_CASE)
         private val DIGIT_RUN = Regex("""\+?\d(?:[ \-()]?\d)+""")
         private val PHONE_PREFIX = Regex("""\+\s?971[\d \-()]*""")

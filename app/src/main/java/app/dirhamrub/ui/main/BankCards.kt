@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -108,14 +109,17 @@ fun BankCardsRow(
     }
     BoxWithConstraints(modifier.fillMaxWidth()) {
         // 16 dp поля + 2 карты + «+» + зазоры по 10 dp; обводке выбранной — по RING_GAP с каждой стороны.
-        val cardWidth = ((maxWidth - 16.dp * 2 - 10.dp * 2 - ADD_WIDTH) / 2).coerceIn(140.dp, 200.dp)
+        // При крупном системном шрифте карты шире и выше, иначе название и курс обрезаются
+        // (тогда «+» и вторая карта уходят вправо — ряд прокручивается).
+        val scale = cardScale()
+        val cardWidth = (((maxWidth - 16.dp * 2 - 10.dp * 2 - ADD_WIDTH) / 2) * scale).coerceIn(140.dp, minOf(240.dp, maxWidth * 0.62f))
         LazyRow(
             state = listState,
             contentPadding = PaddingValues(horizontal = 16.dp - RING_GAP),
             horizontalArrangement = Arrangement.spacedBy(10.dp - RING_GAP * 2),
         ) {
             cardItems(cards, quote, selectedId, spend, home, amount, cardWidth, onSelect, onEdit)
-            item(key = "add") { AddCardTile(onAdd) }
+            item(key = "add") { AddCardTile(onAdd, CARD_HEIGHT * scale) }
         }
     }
 }
@@ -146,9 +150,16 @@ private fun LazyListScope.cardItems(
             onClick = { if (card.id == selectedId) onEdit(card) else onSelect(card.id) },
             onLongClick = { onEdit(card) },
             width = cardWidth,
+            height = CARD_HEIGHT * cardScale(),
         )
     }
 }
+
+/** Во сколько раз карты больше обычного: по системному размеру шрифта, от 1 до 1,3. */
+@Composable
+internal fun cardScale(): Float = LocalDensity.current.fontScale.coerceIn(1f, MAX_CARD_SCALE)
+
+private const val MAX_CARD_SCALE = 1.3f
 
 /** Насколько курс карты дороже ЦБ: до 3 % — хорошо, до 7 % — заметно, дальше — дорого. */
 enum class Markup { GOOD, WARN, BAD }
@@ -200,6 +211,7 @@ private fun BankCardView(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     width: Dp,
+    height: Dp,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
@@ -236,7 +248,7 @@ private fun BankCardView(
     ) {
         Box(
             modifier = Modifier
-                .size(width, CARD_HEIGHT)
+                .size(width, height)
                 .graphicsLayer { alpha = dim }
                 .clip(CARD_SHAPE)
                 .background(Brush.linearGradient(listOf(style.start, style.end)))
@@ -319,13 +331,13 @@ private fun BankCardView(
 
 /** Узкая плитка «+» в конце ряда: показывает, что карт может быть больше. */
 @Composable
-private fun AddCardTile(onAdd: () -> Unit) {
+private fun AddCardTile(onAdd: () -> Unit, height: Dp) {
     val colors = AppTheme.colors
     val label = stringResource(R.string.card_add)
     Box(Modifier.padding(RING_GAP)) {
         Box(
             modifier = Modifier
-                .size(ADD_WIDTH, CARD_HEIGHT)
+                .size(ADD_WIDTH, height)
                 .clip(CARD_SHAPE)
                 .clickable(role = Role.Button, onClickLabel = label, onClick = onAdd)
                 .semantics { contentDescription = label },

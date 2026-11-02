@@ -9,6 +9,10 @@ mkdir -p "$OUT"
 
 adb install -r "$APK"
 adb shell pm grant "$PKG" android.permission.CAMERA
+# Эмулятор в CI медленный: системные окна «… isn't responding» закрывали снимки — прячем их
+# и даём системе успокоиться после загрузки.
+adb shell settings put global hide_error_dialogs 1
+sleep 30
 
 # shot <имя> [extra...]: свежий запуск с демо-данными и снимок экрана.
 shot() {
@@ -16,18 +20,20 @@ shot() {
   shift
   adb shell am force-stop "$PKG"
   adb shell am start -W -n "$PKG/.MainActivity" --ez demo true "$@" > /dev/null
-  sleep "${WAIT:-4}"
+  sleep "${WAIT:-7}"
+  adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS > /dev/null 2>&1 || true
+  sleep 1
   adb exec-out screencap -p > "$OUT/$name.png"
   echo "снимок: $name"
 }
 
 adb shell cmd uimode night yes
 adb shell settings put system font_scale 1.0
-shot 01-main
+WAIT=15 shot 01-main
 shot 02-cheat --es screen cheat
 shot 03-currencies --es screen currencies
 shot 04-editor --es screen editor
-WAIT=8 shot 05-camera --es screen camera
+WAIT=10 shot 05-camera --es screen camera
 
 adb shell cmd uimode night no
 shot 06-main-light
@@ -46,12 +52,13 @@ adb shell wm size reset
 # Первый запуск: данные стёрты — знакомство.
 adb shell pm clear "$PKG"
 adb shell am start -W -n "$PKG/.MainActivity" > /dev/null
-sleep 4
+sleep 10
 adb exec-out screencap -p > "$OUT/10-onboarding.png"
 echo "снимок: 10-onboarding"
 
 ls -la "$OUT"
-if adb logcat -d | grep -q 'FATAL EXCEPTION'; then
+# Падения только нашего процесса: системные приложения эмулятора тоже иногда падают.
+if adb logcat -d -b crash | grep -A1 'FATAL EXCEPTION' | grep -q "Process: $PKG,"; then
   echo "=== Падение при съёмке экранов ==="
   adb logcat -d -b crash -v raw
   exit 1

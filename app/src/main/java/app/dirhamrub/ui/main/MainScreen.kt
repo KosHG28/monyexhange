@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.dirhamrub.domain.Key
@@ -31,15 +32,15 @@ import java.math.BigDecimal
 data class CountryOffer(val iso: String, val currency: Currency)
 
 /** Сколько места нужно верху экрана: карты, сумма, подписи и строка ЦБ. */
-private fun topHeight(state: MainUiState, compact: Boolean): Dp {
-    val hero = ((if (compact) HERO_COMPACT_SP else HERO_SP) * 1.12f).dp
+private fun topHeight(state: MainUiState, compact: Boolean, fontScale: Float): Dp {
+    val hero = ((if (compact) HERO_COMPACT_SP else HERO_SP) * 1.12f * fontScale).dp
     val basis = when {
         basisAction(state) != null -> ROW
         basisText(state) != null -> TEXT_ROW
         else -> 0.dp
     }
     val compare = if (comparison(state) != null) ROW + 6.dp else 0.dp
-    return CARDS_TOP + CARDS_HEIGHT + hero + basis + compare + ROW
+    return CARDS_TOP + CARDS_HEIGHT * fontScale.coerceIn(1f, 1.3f) + hero + basis + compare + ROW
 }
 
 @Composable
@@ -80,7 +81,7 @@ fun MainScreen(
         // Верх экрана на низких телефонах прокручивается, низ (ввод, чипы, клавиатура) всегда на месте.
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             // Крупная сумма мельче, только если иначе группа под картами не помещается без прокрутки.
-            val compact = maxHeight < topHeight(state, compact = false)
+            val compact = maxHeight < topHeight(state, compact = false, LocalDensity.current.fontScale)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()

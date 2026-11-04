@@ -64,6 +64,7 @@ import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardComparison
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.RateBasis
+import app.dirhamrub.domain.wallet.StaleReceipt
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import java.math.BigDecimal
@@ -86,6 +87,7 @@ internal fun ResultBlock(
     onSelectCard: (String) -> Unit,
     onStepCard: (Int) -> Unit,
     onAddReceipt: (BankCard) -> Unit,
+    onEditCard: (BankCard) -> Unit,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
@@ -194,7 +196,7 @@ internal fun ResultBlock(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        Basis(state, onAddReceipt)
+        Basis(state, onAddReceipt, onEditCard)
         comparison(state)?.let { c ->
             Spacer(Modifier.height(6.dp))
             Comparison(state, c, onSelectCard)
@@ -207,9 +209,15 @@ internal fun ResultBlock(
  * При курсе по чекам подписи нет: выбранная карта и так видна в рамке.
  */
 @Composable
-private fun Basis(state: MainUiState, onAddReceipt: (BankCard) -> Unit) {
+private fun Basis(state: MainUiState, onAddReceipt: (BankCard) -> Unit, onEditCard: (BankCard) -> Unit) {
     val colors = AppTheme.colors
     val type = AppTheme.type
+    val card = state.selectedCard
+    val stale = basisStale(state)
+    if (stale != null && card != null) {
+        StaleLine(stale, onOpen = { onEditCard(card) })
+        return
+    }
     val basis = basisText(state) ?: return
     val style = type.body.copy(fontSize = 14.sp)
     val q = state.selectedQuote
@@ -237,6 +245,38 @@ private fun Basis(state: MainUiState, onAddReceipt: (BankCard) -> Unit) {
             modifier = Modifier.weight(1f, fill = false),
         )
         Text(stringResource(R.string.add_receipt), style = style.copy(fontWeight = FontWeight.Medium), color = colors.accent, maxLines = 1)
+    }
+}
+
+/** «Чек от 12 окт · ЦБ с тех пор +3,1 % · обновить ›» — тап открывает карту, чтобы обновить чек. */
+@Composable
+private fun StaleLine(stale: StaleReceipt, onOpen: () -> Unit) {
+    val colors = AppTheme.colors
+    val style = AppTheme.type.body.copy(fontSize = 14.sp)
+    val date = RuDates.short(stale.date)
+    val change = signedPercent(stale.cbrChange)
+    val a11y = stringResource(R.string.stale_receipt_a11y, date, change)
+    Row(
+        modifier = Modifier
+            .heightIn(min = ROW)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClick = onOpen)
+            .clearAndSetSemantics {
+                contentDescription = a11y
+                role = Role.Button
+            }
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(R.string.stale_receipt, date, change),
+            style = style,
+            color = colors.warn,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        Text(stringResource(R.string.stale_receipt_action), style = style.copy(fontWeight = FontWeight.Medium), color = colors.accent, maxLines = 1)
     }
 }
 

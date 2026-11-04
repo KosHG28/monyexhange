@@ -126,6 +126,12 @@ fun PriceOverlay(
  * у цены в фокусе — тонкие красные уголки.
  */
 private fun drawEmbedded(c: android.graphics.Canvas, l: PriceLabel, a: Int, paints: OverlayPaints) {
+    // Наклонный ценник: всё посчитано ровно в системе строки — поворачиваем холст вокруг её центра.
+    val tilted = l.angle != 0f
+    if (tilted) {
+        c.save()
+        c.rotate(l.angle, l.pivotX, l.pivotY)
+    }
     paints.patch.color = l.paper
     paints.patch.alpha = (a * 0.55f).toInt()
     c.drawRoundRect(l.feather, l.radius * 1.6f, l.radius * 1.6f, paints.patch)
@@ -155,6 +161,7 @@ private fun drawEmbedded(c: android.graphics.Canvas, l: PriceLabel, a: Int, pain
         c.drawLine(b.right, b.bottom, b.right - len, b.bottom, paints.corner)
         c.drawLine(b.right, b.bottom, b.right, b.bottom - len, paints.corner)
     }
+    if (tilted) c.restore()
 }
 
 /**

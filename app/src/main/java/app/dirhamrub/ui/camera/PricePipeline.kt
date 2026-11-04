@@ -11,6 +11,7 @@ import app.dirhamrub.domain.price.PriceCurrency
 import app.dirhamrub.domain.price.PriceParser
 import app.dirhamrub.domain.price.PriceTracker
 import app.dirhamrub.domain.price.TrackedPrice
+import app.dirhamrub.domain.price.unrotatedSize
 import app.dirhamrub.domain.wallet.Currency
 import com.google.mlkit.vision.text.Text
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,6 +56,10 @@ class PriceLabel(
     val radius: Float = 0f,
     /** Вписанная: подчёркивание (знак пересчёта) или зачёркивание у старой цены. */
     val mark: RectF = EMPTY_RECT,
+    /** Вписанная: наклон ценника, градусы; рисуется поворотом холста вокруг ([pivotX], [pivotY]). */
+    val angle: Float = 0f,
+    val pivotX: Float = 0f,
+    val pivotY: Float = 0f,
     /** Сумма в итоговой валюте по выбранной карте (или ЦБ) — для карточки, шторки и TalkBack. */
     val homeAmount: BigDecimal?,
     /** Сумма по курсу ЦБ — для карточки фокуса (null — не показывать). */
@@ -330,8 +335,19 @@ class PricePipeline(private val metrics: LabelMetrics) {
         homeAmount: BigDecimal,
         official: BigDecimal?,
     ): PriceLabel {
-        val h = t.box.height
-        val ext = t.extent
+        // Наклонный ценник: рамки OCR — вдоль осей экрана, поэтому восстанавливаем размеры строки
+        // «как на ценнике» и рисуем всё ровно в её системе координат, а холст поворачиваем при отрисовке.
+        val px = t.extent.centerX
+        val py = t.extent.centerY
+        val extSize = if (t.angle != 0f) unrotatedSize(t.extent.width, t.extent.height, t.angle) else null
+        val boxSize = if (extSize != null) unrotatedSize(t.box.width, t.box.height, t.angle) else null
+        val angle = if (extSize != null && boxSize != null) t.angle else 0f
+        val ext = if (angle == 0f) {
+            t.extent
+        } else {
+            Box(px - extSize!!.first / 2f, py - extSize.second / 2f, px + extSize.first / 2f, py + extSize.second / 2f)
+        }
+        val h = if (angle == 0f) t.box.height else boxSize!!.second
         val c = colors[t.id]
         val digitHeight = h * DIGIT_SHARE
         embedPaint.textSize = digitHeight / DIGIT_TO_SIZE
@@ -343,7 +359,9 @@ class PricePipeline(private val metrics: LabelMetrics) {
         val patch = RectF(left, ext.top - padY, right, ext.bottom + padY)
         val feather = RectF(patch.left - padY, patch.top - padY, patch.right + padY, patch.bottom + padY)
         val textX = left + padX
-        val baseline = t.box.centerY + digitHeight / 2f
+        // Центр цифр в системе строки: у ровной — как есть, у наклонной — повёрнут обратно вокруг центра.
+        val (_, by) = if (angle == 0f) t.box.centerX to t.box.centerY else rotate(t.box.centerX, t.box.centerY, px, py, -angle)
+        val baseline = by + digitHeight / 2f
         val thick = maxOf(2f, h * 0.06f)
         // Старая цена — зачёркнута по середине цифр, новая — подчёркнута.
         val markY = if (t.isOld) baseline - digitHeight / 2f - thick / 2f else baseline + h * 0.14f
@@ -363,9 +381,22 @@ class PricePipeline(private val metrics: LabelMetrics) {
             feather = feather,
             radius = h * 0.18f,
             mark = RectF(textX, markY, textX + textW, markY + thick),
+            angle = angle,
+            pivotX = px,
+            pivotY = py,
             homeAmount = homeAmount,
             officialAmount = official?.let { t.value.multiply(it, MC) },
         )
+    }
+
+    /** Точка ([x], [y]), повёрнутая на [deg] градусов вокруг ([cx], [cy]). */
+    private fun rotate(x: Float, y: Float, cx: Float, cy: Float, deg: Float): Pair<Float, Float> {
+        val r = Math.toRadians(deg.toDouble())
+        val cos = kotlin.math.cos(r).toFloat()
+        val sin = kotlin.math.sin(r).toFloat()
+        val dx = x - cx
+        val dy = y - cy
+        return (cx + dx * cos - dy * sin) to (cy + dx * sin + dy * cos)
     }
 
     /** Смешивание цветов: новое значение с весом [COLOR_SMOOTHING]. */

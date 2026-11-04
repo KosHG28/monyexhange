@@ -7,6 +7,10 @@
     <string name="currency_button_a11y">Траты в: %1$s, итог в: %2$s. Сменить валюты</string>
     <string name="currency_sheet_spend">Где тратите</string>
     <string name="currency_sheet_home">Итог считать в</string>
+    <string name="tile_camera">Ценник</string>
+    <string name="tile_offer">Камера в шторке: плитка «Ценник» открывает её с любого экрана</string>
+    <string name="tile_offer_add">Добавить</string>
+    <string name="tile_offer_add_a11y">Добавить плитку «Ценник» в шторку быстрых настроек</string>
     <string name="country_offer">%1$s: считать цены в %2$s?</string>
     <string name="country_offer_switch">Да</string>
     <string name="country_offer_yes">Считать цены в %1$s</string>
@@ -31,6 +35,9 @@
 
     <!-- Главный экран -->
     <string name="result_a11y">Итого %1$s</string>
+    <string name="stale_receipt">Чек от %1$s · ЦБ с тех пор %2$s %%</string>
+    <string name="stale_receipt_action">" · обновить ›"</string>
+    <string name="stale_receipt_a11y">Чек от %1$s устарел: курс ЦБ с тех пор изменился на %2$s %%. Открыть карту, чтобы обновить чек</string>
     <string name="add_receipt">" · добавить чек ›"</string>
     <string name="add_receipt_a11y">Добавить чек покупки, %1$s — курс станет точным</string>
     <string name="compare_amount">%1$s %2$s (%3$s %%)</string>
@@ -77,6 +84,16 @@
     <string name="scan_transfer">Заполнили пополнение: %1$s → %2$s. Проверьте и сохраните.</string>
     <string name="editor_title_new">Новая карта</string>
     <string name="editor_title_edit">Карта</string>
+    <string name="editor_title_new_cash">Новые наличные</string>
+    <string name="editor_title_cash">Наличные</string>
+    <string name="kind_card">Карта</string>
+    <string name="kind_cash">Наличные</string>
+    <string name="cash_default_name">Наличные %1$s</string>
+    <string name="editor_currency_cash">Валюта наличных</string>
+    <string name="receipt_exchange">Обмен</string>
+    <string name="receipt_gave">Отдал</string>
+    <string name="receipt_received">Получил</string>
+    <string name="receipt_exchange_hint">Сколько отдали в обменнике и сколько получили на руки — курс наличных будет точным.</string>
     <string name="editor_name">Название</string>
     <string name="editor_name_hint">Например, Kaspi или Tinkoff</string>
     <string name="editor_currency">Валюта карты</string>
@@ -95,6 +112,7 @@
     <string name="editor_result">%1$s = %2$s %3$s</string>
     <string name="editor_no_result">Добавьте чек или обновите курсы ЦБ</string>
     <string name="editor_delete">Удалить карту</string>
+    <string name="editor_delete_cash">Удалить наличные</string>
     <string name="editor_pick_currency">Выбрать валюту</string>
 
     <!-- Камера -->
@@ -155,7 +173,7 @@
     <string name="onboarding_card_lead">Карту, которой платите, и чек пополнения или покупки — посчитаем ваш реальный курс.</string>
     <string name="onboarding_card_sample_name">Карта в юанях</string>
     <string name="onboarding_card_sample_rate">22,45 ₽/AED · +2,2 % к ЦБ</string>
-    <string name="onboarding_card_hint">Чек можно не набирать: в редакторе карты есть «Заполнить из скриншота банка». Карт может быть сколько угодно, в любых валютах.</string>
+    <string name="onboarding_card_hint">Чек можно не набирать: в редакторе карты есть «Заполнить из скриншота банка». Карт может быть сколько угодно, в любых валютах, а наличные из обменника добавляются там же — переключатель «Наличные».</string>
     <string name="onboarding_add_card">Добавить карту</string>
     <string name="onboarding_skip">Пока без карты — по курсу ЦБ</string>
 </resources>

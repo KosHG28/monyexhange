@@ -184,6 +184,28 @@ class PriceParserTest {
     }
 
     @Test
+    fun `наклон строки переходит в цену`() {
+        val tilted = line("AED", "45.00").copy(angle = 12f)
+        assertEquals(12f, parse(tilted).single().angle, 0.01f)
+        // Склейка копеек верхним индексом не теряет наклон.
+        val big = w("79", 10f, y = 100f, h = 60f)
+        val sup = w("95", big.box.right + 3f, y = 102f, h = 26f)
+        assertEquals(-8f, parse(OcrLine(listOf(big, sup), angle = -8f)).single().angle, 0.01f)
+    }
+
+    @Test
+    fun `размер повёрнутой рамки`() {
+        // Прямоугольник 200 × 40, повёрнутый на 10°: рамка вдоль осей ≈ 203,9 × 74,1.
+        val (w, h) = unrotatedSize(203.89f, 74.12f, 10f)!!
+        assertEquals(200f, w, 0.5f)
+        assertEquals(40f, h, 0.5f)
+        val (w0, h0) = unrotatedSize(120f, 30f, 0f)!!
+        assertEquals(120f, w0, 0.01f)
+        assertEquals(30f, h0, 0.01f)
+        assertEquals(null, unrotatedSize(100f, 40f, 40f))
+    }
+
+    @Test
     fun `артикул через несколько слешей не цена`() {
         // Ценник Zara: «ART.: 9598/202/251» — «251» не цена, хотя набрано тем же кеглем.
         val art = OcrBlock(listOf(line("ART.:", "9598/202/251", y = 300f, h = 60f)))

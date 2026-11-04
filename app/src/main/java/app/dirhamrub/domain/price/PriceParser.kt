@@ -18,6 +18,8 @@ data class PriceCandidate(
     val confident: Boolean = true,
     /** Цена вместе со знаком валюты рядом («17 990 ТГ») — что закрывать, когда сумма вписывается в ценник. */
     val extent: Box = box,
+    /** Наклон строки с ценой, градусы. */
+    val angle: Float = 0f,
 )
 
 /**
@@ -128,7 +130,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
             val blockHasCurrency = currency.pattern.containsMatchIn(blockText)
             lines.forEachIndexed { index, line ->
                 val prevLine = if (index > 0) lines[index - 1] else null
-                parseLine(glueFragments(line.words), prevLine, blockHasCurrency, raw)
+                parseLine(glueFragments(line.words), prevLine, blockHasCurrency, raw, line.angle)
             }
         }
         if (raw.isEmpty()) return emptyList()
@@ -157,7 +159,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         markStruckOut(kept)
         return dedupe(kept)
             .sortedByDescending { it.score }
-            .map { PriceCandidate(it.value, it.box, it.score, it.hasCurrency, it.isOld, it.confident, it.extent) }
+            .map { PriceCandidate(it.value, it.box, it.score, it.hasCurrency, it.isOld, it.confident, it.extent, it.angle) }
     }
 
     /** Число у левого или правого края (ближе 0,6 высоты цифр) или за ним — могло обрезаться. */
@@ -175,6 +177,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         val digits: Int,
         var isOld: Boolean,
         val extent: Box,
+        val angle: Float,
     ) {
         var score: Float = 0f
         val confident: Boolean get() = hasCurrency || blockCurrency || hasFraction
@@ -184,7 +187,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         val end: Int get() = start + text.length
     }
 
-    private fun parseLine(words: List<OcrWord>, prevLine: OcrLine?, blockCurrency: Boolean, out: MutableList<Raw>) {
+    private fun parseLine(words: List<OcrWord>, prevLine: OcrLine?, blockCurrency: Boolean, out: MutableList<Raw>, angle: Float) {
         if (words.isEmpty()) return
         val tokens = ArrayList<Token>(words.size)
         val sb = StringBuilder()
@@ -236,6 +239,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
                 digits = numberText.count { it.isDigit() },
                 isOld = oldKeyword,
                 extent = extent,
+                angle = angle,
             )
         }
     }
@@ -328,7 +332,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         }
         if (replaced.isEmpty()) return lines
         return lines.map { line ->
-            OcrLine(line.words.filter { it !in removed }.map { replaced[it] ?: it })
+            line.copy(words = line.words.filter { it !in removed }.map { replaced[it] ?: it })
         }.filter { it.words.isNotEmpty() }
     }
 

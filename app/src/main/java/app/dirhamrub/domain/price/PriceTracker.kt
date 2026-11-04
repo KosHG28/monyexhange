@@ -16,6 +16,8 @@ data class TrackedPrice(
     val confident: Boolean = true,
     /** Цена со знаком валюты, сглаженная как [box]. */
     val extent: Box = box,
+    /** Наклон строки, градусы, сглаженный. */
+    val angle: Float = 0f,
 )
 
 /**
@@ -48,6 +50,7 @@ class PriceTracker(
         var extentTop: Float,
         var extentRight: Float,
         var extentBottom: Float,
+        var angle: Float,
         var score: Float,
         var hasCurrency: Boolean,
         var isOld: Boolean,
@@ -80,6 +83,7 @@ class PriceTracker(
                     left = c.box.left, top = c.box.top, right = c.box.right, bottom = c.box.bottom,
                     extentLeft = c.box.left - c.extent.left, extentTop = c.box.top - c.extent.top,
                     extentRight = c.extent.right - c.box.right, extentBottom = c.extent.bottom - c.box.bottom,
+                    angle = c.angle,
                     score = c.score, hasCurrency = c.hasCurrency, isOld = c.isOld, confident = c.confident,
                     history = 1, lastSeenMs = nowMs,
                 )
@@ -94,6 +98,7 @@ class PriceTracker(
                 track.extentTop += smoothing * (c.box.top - c.extent.top - track.extentTop)
                 track.extentRight += smoothing * (c.extent.right - c.box.right - track.extentRight)
                 track.extentBottom += smoothing * (c.extent.bottom - c.box.bottom - track.extentBottom)
+                track.angle += smoothing * (c.angle - track.angle)
                 track.score += smoothing * (c.score - track.score)
                 track.hasCurrency = track.hasCurrency || c.hasCurrency
                 track.isOld = c.isOld
@@ -124,7 +129,7 @@ class PriceTracker(
             .sortedByDescending { it.score }
             .take(maxLabels)
             .map { t ->
-                TrackedPrice(t.id, t.value, t.box, t.score, t.hasCurrency, t.isOld, alpha(t, nowMs), t.confident, t.extent)
+                TrackedPrice(t.id, t.value, t.box, t.score, t.hasCurrency, t.isOld, alpha(t, nowMs), t.confident, t.extent, t.angle)
             }
     }
 

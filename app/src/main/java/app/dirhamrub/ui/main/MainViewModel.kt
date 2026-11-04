@@ -18,6 +18,8 @@ import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.RateEngine
+import app.dirhamrub.domain.wallet.ReceiptAge
+import app.dirhamrub.domain.wallet.StaleReceipt
 import app.dirhamrub.domain.wallet.Wallet
 import app.dirhamrub.domain.wallet.WalletQuote
 import kotlinx.coroutines.delay
@@ -28,6 +30,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.util.UUID
 
 /** Одна сумма в трёх валютах: трат, итоговой и выбранной карты (null — курса нет). */
@@ -55,7 +58,15 @@ data class MainUiState(
     val onboardingDone: Boolean = true,
     /** Камера вписывает суммы в ценники (иначе — плашки над ценами). */
     val cameraEmbedded: Boolean = true,
+    /** Курсы ЦБ на даты чеков. */
+    val ratesHistory: Map<LocalDate, OfficialRates> = emptyMap(),
+    val cameraUsed: Boolean = false,
+    val tileOffered: Boolean = true,
 ) {
+    /** Устаревший чек выбранной карты: давно, а ЦБ с тех пор заметно сдвинулся. */
+    val staleReceipt: StaleReceipt?
+        get() = selectedCard?.let { ReceiptAge.check(it, wallet.spend, wallet.home, LocalDate.now(), official, ratesHistory) }
+
     /** Изменение курса ЦБ валюты трат к итоговой за неделю, в процентах. */
     val weekTrend: BigDecimal? get() = official?.trendPercent(officialWeekAgo, wallet.spend, wallet.home)
 
@@ -116,6 +127,9 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
                 // Знакомство — только для нового пользователя: у перешедших со старых версий карты уже есть.
                 onboardingDone = stored.onboardingDone || stored.wallet.cards.isNotEmpty(),
                 cameraEmbedded = stored.cameraEmbedded,
+                ratesHistory = stored.ratesHistory,
+                cameraUsed = stored.cameraUsed,
+                tileOffered = stored.tileOffered,
             )
             refreshRates(force = false)
             // Сохраняем не чаще раза в 300 мс: collectLatest отменяет отложенную запись при новом нажатии.
@@ -146,19 +160,25 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
     }
 
     /** Другая валюта трат: сохраняем сумму в итоговой валюте и пересчитываем в новую валюту. */
-    fun setSpend(currency: Currency) = _state.update { s ->
-        if (s.wallet.spend == currency) return@update s
-        val home = s.totals.home
-        val next = s.copy(wallet = s.wallet.copy(spend = currency), active = Line.SPEND)
-        val rate = next.homePerUnit
-        val amount = if (home != null && rate != null) divideOrZero(home, rate) else BigDecimal.ZERO
-        next.copy(expression = Expression.of(amount))
+    fun setSpend(currency: Currency) {
+        _state.update { s ->
+            if (s.wallet.spend == currency) return@update s
+            val home = s.totals.home
+            val next = s.copy(wallet = s.wallet.copy(spend = currency), active = Line.SPEND)
+            val rate = next.homePerUnit
+            val amount = if (home != null && rate != null) divideOrZero(home, rate) else BigDecimal.ZERO
+            next.copy(expression = Expression.of(amount))
+        }
+        refreshReceiptRates()
     }
 
     /** Другая итоговая валюта: сумма в валюте трат остаётся. */
-    fun setHome(currency: Currency) = _state.update { s ->
-        if (s.wallet.home == currency) s
-        else s.copy(wallet = s.wallet.copy(home = currency), active = Line.SPEND, expression = Expression.of(s.totals.spend))
+    fun setHome(currency: Currency) {
+        _state.update { s ->
+            if (s.wallet.home == currency) s
+            else s.copy(wallet = s.wallet.copy(home = currency), active = Line.SPEND, expression = Expression.of(s.totals.spend))
+        }
+        refreshReceiptRates()
     }
 
     /** Быстрая сумма в валюте трат: после «+» подставляется в выражение, иначе заменяет его. */
@@ -192,8 +212,9 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
         selectCard(next.id)
     }
 
-    fun saveCard(card: BankCard) = _state.update { s ->
-        s.copy(wallet = s.wallet.upsert(card).copy(selectedId = card.id))
+    fun saveCard(card: BankCard) {
+        _state.update { s -> s.copy(wallet = s.wallet.upsert(card).copy(selectedId = card.id)) }
+        refreshReceiptRates()
     }
 
     fun deleteCard(id: String) = _state.update { s ->
@@ -214,6 +235,7 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
         if (s.ratesLoading) return
         if (!force && s.official != null && System.currentTimeMillis() - officialFetchedAt < RATES_TTL_MS) {
             refreshWeekAgo()
+            refreshReceiptRates()
             return
         }
         _state.update { it.copy(ratesLoading = true, ratesFailed = false) }
@@ -225,6 +247,31 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
             }
             _state.update { it.copy(official = rates ?: it.official, ratesLoading = false, ratesFailed = rates == null) }
             refreshWeekAgo()
+            refreshReceiptRates()
+        }
+    }
+
+    private val historyLoading = HashSet<LocalDate>()
+
+    /** Курсы ЦБ на даты старых чеков (для «чек устарел»): качаем недостающие, не больше нескольких за раз. */
+    private fun refreshReceiptRates() {
+        val s = _state.value
+        if (s.official == null) return
+        val today = LocalDate.now()
+        val missing = s.wallet.cards
+            .flatMap { ReceiptAge.datesToCheck(it, s.wallet.spend, s.wallet.home, today) }
+            .distinct()
+            .filter { it !in s.ratesHistory && it !in historyLoading }
+            .take(HISTORY_BATCH)
+        if (missing.isEmpty()) return
+        historyLoading += missing
+        viewModelScope.launch {
+            for (day in missing) {
+                val rates = CbrClient.fetchOn(day) ?: continue
+                _state.update { st -> st.copy(ratesHistory = (st.ratesHistory + (day to rates)).entries.sortedByDescending { it.key }.take(HISTORY_MAX).associate { it.key to it.value }) }
+            }
+            historyLoading -= missing.toSet()
+            repository.saveRatesHistory(_state.value.ratesHistory)
         }
     }
 
@@ -249,6 +296,19 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
         }
     }
 
+    /** Камеру открыли — после неё можно предложить плитку «Ценник» в шторке. */
+    fun markCameraUsed() {
+        if (_state.value.cameraUsed) return
+        _state.update { it.copy(cameraUsed = true) }
+        viewModelScope.launch { repository.saveFlag(WalletRepository.FLAG_CAMERA_USED) }
+    }
+
+    /** Плитку предложили (добавили или отказались) — больше не спрашиваем. */
+    fun markTileOffered() {
+        _state.update { it.copy(tileOffered = true) }
+        viewModelScope.launch { repository.saveFlag(WalletRepository.FLAG_TILE_OFFERED) }
+    }
+
     fun setCameraEmbedded(value: Boolean) {
         _state.update { it.copy(cameraEmbedded = value) }
         viewModelScope.launch { repository.saveCameraEmbedded(value) }
@@ -265,6 +325,8 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
         private const val RATES_TTL_MS = 6 * 60 * 60 * 1000L
         private const val WEEK_DAYS = 7L
         private const val WEEK_SLACK_DAYS = 3L
+        private const val HISTORY_BATCH = 5
+        private const val HISTORY_MAX = 30
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {

@@ -7,6 +7,7 @@ import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardComparison
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.RateBasis
+import app.dirhamrub.domain.wallet.StaleReceipt
 
 /* Общие для частей главного экрана размеры и расчёты. */
 
@@ -23,6 +24,9 @@ internal fun basisText(state: MainUiState): RateBasis? {
     val q = state.selectedQuote ?: return null
     return q.basis.takeIf { it != RateBasis.RECEIPTS }
 }
+
+/** Устаревший чек выбранной карты — показываем вместо подписи «оценка». */
+internal fun basisStale(state: MainUiState): StaleReceipt? = state.staleReceipt
 
 /** Карта, которой не хватает чека покупки в валюте трат: курс — оценка или чистый ЦБ. */
 internal fun basisAction(state: MainUiState): BankCard? {

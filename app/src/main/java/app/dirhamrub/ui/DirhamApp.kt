@@ -1,8 +1,13 @@
 package app.dirhamrub.ui
 
+import android.app.StatusBarManager
+import android.content.ComponentName
 import android.content.Context
+import android.graphics.drawable.Icon
+import android.os.Build
 import android.telephony.TelephonyManager
 import androidx.activity.compose.BackHandler
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,7 +23,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import app.dirhamrub.CameraTileService
 import app.dirhamrub.MainActivity
+import app.dirhamrub.R
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.ui.camera.CameraScreen
@@ -41,6 +48,18 @@ private fun networkCountry(context: Context): String? =
         ?.trim()
         ?.uppercase()
         ?.takeIf { it.length == 2 }
+
+/** Системный запрос «Добавить плитку «Ценник» в быстрые настройки?». */
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+private fun requestCameraTile(context: Context) {
+    val bar = context.getSystemService(StatusBarManager::class.java) ?: return
+    bar.requestAddTileService(
+        ComponentName(context, CameraTileService::class.java),
+        context.getString(R.string.tile_camera),
+        Icon.createWithResource(context, R.drawable.ic_camera_white),
+        context.mainExecutor,
+    ) { }
+}
 
 /** Корень интерфейса: главный экран, камера и шторки. */
 @Composable
@@ -99,6 +118,7 @@ fun DirhamApp(
     }
 
     if (cameraOpen) {
+        LaunchedEffect(Unit) { vm.markCameraUsed() }
         BackHandler { cameraOpen = false }
         CameraScreen(
             wallet = state.wallet,
@@ -115,9 +135,16 @@ fun DirhamApp(
         return
     }
 
+    // Плитка «Ценник» в шторке: предлагаем один раз, после первого знакомства с камерой (Android 13+).
+    val tileOffer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && state.cameraUsed && !state.tileOffered
     MainScreen(
         state = state,
         countryOffer = offer,
+        tileOffer = tileOffer,
+        onTileOffer = { accept ->
+            if (accept && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) requestCameraTile(context)
+            vm.markTileOffered()
+        },
         onKey = vm::press,
         onSelectCard = vm::selectCard,
         onStepCard = vm::stepCard,

@@ -86,7 +86,7 @@ fun CheatSheet(
             val best = quote.best?.takeIf { quote.quotes.size > 1 }
             // Колонки: карты (по курсу каждой) и ЦБ. Много карт — таблица прокручивается вбок.
             val columns = quote.quotes.map {
-                CheatColumn(it.card.name, CardPalette.style(it.card.style).start, it.homePerUnit, it.card.id == selectedId, it == best)
+                CheatColumn(it.card.name, CardPalette.style(it.card).start, it.homePerUnit, it.card.id == selectedId, it == best)
             } + CheatColumn(stringResource(R.string.cheat_official), null, quote.official, selected = false, best = false)
             val amounts = MainViewModel.cheat(spend)
             val current = amount.takeIf { it.signum() > 0 }

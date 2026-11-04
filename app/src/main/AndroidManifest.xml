@@ -35,6 +35,21 @@
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
         </activity>
+
+        <!-- Плитка «Ценник» в шторке быстрых настроек. -->
+        <service
+            android:name=".CameraTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_camera_white"
+            android:label="@string/tile_camera"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="false" />
+        </service>
     </application>
 
 </manifest>

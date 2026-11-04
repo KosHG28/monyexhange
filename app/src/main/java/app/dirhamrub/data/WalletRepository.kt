@@ -42,6 +42,12 @@ data class StoredState(
     val onboardingDone: Boolean,
     /** Камера вписывает суммы в ценники (иначе — плашки). */
     val cameraEmbedded: Boolean,
+    /** Курсы ЦБ на даты чеков — чтобы заметить устаревший чек. */
+    val ratesHistory: Map<LocalDate, OfficialRates>,
+    /** Камерой уже пользовались — можно предложить плитку «Ценник». */
+    val cameraUsed: Boolean,
+    /** Плитку «Ценник» уже предлагали (добавили или отказались). */
+    val tileOffered: Boolean,
 )
 
 /**
@@ -68,11 +74,22 @@ class WalletRepository(private val store: DataStore<Preferences>) {
             countryHandled = p[COUNTRY_HANDLED],
             onboardingDone = p[ONBOARDING_DONE] ?: false,
             cameraEmbedded = p[CAMERA_EMBEDDED] ?: true,
+            ratesHistory = WalletCodec.decodeHistory(p[RATES_HISTORY]),
+            cameraUsed = p[CAMERA_USED] ?: false,
+            tileOffered = p[TILE_OFFERED] ?: false,
         )
     }
 
     suspend fun saveOfficialWeekAgo(rates: OfficialRates) {
         store.edit { p -> p[OFFICIAL_WEEK] = WalletCodec.encodeRates(rates) }
+    }
+
+    suspend fun saveFlag(name: String) {
+        store.edit { p -> p[booleanPreferencesKey(name)] = true }
+    }
+
+    suspend fun saveRatesHistory(history: Map<LocalDate, OfficialRates>) {
+        store.edit { p -> p[RATES_HISTORY] = WalletCodec.encodeHistory(history) }
     }
 
     suspend fun saveCameraEmbedded(value: Boolean) {
@@ -106,8 +123,10 @@ class WalletRepository(private val store: DataStore<Preferences>) {
             p[OFFICIAL_AT] = System.currentTimeMillis()
             p[OFFICIAL_WEEK] = WalletCodec.encodeRates(weekAgo)
             p[ONBOARDING_DONE] = true
-            // Эмулятор CI «находится» в США — плашку «считать в USD?» на скриншотах не показываем.
+            // Эмулятор CI «находится» в США — плашку «считать в USD?» на скриншотах не показываем,
+            // как и предложение плитки «Ценник».
             p[COUNTRY_HANDLED] = "US"
+            p[TILE_OFFERED] = true
         }
     }
 
@@ -164,5 +183,10 @@ class WalletRepository(private val store: DataStore<Preferences>) {
         val OFFICIAL_WEEK = stringPreferencesKey("official_week_ago")
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
         val CAMERA_EMBEDDED = booleanPreferencesKey("camera_embedded")
+        val RATES_HISTORY = stringPreferencesKey("rates_history")
+        const val FLAG_CAMERA_USED = "camera_used"
+        const val FLAG_TILE_OFFERED = "tile_offered"
+        val CAMERA_USED = booleanPreferencesKey(FLAG_CAMERA_USED)
+        val TILE_OFFERED = booleanPreferencesKey(FLAG_TILE_OFFERED)
     }
 }

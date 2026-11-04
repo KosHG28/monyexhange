@@ -31,7 +31,15 @@ data class ManualRate(
     val date: LocalDate,
 )
 
-/** Банковская карта пользователя. [style] — номер оформления (градиент). */
+/** Чем платят: картой или наличными из обменника. */
+enum class CardKind {
+    CARD,
+
+    /** Наличные: «чек пополнения» — это обмен (отдал 10 000 ₽ → получил 1 200 AED), покупок по чекам нет. */
+    CASH,
+}
+
+/** Карта пользователя (или наличные — [kind]). [style] — номер оформления (градиент). */
 data class BankCard(
     val id: String,
     val name: String,
@@ -40,6 +48,7 @@ data class BankCard(
     val transfer: TransferReceipt? = null,
     val purchases: List<PurchaseReceipt> = emptyList(),
     val manual: List<ManualRate> = emptyList(),
+    val kind: CardKind = CardKind.CARD,
 ) {
     /** Последний чек покупки в валюте трат [spend]. */
     fun purchaseFor(spend: Currency): PurchaseReceipt? =

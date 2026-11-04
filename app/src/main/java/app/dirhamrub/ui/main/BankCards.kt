@@ -215,7 +215,7 @@ private fun BankCardView(
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    val style = CardPalette.style(card.style)
+    val style = CardPalette.style(card)
     val dim by animateFloatAsState(if (selected) 1f else 0.82f, motion(), label = "cardDim")
     val ring by animateFloatAsState(if (selected) 1f else 0f, motion(), label = "cardRing")
 

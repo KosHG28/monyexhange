@@ -44,10 +44,28 @@ data class Box(val left: Float, val top: Float, val right: Float, val bottom: Fl
 /** Слово OCR. */
 data class OcrWord(val text: String, val box: Box)
 
-/** Строка OCR — слова слева направо. */
-data class OcrLine(val words: List<OcrWord>) {
+/** Строка OCR — слова слева направо; [angle] — наклон строки в градусах (по часовой стрелке). */
+data class OcrLine(val words: List<OcrWord>, val angle: Float = 0f) {
     val text: String get() = words.joinToString(" ") { it.text }
 }
+
+/**
+ * Размер повёрнутого на [angleDeg] прямоугольника по его рамке вдоль осей ([width] × [height]):
+ * ширина и высота «как на ценнике». null — угол слишком большой (больше 30°) или рамка не сходится.
+ */
+fun unrotatedSize(width: Float, height: Float, angleDeg: Float): Pair<Float, Float>? {
+    if (kotlin.math.abs(angleDeg) > MAX_TILT) return null
+    val a = Math.toRadians(kotlin.math.abs(angleDeg).toDouble())
+    val c = kotlin.math.cos(a)
+    val s = kotlin.math.sin(a)
+    val det = c * c - s * s
+    if (det <= 0.0) return null
+    val w = (width * c - height * s) / det
+    val h = (height * c - width * s) / det
+    return if (w > 0 && h > 0) w.toFloat() to h.toFloat() else null
+}
+
+private const val MAX_TILT = 30f
 
 /** Блок OCR — несколько соседних строк. */
 data class OcrBlock(val lines: List<OcrLine>)

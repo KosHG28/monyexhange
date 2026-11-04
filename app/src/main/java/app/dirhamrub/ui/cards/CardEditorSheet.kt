@@ -5,6 +5,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -52,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.BankCard
+import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.ManualRate
 import app.dirhamrub.domain.wallet.OfficialRates
@@ -117,6 +120,8 @@ fun CardEditorSheet(
 
     var name by remember(card.id) { mutableStateOf(card.name) }
     var currency by remember(card.id) { mutableStateOf(card.currency) }
+    var kind by remember(card.id) { mutableStateOf(card.kind) }
+    val cash = kind == CardKind.CASH
     var sent by remember(card.id) { mutableStateOf(card.transfer?.sent?.let(::field).orEmpty()) }
     var sentCurrency by remember(card.id) { mutableStateOf(card.transfer?.sentCurrency ?: home) }
     var got by remember(card.id) { mutableStateOf(card.transfer?.got?.let(::field).orEmpty()) }
@@ -159,7 +164,7 @@ fun CardEditorSheet(
         }
     }
 
-    val defaultName = stringResource(R.string.card_default_name, currency.code)
+    val defaultName = stringResource(if (cash) R.string.cash_default_name else R.string.card_default_name, currency.code)
     fun build(): BankCard {
         val today = LocalDate.now()
         val sentValue = Numbers.parse(sent)
@@ -171,7 +176,8 @@ fun CardEditorSheet(
         } else {
             null
         }
-        val receipts = purchases.mapNotNull { d ->
+        // У наличных покупок по чекам нет: платят ровно ценой в той же валюте.
+        val receipts = if (kind == CardKind.CASH) emptyList() else purchases.mapNotNull { d ->
             val paid = Numbers.parse(d.paid) ?: return@mapNotNull null
             val price = Numbers.parse(d.price) ?: return@mapNotNull null
             if (paid.signum() <= 0 || price.signum() <= 0) return@mapNotNull null
@@ -184,6 +190,7 @@ fun CardEditorSheet(
         return card.copy(
             name = name.trim().ifEmpty { defaultName },
             currency = currency,
+            kind = kind,
             transfer = transfer,
             purchases = receipts,
             manual = otherManual + listOfNotNull(manualValue?.let { ManualRate(spend, home, it, today) }),
@@ -199,12 +206,22 @@ fun CardEditorSheet(
                 .padding(bottom = 20.dp),
         ) {
             Text(
-                text = stringResource(if (isNew) R.string.editor_title_new else R.string.editor_title_edit),
+                text = stringResource(
+                    when {
+                        cash && isNew -> R.string.editor_title_new_cash
+                        cash -> R.string.editor_title_cash
+                        isNew -> R.string.editor_title_new
+                        else -> R.string.editor_title_edit
+                    },
+                ),
                 style = type.title,
                 color = colors.ink,
                 modifier = Modifier.semantics { heading() },
             )
             Spacer(Modifier.height(10.dp))
+            // Карта или наличные из обменника: у наличных вместо пополнения — обмен, покупок по чекам нет.
+            KindSwitch(kind) { kind = it }
+            Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it.take(MAX_NAME) },
@@ -215,7 +232,7 @@ fun CardEditorSheet(
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(12.dp))
-            ReceiptSection(stringResource(R.string.editor_currency))
+            ReceiptSection(stringResource(if (cash) R.string.editor_currency_cash else R.string.editor_currency))
             CurrencyChips(options = Currency.entries, selected = currency, onSelect = { currency = it })
             Spacer(Modifier.height(16.dp))
 
@@ -233,49 +250,53 @@ fun CardEditorSheet(
                     .background(colors.paper)
                     .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 28.dp),
             ) {
-                ReceiptSection(stringResource(R.string.receipt_transfer))
+                ReceiptSection(stringResource(if (cash) R.string.receipt_exchange else R.string.receipt_transfer))
                 val pick = stringResource(R.string.editor_pick_currency)
-                ReceiptLine(stringResource(R.string.receipt_sent), sent, { sent = it }, stringResource(R.string.receipt_sent)) {
+                val sentLabel = stringResource(if (cash) R.string.receipt_gave else R.string.receipt_sent)
+                val gotLabel = stringResource(if (cash) R.string.receipt_received else R.string.receipt_got)
+                ReceiptLine(sentLabel, sent, { sent = it }, sentLabel) {
                     CurrencyDropdown(sentCurrency, Currency.entries, { sentCurrency = it }, pick)
                 }
-                ReceiptLine(stringResource(R.string.receipt_got), got, { got = it }, stringResource(R.string.receipt_got)) {
+                ReceiptLine(gotLabel, got, { got = it }, gotLabel) {
                     CurrencyMark(currency.symbol)
                 }
-                Hint(stringResource(R.string.receipt_transfer_hint))
+                Hint(stringResource(if (cash) R.string.receipt_exchange_hint else R.string.receipt_transfer_hint))
                 Spacer(Modifier.height(10.dp))
 
-                ReceiptSection(stringResource(R.string.receipt_purchases))
-                for (d in purchases) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CurrencyDropdown(d.spend, Currency.SPEND, { d.spend = it }, pick)
-                        Text(d.spend.nameRu, style = type.caption, color = colors.muted, modifier = Modifier.weight(1f))
-                        val remove = stringResource(R.string.receipt_remove)
-                        Icon(
-                            painterResource(R.drawable.ic_close),
-                            contentDescription = remove,
-                            tint = colors.muted,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .clickable(role = Role.Button) { purchases.remove(d) }
-                                .padding(10.dp),
-                        )
+                if (!cash) {
+                    ReceiptSection(stringResource(R.string.receipt_purchases))
+                    for (d in purchases) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CurrencyDropdown(d.spend, Currency.SPEND, { d.spend = it }, pick)
+                            Text(d.spend.nameRu, style = type.caption, color = colors.muted, modifier = Modifier.weight(1f))
+                            val remove = stringResource(R.string.receipt_remove)
+                            Icon(
+                                painterResource(R.drawable.ic_close),
+                                contentDescription = remove,
+                                tint = colors.muted,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .clickable(role = Role.Button) { purchases.remove(d) }
+                                    .padding(10.dp),
+                            )
+                        }
+                        ReceiptLine(stringResource(R.string.receipt_paid), d.paid, { d.paid = it }, stringResource(R.string.receipt_paid)) {
+                            CurrencyMark(currency.symbol)
+                        }
+                        ReceiptLine(stringResource(R.string.receipt_for), d.price, { d.price = it }, stringResource(R.string.receipt_for)) {
+                            CurrencyMark(d.spend.symbol)
+                        }
+                        Spacer(Modifier.height(6.dp))
                     }
-                    ReceiptLine(stringResource(R.string.receipt_paid), d.paid, { d.paid = it }, stringResource(R.string.receipt_paid)) {
-                        CurrencyMark(currency.symbol)
-                    }
-                    ReceiptLine(stringResource(R.string.receipt_for), d.price, { d.price = it }, stringResource(R.string.receipt_for)) {
-                        CurrencyMark(d.spend.symbol)
-                    }
-                    Spacer(Modifier.height(6.dp))
+                    TextButton(onClick = {
+                        val used = purchases.map { it.spend }.toSet()
+                        val first = if (spend !in used) spend else Currency.SPEND.firstOrNull { it !in used } ?: spend
+                        purchases.add(PurchaseDraft(nextKey++, first, "", "", LocalDate.now()))
+                    }) { Text(stringResource(R.string.receipt_add), style = type.bodyStrong, color = colors.accent) }
+                    Hint(stringResource(R.string.receipt_purchases_hint))
+                    Spacer(Modifier.height(10.dp))
                 }
-                TextButton(onClick = {
-                    val used = purchases.map { it.spend }.toSet()
-                    val first = if (spend !in used) spend else Currency.SPEND.firstOrNull { it !in used } ?: spend
-                    purchases.add(PurchaseDraft(nextKey++, first, "", "", LocalDate.now()))
-                }) { Text(stringResource(R.string.receipt_add), style = type.bodyStrong, color = colors.accent) }
-                Hint(stringResource(R.string.receipt_purchases_hint))
-                Spacer(Modifier.height(10.dp))
                 DashedDivider()
                 Spacer(Modifier.height(10.dp))
 
@@ -358,7 +379,40 @@ fun CardEditorSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 48.dp),
-                ) { Text(stringResource(R.string.editor_delete), style = type.bodyStrong, color = colors.accent) }
+                ) { Text(stringResource(if (cash) R.string.editor_delete_cash else R.string.editor_delete), style = type.bodyStrong, color = colors.accent) }
+            }
+        }
+    }
+}
+
+/** «Карта | Наличные» в редакторе. */
+@Composable
+private fun KindSwitch(kind: CardKind, onChange: (CardKind) -> Unit) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.surface)
+            .padding(4.dp),
+    ) {
+        for (option in CardKind.entries) {
+            val selected = option == kind
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (selected) colors.accentSoft else colors.surface)
+                    .selectable(selected = selected, role = Role.Tab) { onChange(option) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    stringResource(if (option == CardKind.CASH) R.string.kind_cash else R.string.kind_card),
+                    style = type.bodyStrong,
+                    color = if (selected) colors.accent else colors.muted,
+                )
             }
         }
     }

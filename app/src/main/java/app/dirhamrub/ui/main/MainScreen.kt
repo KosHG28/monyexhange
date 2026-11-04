@@ -36,7 +36,7 @@ data class CountryOffer(val iso: String, val currency: Currency)
 private fun topHeight(state: MainUiState, compact: Boolean, fontScale: Float): Dp {
     val hero = ((if (compact) HERO_COMPACT_SP else HERO_SP) * 1.12f * fontScale).dp
     val basis = when {
-        basisAction(state) != null -> ROW
+        basisStale(state) != null || basisAction(state) != null -> ROW
         basisText(state) != null -> TEXT_ROW
         else -> 0.dp
     }
@@ -48,6 +48,8 @@ private fun topHeight(state: MainUiState, compact: Boolean, fontScale: Float): D
 fun MainScreen(
     state: MainUiState,
     countryOffer: CountryOffer?,
+    tileOffer: Boolean,
+    onTileOffer: (accept: Boolean) -> Unit,
     onKey: (Key) -> Unit,
     onSelectCard: (String) -> Unit,
     onStepCard: (Int) -> Unit,
@@ -92,7 +94,10 @@ fun MainScreen(
                 verticalArrangement = Arrangement.SpaceBetween,
             ) {
                 Column {
-                    if (countryOffer != null) CountryBanner(countryOffer, onCountry)
+                    when {
+                        countryOffer != null -> CountryBanner(countryOffer, onCountry)
+                        tileOffer -> TileBanner(onTileOffer)
+                    }
                     BankCardsRow(
                         cards = wallet.cards,
                         quote = state.quote,
@@ -106,7 +111,7 @@ fun MainScreen(
                         modifier = Modifier.padding(top = CARDS_TOP),
                     )
                 }
-                ResultBlock(state, heroLine, compact, onSelectCard, onStepCard, onAddReceipt)
+                ResultBlock(state, heroLine, compact, onSelectCard, onStepCard, onAddReceipt, onEditCard)
                 OfficialLine(state, onRefreshRates, Modifier.align(Alignment.CenterHorizontally))
             }
         }

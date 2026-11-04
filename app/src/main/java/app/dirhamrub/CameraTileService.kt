@@ -1,5 +1,6 @@
 package app.dirhamrub
 
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Build
@@ -21,6 +22,8 @@ class CameraTileService : TileService() {
         if (isLocked) unlockAndRun { openCamera() } else openCamera()
     }
 
+    // Вариант с Intent вызывается только до Android 14, где он ещё работает; с 14 — PendingIntent.
+    @SuppressLint("StartActivityAndCollapseDeprecated")
     private fun openCamera() {
         val intent = Intent(this, MainActivity::class.java)
             .putExtra(MainActivity.EXTRA_SCREEN, MainActivity.SCREEN_CAMERA)

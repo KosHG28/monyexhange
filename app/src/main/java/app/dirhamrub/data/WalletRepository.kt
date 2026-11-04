@@ -84,8 +84,12 @@ class WalletRepository(private val store: DataStore<Preferences>) {
         store.edit { p -> p[OFFICIAL_WEEK] = WalletCodec.encodeRates(rates) }
     }
 
-    suspend fun saveFlag(name: String) {
-        store.edit { p -> p[booleanPreferencesKey(name)] = true }
+    suspend fun saveCameraUsed() {
+        store.edit { p -> p[CAMERA_USED] = true }
+    }
+
+    suspend fun saveTileOffered() {
+        store.edit { p -> p[TILE_OFFERED] = true }
     }
 
     suspend fun saveRatesHistory(history: Map<LocalDate, OfficialRates>) {
@@ -184,9 +188,7 @@ class WalletRepository(private val store: DataStore<Preferences>) {
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
         val CAMERA_EMBEDDED = booleanPreferencesKey("camera_embedded")
         val RATES_HISTORY = stringPreferencesKey("rates_history")
-        const val FLAG_CAMERA_USED = "camera_used"
-        const val FLAG_TILE_OFFERED = "tile_offered"
-        val CAMERA_USED = booleanPreferencesKey(FLAG_CAMERA_USED)
-        val TILE_OFFERED = booleanPreferencesKey(FLAG_TILE_OFFERED)
+        val CAMERA_USED = booleanPreferencesKey("camera_used")
+        val TILE_OFFERED = booleanPreferencesKey("tile_offered")
     }
 }

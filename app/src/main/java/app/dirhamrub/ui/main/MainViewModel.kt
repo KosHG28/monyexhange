@@ -300,13 +300,13 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
     fun markCameraUsed() {
         if (_state.value.cameraUsed) return
         _state.update { it.copy(cameraUsed = true) }
-        viewModelScope.launch { repository.saveFlag(WalletRepository.FLAG_CAMERA_USED) }
+        viewModelScope.launch { repository.saveCameraUsed() }
     }
 
     /** Плитку предложили (добавили или отказались) — больше не спрашиваем. */
     fun markTileOffered() {
         _state.update { it.copy(tileOffered = true) }
-        viewModelScope.launch { repository.saveFlag(WalletRepository.FLAG_TILE_OFFERED) }
+        viewModelScope.launch { repository.saveTileOffered() }
     }
 
     fun setCameraEmbedded(value: Boolean) {

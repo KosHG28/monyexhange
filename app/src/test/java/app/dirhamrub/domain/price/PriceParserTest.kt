@@ -261,8 +261,42 @@ class PriceParserTest {
     fun `рамка цены внутри слова с валютой`() {
         val l = OcrLine(listOf(OcrWord("AED12.50", Box(0f, 0f, 160f, 40f))))
         val box = parse(l).single().box
-        assertEquals(60f, box.left, 0.01f)
+        // Прописные шире цифр, точка уже: «AED» = 3,9 из 8,4 единиц ширины.
+        assertEquals(74.29f, box.left, 0.01f)
         assertEquals(160f, box.right, 0.01f)
+        // «179.00DHS»: цифры — 5,5 из 9,4 единиц, рамка не заходит на «D» (по числу символов было бы 627).
+        val zara = parse(OcrLine(listOf(OcrWord("179.00DHS", Box(0f, 0f, 940f, 80f))))).single()
+        assertEquals(0f, zara.box.left, 0.01f)
+        assertEquals(550f, zara.box.right, 0.01f)
+        assertEquals(940f, zara.extent.right, 0.01f)
+    }
+
+    @Test
+    fun `наклон строки — по центрам слов, углы OCR проверяются рамкой`() {
+        // Ровная строка из двух слов: углы OCR повёрнуты на 90° (или 180°) — всё равно 0.
+        val level = listOf(Box(0f, 100f, 180f, 160f), Box(200f, 100f, 300f, 160f))
+        assertEquals(0f, lineAngle(level, 0f, 300f), 0.01f)
+        assertEquals(0f, lineAngle(level, -300f, 0f), 0.01f)
+        // Наклон 20° по центрам слов (рамки вдоль осей — у наклонных слов выше букв).
+        val tilted = listOf(Box(0f, 0f, 100f, 70f), Box(170f, 62f, 270f, 132f))
+        assertEquals(20f, lineAngle(tilted, 1f, 0f), 0.5f)
+        // Одно слово: угол по углам OCR, 180° — та же горизонталь, наклон −8° — как есть.
+        val word = listOf(Box(0f, 0f, 300f, 80f))
+        assertEquals(0f, lineAngle(word, -300f, -2f), 0.01f)
+        assertEquals(-8f, lineAngle(word, 297f, -41.7f), 0.1f)
+        // Почти вертикальный угол у низкой широкой рамки — неверен: 0.
+        assertEquals(0f, lineAngle(word, 2f, 300f), 0.01f)
+        // Мелкий наклон — 0, чтобы сумма не дрожала.
+        assertEquals(0f, lineAngle(word, 300f, 5f), 0.01f)
+    }
+
+    @Test
+    fun `высота букв по углам OCR — только правдоподобная`() {
+        val box = Box(0f, 0f, 200f, 60f)
+        assertEquals(40f, glyphHeight(40f, box), 0.01f)
+        assertEquals(60f, glyphHeight(null, box), 0.01f)
+        // Длиннее рамки (углы перепутаны — это ширина слова) — высота рамки.
+        assertEquals(60f, glyphHeight(200f, box), 0.01f)
     }
 
     @Test

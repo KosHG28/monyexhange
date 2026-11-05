@@ -84,8 +84,8 @@ fun PriceOverlay(
                         l.unsure -> paints.unsure
                         else -> paints.accent
                     }
-                    val b = l.box
-                    // Лёгкая подсветка цены: у фокуса заметнее и с уголками «прицела».
+                    // Лёгкая подсветка цены вместе с валютой: у фокуса заметнее и с уголками «прицела».
+                    val b = l.frame
                     paints.boxFill.color = tint
                     paints.boxFill.alpha = (a * if (l.focused) 0.16f else 0.08f).toInt()
                     c.drawRoundRect(b, paints.boxRadius, paints.boxRadius, paints.boxFill)
@@ -132,11 +132,14 @@ private fun drawEmbedded(c: android.graphics.Canvas, l: PriceLabel, a: Int, pain
         c.save()
         c.rotate(l.angle, l.pivotX, l.pivotY)
     }
+    // Бумага — переходом от начала строки к концу, если ценник освещён неровно.
     paints.patch.color = l.paper
+    paints.patch.shader = l.paperShader
     paints.patch.alpha = (a * 0.55f).toInt()
     c.drawRoundRect(l.feather, l.radius * 1.6f, l.radius * 1.6f, paints.patch)
     paints.patch.alpha = a
     c.drawRoundRect(l.pill, l.radius, l.radius, paints.patch)
+    paints.patch.shader = null
 
     paints.embed.textSize = l.textSize
     paints.embed.color = l.ink

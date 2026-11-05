@@ -9,7 +9,8 @@ import kotlin.math.roundToInt
 
 /**
  * Обёртка над анализатором ML Kit: перед распознаванием кадра берёт из него цвета ценников вокруг
- * найденных на прошлых кадрах цен — бумагу (вокруг рамки) и цифры (внутри) — для вписывания сумм.
+ * найденных на прошлых кадрах цен — бумагу (вокруг рамки, отдельно у левого и правого края строки:
+ * ценник бывает освещён неровно) и цифры (внутри) — для вписывания сумм.
  * Читается по несколько десятков пикселей на цену прямо из YUV, без копирования кадра.
  */
 class TagColorAnalyzer(
@@ -23,6 +24,7 @@ class TagColorAnalyzer(
     private val outer = FloatArray(OUTER_POINTS * 2)
     private val inner = FloatArray(INNER_COLUMNS * INNER_ROWS * 2)
     private val outerColors = IntArray(OUTER_POINTS)
+    private val sideColors = IntArray(SIDE_POINTS)
     private val innerColors = IntArray(INNER_COLUMNS * INNER_ROWS)
 
     override fun getDefaultTargetResolution(): Size? = delegate.defaultTargetResolution
@@ -93,8 +95,17 @@ class TagColorAnalyzer(
             val paper = medianByLuma(outerColors)
             // Цифры — самые непохожие на бумагу точки внутри (тёмные на светлом и светлые на тёмном).
             val ink = farthest(innerColors, paper)
-            pipeline.setColors(t.id, paper, ink)
+            // Бумага у начала и у конца строки: подложка — переходом между ними, как падает свет.
+            val start = medianByLuma(side(START_INDICES))
+            val end = medianByLuma(side(END_INDICES))
+            pipeline.setColors(t.id, start, end, ink)
         }
+    }
+
+    /** Точки бумаги у одного края строки (индексы в [outerColors]). */
+    private fun side(indices: IntArray): IntArray {
+        for (i in indices.indices) sideColors[i] = outerColors[indices[i]]
+        return sideColors
     }
 
     /** Цвет с медианной яркостью: блик или чужая надпись рядом не перекрашивают бумагу. */
@@ -147,6 +158,13 @@ class TagColorAnalyzer(
         const val OUTER_POINTS = EDGE_POINTS * 2 + 4
         const val INNER_COLUMNS = 7
         const val INNER_ROWS = 3
+        /**
+         * Точки бумаги у начала строки: над и под двумя первыми столбцами (0–3) и слева сбоку (10, 11);
+         * у конца — над и под двумя последними (6–9) и справа (12, 13).
+         */
+        val START_INDICES = intArrayOf(0, 1, 2, 3, 10, 11)
+        val END_INDICES = intArrayOf(6, 7, 8, 9, 12, 13)
+        const val SIDE_POINTS = 6
 
         fun rgb(r: Int, g: Int, b: Int): Int =
             (0xFF shl 24) or (r.coerceIn(0, 255) shl 16) or (g.coerceIn(0, 255) shl 8) or b.coerceIn(0, 255)

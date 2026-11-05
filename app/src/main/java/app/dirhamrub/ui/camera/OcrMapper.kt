@@ -4,9 +4,9 @@ import app.dirhamrub.domain.price.Box
 import app.dirhamrub.domain.price.OcrBlock
 import app.dirhamrub.domain.price.OcrLine
 import app.dirhamrub.domain.price.OcrWord
+import app.dirhamrub.domain.price.glyphHeight
+import app.dirhamrub.domain.price.lineAngle
 import com.google.mlkit.vision.text.Text
-import kotlin.math.abs
-import kotlin.math.atan2
 import kotlin.math.hypot
 
 /** Результат ML Kit → модель OCR из domain (рамки уже в координатах превью). */
@@ -21,9 +21,9 @@ object OcrMapper {
                 for (element in line.elements) {
                     val r = element.boundingBox ?: continue
                     val box = Box(r.left.toFloat(), r.top.toFloat(), r.right.toFloat(), r.bottom.toFloat())
-                    words += OcrWord(element.text, box, heightOf(element) ?: box.height)
+                    words += OcrWord(element.text, box, glyphHeight(heightOf(element), box))
                 }
-                if (words.isNotEmpty()) lines += OcrLine(words, angleOf(line))
+                if (words.isNotEmpty()) lines += OcrLine(words, angleOf(line, words))
             }
             if (lines.isNotEmpty()) blocks += OcrBlock(lines)
         }
@@ -31,14 +31,14 @@ object OcrMapper {
     }
 
     /**
-     * Наклон строки по её углам (уже в координатах экрана): от верхнего левого к верхнему правому.
-     * Почти горизонтальную строку считаем ровной, чтобы вписанная сумма не дрожала.
+     * Наклон строки: по центрам слов, у строки из одного слова — по верхней стороне её углов от ML Kit;
+     * всё сверяется с рамками ([lineAngle]) — углы ML Kit бывают повёрнуты относительно экрана.
      */
-    private fun angleOf(line: Text.Line): Float {
-        val p = line.cornerPoints ?: return 0f
-        if (p.size < 2) return 0f
-        val deg = Math.toDegrees(atan2((p[1].y - p[0].y).toDouble(), (p[1].x - p[0].x).toDouble())).toFloat()
-        return if (abs(deg) < MIN_TILT) 0f else deg
+    private fun angleOf(line: Text.Line, words: List<OcrWord>): Float {
+        val p = line.cornerPoints
+        val dx = if (p != null && p.size >= 2) (p[1].x - p[0].x).toFloat() else 0f
+        val dy = if (p != null && p.size >= 2) (p[1].y - p[0].y).toFloat() else 0f
+        return lineAngle(words.map { it.box }, dx, dy)
     }
 
     /** Высота слова по его углам: среднее левой и правой стороны (у наклонного слова рамка выше букв). */
@@ -49,6 +49,4 @@ object OcrMapper {
             hypot((a.x - b.x).toDouble(), (a.y - b.y).toDouble()).toFloat()
         return (dist(p[1], p[2]) + dist(p[0], p[3])) / 2f
     }
-
-    private const val MIN_TILT = 2f
 }

@@ -258,19 +258,22 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         return normalized.toBigDecimalOrNull()
     }
 
-    /** Рамка подстроки [start, end) строки: части слов — пропорционально числу символов. */
+    /**
+     * Рамка подстроки [start, end) строки: части слов — пропорционально ширине символов. В «179.00DHS»
+     * буквы «DHS» шире цифр, а точка уже: по одному числу символов рамка цены съезжала на «D».
+     */
     private fun boxOf(tokens: List<Token>, start: Int, end: Int): Box? {
         var result: Box? = null
         for (t in tokens) {
             val s = max(start, t.start)
             val e = minOf(end, t.end)
             if (s >= e) continue
-            val len = t.text.length.coerceAtLeast(1)
+            val total = widthOf(t.text, 0, t.text.length).coerceAtLeast(1e-3f)
             val w = t.box.width
             val part = Box(
-                left = t.box.left + w * (s - t.start) / len,
+                left = t.box.left + w * widthOf(t.text, 0, s - t.start) / total,
                 top = t.box.top,
-                right = t.box.left + w * (e - t.start) / len,
+                right = t.box.left + w * widthOf(t.text, 0, e - t.start) / total,
                 bottom = t.box.bottom,
             )
             result = result?.union(part) ?: part
@@ -372,12 +375,30 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         return out
     }
 
+    /** Относительная ширина символов [from, to) строки [text]: цифры — 1, точка и запятая уже, прописные шире. */
+    private fun widthOf(text: String, from: Int, to: Int): Float {
+        var sum = 0f
+        for (i in from until to) {
+            val c = text[i]
+            sum += when {
+                c.isDigit() -> 1f
+                c in NARROW_CHARS -> 0.5f
+                c in WIDE_CHARS -> 1.5f
+                c.isUpperCase() -> 1.3f
+                else -> 1f
+            }
+        }
+        return sum
+    }
+
     private fun similarHeight(a: Box, b: Box): Boolean {
         val big = max(a.height, b.height)
         return big <= 0f || kotlin.math.min(a.height, b.height) / big > 0.75f
     }
 
     companion object {
+        private const val NARROW_CHARS = ".,:;'’ |!iIlj"
+        private const val WIDE_CHARS = "MWmw"
         private const val TALL_TEXT = 0.75f
         private const val CURRENCY_GAP = 2
         private const val GLUE_GAP = 0.8f

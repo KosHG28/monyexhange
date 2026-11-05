@@ -1,8 +1,10 @@
 package app.dirhamrub.ui.camera
 
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
@@ -37,8 +39,10 @@ class PriceLabel(
     val focused: Boolean,
     /** Итоговая прозрачность 0..1 (появление и исчезновение). */
     val alpha: Float,
-    /** Рамка вокруг цены на ценнике. */
+    /** Рамка вокруг цифр цены на ценнике (препятствие для плашек, попадание пальцем). */
     val box: RectF,
+    /** Рамка цены вместе со знаком валюты — её подсвечивают уголки фокуса. */
+    val frame: RectF = box,
     /** Плашка с суммой в итоговой валюте. */
     val pill: RectF,
     /** Плашка (у фокуса — с хвостиком к цене). */
@@ -50,6 +54,8 @@ class PriceLabel(
     val embedded: Boolean = false,
     /** Вписанная: цвет бумаги и цифр ценника (из кадра), размер шрифта, мягкий край и скругление подложки. */
     val paper: Int = 0,
+    /** Вписанная: переход цвета бумаги от начала строки к концу (ценник освещён неровно); null — ровный цвет. */
+    val paperShader: Shader? = null,
     val ink: Int = 0,
     val textSize: Float = 0f,
     val feather: RectF = EMPTY_RECT,
@@ -68,8 +74,8 @@ class PriceLabel(
 
 private val EMPTY_RECT = RectF()
 
-/** Цвета ценника под ценой: бумага и цифры (ARGB). */
-class TagColors(val paper: Int, val ink: Int)
+/** Цвета ценника под ценой: бумага у начала и у конца строки и цифры (ARGB). */
+class TagColors(val paperStart: Int, val paperEnd: Int, val ink: Int)
 
 /**
  * Цена, у которой нужно взять цвета ценника: строка «цена + валюта» с центром ([cx], [cy]),
@@ -188,10 +194,14 @@ class PricePipeline(private val metrics: LabelMetrics) {
     }
 
     /** Новые цвета ценника для метки [id]: смешиваются с прежними, чтобы подложка не мигала. */
-    fun setColors(id: Long, paper: Int, ink: Int) {
+    fun setColors(id: Long, paperStart: Int, paperEnd: Int, ink: Int) {
         synchronized(this) {
             val old = colors[id]
-            colors[id] = if (old == null) TagColors(paper, ink) else TagColors(blend(old.paper, paper), blend(old.ink, ink))
+            colors[id] = if (old == null) {
+                TagColors(paperStart, paperEnd, ink)
+            } else {
+                TagColors(blend(old.paperStart, paperStart), blend(old.paperEnd, paperEnd), blend(old.ink, ink))
+            }
         }
     }
 
@@ -327,6 +337,7 @@ class PricePipeline(private val metrics: LabelMetrics) {
                 id = t.id, value = t.value, isOld = t.isOld, unsure = !t.confident, focused = focused,
                 alpha = alpha,
                 box = box, pill = pill,
+                frame = RectF(t.extent.left, t.extent.top, t.extent.right, t.extent.bottom).apply { union(box) },
                 bubble = bubblePath(pill, box, pointsDown, if (focused) m.radius else m.radius * 0.8f, tail),
                 text = text,
                 textX = pill.centerX() - textW / 2f,
@@ -377,6 +388,14 @@ class PricePipeline(private val metrics: LabelMetrics) {
         val patch = RectF(left, ext.top - padY, right, ext.bottom + padY)
         val feather = RectF(patch.left - padY, patch.top - padY, patch.right + padY, patch.bottom + padY)
         val textX = left + padX
+        val paperStart = c?.paperStart ?: DEFAULT_PAPER
+        val paperEnd = c?.paperEnd ?: DEFAULT_PAPER
+        // Заметно разная бумага у краёв — подложка переходом (создаётся здесь, не в draw).
+        val shader = if (colorDistance(paperStart, paperEnd) > GRADIENT_MIN_DISTANCE) {
+            LinearGradient(patch.left, 0f, patch.right, 0f, paperStart, paperEnd, Shader.TileMode.CLAMP)
+        } else {
+            null
+        }
         // Центр цифр в системе строки: у ровной — как есть, у наклонной — повёрнут обратно вокруг центра.
         val (_, by) = if (angle == 0f) t.box.centerX to t.box.centerY else rotate(t.box.centerX, t.box.centerY, px, py, -angle)
         val baseline = by + digitHeight / 2f
@@ -393,7 +412,8 @@ class PricePipeline(private val metrics: LabelMetrics) {
             textX = textX,
             textY = baseline,
             embedded = true,
-            paper = c?.paper ?: DEFAULT_PAPER,
+            paper = mix(paperStart, paperEnd),
+            paperShader = shader,
             ink = c?.ink ?: DEFAULT_INK,
             textSize = embedPaint.textSize,
             feather = feather,
@@ -427,6 +447,19 @@ class PricePipeline(private val metrics: LabelMetrics) {
         return (0xFF shl 24) or ch(16) or ch(8) or ch(0)
     }
 
+    /** Среднее двух цветов (ARGB, непрозрачный). */
+    private fun mix(a: Int, b: Int): Int {
+        fun ch(shift: Int): Int = ((((a shr shift) and 0xFF) + ((b shr shift) and 0xFF)) / 2) shl shift
+        return (0xFF shl 24) or ch(16) or ch(8) or ch(0)
+    }
+
+    /** Наибольшая разница по каналам двух цветов (0–255). */
+    private fun colorDistance(a: Int, b: Int): Int = maxOf(
+        kotlin.math.abs(((a shr 16) and 0xFF) - ((b shr 16) and 0xFF)),
+        kotlin.math.abs(((a shr 8) and 0xFF) - ((b shr 8) and 0xFF)),
+        kotlin.math.abs((a and 0xFF) - (b and 0xFF)),
+    )
+
     /** Скруглённая плашка; у фокуса — с треугольным хвостиком к цене, если плашка рядом с ней. */
     private fun bubblePath(pill: RectF, box: RectF, pointsDown: Boolean, radius: Float, tail: Float): Path {
         val path = Path()
@@ -458,6 +491,8 @@ class PricePipeline(private val metrics: LabelMetrics) {
         const val DIGIT_SHARE = 0.78f
         const val DIGIT_TO_SIZE = 0.727f
         const val COLOR_SMOOTHING = 0.35f
+        /** Бумага у краёв различается меньше — подложка ровного цвета. */
+        const val GRADIENT_MIN_DISTANCE = 12
         /** Пока цвета ценника не взяты из кадра: светлая бумага и почти чёрные цифры. */
         const val DEFAULT_PAPER = 0xFFF4F2EE.toInt()
         const val DEFAULT_INK = 0xFF1E1E22.toInt()

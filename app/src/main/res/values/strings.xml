@@ -7,6 +7,7 @@
     <string name="currency_button_a11y">Траты в: %1$s, итог в: %2$s. Сменить валюты</string>
     <string name="currency_sheet_spend">Где тратите</string>
     <string name="currency_sheet_home">Итог считать в</string>
+    <string name="currency_sheet_home_hint">В этой валюте — крупная сумма и курс карт</string>
     <string name="tile_camera">Ценник</string>
     <string name="tile_offer">Камера в шторке: плитка «Ценник» открывает её с любого экрана</string>
     <string name="tile_offer_add">Добавить</string>
@@ -106,13 +107,19 @@
     <string name="receipt_for">За</string>
     <string name="receipt_add">+ чек покупки</string>
     <string name="receipt_remove">Удалить чек</string>
+    <string name="receipt_rate">✓ По этому чеку %1$s</string>
+    <string name="receipt_estimate_hint">Чека покупки в %1$s нет — курс оценён по ЦБ с наценкой карты по её чекам. Чек в %1$s сделает его точным.</string>
     <string name="receipt_purchases_hint">По чеку в нужной валюте курс точный. Для других валют — курс ЦБ с наценкой карты по её чекам.</string>
-    <string name="editor_manual">Вручную: %1$s =</string>
-    <string name="editor_manual_hint">Пусто — считать по чекам</string>
+    <string name="editor_manual">Свой курс: %1$s =</string>
+    <string name="editor_manual_hint">Пусто — считать по чекам; серым — курс по ним сейчас</string>
     <string name="editor_result">%1$s = %2$s %3$s</string>
     <string name="editor_no_result">Добавьте чек или обновите курсы ЦБ</string>
     <string name="editor_delete">Удалить карту</string>
     <string name="editor_delete_cash">Удалить наличные</string>
+    <string name="editor_delete_confirm">Удалить карту «%1$s» со всеми чеками?</string>
+    <string name="editor_delete_cash_confirm">Удалить наличные «%1$s» со всеми чеками?</string>
+    <string name="delete">Удалить</string>
+    <string name="cancel">Отмена</string>
     <string name="editor_pick_currency">Выбрать валюту</string>
 
     <!-- Камера -->

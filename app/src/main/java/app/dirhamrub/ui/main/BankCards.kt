@@ -8,13 +8,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.ui.unit.Dp
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,13 +20,18 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +53,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
@@ -72,6 +74,7 @@ private val ADD_WIDTH = 52.dp
 private val CARD_SHAPE = RoundedCornerShape(18.dp)
 /** Зазор между картой и обводкой выбранной: обводка рисуется в нём и не сдвигает соседей. */
 private val RING_GAP = 4.dp
+private val RATE_MIN_SP = 9.sp
 
 /**
  * Карты пользователя в ряд (прокручивается) и плитка «+»: ширина карт — от ширины экрана,
@@ -223,7 +226,7 @@ private fun BankCardView(
         val unit = Numbers.unitFor(it.homePerUnit)
         stringResource(
             R.string.card_rate_short,
-            Numbers.rate(it.homePerUnit.multiply(unit, MC), 2),
+            Numbers.rateShort(it.homePerUnit.multiply(unit, MC)),
             home.symbol,
             if (unit.compareTo(BigDecimal.ONE) == 0) spend.symbol else "${Numbers.moneyWhole(unit)} ${spend.symbol}",
         )
@@ -298,12 +301,13 @@ private fun BankCardView(
                 )
                 Spacer(Modifier.height(3.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
+                    // Курс не сокращается многоточием: на узкой карте шрифт сам уменьшается, пока строка не влезет.
+                    BasicText(
                         text = rate,
-                        style = type.caption.copy(fontSize = 11.5.sp, lineHeight = 14.sp),
-                        color = CardPalette.onCard.copy(alpha = 0.88f),
+                        style = type.caption.copy(fontSize = 11.5.sp, lineHeight = 14.sp, color = CardPalette.onCard.copy(alpha = 0.88f)),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        autoSize = TextAutoSize.StepBased(minFontSize = RATE_MIN_SP, maxFontSize = 11.5.sp, stepSize = 0.25.sp),
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     if (vs != null) {

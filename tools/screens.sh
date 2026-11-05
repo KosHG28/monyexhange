@@ -49,6 +49,16 @@ adb shell wm size 1080x1920
 shot 09-main-short
 adb shell wm size reset
 
+# Узкий телефон (384 dp по ширине, как Galaxy S2x) в светлой теме: карты, шпаргалка, редактор, валюты.
+adb shell cmd uimode night no
+adb shell wm density 450
+shot 11-main-narrow
+shot 12-cheat-narrow --es screen cheat
+WAIT=12 shot 13-editor-narrow --es screen editor
+shot 14-currencies-narrow --es screen currencies
+adb shell wm density reset
+adb shell cmd uimode night yes
+
 # Первый запуск: данные стёрты — знакомство.
 adb shell pm clear "$PKG"
 adb shell am start -W -n "$PKG/.MainActivity" > /dev/null

@@ -5,12 +5,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -63,7 +62,8 @@ fun ReceiptSection(title: String, modifier: Modifier = Modifier) {
 
 /**
  * Строка чека «Отправил ........ [15 000] ₽»: подпись, точечные отточия, поле ввода, хвост
- * (валюта или выбор валюты).
+ * (валюта или выбор валюты). Поле и хвост — постоянной ширины, чтобы поля всех строк стояли
+ * ровной колонкой, а «₽ ▾» и «¥» — на одной линии.
  */
 @Composable
 fun ReceiptLine(
@@ -72,7 +72,7 @@ fun ReceiptLine(
     onValueChange: (String) -> Unit,
     description: String,
     last: Boolean = false,
-    trailing: @Composable RowScope.() -> Unit,
+    trailing: @Composable () -> Unit,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
@@ -106,11 +106,22 @@ fun ReceiptLine(
             description = description,
             imeAction = if (last) ImeAction.Done else ImeAction.Next,
             onDone = { focus.clearFocus() },
-            modifier = Modifier.widthIn(min = 96.dp, max = 150.dp),
+            modifier = Modifier.width(RECEIPT_FIELD),
         )
-        trailing()
+        Box(
+            Modifier
+                .width(RECEIPT_TRAILING)
+                .padding(start = 4.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) { trailing() }
     }
 }
+
+/** Ширина поля суммы в чеке: «1 234 567,89» помещается. */
+val RECEIPT_FIELD = 136.dp
+
+/** Колонка валюты справа от поля: «₽ ▾», «AED», «сум». */
+val RECEIPT_TRAILING = 50.dp
 
 /** Числовое поле с системной клавиатурой numberDecimal. */
 @Composable
@@ -122,6 +133,8 @@ fun NumberField(
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
     imeAction: ImeAction = ImeAction.Done,
+    /** Серая подсказка в пустом поле — например, текущий курс по чекам. */
+    placeholder: String? = null,
 ) {
     val colors = AppTheme.colors
     BasicTextField(
@@ -142,7 +155,12 @@ fun NumberField(
                     .heightIn(min = 44.dp)
                     .padding(horizontal = 10.dp),
                 contentAlignment = Alignment.CenterEnd,
-            ) { inner() }
+            ) {
+                if (value.isEmpty() && placeholder != null) {
+                    Text(placeholder, style = style, color = colors.muted.copy(alpha = 0.6f), maxLines = 1, softWrap = false)
+                }
+                inner()
+            }
         },
     )
 }

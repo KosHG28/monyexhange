@@ -13,7 +13,9 @@ const val NBSP = ' '
 
 /** Разбор ввода и форматирование чисел в стиле ru-RU. */
 object Numbers {
+    private val TEN = BigDecimal.TEN
     private val HUNDRED = BigDecimal(100)
+    private val THOUSAND = BigDecimal(1000)
     private val inputRegex = Regex("""\d*\.?\d*""")
 
     /**
@@ -57,6 +59,17 @@ object Numbers {
     /** Шпаргалка: до 100 — 2 знака, дальше целыми. */
     fun cheat(value: BigDecimal): String =
         if (value.abs() < HUNDRED) money2(value) else moneyWhole(value)
+
+    /**
+     * Курс для сравнения карт и ЦБ: всегда 2 знака, чтобы «18,00» стояло рядом с «18,54»,
+     * а не «18»; от 1000 — целыми («12 600»).
+     */
+    fun rateShort(value: BigDecimal): String =
+        if (value.abs() < THOUSAND) money2(value) else moneyWhole(value)
+
+    /** Разница между картами: меньше 10 — с копейками («0,54», «5»), дальше — целыми («11», «132»). */
+    fun saving(value: BigDecimal): String =
+        if (value.abs() < TEN) money(value) else moneyWhole(value)
 
     /** Процент с одним знаком: «3,4». */
     fun percent(value: BigDecimal): String = format(stripZeros(value.setScale(1, RoundingMode.HALF_UP)))

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,6 +21,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,10 +50,13 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
+import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
@@ -59,6 +64,7 @@ import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.ManualRate
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.PurchaseReceipt
+import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.RateEngine
 import app.dirhamrub.domain.wallet.ReceiptScanner
 import app.dirhamrub.domain.wallet.ScannedReceipt
@@ -135,7 +141,16 @@ fun CardEditorSheet(
         }
     }
     var nextKey by remember(card.id) { mutableStateOf(purchases.size) }
-    var manual by remember(card.id) { mutableStateOf(card.manualFor(spend, home)?.homePerUnit?.let { Numbers.plain(it, 4) }.orEmpty()) }
+    // Свой курс — на ту же единицу, что в итоге и на картах («100 ₸ = …»); единица считается один раз при открытии,
+    // чтобы не менялась, пока курс набирают.
+    val manualUnit = remember(card.id) {
+        val auto = RateEngine.quote(card.withoutManual(spend, home), spend, home, official)?.homePerUnit
+        (auto ?: card.manualFor(spend, home)?.homePerUnit)?.let(Numbers::unitFor) ?: BigDecimal.ONE
+    }
+    var manual by remember(card.id) {
+        mutableStateOf(card.manualFor(spend, home)?.homePerUnit?.let { Numbers.plain(it.multiply(manualUnit, MC), 4) }.orEmpty())
+    }
+    var confirmDelete by remember(card.id) { mutableStateOf(false) }
 
     // Чек из скриншота: уведомление или операция в приложении банка → суммы в поля чека.
     val context = LocalContext.current
@@ -185,7 +200,9 @@ fun CardEditorSheet(
             val unchanged = old != null && old.paid.compareTo(paid) == 0 && old.price.compareTo(price) == 0 && old.spend == d.spend
             PurchaseReceipt(d.spend, paid, price, if (unchanged) old!!.date else today)
         }
-        val manualValue = Numbers.parse(manual)?.takeIf { it.signum() > 0 }
+        val manualValue = Numbers.parse(manual)?.takeIf { it.signum() > 0 }?.divide(manualUnit, MC)
+        val oldManual = card.manualFor(spend, home)
+        val manualDate = if (oldManual != null && manualValue != null && oldManual.homePerUnit.compareTo(manualValue) == 0) oldManual.date else today
         val otherManual = card.manual.filterNot { it.spend == spend && it.home == home }
         return card.copy(
             name = name.trim().ifEmpty { defaultName },
@@ -193,32 +210,50 @@ fun CardEditorSheet(
             kind = kind,
             transfer = transfer,
             purchases = receipts,
-            manual = otherManual + listOfNotNull(manualValue?.let { ManualRate(spend, home, it, today) }),
+            manual = otherManual + listOfNotNull(manualValue?.let { ManualRate(spend, home, it, manualDate) }),
         )
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = colors.bg) {
+        // «Сохранить» всегда внизу шторки, прокручивается только содержимое над ней.
         Column(
             modifier = Modifier
+                .weight(1f, fill = false)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
-                .padding(bottom = 20.dp),
+                .padding(bottom = 12.dp),
         ) {
-            Text(
-                text = stringResource(
-                    when {
-                        cash && isNew -> R.string.editor_title_new_cash
-                        cash -> R.string.editor_title_cash
-                        isNew -> R.string.editor_title_new
-                        else -> R.string.editor_title_edit
-                    },
-                ),
-                style = type.title,
-                color = colors.ink,
-                modifier = Modifier.semantics { heading() },
-            )
-            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(
+                        when {
+                            cash && isNew -> R.string.editor_title_new_cash
+                            cash -> R.string.editor_title_cash
+                            isNew -> R.string.editor_title_new
+                            else -> R.string.editor_title_edit
+                        },
+                    ),
+                    style = type.title,
+                    color = colors.ink,
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics { heading() },
+                )
+                if (!isNew) {
+                    Icon(
+                        painterResource(R.drawable.ic_delete),
+                        contentDescription = stringResource(if (cash) R.string.editor_delete_cash else R.string.editor_delete),
+                        tint = colors.muted,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .clickable(role = Role.Button) { confirmDelete = true }
+                            .padding(12.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
             // Карта или наличные из обменника: у наличных вместо пополнения — обмен, покупок по чекам нет.
             KindSwitch(kind) { kind = it }
             Spacer(Modifier.height(12.dp))
@@ -242,6 +277,9 @@ fun CardEditorSheet(
                 onClick = { pickScreenshot.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
             )
             Spacer(Modifier.height(12.dp))
+            // Итог на лету: тот же расчёт, что на главном экране.
+            val draft = build()
+            val q = RateEngine.quote(draft, spend, home, official)
             // Бумажный чек: пополнение и покупки.
             Column(
                 modifier = Modifier
@@ -260,15 +298,29 @@ fun CardEditorSheet(
                 ReceiptLine(gotLabel, got, { got = it }, gotLabel) {
                     CurrencyMark(currency.symbol)
                 }
-                Hint(stringResource(if (cash) R.string.receipt_exchange_hint else R.string.receipt_transfer_hint))
+                // Чек заполнен — курс по нему; пустой — что будет без него.
+                val transfer = draft.transfer
+                if (transfer != null) {
+                    ReceiptRate(Numbers.transferRate(transfer.got.divide(transfer.sent, MC), currency.symbol, transfer.sentCurrency.symbol))
+                } else {
+                    Hint(stringResource(if (cash) R.string.receipt_exchange_hint else R.string.receipt_transfer_hint))
+                }
                 Spacer(Modifier.height(10.dp))
 
                 if (!cash) {
                     ReceiptSection(stringResource(R.string.receipt_purchases))
                     for (d in purchases) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            CurrencyDropdown(d.spend, Currency.SPEND, { d.spend = it }, pick)
-                            Text(d.spend.nameRu, style = type.caption, color = colors.muted, modifier = Modifier.weight(1f))
+                            CurrencyDropdown(d.spend, Currency.SPEND, { d.spend = it }, pick, chip = true)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                d.spend.nameRu,
+                                style = type.caption,
+                                color = colors.muted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
                             val remove = stringResource(R.string.receipt_remove)
                             Icon(
                                 painterResource(R.drawable.ic_close),
@@ -287,6 +339,11 @@ fun CardEditorSheet(
                         ReceiptLine(stringResource(R.string.receipt_for), d.price, { d.price = it }, stringResource(R.string.receipt_for)) {
                             CurrencyMark(d.spend.symbol)
                         }
+                        val paid = Numbers.parse(d.paid)?.takeIf { it.signum() > 0 }
+                        val price = Numbers.parse(d.price)?.takeIf { it.signum() > 0 }
+                        if (paid != null && price != null) {
+                            ReceiptRate(Numbers.transferRate(paid.divide(price, MC), currency.symbol, d.spend.symbol))
+                        }
                         Spacer(Modifier.height(6.dp))
                     }
                     TextButton(onClick = {
@@ -294,15 +351,16 @@ fun CardEditorSheet(
                         val first = if (spend !in used) spend else Currency.SPEND.firstOrNull { it !in used } ?: spend
                         purchases.add(PurchaseDraft(nextKey++, first, "", "", LocalDate.now()))
                     }) { Text(stringResource(R.string.receipt_add), style = type.bodyStrong, color = colors.accent) }
-                    Hint(stringResource(R.string.receipt_purchases_hint))
+                    // Общая подсказка — пока чеков покупок нет; потом — только если курс для валюты трат оценочный.
+                    when {
+                        draft.purchases.isEmpty() -> Hint(stringResource(R.string.receipt_purchases_hint))
+                        q?.basis == RateBasis.ESTIMATE -> Hint(stringResource(R.string.receipt_estimate_hint, spend.symbol))
+                    }
                     Spacer(Modifier.height(10.dp))
                 }
                 DashedDivider()
                 Spacer(Modifier.height(10.dp))
 
-                // Итог на лету.
-                val draft = build()
-                val q = RateEngine.quote(draft, spend, home, official)
                 if (q != null) {
                     val unit = Numbers.unitFor(q.homePerUnit)
                     Text(
@@ -336,35 +394,44 @@ fun CardEditorSheet(
             }
 
             Spacer(Modifier.height(14.dp))
-            // Ручной курс для текущей пары валют.
-            Row(
+            // Свой курс для текущей пары валют; серым в пустом поле — курс по чекам сейчас.
+            val auto = RateEngine.quote(draft.withoutManual(spend, home), spend, home, official)?.homePerUnit
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(colors.surface)
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 10.dp),
             ) {
-                Text(
-                    stringResource(R.string.editor_manual, "1 ${spend.symbol}"),
-                    style = type.monoStrong.copy(fontSize = 15.sp),
-                    color = colors.ink,
-                    modifier = Modifier.weight(1f),
-                )
-                NumberField(
-                    value = manual,
-                    onValueChange = { manual = it },
-                    style = type.monoStrong.copy(fontSize = 17.sp),
-                    description = stringResource(R.string.editor_manual_hint),
-                    onDone = { focus.clearFocus() },
-                    modifier = Modifier.width(120.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(home.symbol, style = type.mono, color = colors.muted)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.editor_manual, "${Numbers.moneyWhole(manualUnit)} ${spend.symbol}"),
+                        style = type.monoStrong.copy(fontSize = 15.sp),
+                        color = colors.ink,
+                        modifier = Modifier.weight(1f),
+                    )
+                    NumberField(
+                        value = manual,
+                        onValueChange = { manual = it },
+                        style = type.monoStrong.copy(fontSize = 17.sp),
+                        description = stringResource(R.string.editor_manual_hint),
+                        onDone = { focus.clearFocus() },
+                        placeholder = auto?.let { Numbers.rate(it.multiply(manualUnit, MC)) },
+                        modifier = Modifier.width(MANUAL_FIELD),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    CurrencyMark(home.symbol)
+                }
+                Hint(stringResource(R.string.editor_manual_hint))
             }
-            Hint(stringResource(R.string.editor_manual_hint))
-
-            Spacer(Modifier.height(14.dp))
+        }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .imePadding()
+                .padding(horizontal = 16.dp)
+                .padding(top = 8.dp, bottom = 16.dp),
+        ) {
             Button(
                 onClick = { val result = build(); close { onSave(result) } },
                 shape = RoundedCornerShape(14.dp),
@@ -373,15 +440,29 @@ fun CardEditorSheet(
                     .fillMaxWidth()
                     .heightIn(min = 52.dp),
             ) { Text(stringResource(R.string.save), style = type.bodyStrong.copy(fontSize = 16.sp)) }
-            if (!isNew) {
-                TextButton(
-                    onClick = { close(onDelete) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp),
-                ) { Text(stringResource(if (cash) R.string.editor_delete_cash else R.string.editor_delete), style = type.bodyStrong, color = colors.accent) }
-            }
         }
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            text = {
+                Text(
+                    stringResource(if (cash) R.string.editor_delete_cash_confirm else R.string.editor_delete_confirm, card.name),
+                    style = type.body,
+                    color = colors.ink,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    close(onDelete)
+                }) { Text(stringResource(R.string.delete), style = type.bodyStrong, color = colors.accent) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.cancel), style = type.bodyStrong, color = colors.muted) }
+            },
+            containerColor = colors.surface,
+        )
     }
 }
 
@@ -475,15 +556,23 @@ private fun ScreenshotButton(result: ScanResult?, card: Currency, onClick: () ->
 
 @Composable
 private fun CurrencyMark(symbol: String) {
+    Text(symbol, style = AppTheme.type.mono, color = AppTheme.colors.muted, maxLines = 1, softWrap = false)
+}
+
+/** «✓ По этому чеку 1 ¥ = 12,3 ₽» — под заполненным чеком. */
+@Composable
+private fun ReceiptRate(rate: String) {
     Text(
-        symbol,
-        style = AppTheme.type.mono,
-        color = AppTheme.colors.muted,
-        modifier = Modifier
-            .padding(start = 6.dp)
-            .width(36.dp),
+        stringResource(R.string.receipt_rate, rate),
+        style = AppTheme.type.caption.copy(fontSize = 13.sp, fontWeight = FontWeight.Medium),
+        color = AppTheme.colors.good,
+        modifier = Modifier.padding(top = 2.dp),
     )
 }
+
+/** Карта без своего курса для этой пары — чтобы показать, сколько выходит по чекам. */
+private fun BankCard.withoutManual(spend: Currency, home: Currency): BankCard =
+    copy(manual = manual.filterNot { it.spend == spend && it.home == home })
 
 @Composable
 private fun Hint(text: String) {
@@ -494,3 +583,6 @@ private fun Hint(text: String) {
 private fun field(value: BigDecimal): String = Numbers.groupInput(Numbers.plain(value))
 
 private const val MAX_NAME = 24
+
+/** Поле своего курса: «18,1724» помещается, подпись слева не переносится. */
+private val MANUAL_FIELD = 116.dp

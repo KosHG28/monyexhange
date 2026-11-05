@@ -291,9 +291,10 @@ private fun Comparison(state: MainUiState, c: CardComparison, onSelectCard: (Str
     val type = AppTheme.type
     val percent = Numbers.percent(c.percent)
     val amount = state.totals.spend
-    val approx = if (c.isExact) "" else "≈"
+    val approx = if (c.isExact) "" else "≈ "
     val diff = if (amount.signum() > 0) {
-        stringResource(R.string.compare_amount, approx + Numbers.cheat(c.difference(amount)), state.wallet.home.symbol, percent)
+        // Целыми рублями, как суммы на картах; копейки — только у разницы меньше 10.
+        stringResource(R.string.compare_amount, approx + Numbers.saving(c.difference(amount)), state.wallet.home.symbol, percent)
     } else {
         stringResource(R.string.compare_percent, approx + percent)
     }
@@ -350,7 +351,7 @@ internal fun OfficialLine(state: MainUiState, onRefresh: () -> Unit, modifier: M
         else -> {
             val u = Numbers.unitFor(official)
             val unitLabel = if (u.compareTo(BigDecimal.ONE) == 0) "1 ${wallet.spend.symbol}" else "${Numbers.moneyWhole(u)} ${wallet.spend.symbol}"
-            head = stringResource(R.string.official_rate, unitLabel, Numbers.rate(official.multiply(u, MC), 2), wallet.home.symbol)
+            head = stringResource(R.string.official_rate, unitLabel, Numbers.rateShort(official.multiply(u, MC)), wallet.home.symbol)
             tail = " · " + RuDates.short(rates.date) + if (state.ratesFailed) stringResource(R.string.official_offline) else ""
         }
     }

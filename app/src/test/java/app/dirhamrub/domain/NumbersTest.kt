@@ -58,6 +58,24 @@ class NumbersTest {
     }
 
     @Test
+    fun `курс для сравнения — всегда с копейками`() {
+        assertEquals("18,00", Numbers.rateShort(bd("18.0004")))
+        assertEquals("18,17", Numbers.rateShort(bd("18.1724")))
+        assertEquals("0,93", Numbers.rateShort(bd("0.9349")))
+        assertEquals("999,99", Numbers.rateShort(bd("999.991")))
+        assertEquals("12${NBSP}600", Numbers.rateShort(bd("12600.4")))
+    }
+
+    @Test
+    fun `разница между картами`() {
+        assertEquals("0,54", Numbers.saving(bd("0.5372")))
+        assertEquals("5", Numbers.saving(bd("5.001")))
+        assertEquals("9,99", Numbers.saving(bd("9.994")))
+        assertEquals("11", Numbers.saving(bd("11.08")))
+        assertEquals("1${NBSP}132", Numbers.saving(bd("1131.6")))
+    }
+
+    @Test
     fun `проценты`() {
         assertEquals("3,4", Numbers.percent(bd("3.4127")))
         assertEquals("10", Numbers.percent(bd("9.96")))

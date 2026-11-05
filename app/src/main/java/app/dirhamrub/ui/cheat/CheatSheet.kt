@@ -2,13 +2,15 @@ package app.dirhamrub.ui.cheat
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,15 +25,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.dirhamrub.R
 import app.dirhamrub.domain.MC
@@ -91,84 +98,158 @@ fun CheatSheet(
             val amounts = MainViewModel.cheat(spend)
             val current = amount.takeIf { it.signum() > 0 }
             val rows = (amounts + listOfNotNull(current?.takeIf { a -> amounts.none { it.compareTo(a) == 0 } })).sorted()
-            Column(
+            CheatTable(spend.code, rows, current, columns)
+        }
+    }
+}
+
+/**
+ * Таблица по ширине экрана: первая колонка — по самому длинному числу, колонки карт и ЦБ делят остальное
+ * поровну. Если колонкам тесно (много карт), первая колонка стоит на месте, а остальные прокручиваются вбок.
+ * Обе части из строк одной высоты, поэтому ряды совпадают; TalkBack читает строку целиком.
+ */
+@Composable
+private fun CheatTable(first: String, rows: List<BigDecimal>, current: BigDecimal?, columns: List<CheatColumn>) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    val density = LocalDensity.current
+    val measurer = rememberTextMeasurer()
+    val labels = rows.map(Numbers::cheat)
+    val cells = rows.map { value -> columns.map { c -> c.rate?.let { Numbers.cheat(value.multiply(it, MC)) } ?: "—" } }
+    // Цифры моноширинные: самая длинная строка — самая широкая.
+    fun widthOf(text: String): Dp = with(density) { measurer.measure(text, type.monoStrong).size.width.toDp() }
+    val firstWidth = widthOf(labels.maxBy { it.length }) + 2.dp
+    val valueWidth = widthOf(cells.flatten().maxBy { it.length }) + CELL_GAP
+    val headerHeight = with(density) { type.label.lineHeight.toDp() } * 2 + 16.dp
+    val rowHeight = with(density) { type.mono.lineHeight.toDp() } + 14.dp
+
+    BoxWithConstraints(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(colors.paper)
+            .padding(vertical = 8.dp),
+    ) {
+        val free = maxWidth - EDGE * 2 - firstWidth
+        val fits = free >= maxOf(valueWidth, MIN_COLUMN) * columns.size
+        val columnWidth = if (fits) free / columns.size else maxOf(valueWidth, SCROLL_COLUMN)
+        Row {
+            // Первая колонка: суммы в валюте трат.
+            Column(Modifier.width(EDGE + firstWidth)) {
+                Box(
+                    Modifier
+                        .height(headerHeight)
+                        .fillMaxWidth()
+                        .padding(start = EDGE, bottom = 8.dp),
+                    contentAlignment = Alignment.BottomStart,
+                ) { Text(first, style = type.label, color = colors.muted, modifier = Modifier.clearAndSetSemantics { }) }
+                HorizontalDivider(color = colors.line, modifier = Modifier.padding(start = EDGE))
+                rows.forEachIndexed { i, value ->
+                    val isCurrent = current != null && value.compareTo(current) == 0
+                    Box(
+                        Modifier
+                            .height(rowHeight)
+                            .fillMaxWidth()
+                            .background(if (isCurrent) colors.accentSoft else Color.Transparent)
+                            .padding(start = EDGE)
+                            .clearAndSetSemantics { },
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        Text(
+                            text = labels[i],
+                            style = if (isCurrent) type.monoStrong else type.mono,
+                            color = if (isCurrent) colors.accent else colors.ink,
+                            maxLines = 1,
+                            softWrap = false,
+                        )
+                    }
+                }
+            }
+            // Карты и ЦБ: по ширине экрана или прокрутка вбок.
+            Box(
                 Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(colors.paper)
-                    .horizontalScroll(rememberScrollState())
-                    .padding(vertical = 8.dp),
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState(), enabled = !fits),
             ) {
-                HeaderRow(spend.code, columns)
-                HorizontalDivider(color = colors.line, modifier = Modifier.padding(horizontal = 12.dp))
-                for (value in rows) {
-                    ValueRow(value, columns, isCurrent = current != null && value.compareTo(current) == 0)
+                Column(Modifier.width(columnWidth * columns.size + EDGE)) {
+                    Row(
+                        Modifier
+                            .height(headerHeight)
+                            .semantics(mergeDescendants = true) { },
+                    ) {
+                        for (c in columns) HeaderCell(c, columnWidth)
+                    }
+                    HorizontalDivider(color = colors.line, modifier = Modifier.padding(end = EDGE))
+                    rows.forEachIndexed { i, value ->
+                        val isCurrent = current != null && value.compareTo(current) == 0
+                        val a11y = labels[i] + " " + first + ": " +
+                            columns.indices.joinToString(", ") { j -> columns[j].title + " " + cells[i][j] }
+                        Row(
+                            Modifier
+                                .height(rowHeight)
+                                .fillMaxWidth()
+                                .background(if (isCurrent) colors.accentSoft else Color.Transparent)
+                                .padding(end = EDGE)
+                                .clearAndSetSemantics { contentDescription = a11y },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            columns.forEachIndexed { j, c ->
+                                Text(
+                                    text = cells[i][j],
+                                    style = if (c.selected || isCurrent) type.monoStrong else type.mono,
+                                    color = when {
+                                        c.best -> colors.good
+                                        c.rate == null -> colors.muted
+                                        else -> colors.ink
+                                    },
+                                    textAlign = TextAlign.End,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.width(columnWidth),
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
 
+/** Название колонки: цветная точка карты в начале, выбранная — жирным. */
 @Composable
-private fun HeaderRow(first: String, columns: List<CheatColumn>) {
+private fun HeaderCell(c: CheatColumn, width: Dp) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.Bottom) {
-        Text(first, style = type.label, color = colors.muted, modifier = Modifier.width(FIRST_WIDTH))
-        for (c in columns) {
-            // Точка цвета карты — в начале названия, а не у края колонки.
-            Text(
-                text = buildAnnotatedString {
-                    if (c.dot != null) withStyle(SpanStyle(color = c.dot)) { append("● ") }
-                    append(c.title)
-                },
-                style = if (c.selected) type.label.copy(fontWeight = FontWeight.SemiBold) else type.label,
-                color = if (c.selected) colors.ink else colors.muted,
-                textAlign = TextAlign.End,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .width(COLUMN_WIDTH)
-                    .padding(start = 8.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun ValueRow(value: BigDecimal, columns: List<CheatColumn>, isCurrent: Boolean) {
-    val colors = AppTheme.colors
-    val type = AppTheme.type
-    Row(
-        modifier = Modifier
-            .background(if (isCurrent) colors.accentSoft else Color.Transparent)
-            .padding(horizontal = 12.dp, vertical = 7.dp),
+    Box(
+        Modifier
+            .width(width)
+            .fillMaxHeight()
+            .padding(start = CELL_GAP, bottom = 8.dp),
+        contentAlignment = Alignment.BottomEnd,
     ) {
         Text(
-            text = Numbers.cheat(value),
-            style = if (isCurrent) type.monoStrong else type.mono,
-            color = if (isCurrent) colors.accent else colors.ink,
-            maxLines = 1,
-            modifier = Modifier.width(FIRST_WIDTH),
+            text = buildAnnotatedString {
+                if (c.dot != null) withStyle(SpanStyle(color = c.dot)) { append("● ") }
+                append(c.title)
+            },
+            style = if (c.selected) type.label.copy(fontWeight = FontWeight.SemiBold) else type.label,
+            color = if (c.selected) colors.ink else colors.muted,
+            textAlign = TextAlign.End,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
-        for (c in columns) {
-            Text(
-                text = c.rate?.let { Numbers.cheat(value.multiply(it, MC)) } ?: "—",
-                style = if (c.selected || isCurrent) type.monoStrong else type.mono,
-                color = when {
-                    c.best -> colors.good
-                    c.rate == null -> colors.muted
-                    else -> colors.ink
-                },
-                textAlign = TextAlign.End,
-                maxLines = 1,
-                modifier = Modifier
-                    .width(COLUMN_WIDTH)
-                    .padding(start = 8.dp),
-            )
-        }
     }
 }
 
-private val FIRST_WIDTH = 72.dp
-private val COLUMN_WIDTH = 96.dp
+/** Поля таблицы по краям. */
+private val EDGE = 12.dp
+
+/** Зазор между колонками. */
+private val CELL_GAP = 8.dp
+
+/** Уже — колонкам тесно для названий карт: таблица прокручивается вбок. */
+private val MIN_COLUMN = 64.dp
+
+/** Ширина колонки в прокручиваемой таблице. */
+private val SCROLL_COLUMN = 88.dp

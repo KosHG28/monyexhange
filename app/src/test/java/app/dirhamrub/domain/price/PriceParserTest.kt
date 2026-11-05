@@ -194,15 +194,27 @@ class PriceParserTest {
     }
 
     @Test
-    fun `размер повёрнутой рамки`() {
-        // Прямоугольник 200 × 40, повёрнутый на 10°: рамка вдоль осей ≈ 203,9 × 74,1.
-        val (w, h) = unrotatedSize(203.89f, 74.12f, 10f)!!
-        assertEquals(200f, w, 0.5f)
-        assertEquals(40f, h, 0.5f)
-        val (w0, h0) = unrotatedSize(120f, 30f, 0f)!!
-        assertEquals(120f, w0, 0.01f)
-        assertEquals(30f, h0, 0.01f)
-        assertEquals(null, unrotatedSize(100f, 40f, 40f))
+    fun `ширина наклонённой строки по рамке и высоте букв`() {
+        // Строка 200 × 40 под 35°: рамка вдоль осей шириной 200·cos35° + 40·sin35° ≈ 186,77.
+        assertEquals(200f, orientedWidth(186.77f, 40f, 35f)!!, 0.5f)
+        assertEquals(200f, orientedWidth(186.77f, 40f, -35f)!!, 0.5f)
+        // Под 65° (ценник почти поперёк) — всё ещё считается.
+        val w65 = 200f * kotlin.math.cos(Math.toRadians(65.0)).toFloat() + 40f * kotlin.math.sin(Math.toRadians(65.0)).toFloat()
+        assertEquals(200f, orientedWidth(w65, 40f, 65f)!!, 0.5f)
+        // Почти вертикальная строка — не вписываем.
+        assertEquals(null, orientedWidth(60f, 40f, 80f))
+        assertEquals(120f, orientedWidth(120f, 30f, 0f)!!, 0.01f)
+    }
+
+    @Test
+    fun `высота цифр берётся у слов, а не у рамки`() {
+        // Наклонная строка: рамка «179» высотой 90, а сами цифры — 40.
+        val l = OcrLine(listOf(OcrWord("179", Box(100f, 100f, 200f, 190f), height = 40f), OcrWord("AED", Box(200f, 60f, 300f, 150f), height = 40f)), angle = -35f)
+        val c = parse(l).single()
+        assertEquals(40f, c.height, 0.01f)
+        assertEquals(-35f, c.angle, 0.01f)
+        // Без наклона высота — как у рамки.
+        assertEquals(40f, parse(line("AED", "45.00")).single().height, 0.01f)
     }
 
     @Test

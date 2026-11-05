@@ -20,6 +20,8 @@ data class PriceCandidate(
     val extent: Box = box,
     /** Наклон строки с ценой, градусы. */
     val angle: Float = 0f,
+    /** Высота цифр «как на ценнике» (у наклонённой строки меньше высоты [box]). */
+    val height: Float = box.height,
 )
 
 /**
@@ -159,7 +161,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         markStruckOut(kept)
         return dedupe(kept)
             .sortedByDescending { it.score }
-            .map { PriceCandidate(it.value, it.box, it.score, it.hasCurrency, it.isOld, it.confident, it.extent, it.angle) }
+            .map { PriceCandidate(it.value, it.box, it.score, it.hasCurrency, it.isOld, it.confident, it.extent, it.angle, it.height) }
     }
 
     /** Число у левого или правого края (ближе 0,6 высоты цифр) или за ним — могло обрезаться. */
@@ -178,12 +180,13 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         var isOld: Boolean,
         val extent: Box,
         val angle: Float,
+        val height: Float,
     ) {
         var score: Float = 0f
         val confident: Boolean get() = hasCurrency || blockCurrency || hasFraction
     }
 
-    private class Token(val text: String, val box: Box, val start: Int) {
+    private class Token(val text: String, val box: Box, val start: Int, val height: Float) {
         val end: Int get() = start + text.length
     }
 
@@ -193,7 +196,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         val sb = StringBuilder()
         for (w in words) {
             if (sb.isNotEmpty()) sb.append(' ')
-            tokens += Token(w.text, w.box, sb.length)
+            tokens += Token(w.text, w.box, sb.length, w.height)
             sb.append(w.text)
         }
         val text = sb.toString()
@@ -240,6 +243,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
                 isOld = oldKeyword,
                 extent = extent,
                 angle = angle,
+                height = tokens.filter { maxOf(it.start, m.range.first) < minOf(it.end, m.range.last + 1) }.maxOfOrNull { it.height } ?: box.height,
             )
         }
     }
@@ -297,7 +301,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
                     else -> null
                 }
                 if (glued != null) {
-                    out[out.lastIndex] = OcrWord(glued, prev.box.union(w.box))
+                    out[out.lastIndex] = OcrWord(glued, prev.box.union(w.box), maxOf(prev.height, w.height))
                     continue
                 }
             }
@@ -327,7 +331,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
                     s.box.top >= big.box.top - 0.3f * bh &&
                     s.box.top <= big.box.top + 0.3f * bh
             } ?: continue
-            replaced[big] = OcrWord(big.text + "." + small.text, big.box.union(small.box))
+            replaced[big] = OcrWord(big.text + "." + small.text, big.box.union(small.box), big.height)
             removed += small
         }
         if (replaced.isEmpty()) return lines

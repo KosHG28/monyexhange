@@ -41,8 +41,11 @@ data class Box(val left: Float, val top: Float, val right: Float, val bottom: Fl
     fun contains(x: Float, y: Float): Boolean = x in left..right && y in top..bottom
 }
 
-/** Слово OCR. */
-data class OcrWord(val text: String, val box: Box)
+/**
+ * Слово OCR: [box] — рамка вдоль осей экрана, [height] — высота самих букв «как на ценнике»
+ * (у наклонённой строки рамка выше букв).
+ */
+data class OcrWord(val text: String, val box: Box, val height: Float = box.height)
 
 /** Строка OCR — слова слева направо; [angle] — наклон строки в градусах (по часовой стрелке). */
 data class OcrLine(val words: List<OcrWord>, val angle: Float = 0f) {
@@ -50,22 +53,18 @@ data class OcrLine(val words: List<OcrWord>, val angle: Float = 0f) {
 }
 
 /**
- * Размер повёрнутого на [angleDeg] прямоугольника по его рамке вдоль осей ([width] × [height]):
- * ширина и высота «как на ценнике». null — угол слишком большой (больше 30°) или рамка не сходится.
+ * Ширина наклонённой на [angleDeg] строки «как на ценнике» по ширине её рамки вдоль осей [boxWidth]
+ * и высоте букв [height]: рамка = w·cos + h·sin. null — строка почти вертикальная (больше ~72°).
  */
-fun unrotatedSize(width: Float, height: Float, angleDeg: Float): Pair<Float, Float>? {
-    if (kotlin.math.abs(angleDeg) > MAX_TILT) return null
-    val a = Math.toRadians(kotlin.math.abs(angleDeg).toDouble())
-    val c = kotlin.math.cos(a)
-    val s = kotlin.math.sin(a)
-    val det = c * c - s * s
-    if (det <= 0.0) return null
-    val w = (width * c - height * s) / det
-    val h = (height * c - width * s) / det
-    return if (w > 0 && h > 0) w.toFloat() to h.toFloat() else null
+fun orientedWidth(boxWidth: Float, height: Float, angleDeg: Float): Float? {
+    val r = Math.toRadians(kotlin.math.abs(angleDeg).toDouble())
+    val c = kotlin.math.cos(r)
+    if (c < MIN_COS) return null
+    val w = (boxWidth - height * kotlin.math.sin(r)) / c
+    return maxOf(w.toFloat(), height)
 }
 
-private const val MAX_TILT = 30f
+private const val MIN_COS = 0.3
 
 /** Блок OCR — несколько соседних строк. */
 data class OcrBlock(val lines: List<OcrLine>)

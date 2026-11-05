@@ -11,7 +11,7 @@ import app.dirhamrub.domain.price.PriceCurrency
 import app.dirhamrub.domain.price.PriceParser
 import app.dirhamrub.domain.price.PriceTracker
 import app.dirhamrub.domain.price.TrackedPrice
-import app.dirhamrub.domain.price.unrotatedSize
+import app.dirhamrub.domain.price.orientedWidth
 import app.dirhamrub.domain.wallet.Currency
 import com.google.mlkit.vision.text.Text
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -71,8 +71,11 @@ private val EMPTY_RECT = RectF()
 /** Цвета ценника под ценой: бумага и цифры (ARGB). */
 class TagColors(val paper: Int, val ink: Int)
 
-/** Цена, у которой нужно взять цвета ценника: рамка «цена + валюта» в координатах экрана. */
-class SampleTarget(val id: Long, val left: Float, val top: Float, val right: Float, val bottom: Float)
+/**
+ * Цена, у которой нужно взять цвета ценника: строка «цена + валюта» с центром ([cx], [cy]),
+ * размерами «как на ценнике» [width] × [height] и наклоном [angle] (градусы) — в координатах экрана.
+ */
+class SampleTarget(val id: Long, val cx: Float, val cy: Float, val width: Float, val height: Float, val angle: Float)
 
 class LabelFrame(val labels: List<PriceLabel>, val version: Long) {
     val focus: PriceLabel? get() = labels.firstOrNull { it.focused }
@@ -173,7 +176,15 @@ class PricePipeline(private val metrics: LabelMetrics) {
     /** Цены, у которых нужны цвета ценника (фоновый поток анализатора). */
     fun sampleTargets(): List<SampleTarget> = synchronized(this) {
         if (!embedded) return emptyList()
-        lastTracked.filter { it.confident }.map { SampleTarget(it.id, it.extent.left, it.extent.top, it.extent.right, it.extent.bottom) }
+        lastTracked.filter { it.confident }.mapNotNull { t ->
+            val e = t.extent
+            if (t.angle == 0f) {
+                SampleTarget(t.id, e.centerX, e.centerY, e.width, e.height, 0f)
+            } else {
+                val w = orientedWidth(e.width, t.height, t.angle) ?: return@mapNotNull null
+                SampleTarget(t.id, e.centerX, e.centerY, w, t.height, t.angle)
+            }
+        }
     }
 
     /** Новые цвета ценника для метки [id]: смешиваются с прежними, чтобы подложка не мигала. */
@@ -272,8 +283,12 @@ class PricePipeline(private val metrics: LabelMetrics) {
             val alpha = t.alpha * (0.25f + 0.75f * appear)
             // Вписываем только уверенные цены с пересчётом: догадку, выглядящую как настоящая цена, не рисуем.
             if (embedded && t.confident && homeAmount != null) {
-                labels += embeddedLabel(t, focused, alpha, "${Numbers.cheat(homeAmount)} ${home.symbol}", homeAmount, official)
-                continue
+                val label = embeddedLabel(t, focused, alpha, "${Numbers.cheat(homeAmount)} ${home.symbol}", homeAmount, official)
+                if (label != null) {
+                    labels += label
+                    continue
+                }
+                // Почти вертикальный ценник — плашкой.
             }
             val paint = if (focused) mainPaint else subPaint
             val fm = if (focused) mainMetrics else subMetrics
@@ -334,20 +349,23 @@ class PricePipeline(private val metrics: LabelMetrics) {
         text: String,
         homeAmount: BigDecimal,
         official: BigDecimal?,
-    ): PriceLabel {
-        // Наклонный ценник: рамки OCR — вдоль осей экрана, поэтому восстанавливаем размеры строки
-        // «как на ценнике» и рисуем всё ровно в её системе координат, а холст поворачиваем при отрисовке.
+    ): PriceLabel? {
+        // Наклонный ценник: рамки OCR — вдоль осей экрана и выше самих цифр. Берём высоту цифр
+        // «как на ценнике» (по углам слов) и ширину строки из её рамки и наклона, всё рисуем ровно
+        // в системе строки, а холст поворачиваем при отрисовке. Почти вертикальную строку не вписываем.
         val px = t.extent.centerX
         val py = t.extent.centerY
-        val extSize = if (t.angle != 0f) unrotatedSize(t.extent.width, t.extent.height, t.angle) else null
-        val boxSize = if (extSize != null) unrotatedSize(t.box.width, t.box.height, t.angle) else null
-        val angle = if (extSize != null && boxSize != null) t.angle else 0f
-        val ext = if (angle == 0f) {
-            t.extent
+        val angle = t.angle
+        val h: Float
+        val ext: Box
+        if (angle == 0f) {
+            h = t.box.height
+            ext = t.extent
         } else {
-            Box(px - extSize!!.first / 2f, py - extSize.second / 2f, px + extSize.first / 2f, py + extSize.second / 2f)
+            h = t.height
+            val w = orientedWidth(t.extent.width, h, angle) ?: return null
+            ext = Box(px - w / 2f, py - h / 2f, px + w / 2f, py + h / 2f)
         }
-        val h = if (angle == 0f) t.box.height else boxSize!!.second
         val c = colors[t.id]
         val digitHeight = h * DIGIT_SHARE
         embedPaint.textSize = digitHeight / DIGIT_TO_SIZE

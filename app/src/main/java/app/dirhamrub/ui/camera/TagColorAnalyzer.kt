@@ -54,26 +54,36 @@ class TagColorAnalyzer(
         viewToBuffer.postConcat(image.imageInfo.sensorToBufferTransformMatrix)
         val yuv = Yuv(image)
         for (t in targets) {
-            val h = t.bottom - t.top
-            if (h <= 0f) continue
-            // Бумага: точки над, под и по бокам от цены, на треть её высоты в стороне.
+            val h = t.height
+            if (h <= 0f || t.width <= 0f) continue
+            // Точки считаются в системе строки (ровной), затем поворачиваются на её наклон:
+            // у наклонённого ценника «над ценой» — это над строкой, а не над рамкой экрана (там стол).
+            val rad = Math.toRadians(t.angle.toDouble())
+            val cos = kotlin.math.cos(rad).toFloat()
+            val sin = kotlin.math.sin(rad).toFloat()
+            val halfW = t.width / 2f
+            val halfH = h / 2f
             val off = h * 0.35f
             var k = 0
+            fun put(arr: FloatArray, lx: Float, ly: Float) {
+                arr[k++] = t.cx + lx * cos - ly * sin
+                arr[k++] = t.cy + lx * sin + ly * cos
+            }
+            // Бумага: над, под и по бокам от строки, на треть её высоты в стороне.
             for (i in 0 until EDGE_POINTS) {
-                val x = t.left + (t.right - t.left) * (i + 0.5f) / EDGE_POINTS
-                outer[k++] = x; outer[k++] = t.top - off
-                outer[k++] = x; outer[k++] = t.bottom + off
+                val lx = -halfW + t.width * (i + 0.5f) / EDGE_POINTS
+                put(outer, lx, -halfH - off)
+                put(outer, lx, halfH + off)
             }
             for (side in 0..1) {
-                val x = if (side == 0) t.left - off else t.right + off
-                outer[k++] = x; outer[k++] = t.top + h * 0.3f
-                outer[k++] = x; outer[k++] = t.top + h * 0.7f
+                val lx = if (side == 0) -halfW - off else halfW + off
+                put(outer, lx, -h * 0.2f)
+                put(outer, lx, h * 0.2f)
             }
-            // Цифры: сетка внутри рамки.
+            // Цифры: сетка внутри строки.
             k = 0
             for (r in 0 until INNER_ROWS) for (cIdx in 0 until INNER_COLUMNS) {
-                inner[k++] = t.left + (t.right - t.left) * (cIdx + 0.5f) / INNER_COLUMNS
-                inner[k++] = t.top + h * (r + 1f) / (INNER_ROWS + 1)
+                put(inner, -halfW + t.width * (cIdx + 0.5f) / INNER_COLUMNS, -halfH + h * (r + 1f) / (INNER_ROWS + 1))
             }
             viewToBuffer.mapPoints(outer)
             viewToBuffer.mapPoints(inner)

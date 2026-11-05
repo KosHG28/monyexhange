@@ -36,6 +36,7 @@ import app.dirhamrub.R
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.ui.components.RollingText
 import app.dirhamrub.ui.theme.AppTheme
 import java.math.BigDecimal
 
@@ -161,7 +162,10 @@ internal fun SecondaryLine(state: MainUiState, line: Line, onSelectLine: (Line) 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, style = type.body.copy(fontSize = 13.5.sp), color = colors.muted, maxLines = 1, modifier = Modifier.weight(1f))
-        Text("$value ${currency.symbol}", style = type.body.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1)
+        val valueStyle = type.body.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        // Вводимая строка меняется на каждом нажатии — здесь цифры перекатываются.
+        RollingText(value, style = valueStyle, color = colors.ink)
+        Text(" " + currency.symbol, style = valueStyle, color = colors.ink, maxLines = 1)
     }
 }
 

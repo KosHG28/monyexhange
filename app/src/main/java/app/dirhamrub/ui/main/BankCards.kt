@@ -1,6 +1,8 @@
 package app.dirhamrub.ui.main
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,10 +35,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -64,10 +69,13 @@ import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.WalletQuote
+import app.dirhamrub.ui.components.RollingText
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.CardPalette
+import app.dirhamrub.ui.theme.LocalReduceMotion
 import app.dirhamrub.ui.theme.motion
 import java.math.BigDecimal
+import kotlin.math.floor
 
 private val CARD_HEIGHT = 100.dp
 private val ADD_WIDTH = 52.dp
@@ -116,13 +124,52 @@ fun BankCardsRow(
         // (тогда «+» и вторая карта уходят вправо — ряд прокручивается).
         val scale = cardScale()
         val cardWidth = (((maxWidth - 16.dp * 2 - 10.dp * 2 - ADD_WIDTH) / 2) * scale).coerceIn(140.dp, minOf(240.dp, maxWidth * 0.62f))
-        LazyRow(
-            state = listState,
-            contentPadding = PaddingValues(horizontal = 16.dp - RING_GAP),
-            horizontalArrangement = Arrangement.spacedBy(10.dp - RING_GAP * 2),
-        ) {
-            cardItems(cards, quote, selectedId, spend, home, amount, cardWidth, onSelect, onEdit)
-            item(key = "add") { AddCardTile(onAdd, CARD_HEIGHT * scale) }
+        // Рамка выбранной карты — одна на весь ряд: при выборе другой карты она переезжает к ней
+        // с лёгким пружинящим докатом, а не гаснет на одной и загорается на другой.
+        val selectedIndex = cards.indexOfFirst { it.id == selectedId }
+        val ringAt = remember { Animatable(selectedIndex.coerceAtLeast(0).toFloat()) }
+        val reduceMotion = LocalReduceMotion.current
+        LaunchedEffect(selectedIndex) {
+            if (selectedIndex < 0) return@LaunchedEffect
+            if (reduceMotion) {
+                ringAt.snapTo(selectedIndex.toFloat())
+            } else {
+                ringAt.animateTo(selectedIndex.toFloat(), spring(dampingRatio = 0.62f, stiffness = 420f))
+            }
+        }
+        val ringColor = AppTheme.colors.accent
+        Box {
+            LazyRow(
+                state = listState,
+                contentPadding = PaddingValues(horizontal = 16.dp - RING_GAP),
+                horizontalArrangement = Arrangement.spacedBy(10.dp - RING_GAP * 2),
+            ) {
+                cardItems(cards, quote, selectedId, spend, home, amount, cardWidth, onSelect, onEdit)
+                item(key = "add") { AddCardTile(onAdd, CARD_HEIGHT * scale) }
+            }
+            if (selectedIndex >= 0) {
+                Canvas(Modifier.matchParentSize()) {
+                    val info = listState.layoutInfo
+                    val pos = ringAt.value
+                    val i0 = floor(pos).toInt()
+                    val f = pos - i0
+                    val a = info.visibleItemsInfo.firstOrNull { it.index == i0 }
+                    val b = info.visibleItemsInfo.firstOrNull { it.index == i0 + 1 }
+                    // Пружина может чуть перелететь за крайнюю карту — тогда считаем от ближайшей.
+                    val from = a ?: return@Canvas
+                    val left = (if (b != null && f > 0f) from.offset + (b.offset - from.offset) * f else from.offset.toFloat()) -
+                        info.viewportStartOffset
+                    val width = if (b != null && f > 0f) from.size + (b.size - from.size) * f else from.size.toFloat()
+                    val stroke = 2.dp.toPx()
+                    drawRoundRect(
+                        color = ringColor,
+                        topLeft = Offset(left + stroke / 2f, stroke / 2f),
+                        size = Size(width - stroke, size.height - stroke),
+                        cornerRadius = CornerRadius(22.dp.toPx()),
+                        style = Stroke(stroke),
+                    )
+                }
+            }
         }
     }
 }
@@ -220,7 +267,8 @@ private fun BankCardView(
     val type = AppTheme.type
     val style = CardPalette.style(card)
     val dim by animateFloatAsState(if (selected) 1f else 0.82f, motion(), label = "cardDim")
-    val ring by animateFloatAsState(if (selected) 1f else 0f, motion(), label = "cardRing")
+    // Невыбранные карты чуть меньше: выбранная — «впереди».
+    val shrink by animateFloatAsState(if (selected) 1f else 0.96f, motion(260), label = "cardScale")
 
     val rate = quote?.let {
         val unit = Numbers.unitFor(it.homePerUnit)
@@ -243,16 +291,16 @@ private fun BankCardView(
     val editLabel = stringResource(R.string.card_edit_a11y)
     val sumSize = if (sumText.length > 11) 17.sp else 22.sp
 
-    // Обводка выбранной карты — в постоянном зазоре: размер и соседи не меняются.
-    Box(
-        Modifier
-            .border(2.dp, colors.accent.copy(alpha = ring), RoundedCornerShape(22.dp))
-            .padding(RING_GAP),
-    ) {
+    // Зазор под общую рамку выбранной карты (её рисует ряд): размер и соседи не меняются.
+    Box(Modifier.padding(RING_GAP)) {
         Box(
             modifier = Modifier
                 .size(width, height)
-                .graphicsLayer { alpha = dim }
+                .graphicsLayer {
+                    alpha = dim
+                    scaleX = shrink
+                    scaleY = shrink
+                }
                 .clip(CARD_SHAPE)
                 .background(Brush.linearGradient(listOf(style.start, style.end)))
                 .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = editLabel)
@@ -292,13 +340,17 @@ private fun BankCardView(
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                Text(
-                    text = sumText,
-                    style = type.number.copy(fontSize = sumSize, lineHeight = sumSize * 1.15f, fontWeight = FontWeight.Medium, letterSpacing = 0.sp),
-                    color = CardPalette.onCard,
-                    maxLines = 1,
-                    softWrap = false,
-                )
+                // Сумма меняется на каждом нажатии — перекатываются только изменившиеся цифры.
+                val sumStyle = type.number.copy(fontSize = sumSize, lineHeight = sumSize * 1.15f, fontWeight = FontWeight.Medium, letterSpacing = 0.sp)
+                Row {
+                    if (sum != null) {
+                        if (approx.isNotEmpty()) Text(approx, style = sumStyle, color = CardPalette.onCard, maxLines = 1, softWrap = false)
+                        RollingText(sum, style = sumStyle, color = CardPalette.onCard)
+                        Text(" " + home.symbol, style = sumStyle, color = CardPalette.onCard, maxLines = 1, softWrap = false)
+                    } else {
+                        Text(sumText, style = sumStyle, color = CardPalette.onCard, maxLines = 1, softWrap = false)
+                    }
+                }
                 Spacer(Modifier.height(3.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // Курс не сокращается многоточием: на узкой карте шрифт сам уменьшается, пока строка не влезет.

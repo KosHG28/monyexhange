@@ -66,6 +66,8 @@ class PriceLabel(
     val angle: Float = 0f,
     val pivotX: Float = 0f,
     val pivotY: Float = 0f,
+    /** Когда метка впервые появилась (мс, uptime) — вписанная сумма проявляется от этого момента. */
+    val shownAt: Long = 0L,
     /** Сумма в итоговой валюте по выбранной карте (или ЦБ) — для карточки, шторки и TalkBack. */
     val homeAmount: BigDecimal?,
     /** Сумма по курсу ЦБ — для карточки фокуса (null — не показывать). */
@@ -293,7 +295,8 @@ class PricePipeline(private val metrics: LabelMetrics) {
             val alpha = t.alpha * (0.25f + 0.75f * appear)
             // Вписываем только уверенные цены с пересчётом: догадку, выглядящую как настоящая цена, не рисуем.
             if (embedded && t.confident && homeAmount != null) {
-                val label = embeddedLabel(t, focused, alpha, "${Numbers.cheat(homeAmount)} ${home.symbol}", homeAmount, official)
+                // Вписанная сумма появляется своей анимацией (проявляется слева направо) — без общего затухания.
+                val label = embeddedLabel(t, focused, t.alpha, first, "${Numbers.cheat(homeAmount)} ${home.symbol}", homeAmount, official)
                 if (label != null) {
                     labels += label
                     continue
@@ -357,6 +360,7 @@ class PricePipeline(private val metrics: LabelMetrics) {
         t: TrackedPrice,
         focused: Boolean,
         alpha: Float,
+        shownAt: Long,
         text: String,
         homeAmount: BigDecimal,
         official: BigDecimal?,
@@ -422,6 +426,7 @@ class PricePipeline(private val metrics: LabelMetrics) {
             angle = angle,
             pivotX = px,
             pivotY = py,
+            shownAt = shownAt,
             homeAmount = homeAmount,
             officialAmount = official?.let { t.value.multiply(it, MC) },
         )

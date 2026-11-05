@@ -1,8 +1,15 @@
 package app.dirhamrub.ui.main
 
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,10 +24,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -37,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.Key
 import app.dirhamrub.ui.theme.AppTheme
+import app.dirhamrub.ui.theme.LocalReduceMotion
 
 /** Высота клавиш: на коротких экранах ниже, чтобы сумма и подсказки не уходили под прокрутку. */
 @Composable
@@ -104,13 +115,33 @@ private fun RowScope.KeyBase(
     content: @Composable () -> Unit,
 ) {
     val view = LocalView.current
+    // Клавиша «проседает» при нажатии: даже короткий тап доигрывает нажатие, потом пружинит обратно.
+    val source = remember { MutableInteractionSource() }
+    val press = remember { Animatable(1f) }
+    val reduceMotion = LocalReduceMotion.current
+    LaunchedEffect(source, reduceMotion) {
+        if (reduceMotion) return@LaunchedEffect
+        source.interactions.collect { interaction ->
+            when (interaction) {
+                is PressInteraction.Press -> press.animateTo(PRESSED_SCALE, tween(PRESS_MS))
+                is PressInteraction.Release, is PressInteraction.Cancel ->
+                    press.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium))
+            }
+        }
+    }
     Box(
         modifier = Modifier
             .weight(1f)
             .height(keyHeight())
+            .graphicsLayer {
+                scaleX = press.value
+                scaleY = press.value
+            }
             .clip(RoundedCornerShape(18.dp))
             .background(background)
             .combinedClickable(
+                interactionSource = source,
+                indication = LocalIndication.current,
                 onLongClickLabel = longClickLabel,
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -191,3 +222,7 @@ private fun RowScope.CameraKey(onClick: () -> Unit) {
         }
     }
 }
+
+/** Насколько клавиша «проседает» при нажатии и за сколько. */
+private const val PRESSED_SCALE = 0.92f
+private const val PRESS_MS = 60

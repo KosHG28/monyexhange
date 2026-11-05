@@ -5,17 +5,24 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,12 +36,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -46,10 +61,10 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -65,15 +80,20 @@ import app.dirhamrub.domain.wallet.CardComparison
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.StaleReceipt
+import app.dirhamrub.ui.components.RollingText
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.LocalReduceMotion
+import app.dirhamrub.ui.theme.motion
 import java.math.BigDecimal
 import kotlin.math.abs
 
-/** Что сейчас крупно: смена ключа (карта, валюты) анимируется, набор цифр — нет. */
-private data class HeroKey(val cardId: String?, val spend: Currency, val home: Currency, val line: Line)
+/**
+ * Что сейчас крупно: смена валют или строки — сумма уезжает целиком; набор и смена карты —
+ * перекатываются только изменившиеся цифры ([RollingText]).
+ */
+private data class HeroKey(val spend: Currency, val home: Currency, val line: Line)
 
-private class HeroContent(val key: HeroKey, val cardIndex: Int, val text: AnnotatedString, val size: Int)
+private class HeroContent(val key: HeroKey, val approx: Boolean, val number: String, val symbol: String?, val size: Int)
 
 /**
  * Крупная сумма, подпись (только если курс не по чекам) и какая карта выгоднее.
@@ -139,16 +159,10 @@ internal fun ResultBlock(
             else -> base
         }
         val hero = HeroContent(
-            key = HeroKey(card?.id, wallet.spend, wallet.home, heroLine),
-            cardIndex = cardIndex,
-            text = buildAnnotatedString {
-                if (estimate && heroValue != null) withStyle(SpanStyle(color = colors.muted)) { append("≈ ") }
-                append(number)
-                if (heroValue != null) {
-                    append(" ")
-                    withStyle(SpanStyle(color = colors.muted)) { append(heroCurrency.symbol) }
-                }
-            },
+            key = HeroKey(wallet.spend, wallet.home, heroLine),
+            approx = estimate && heroValue != null,
+            number = number,
+            symbol = heroCurrency.symbol.takeIf { heroValue != null },
             size = heroSize,
         )
         val resultA11y = stringResource(R.string.result_a11y, heroPlain)
@@ -161,12 +175,6 @@ internal fun ResultBlock(
             transitionSpec = {
                 when {
                     reduceMotion -> EnterTransition.None togetherWith ExitTransition.None
-                    // Другая карта — сумма уезжает вбок, в сторону свайпа.
-                    targetState.key.cardId != initialState.key.cardId -> {
-                        val dir = if (targetState.cardIndex >= initialState.cardIndex) 1 else -1
-                        (slideInHorizontally(tween(260)) { it / 4 * dir } + fadeIn(tween(260))) togetherWith
-                            (slideOutHorizontally(tween(200)) { -it / 4 * dir } + fadeOut(tween(160)))
-                    }
                     // Другие валюты — сверху вниз.
                     else -> (slideInVertically(tween(260)) { -it / 3 } + fadeIn(tween(260))) togetherWith
                         (slideOutVertically(tween(200)) { it / 3 } + fadeOut(tween(160)))
@@ -186,15 +194,12 @@ internal fun ResultBlock(
                     }
                 },
         ) { h ->
-            Text(
-                text = h.text,
-                style = type.hero.copy(fontSize = h.size.sp, lineHeight = (h.size * 1.12f).sp),
-                color = colors.ink,
-                maxLines = 1,
-                softWrap = false,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            val style = type.hero.copy(fontSize = h.size.sp, lineHeight = (h.size * 1.12f).sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                if (h.approx) Text("≈ ", style = style, color = colors.muted, maxLines = 1, softWrap = false)
+                RollingText(h.number, style = style, color = colors.ink)
+                if (h.symbol != null) Text(" " + h.symbol, style = style, color = colors.muted, maxLines = 1, softWrap = false)
+            }
         }
         Basis(state, onAddReceipt, onEditCard)
         comparison(state)?.let { c ->
@@ -301,11 +306,16 @@ private fun Comparison(state: MainUiState, c: CardComparison, onSelectCard: (Str
     val best = c.selectedIsBest
     val text = if (best) stringResource(R.string.compare_best, diff, c.other.card.name) else stringResource(R.string.compare_other, diff, c.other.card.name)
     val a11y = if (best) text else stringResource(R.string.compare_other_a11y, c.other.card.name, diff)
+    // Сменилась карта — плашка плавно перекрашивается, меняет ширину и текст, а не прыгает.
+    val reduceMotion = LocalReduceMotion.current
+    val bg by animateColorAsState(if (best) colors.goodSoft else colors.accentSoft, motion(280), label = "compareBg")
+    val fg by animateColorAsState(if (best) colors.good else colors.accent, motion(280), label = "compareFg")
     Box(
         modifier = Modifier
             .heightIn(min = ROW)
+            .animateContentSize(if (reduceMotion) snap() else tween(280))
             .clip(RoundedCornerShape(50))
-            .background(if (best) colors.goodSoft else colors.accentSoft)
+            .background(bg)
             .then(if (best) Modifier else Modifier.clickable(role = Role.Button) { onSelectCard(c.other.card.id) })
             .clearAndSetSemantics {
                 contentDescription = a11y
@@ -314,19 +324,35 @@ private fun Comparison(state: MainUiState, c: CardComparison, onSelectCard: (Str
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = text,
-            style = type.body.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium),
-            color = if (best) colors.good else colors.accent,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        // Текст сменяется растворением только при смене «выгоднее / дороже»; при наборе суммы — на месте.
+        AnimatedContent(
+            targetState = best to text,
+            contentKey = { it.first },
+            transitionSpec = {
+                if (reduceMotion) {
+                    EnterTransition.None togetherWith ExitTransition.None
+                } else {
+                    fadeIn(tween(200, delayMillis = 80)) togetherWith fadeOut(tween(120))
+                }.using(SizeTransform(clip = false))
+            },
+            label = "compareText",
+        ) { (_, t) ->
+            Text(
+                text = t,
+                style = type.body.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                color = fg,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
 /**
- * «ЦБ: 100 ₸ = 17,65 ₽ ↑0,4 % · 30 окт ↻» — курс ЦБ на ту же единицу, изменение за неделю
- * (вверх — валюта трат подорожала, жёлтым; вниз — подешевела, зелёным), дата и обновление по тапу.
+ * «ЦБ на 30 окт: 100 ₸ = 17,65 ₽ · ↑0,4 % за неделю ↻» — курс ЦБ на ту же единицу и его изменение за неделю
+ * (вверх — валюта трат подорожала, жёлтым; вниз — подешевела, зелёным). Изменение — у курса ЦБ, оно одно
+ * для всех карт (наценка карты — на самой карте). Не помещается — короче: «ЦБ 30 окт: … · ↑0,4 %/нед.».
+ * Тап — обновить: значок крутится, новый курс перекатывается и коротко подсвечивается.
  */
 @Composable
 internal fun OfficialLine(state: MainUiState, onRefresh: () -> Unit, modifier: Modifier = Modifier) {
@@ -335,59 +361,122 @@ internal fun OfficialLine(state: MainUiState, onRefresh: () -> Unit, modifier: M
     val wallet = state.wallet
     val official = state.quote.official
     val rates = state.official
-    val trend = state.weekTrend?.takeIf { !state.ratesLoading && Numbers.percent(it.abs()) != "0" }
-    val trendText = trend?.let { (if (it.signum() > 0) "↑" else "↓") + stringResource(R.string.compare_percent, Numbers.percent(it.abs())) }
-    val head: String
-    val tail: String
-    when {
-        state.ratesLoading -> {
-            head = stringResource(R.string.official_loading_short)
-            tail = ""
-        }
-        official == null || rates == null -> {
-            head = stringResource(R.string.official_missing_short)
-            tail = ""
-        }
-        else -> {
-            val u = Numbers.unitFor(official)
-            val unitLabel = if (u.compareTo(BigDecimal.ONE) == 0) "1 ${wallet.spend.symbol}" else "${Numbers.moneyWhole(u)} ${wallet.spend.symbol}"
-            head = stringResource(R.string.official_rate, unitLabel, Numbers.rateShort(official.multiply(u, MC)), wallet.home.symbol)
-            tail = " · " + RuDates.short(rates.date) + if (state.ratesFailed) stringResource(R.string.official_offline) else ""
-        }
-    }
-    val text = buildAnnotatedString {
-        append(head)
-        if (trendText != null && trend != null) {
-            append(" ")
-            withStyle(SpanStyle(color = if (trend.signum() > 0) colors.warn else colors.good, fontWeight = FontWeight.Medium)) { append(trendText) }
-        }
-        append(tail)
-    }
-    val a11y = buildString {
-        append(head)
-        if (trend != null) append(", ").append(stringResource(R.string.official_trend_a11y, signedPercent(trend)))
-        append(tail)
-    }
+    val reduceMotion = LocalReduceMotion.current
+    val style = type.body.copy(fontSize = 13.sp)
     val refresh = stringResource(R.string.official_refresh)
+    val trend = state.weekTrend?.takeIf { Numbers.percent(it.abs()) != "0" }
+    val arrow = trend?.let { (if (it.signum() > 0) "↑" else "↓") + Numbers.percent(it.abs()) }
+    val trendColor = if (trend != null && trend.signum() > 0) colors.warn else colors.good
+
+    // Подсветка нового курса: тот же курс валют, другое значение.
+    val rate = if (official != null && rates != null) {
+        val u = Numbers.unitFor(official)
+        val unitLabel = if (u.compareTo(BigDecimal.ONE) == 0) "1 ${wallet.spend.symbol}" else "${Numbers.moneyWhole(u)} ${wallet.spend.symbol}"
+        unitLabel to Numbers.rateShort(official.multiply(u, MC))
+    } else {
+        null
+    }
+    val flash = remember { Animatable(0f) }
+    var shown by remember { mutableStateOf<Triple<Currency, Currency, String>?>(null) }
+    LaunchedEffect(rate?.second, wallet.spend, wallet.home) {
+        val now = rate?.let { Triple(wallet.spend, wallet.home, it.second) }
+        val before = shown
+        shown = now
+        if (now != null && before != null && before.first == now.first && before.second == now.second && before.third != now.third && !reduceMotion) {
+            flash.snapTo(1f)
+            flash.animateTo(0f, tween(FLASH_MS))
+        }
+    }
+
     Row(
         modifier = modifier
             .heightIn(min = ROW)
             .clip(RoundedCornerShape(50))
             .clickable(role = Role.Button, onClickLabel = refresh, enabled = !state.ratesLoading, onClick = onRefresh)
-            .semantics { contentDescription = a11y }
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text, style = type.body.copy(fontSize = 13.sp), color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        if (rate == null || rates == null) {
+            Text(
+                stringResource(if (state.ratesLoading) R.string.official_loading_short else R.string.official_missing_short),
+                style = style,
+                color = colors.muted,
+                maxLines = 1,
+            )
+        } else {
+            val date = RuDates.short(rates.date)
+            val offline = if (state.ratesFailed) stringResource(R.string.official_offline) else ""
+            val full = Triple(
+                stringResource(R.string.official_line_head, date, rate.first),
+                arrow?.let { stringResource(R.string.official_trend_week, it) },
+                offline,
+            )
+            val short = Triple(
+                stringResource(R.string.official_line_head_short, date, rate.first),
+                arrow?.let { stringResource(R.string.official_trend_week_short, it) },
+                offline,
+            )
+            val tail = { t: Triple<String, String?, String> -> " ${wallet.home.symbol}" + (t.second?.let { " · $it" } ?: "") + t.third }
+            // Полная строка, если помещается вместе со значком обновления; иначе короткая.
+            val measurer = rememberTextMeasurer()
+            val density = LocalDensity.current
+            val width = LocalConfiguration.current.screenWidthDp.dp - 68.dp
+            val fullWidth = with(density) { measurer.measure(full.first + rate.second + tail(full), style).size.width.toDp() }
+            val line = if (fullWidth <= width) full else short
+            val a11y = line.first + rate.second + " " + wallet.home.symbol +
+                (trend?.let { ", " + stringResource(R.string.official_trend_a11y, signedPercent(it)) } ?: "") + line.third
+            Row(
+                Modifier.clearAndSetSemantics { contentDescription = a11y },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(line.first, style = style, color = colors.muted, maxLines = 1, softWrap = false)
+                RollingText(
+                    rate.second,
+                    style = style,
+                    color = lerp(colors.muted, colors.warn, flash.value),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(colors.warn.copy(alpha = 0.28f * flash.value)),
+                )
+                Text(
+                    buildAnnotatedString {
+                        append(" " + wallet.home.symbol)
+                        if (line.second != null) {
+                            append(" · ")
+                            withStyle(SpanStyle(color = trendColor, fontWeight = FontWeight.Medium)) { append(line.second) }
+                        }
+                        append(line.third)
+                    },
+                    style = style,
+                    color = colors.muted,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+        }
         Spacer(Modifier.width(8.dp))
-        Text(
-            "↻",
-            style = type.bodyStrong,
-            color = when {
-                state.ratesLoading -> colors.line
-                state.ratesFailed -> colors.warn
-                else -> colors.accent
-            },
-        )
+        RefreshMark(state.ratesLoading, state.ratesFailed, reduceMotion)
     }
 }
+
+/** «↻»: пока курсы обновляются — крутится (без анимации — просто бледнеет). */
+@Composable
+private fun RefreshMark(loading: Boolean, failed: Boolean, reduceMotion: Boolean) {
+    val colors = AppTheme.colors
+    val color = when {
+        loading && reduceMotion -> colors.line
+        failed -> colors.warn
+        else -> colors.accent
+    }
+    val mark = @Composable { m: Modifier -> Text("↻", style = AppTheme.type.bodyStrong, color = color, modifier = m) }
+    if (loading && !reduceMotion) {
+        // Бесконечная анимация есть, только пока идёт загрузка.
+        val spin = rememberInfiniteTransition(label = "refresh")
+        val angle by spin.animateFloat(0f, 360f, infiniteRepeatable(tween(700, easing = LinearEasing)), label = "refreshAngle")
+        mark(Modifier.graphicsLayer { rotationZ = angle })
+    } else {
+        mark(Modifier)
+    }
+}
+
+private const val FLASH_MS = 1000

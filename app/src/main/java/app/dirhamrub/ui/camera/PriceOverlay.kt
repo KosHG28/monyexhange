@@ -3,12 +3,18 @@ package app.dirhamrub.ui.camera
 import android.graphics.Paint
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
+import app.dirhamrub.ui.theme.LocalReduceMotion
+import kotlinx.coroutines.flow.collectLatest
 import kotlin.math.min
 
 /**
@@ -26,6 +32,19 @@ fun PriceOverlay(
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current.density
+    // Часы для проявления вписанных сумм: тикают каждый кадр, только пока какая-то сумма проявляется.
+    val reduceMotion = LocalReduceMotion.current
+    val clock = remember { mutableLongStateOf(0L) }
+    LaunchedEffect(frame, reduceMotion) {
+        if (reduceMotion) return@LaunchedEffect
+        snapshotFlow { frame.value }.collectLatest { f ->
+            while (true) {
+                val now = withFrameMillis { it }
+                clock.longValue = now
+                if (f.labels.none { it.embedded && now - it.shownAt < REVEAL_MS }) break
+            }
+        }
+    }
     val paints = remember(metrics, density) {
         OverlayPaints(
             corner = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -67,6 +86,7 @@ fun PriceOverlay(
         // Палец на экране — показываем настоящие ценники без меток.
         if (reveal.value) return@Canvas
         val labels = frame.value.labels
+        val now = clock.longValue
         drawIntoCanvas { canvas ->
             val c = canvas.nativeCanvas
             // Сначала обычные плашки, фокус — поверх.
@@ -76,7 +96,8 @@ fun PriceOverlay(
                     if (l.focused != (pass == 1)) continue
                     val a = (l.alpha * 255f).toInt().coerceIn(0, 255)
                     if (l.embedded) {
-                        drawEmbedded(c, l, a, paints)
+                        val reveal = if (reduceMotion) 1f else ((now - l.shownAt) / REVEAL_MS.toFloat()).coerceIn(0f, 1f)
+                        drawEmbedded(c, l, a, paints, reveal)
                         continue
                     }
                     val tint = when {
@@ -124,48 +145,83 @@ fun PriceOverlay(
  * Сумма, вписанная в ценник: подложка цвета бумаги с мягким краем закрывает старую цену,
  * сумма — цветом цифр, под ней красная черта (у старой цены — зачёркивание цветом цифр);
  * у цены в фокусе — тонкие красные уголки.
+ * [reveal] 0..1 — проявление: подложка закрывает цену слева направо, затем проступает сумма,
+ * дорисовывается черта, уголки сходятся к цене.
  */
-private fun drawEmbedded(c: android.graphics.Canvas, l: PriceLabel, a: Int, paints: OverlayPaints) {
+private fun drawEmbedded(c: android.graphics.Canvas, l: PriceLabel, a: Int, paints: OverlayPaints, reveal: Float) {
+    val wipe = easeOut((reveal / 0.7f).coerceIn(0f, 1f))
+    val textIn = ((reveal - 0.3f) / 0.45f).coerceIn(0f, 1f)
+    val markIn = easeOut(((reveal - 0.5f) / 0.5f).coerceIn(0f, 1f))
+    val cornersIn = easeOut(reveal)
     // Наклонный ценник: всё посчитано ровно в системе строки — поворачиваем холст вокруг её центра.
     val tilted = l.angle != 0f
     if (tilted) {
         c.save()
         c.rotate(l.angle, l.pivotX, l.pivotY)
     }
-    // Бумага — переходом от начала строки к концу, если ценник освещён неровно.
+    // Бумага — переходом от начала строки к концу, если ценник освещён неровно; закрывает цену слева направо.
+    val f = l.feather
+    val wiping = wipe < 1f
+    if (wiping) {
+        c.save()
+        c.clipRect(f.left, f.top - f.height(), f.left + f.width() * wipe, f.bottom + f.height())
+    }
     paints.patch.color = l.paper
     paints.patch.shader = l.paperShader
     paints.patch.alpha = (a * 0.55f).toInt()
-    c.drawRoundRect(l.feather, l.radius * 1.6f, l.radius * 1.6f, paints.patch)
+    c.drawRoundRect(f, l.radius * 1.6f, l.radius * 1.6f, paints.patch)
     paints.patch.alpha = a
     c.drawRoundRect(l.pill, l.radius, l.radius, paints.patch)
     paints.patch.shader = null
+    if (wiping) c.restore()
 
-    paints.embed.textSize = l.textSize
-    paints.embed.color = l.ink
-    paints.embed.alpha = a
-    c.drawText(l.text, l.textX, l.textY, paints.embed)
+    if (textIn > 0f) {
+        paints.embed.textSize = l.textSize
+        paints.embed.color = l.ink
+        paints.embed.alpha = (a * textIn).toInt()
+        c.drawText(l.text, l.textX, l.textY, paints.embed)
+    }
 
-    paints.patch.color = if (l.isOld) l.ink else paints.accent
-    paints.patch.alpha = a
-    c.drawRect(l.mark, paints.patch)
+    if (markIn > 0f) {
+        val m = l.mark
+        paints.patch.color = if (l.isOld) l.ink else paints.accent
+        paints.patch.alpha = a
+        c.drawRect(m.left, m.top, m.left + m.width() * markIn, m.bottom, paints.patch)
+    }
 
-    if (l.focused) {
-        val b = l.feather
-        val len = min(paints.cornerLen, min(b.width(), b.height()) / 3f)
+    if (l.focused && cornersIn > 0f) {
+        // Уголки сходятся к цене: от 1,25 размера к рамке.
+        val grow = 1f + 0.25f * (1f - cornersIn)
+        val hw = f.width() / 2f * grow
+        val hh = f.height() / 2f * grow
+        val cx = f.centerX()
+        val cy = f.centerY()
+        val left = cx - hw
+        val right = cx + hw
+        val top = cy - hh
+        val bottom = cy + hh
+        val len = min(paints.cornerLen, min(f.width(), f.height()) / 3f)
         paints.corner.color = paints.accent
-        paints.corner.alpha = a
-        c.drawLine(b.left, b.top, b.left + len, b.top, paints.corner)
-        c.drawLine(b.left, b.top, b.left, b.top + len, paints.corner)
-        c.drawLine(b.right, b.top, b.right - len, b.top, paints.corner)
-        c.drawLine(b.right, b.top, b.right, b.top + len, paints.corner)
-        c.drawLine(b.left, b.bottom, b.left + len, b.bottom, paints.corner)
-        c.drawLine(b.left, b.bottom, b.left, b.bottom - len, paints.corner)
-        c.drawLine(b.right, b.bottom, b.right - len, b.bottom, paints.corner)
-        c.drawLine(b.right, b.bottom, b.right, b.bottom - len, paints.corner)
+        paints.corner.alpha = (a * cornersIn).toInt()
+        c.drawLine(left, top, left + len, top, paints.corner)
+        c.drawLine(left, top, left, top + len, paints.corner)
+        c.drawLine(right, top, right - len, top, paints.corner)
+        c.drawLine(right, top, right, top + len, paints.corner)
+        c.drawLine(left, bottom, left + len, bottom, paints.corner)
+        c.drawLine(left, bottom, left, bottom - len, paints.corner)
+        c.drawLine(right, bottom, right - len, bottom, paints.corner)
+        c.drawLine(right, bottom, right, bottom - len, paints.corner)
     }
     if (tilted) c.restore()
 }
+
+private fun easeOut(p: Float): Float {
+    val q = 1f - p
+    return 1f - q * q * q
+}
+
+/** Длительность проявления вписанной суммы. */
+private const val REVEAL_MS = 380L
 
 /**
  * Поверх камеры цвета не зависят от темы: красный метро (светлый акцент) даёт белому тексту

@@ -49,7 +49,10 @@
     <string name="card_next">Следующая карта</string>
     <string name="card_prev">Предыдущая карта</string>
     <string name="result_no_rate">Нет курса: добавьте карту или обновите курсы ЦБ</string>
-    <string name="official_rate">ЦБ: %1$s = %2$s %3$s</string>
+    <string name="official_line_head">"ЦБ на %1$s: %2$s = "</string>
+    <string name="official_line_head_short">"ЦБ %1$s: %2$s = "</string>
+    <string name="official_trend_week">%1$s %% за неделю</string>
+    <string name="official_trend_week_short">%1$s %%/нед.</string>
     <string name="official_trend_a11y">за неделю %1$s %%</string>
     <string name="official_offline">" · нет связи"</string>
     <string name="official_loading_short">ЦБ: обновляем…</string>

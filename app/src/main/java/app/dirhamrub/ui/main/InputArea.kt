@@ -1,5 +1,14 @@
 package app.dirhamrub.ui.main
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,7 +47,9 @@ import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.ui.components.RollingText
+import app.dirhamrub.ui.components.TypingText
 import app.dirhamrub.ui.theme.AppTheme
+import app.dirhamrub.ui.theme.LocalReduceMotion
 import java.math.BigDecimal
 
 /**
@@ -73,9 +85,18 @@ internal fun InputField(state: MainUiState, lines: List<Line>, onSelectLine: (Li
                 .clearAndSetSemantics { contentDescription = a11y },
             horizontalAlignment = Alignment.End,
         ) {
-            if (state.expression.isCompound) {
+            // «=» — строка выражения опускается в результат и гаснет.
+            val reduceMotion = LocalReduceMotion.current
+            // Пока строка гаснет, в ней остаётся последнее выражение (держатель без состояния — без лишних перерисовок).
+            val lastExpression = remember { arrayOf("") }
+            if (state.expression.isCompound) lastExpression[0] = state.expression.display() + " ="
+            AnimatedVisibility(
+                visible = state.expression.isCompound,
+                enter = if (reduceMotion) EnterTransition.None else fadeIn(tween(160)) + expandVertically(tween(160)),
+                exit = if (reduceMotion) ExitTransition.None else slideOutVertically(tween(240)) { it } + fadeOut(tween(200)) + shrinkVertically(tween(240)),
+            ) {
                 Text(
-                    text = state.expression.display() + " =",
+                    text = lastExpression[0],
                     style = type.body.copy(fontSize = 13.sp, lineHeight = 16.sp),
                     color = colors.muted,
                     maxLines = 1,
@@ -83,12 +104,11 @@ internal fun InputField(state: MainUiState, lines: List<Line>, onSelectLine: (Li
                 )
             }
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(
+                // Новая цифра «впрыгивает», стёртая гаснет, результат «=» поднимается снизу.
+                TypingText(
                     text = value,
                     style = if (value.length > 11) type.number.copy(fontSize = 24.sp, lineHeight = 30.sp) else type.number,
                     color = colors.ink,
-                    maxLines = 1,
-                    softWrap = false,
                 )
                 Text(
                     text = currency.symbol,

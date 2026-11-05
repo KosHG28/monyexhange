@@ -9,10 +9,12 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -37,9 +39,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -86,6 +91,7 @@ import app.dirhamrub.ui.theme.LocalReduceMotion
 import app.dirhamrub.ui.theme.motion
 import java.math.BigDecimal
 import kotlin.math.abs
+import kotlinx.coroutines.launch
 
 /**
  * Что сейчас крупно: смена валют или строки — сумма уезжает целиком; набор и смена карты —
@@ -108,6 +114,8 @@ internal fun ResultBlock(
     onStepCard: (Int) -> Unit,
     onAddReceipt: (BankCard) -> Unit,
     onEditCard: (BankCard) -> Unit,
+    /** Свайп по сумме для ряда карт: −1…1 — насколько палец уже потянул к соседней карте. */
+    swipe: MutableFloatState? = null,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
@@ -118,22 +126,49 @@ internal fun ResultBlock(
     val step by rememberUpdatedState(onStepCard)
     val view = LocalView.current
     val canSwipe = wallet.cards.size > 1
-    val swipe = if (canSwipe) {
+    // Сумма идёт за пальцем (с сопротивлением), рамка в ряду карт ползёт к соседней. Дотянули — карта
+    // сменилась, мало — сумма пружинит обратно. Без анимаций — как раньше: только смена карты.
+    val reduceMotion = LocalReduceMotion.current
+    val scope = rememberCoroutineScope()
+    val drag = remember { mutableFloatStateOf(0f) }
+    val index by rememberUpdatedState(cardIndex)
+    val last by rememberUpdatedState(wallet.cards.lastIndex)
+    val swipeModifier = if (canSwipe) {
         Modifier.pointerInput(Unit) {
             val threshold = 56.dp.toPx()
             var total = 0f
+            fun settle() {
+                val fromDrag = drag.floatValue
+                val fromPreview = swipe?.floatValue ?: 0f
+                scope.launch {
+                    animate(fromDrag, 0f, animationSpec = spring(dampingRatio = 0.55f, stiffness = 500f)) { v, _ -> drag.floatValue = v }
+                }
+                if (swipe != null) {
+                    scope.launch { animate(fromPreview, 0f, animationSpec = tween(320)) { v, _ -> swipe.floatValue = v } }
+                }
+            }
             detectHorizontalDragGestures(
                 onDragStart = { total = 0f },
                 onDragEnd = {
                     if (abs(total) > threshold) {
-                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                        val dir = if (total < 0) 1 else -1
+                        if (index + dir in 0..last) view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                         // Влево — следующая карта, как в ряду карт.
-                        step(if (total < 0) 1 else -1)
+                        step(dir)
                     }
+                    settle()
                 },
+                onDragCancel = { settle() },
                 onHorizontalDrag = { change, dx ->
                     change.consume()
                     total += dx
+                    if (!reduceMotion) {
+                        // Влево — к следующей карте; у крайней карты тянется туже.
+                        val toward = (-total / threshold).coerceIn(-1f, 1f)
+                        val possible = index + (if (toward > 0) 1 else -1) in 0..last
+                        drag.floatValue = total * (if (possible) DRAG_FOLLOW else DRAG_EDGE)
+                        swipe?.floatValue = if (possible) toward else 0f
+                    }
                 },
             )
         }
@@ -143,7 +178,7 @@ internal fun ResultBlock(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .then(swipe)
+            .then(swipeModifier)
             .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -168,7 +203,6 @@ internal fun ResultBlock(
         val resultA11y = stringResource(R.string.result_a11y, heroPlain)
         val nextLabel = stringResource(R.string.card_next)
         val prevLabel = stringResource(R.string.card_prev)
-        val reduceMotion = LocalReduceMotion.current
         AnimatedContent(
             targetState = hero,
             contentKey = { it.key },
@@ -183,6 +217,10 @@ internal fun ResultBlock(
             label = "hero",
             modifier = Modifier
                 .fillMaxWidth()
+                .graphicsLayer {
+                    translationX = drag.floatValue
+                    alpha = 1f - (abs(drag.floatValue) / size.width).coerceAtMost(0.4f)
+                }
                 .semantics {
                     contentDescription = resultA11y
                     liveRegion = LiveRegionMode.Polite
@@ -480,3 +518,7 @@ private fun RefreshMark(loading: Boolean, failed: Boolean, reduceMotion: Boolean
 }
 
 private const val FLASH_MS = 1000
+
+/** Насколько сумма следует за пальцем при свайпе (и у крайней карты, где листать некуда). */
+private const val DRAG_FOLLOW = 0.55f
+private const val DRAG_EDGE = 0.2f

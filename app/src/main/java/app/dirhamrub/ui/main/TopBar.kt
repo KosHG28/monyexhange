@@ -1,5 +1,7 @@
 package app.dirhamrub.ui.main
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -16,9 +18,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -36,7 +44,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.ui.components.RollingText
 import app.dirhamrub.ui.theme.AppTheme
+import app.dirhamrub.ui.theme.LocalReduceMotion
 import java.util.Locale
 
 /** Шапка: «🇦🇪 AED → ₽ ▾» (выбор валют) и шпаргалка. */
@@ -52,11 +62,7 @@ internal fun TopBar(spend: Currency, home: Currency, onOpenCurrencies: () -> Uni
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val a11y = stringResource(R.string.currency_button_a11y, spend.nameRu, home.nameRu)
-        val text = buildAnnotatedString {
-            append(spend.code)
-            withStyle(SpanStyle(color = colors.muted, fontWeight = FontWeight.Normal)) { append("  →  ") }
-            append(home.symbol)
-        }
+        val pairStyle = type.bodyStrong.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium)
         Row(
             modifier = Modifier
                 .weight(1f, fill = false)
@@ -72,9 +78,12 @@ internal fun TopBar(spend: Currency, home: Currency, onOpenCurrencies: () -> Uni
                 .padding(start = 14.dp, end = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(spend.flag, fontSize = 18.sp)
+            // Сменили валюту — флаг переворачивается, коды перекатываются: видно, что поменялось.
+            FlipFlag(spend.flag)
             Spacer(Modifier.width(8.dp))
-            Text(text, style = type.bodyStrong.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1)
+            RollingText(spend.code, style = pairStyle, color = colors.ink)
+            Text("  →  ", style = pairStyle.copy(fontWeight = FontWeight.Normal), color = colors.muted, maxLines = 1)
+            RollingText(home.symbol, style = pairStyle, color = colors.ink)
             Spacer(Modifier.width(8.dp))
             Text("▾", style = type.caption, color = colors.muted)
         }
@@ -174,4 +183,31 @@ private fun OfferBanner(lead: String, text: String, action: String, actionA11y: 
             Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = colors.muted, modifier = Modifier.size(18.dp))
         }
     }
+}
+
+/** Флаг валюты трат: при смене переворачивается вокруг горизонтальной оси (без анимации — просто меняется). */
+@Composable
+private fun FlipFlag(flag: String) {
+    val reduceMotion = LocalReduceMotion.current
+    var shown by remember { mutableStateOf(flag) }
+    val turn = remember { Animatable(0f) }
+    LaunchedEffect(flag) {
+        if (flag == shown) return@LaunchedEffect
+        if (reduceMotion) {
+            shown = flag
+            return@LaunchedEffect
+        }
+        turn.animateTo(90f, tween(130))
+        shown = flag
+        turn.snapTo(-90f)
+        turn.animateTo(0f, tween(180))
+    }
+    Text(
+        shown,
+        fontSize = 18.sp,
+        modifier = Modifier.graphicsLayer {
+            rotationX = turn.value
+            cameraDistance = 8f * density
+        },
+    )
 }

@@ -15,7 +15,16 @@ import androidx.camera.mlkit.vision.MlKitAnalyzer
 import androidx.camera.view.CameraController
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -104,24 +113,26 @@ import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.Wallet
 import app.dirhamrub.domain.wallet.WalletQuote
+import app.dirhamrub.ui.components.RollingText
 import app.dirhamrub.ui.main.Markup
 import app.dirhamrub.ui.main.basisShort
 import app.dirhamrub.ui.main.markupOf
 import app.dirhamrub.ui.main.signedPercent
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.CardPalette
+import app.dirhamrub.ui.theme.LocalReduceMotion
 import app.dirhamrub.ui.theme.motion
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Один фоновый поток анализа на всё приложение. Его не останавливаем при уходе с экрана:
@@ -556,7 +567,20 @@ private fun CameraContent(
                 ZoomChips(zoom, onZoom = { camera.setZoomRatio(it) }, modifier = Modifier.align(Alignment.End))
             }
             // Подробности — у одной цены, ближайшей к центру: на самом кадре только короткие плашки.
-            focus?.let { info ->
+            // Карточка выезжает снизу с лёгкой пружинкой; пока уезжает — показывает последнюю цену.
+            val reduceMotion = LocalReduceMotion.current
+            val lastFocus = remember { arrayOfNulls<FocusInfo>(1) }
+            focus?.let { lastFocus[0] = it }
+            AnimatedVisibility(
+                visible = focus != null,
+                enter = if (reduceMotion) {
+                    EnterTransition.None
+                } else {
+                    slideInVertically(spring(dampingRatio = 0.7f, stiffness = 500f)) { it / 2 } + fadeIn(tween(180))
+                },
+                exit = if (reduceMotion) ExitTransition.None else slideOutVertically(tween(200)) { it / 3 } + fadeOut(tween(160)),
+            ) {
+                val info = focus ?: lastFocus[0] ?: return@AnimatedVisibility
                 FocusCard(
                     info = info,
                     spend = wallet.spend,
@@ -677,13 +701,18 @@ private fun FocusCard(
     ) {
         Text(head, style = type.label.copy(fontSize = 14.sp), color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                homeText,
-                style = type.number.copy(fontSize = 30.sp, lineHeight = 36.sp),
-                color = colors.ink,
-                maxLines = 1,
-                modifier = Modifier.weight(1f),
-            )
+            // Сменилась карта или цена — перекатываются только изменившиеся цифры.
+            val amountStyle = type.number.copy(fontSize = 30.sp, lineHeight = 36.sp)
+            Row(Modifier.weight(1f)) {
+                val amount = info.homeAmount
+                if (amount == null) {
+                    Text("—", style = amountStyle, color = colors.ink, maxLines = 1)
+                } else {
+                    if (!exact) Text("≈ ", style = amountStyle, color = colors.ink, maxLines = 1, softWrap = false)
+                    RollingText(Numbers.cheat(amount), style = amountStyle, color = colors.ink)
+                    Text(" " + home.symbol, style = amountStyle, color = colors.ink, maxLines = 1, softWrap = false)
+                }
+            }
             val add = stringResource(R.string.camera_focus_add)
             Box(
                 Modifier

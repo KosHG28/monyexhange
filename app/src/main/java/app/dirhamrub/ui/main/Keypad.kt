@@ -29,8 +29,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -70,7 +73,13 @@ private val KEY_GAP = 8.dp
  * Кнопка «Ценник» — в правом нижнем углу, под большим пальцем.
  */
 @Composable
-fun Keypad(onKey: (Key) -> Unit, onCamera: () -> Unit, modifier: Modifier = Modifier) {
+fun Keypad(
+    onKey: (Key) -> Unit,
+    onCamera: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** Где на экране кнопка «Ценник» (центр, в координатах окна): из неё раскрывается камера. */
+    onCameraPlaced: (Offset) -> Unit = {},
+) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(KEY_GAP)) {
         val plus = stringResource(R.string.key_plus)
         val times = stringResource(R.string.key_times)
@@ -91,7 +100,7 @@ fun Keypad(onKey: (Key) -> Unit, onCamera: () -> Unit, modifier: Modifier = Modi
         )
         KeyRow(
             left = { TextKey(",", comma) { onKey(Key.Comma) }; DigitKey(0, onKey) },
-            right = { CameraKey(onCamera) },
+            right = { CameraKey(onCamera, onCameraPlaced) },
         )
     }
 }
@@ -112,6 +121,7 @@ private fun RowScope.KeyBase(
     onLongClick: (() -> Unit)? = null,
     longClickLabel: String? = null,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     val view = LocalView.current
@@ -130,7 +140,7 @@ private fun RowScope.KeyBase(
         }
     }
     Box(
-        modifier = Modifier
+        modifier = modifier
             .weight(1f)
             .height(keyHeight())
             .graphicsLayer {
@@ -212,9 +222,14 @@ private fun RowScope.BackspaceKey(onKey: (Key) -> Unit) {
 }
 
 @Composable
-private fun RowScope.CameraKey(onClick: () -> Unit) {
+private fun RowScope.CameraKey(onClick: () -> Unit, onPlaced: (Offset) -> Unit) {
     val colors = AppTheme.colors
-    KeyBase(stringResource(R.string.price_tag_a11y), colors.accent, onClick = onClick) {
+    KeyBase(
+        stringResource(R.string.price_tag_a11y),
+        colors.accent,
+        onClick = onClick,
+        modifier = Modifier.onGloballyPositioned { onPlaced(it.boundsInRoot().center) },
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(painterResource(R.drawable.ic_camera), contentDescription = null, tint = colors.onAccent, modifier = Modifier.size(24.dp))
             Spacer(Modifier.width(8.dp))

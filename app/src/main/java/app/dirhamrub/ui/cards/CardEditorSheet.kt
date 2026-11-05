@@ -76,11 +76,13 @@ import app.dirhamrub.ui.components.NumberField
 import app.dirhamrub.ui.components.ReceiptLine
 import app.dirhamrub.ui.components.ReceiptSection
 import app.dirhamrub.ui.components.ReceiptShape
+import app.dirhamrub.ui.components.cascade
+import app.dirhamrub.ui.components.rememberCascade
 import app.dirhamrub.ui.main.basisLabel
 import app.dirhamrub.ui.theme.AppTheme
-import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.time.LocalDate
+import kotlinx.coroutines.launch
 
 /** Чтение скриншота банка: идёт, не нашли, нашли и заполнили чек. */
 private sealed interface ScanResult {
@@ -215,6 +217,8 @@ fun CardEditorSheet(
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = colors.bg) {
+        // Блоки редактора появляются каскадом.
+        val cascade = rememberCascade()
         // «Сохранить» всегда внизу шторки, прокручивается только содержимое над ней.
         Column(
             modifier = Modifier
@@ -224,7 +228,7 @@ fun CardEditorSheet(
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 12.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.cascade(cascade, 0)) {
                 Text(
                     text = stringResource(
                         when {
@@ -255,7 +259,7 @@ fun CardEditorSheet(
             }
             Spacer(Modifier.height(6.dp))
             // Карта или наличные из обменника: у наличных вместо пополнения — обмен, покупок по чекам нет.
-            KindSwitch(kind) { kind = it }
+            Box(Modifier.cascade(cascade, 1)) { KindSwitch(kind) { kind = it } }
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = name,
@@ -264,18 +268,25 @@ fun CardEditorSheet(
                 placeholder = { Text(stringResource(R.string.editor_name_hint)) },
                 singleLine = true,
                 textStyle = type.body,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .cascade(cascade, 2),
             )
             Spacer(Modifier.height(12.dp))
-            ReceiptSection(stringResource(if (cash) R.string.editor_currency_cash else R.string.editor_currency))
-            CurrencyChips(options = Currency.entries, selected = currency, onSelect = { currency = it })
+            ReceiptSection(
+                stringResource(if (cash) R.string.editor_currency_cash else R.string.editor_currency),
+                Modifier.cascade(cascade, 3),
+            )
+            CurrencyChips(options = Currency.entries, selected = currency, onSelect = { currency = it }, modifier = Modifier.cascade(cascade, 3))
             Spacer(Modifier.height(16.dp))
 
-            ScreenshotButton(
-                result = scan,
-                card = currency,
-                onClick = { pickScreenshot.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-            )
+            Column(Modifier.cascade(cascade, 4)) {
+                ScreenshotButton(
+                    result = scan,
+                    card = currency,
+                    onClick = { pickScreenshot.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                )
+            }
             Spacer(Modifier.height(12.dp))
             // Итог на лету: тот же расчёт, что на главном экране.
             val draft = build()
@@ -284,6 +295,7 @@ fun CardEditorSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .cascade(cascade, 5)
                     .clip(ReceiptShape)
                     .background(colors.paper)
                     .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 28.dp),
@@ -399,6 +411,7 @@ fun CardEditorSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .cascade(cascade, 6)
                     .clip(RoundedCornerShape(16.dp))
                     .background(colors.surface)
                     .padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 10.dp),

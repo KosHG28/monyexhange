@@ -14,8 +14,10 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
 import app.dirhamrub.ui.theme.LocalReduceMotion
-import kotlinx.coroutines.flow.collectLatest
+import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.min
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * Метки цен поверх превью. Фокус (цена ближе к центру) — крупная плашка с хвостиком и уголками «прицела»,
@@ -41,7 +43,7 @@ fun PriceOverlay(
             while (true) {
                 val now = withFrameMillis { it }
                 clock.longValue = now
-                if (f.labels.none { it.embedded && now - it.shownAt < REVEAL_MS }) break
+                if (f.labels.none { now - it.shownAt < REVEAL_MS }) break
             }
         }
     }
@@ -107,12 +109,16 @@ fun PriceOverlay(
                     }
                     // Лёгкая подсветка цены вместе с валютой: у фокуса заметнее и с уголками «прицела».
                     val b = l.frame
+                    // Плашка выпрыгивает: от 0,6 размера с лёгким перелётом, из хвостика к цене.
+                    val pop = if (reduceMotion) 1f else ((now - l.shownAt) / REVEAL_MS.toFloat()).coerceIn(0f, 1f)
+                    val popAlpha = (pop * 4f).coerceAtMost(1f)
+                    val popScale = if (pop >= 1f) 1f else 0.6f + 0.4f * (1f - exp(-6f * pop) * cos(9f * pop))
                     paints.boxFill.color = tint
-                    paints.boxFill.alpha = (a * if (l.focused) 0.16f else 0.08f).toInt()
+                    paints.boxFill.alpha = (a * popAlpha * if (l.focused) 0.16f else 0.08f).toInt()
                     c.drawRoundRect(b, paints.boxRadius, paints.boxRadius, paints.boxFill)
                     if (l.focused) {
                         paints.corner.color = tint
-                        paints.corner.alpha = a
+                        paints.corner.alpha = (a * popAlpha).toInt()
                         val len = min(paints.cornerLen, min(b.width(), b.height()) / 2.5f)
                         c.drawLine(b.left, b.top, b.left + len, b.top, paints.corner)
                         c.drawLine(b.left, b.top, b.left, b.top + len, paints.corner)
@@ -124,17 +130,25 @@ fun PriceOverlay(
                         c.drawLine(b.right, b.bottom, b.right, b.bottom - len, paints.corner)
                     }
 
+                    val pa = (a * popAlpha).toInt()
+                    val popping = popScale != 1f
+                    if (popping) {
+                        val pointsDown = l.pill.bottom <= l.box.top
+                        c.save()
+                        c.scale(popScale, popScale, l.box.centerX().coerceIn(l.pill.left, l.pill.right), if (pointsDown) l.pill.bottom else l.pill.top)
+                    }
                     paints.bubble.color = tint
                     // Соседние плашки чуть прозрачнее фокуса — взгляд сразу идёт к нему.
-                    paints.bubble.alpha = if (l.focused) a else (a * 0.88f).toInt()
+                    paints.bubble.alpha = if (l.focused) pa else (pa * 0.88f).toInt()
                     c.drawPath(l.bubble, paints.bubble)
                     if (l.unsure) {
-                        paints.outline.alpha = (a * 0.7f).toInt()
+                        paints.outline.alpha = (pa * 0.7f).toInt()
                         c.drawPath(l.bubble, paints.outline)
                     }
                     val text = if (l.focused) paints.main else paints.sub
-                    text.alpha = a
+                    text.alpha = pa
                     c.drawText(l.text, l.textX, l.textY, text)
+                    if (popping) c.restore()
                 }
             }
         }
@@ -220,7 +234,7 @@ private fun easeOut(p: Float): Float {
     return 1f - q * q * q
 }
 
-/** Длительность проявления вписанной суммы. */
+/** Длительность проявления вписанной суммы и «выпрыгивания» плашки. */
 private const val REVEAL_MS = 380L
 
 /**

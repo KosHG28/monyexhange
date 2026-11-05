@@ -16,8 +16,11 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -63,6 +66,8 @@ fun MainScreen(
     onRefreshRates: () -> Unit,
     onOpenCheat: () -> Unit,
     onOpenCamera: () -> Unit,
+    /** Центр кнопки «Ценник» на экране — из неё раскрывается камера. */
+    onCameraPlaced: (Offset) -> Unit = {},
 ) {
     val colors = AppTheme.colors
     val wallet = state.wallet
@@ -74,6 +79,8 @@ fun MainScreen(
         if (state.showCardLine) add(Line.CARD)
     }
     val heroLine = if (state.active == Line.HOME) Line.SPEND else Line.HOME
+    // Свайп по сумме тянет рамку в ряду карт: общее состояние, читается при отрисовке ряда.
+    val swipe = remember { mutableFloatStateOf(0f) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -109,9 +116,10 @@ fun MainScreen(
                         onEdit = onEditCard,
                         onAdd = onAddCard,
                         modifier = Modifier.padding(top = CARDS_TOP),
+                        swipePreview = swipe,
                     )
                 }
-                ResultBlock(state, heroLine, compact, onSelectCard, onStepCard, onAddReceipt, onEditCard)
+                ResultBlock(state, heroLine, compact, onSelectCard, onStepCard, onAddReceipt, onEditCard, swipe)
                 OfficialLine(state, onRefreshRates, Modifier.align(Alignment.CenterHorizontally))
             }
         }
@@ -126,7 +134,7 @@ fun MainScreen(
                 Chips(wallet.spend, onChip)
             }
             Spacer(Modifier.height(8.dp))
-            Keypad(onKey = onKey, onCamera = onOpenCamera)
+            Keypad(onKey = onKey, onCamera = onOpenCamera, onCameraPlaced = onCameraPlaced)
             Spacer(Modifier.height(8.dp))
         }
     }

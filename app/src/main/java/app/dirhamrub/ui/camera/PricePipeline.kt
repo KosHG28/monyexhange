@@ -16,11 +16,11 @@ import app.dirhamrub.domain.price.TrackedPrice
 import app.dirhamrub.domain.price.orientedWidth
 import app.dirhamrub.domain.wallet.Currency
 import com.google.mlkit.vision.text.Text
+import java.math.BigDecimal
+import kotlin.math.hypot
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.math.BigDecimal
-import kotlin.math.hypot
 
 /**
  * Готовая к отрисовке метка: строка, прямоугольники и контур посчитаны заранее, draw только рисует.
@@ -290,13 +290,13 @@ class PricePipeline(private val metrics: LabelMetrics) {
                 focused -> "≈ $amount"
                 else -> amount
             }
+            // Появление рисует оверлей от [first]: плашка выпрыгивает, вписанная сумма проявляется.
             val first = shownAt.getOrPut(t.id) { lastNowMs }
-            val appear = ((lastNowMs - first) / APPEAR_MS.toFloat()).coerceIn(0f, 1f)
-            val alpha = t.alpha * (0.25f + 0.75f * appear)
+            val alpha = t.alpha
             // Вписываем только уверенные цены с пересчётом: догадку, выглядящую как настоящая цена, не рисуем.
             if (embedded && t.confident && homeAmount != null) {
                 // Вписанная сумма появляется своей анимацией (проявляется слева направо) — без общего затухания.
-                val label = embeddedLabel(t, focused, t.alpha, first, "${Numbers.cheat(homeAmount)} ${home.symbol}", homeAmount, official)
+                val label = embeddedLabel(t, focused, alpha, first, "${Numbers.cheat(homeAmount)} ${home.symbol}", homeAmount, official)
                 if (label != null) {
                     labels += label
                     continue
@@ -345,6 +345,7 @@ class PricePipeline(private val metrics: LabelMetrics) {
                 text = text,
                 textX = pill.centerX() - textW / 2f,
                 textY = pill.top + padY - fm.ascent,
+                shownAt = first,
                 homeAmount = homeAmount,
                 officialAmount = official?.let { t.value.multiply(it, MC) },
             )
@@ -486,7 +487,6 @@ class PricePipeline(private val metrics: LabelMetrics) {
     }
 
     private companion object {
-        const val APPEAR_MS = 160L
         /** Меток на экране — не больше: фокус и несколько соседей. */
         const val MAX_LABELS = 4
         /** Прежний фокус держится, пока он не дальше нового от центра больше чем в 1,4 раза. */

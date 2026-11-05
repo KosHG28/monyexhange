@@ -21,6 +21,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,6 +46,9 @@ import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.WalletQuote
+import app.dirhamrub.ui.components.cascade
+import app.dirhamrub.ui.components.rememberCascade
+import app.dirhamrub.ui.components.sweep
 import app.dirhamrub.ui.main.MainViewModel
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.CardPalette
@@ -75,6 +79,8 @@ fun CheatSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = colors.bg,
     ) {
+        // Строки шпаргалки появляются каскадом, текущая сумма подсвечивается пробегающей полосой.
+        val cascade = rememberCascade()
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -86,9 +92,16 @@ fun CheatSheet(
                 stringResource(R.string.cheat_title),
                 style = type.title,
                 color = colors.ink,
-                modifier = Modifier.semantics { heading() },
+                modifier = Modifier
+                    .cascade(cascade, 0)
+                    .semantics { heading() },
             )
-            Text(stringResource(R.string.cheat_subtitle, spend.code, home.symbol), style = type.body, color = colors.muted)
+            Text(
+                stringResource(R.string.cheat_subtitle, spend.code, home.symbol),
+                style = type.body,
+                color = colors.muted,
+                modifier = Modifier.cascade(cascade, 1),
+            )
             Spacer(Modifier.height(12.dp))
             val best = quote.best?.takeIf { quote.quotes.size > 1 }
             // Колонки: карты (по курсу каждой) и ЦБ. Много карт — таблица прокручивается вбок.
@@ -98,7 +111,7 @@ fun CheatSheet(
             val amounts = MainViewModel.cheat(spend)
             val current = amount.takeIf { it.signum() > 0 }
             val rows = (amounts + listOfNotNull(current?.takeIf { a -> amounts.none { it.compareTo(a) == 0 } })).sorted()
-            CheatTable(spend.code, rows, current, columns)
+            CheatTable(spend.code, rows, current, columns, cascade)
         }
     }
 }
@@ -109,7 +122,7 @@ fun CheatSheet(
  * Обе части из строк одной высоты, поэтому ряды совпадают; TalkBack читает строку целиком.
  */
 @Composable
-private fun CheatTable(first: String, rows: List<BigDecimal>, current: BigDecimal?, columns: List<CheatColumn>) {
+private fun CheatTable(first: String, rows: List<BigDecimal>, current: BigDecimal?, columns: List<CheatColumn>, cascade: State<Float>) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val density = LocalDensity.current
@@ -140,6 +153,7 @@ private fun CheatTable(first: String, rows: List<BigDecimal>, current: BigDecima
                     Modifier
                         .height(headerHeight)
                         .fillMaxWidth()
+                        .cascade(cascade, 2)
                         .padding(start = EDGE, bottom = 8.dp),
                     contentAlignment = Alignment.BottomStart,
                 ) { Text(first, style = type.label, color = colors.muted, modifier = Modifier.clearAndSetSemantics { }) }
@@ -150,7 +164,8 @@ private fun CheatTable(first: String, rows: List<BigDecimal>, current: BigDecima
                         Modifier
                             .height(rowHeight)
                             .fillMaxWidth()
-                            .background(if (isCurrent) colors.accentSoft else Color.Transparent)
+                            .cascade(cascade, 3 + i)
+                            .then(if (isCurrent) Modifier.sweep(cascade, 3 + i, colors.accentSoft) else Modifier)
                             .padding(start = EDGE)
                             .clearAndSetSemantics { },
                         contentAlignment = Alignment.CenterStart,
@@ -175,6 +190,7 @@ private fun CheatTable(first: String, rows: List<BigDecimal>, current: BigDecima
                     Row(
                         Modifier
                             .height(headerHeight)
+                            .cascade(cascade, 2)
                             .semantics(mergeDescendants = true) { },
                     ) {
                         for (c in columns) HeaderCell(c, columnWidth)
@@ -188,7 +204,8 @@ private fun CheatTable(first: String, rows: List<BigDecimal>, current: BigDecima
                             Modifier
                                 .height(rowHeight)
                                 .fillMaxWidth()
-                                .background(if (isCurrent) colors.accentSoft else Color.Transparent)
+                                .cascade(cascade, 3 + i)
+                                .then(if (isCurrent) Modifier.sweep(cascade, 3 + i, colors.accentSoft) else Modifier)
                                 .padding(end = EDGE)
                                 .clearAndSetSemantics { contentDescription = a11y },
                             verticalAlignment = Alignment.CenterVertically,

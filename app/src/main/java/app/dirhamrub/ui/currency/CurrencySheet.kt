@@ -41,6 +41,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.ui.components.cascade
+import app.dirhamrub.ui.components.rememberCascade
 import app.dirhamrub.ui.theme.AppTheme
 
 /** Где тратите (10 валют сеткой) и в какой валюте считать итог (все валюты). */
@@ -60,6 +62,8 @@ fun CurrencySheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = colors.bg,
     ) {
+        // Ряды валют появляются каскадом.
+        val cascade = rememberCascade()
         Column(
             Modifier
                 .fillMaxWidth()
@@ -71,11 +75,13 @@ fun CurrencySheet(
                 stringResource(R.string.currency_sheet_spend),
                 style = type.title,
                 color = colors.ink,
-                modifier = Modifier.semantics { heading() },
+                modifier = Modifier
+                    .cascade(cascade, 0)
+                    .semantics { heading() },
             )
             Spacer(Modifier.height(10.dp))
-            for (row in Currency.SPEND.chunked(2)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
+            for ((r, row) in Currency.SPEND.chunked(2).withIndex()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.cascade(cascade, 1 + r).padding(bottom = 8.dp)) {
                     for (c in row) {
                         CurrencyTile(c, selected = c == spend, wide = true, modifier = Modifier.weight(1f)) {
                             onSpend(c)
@@ -90,17 +96,24 @@ fun CurrencySheet(
                 stringResource(R.string.currency_sheet_home),
                 style = type.title.copy(fontSize = 16.sp),
                 color = colors.ink,
-                modifier = Modifier.semantics { heading() },
+                modifier = Modifier
+                    .cascade(cascade, 6)
+                    .semantics { heading() },
             )
-            Text(stringResource(R.string.currency_sheet_home_hint), style = type.caption, color = colors.muted)
+            Text(
+                stringResource(R.string.currency_sheet_home_hint),
+                style = type.caption,
+                color = colors.muted,
+                modifier = Modifier.cascade(cascade, 6),
+            )
             Spacer(Modifier.height(8.dp))
             // Итоговых валют больше — сетка по четыре (по три при крупном шрифте или узком экране),
             // выбор выглядит так же, как у валют трат.
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val columns = if (maxWidth / LocalDensity.current.fontScale.coerceAtLeast(1f) >= WIDE_GRID) 4 else 3
                 Column {
-                    for (row in Currency.entries.chunked(columns)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
+                    for ((r, row) in Currency.entries.chunked(columns).withIndex()) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.cascade(cascade, 7 + r).padding(bottom = 8.dp)) {
                             for (c in row) {
                                 CurrencyTile(c, selected = c == home, wide = false, modifier = Modifier.weight(1f)) { onHome(c) }
                             }

@@ -39,9 +39,12 @@ import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.ScannedReceipt
+import app.dirhamrub.domain.wallet.TransferReceipt
 import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.ui.components.CurrencyChips
 import app.dirhamrub.ui.components.NumberField
+import app.dirhamrub.ui.components.ReceiptLine
+import app.dirhamrub.ui.components.ReceiptSection
 import app.dirhamrub.ui.theme.AppTheme
 import java.math.BigDecimal
 
@@ -275,3 +278,39 @@ internal fun UnionPaySection(
 
 /** Частые валюты расчёта чипами: юань, доллар, евро, гонконгский доллар; остальные — в списке. */
 private const val SETTLEMENT_CHIPS = 4
+
+/**
+ * «Почём купили доллары»: отдавали в обменнике (или переводили на карту) не итоговую валюту — её курс
+ * покупки делает итог точным. Пусто — по курсу ЦБ (серым в поле). Ниже — итог: единица карты в итоговой.
+ */
+@Composable
+internal fun BoughtPlate(
+    sentCurrency: Currency,
+    home: Currency,
+    card: Currency,
+    unit: BigDecimal,
+    value: String,
+    onValueChange: (String) -> Unit,
+    official: BigDecimal?,
+    transfer: TransferReceipt?,
+) {
+    Spacer(Modifier.height(10.dp))
+    ReceiptSection(stringResource(R.string.receipt_bought_title, sentCurrency.shortRu.lowercase()))
+    val label = stringResource(R.string.receipt_bought, "${Numbers.moneyWhole(unit)} ${sentCurrency.symbol}")
+    ReceiptLine(label, value, onValueChange, label, last = true, placeholder = official?.let { Numbers.rate(it.multiply(unit, MC)) }) {
+        CurrencyMark(home.symbol)
+    }
+    val bought = Numbers.parse(value)?.takeIf { it.signum() > 0 }?.divide(unit, MC) ?: official
+    if (transfer != null && bought != null) {
+        val homePerCard = transfer.sent.divide(transfer.got, MC).multiply(bought, MC)
+        val u = Numbers.unitFor(homePerCard)
+        ReceiptRate(
+            stringResource(
+                R.string.receipt_bought_total,
+                "${Numbers.moneyWhole(u)} ${card.symbol}",
+                "${Numbers.rate(homePerCard.multiply(u, MC))} ${home.symbol}",
+            ),
+        )
+    }
+    Hint(stringResource(if (value.isBlank()) R.string.receipt_bought_hint_empty else R.string.receipt_bought_hint))
+}

@@ -43,10 +43,11 @@ object Demo {
             purchases = listOf(PurchaseReceipt(Currency.AED, bd("691.65"), bd("379"), day)),
             unionPay = true,
         )
-        // Наличные дирхамы из обменника: в ряду карт — только когда тратите AED.
+        // Наличные дирхамы из обменника — выменяны на доллары, купленные по 81,50 ₽: в ряду карт —
+        // только когда тратите AED.
         val cash = BankCard(
             id = "demo-aed-cash", name = "Наличные AED", currency = Currency.AED, style = 2, kind = CardKind.CASH,
-            transfer = TransferReceipt(bd("10000"), Currency.RUB, bd("440.50"), day),
+            transfer = TransferReceipt(bd("300"), Currency.USD, bd("1101.75"), day, boughtAt = bd("81.50"), boughtIn = Currency.RUB),
         )
         val now = OfficialRates(
             today,

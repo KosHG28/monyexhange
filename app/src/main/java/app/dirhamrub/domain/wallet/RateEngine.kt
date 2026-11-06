@@ -165,6 +165,14 @@ object RateEngine {
         if (t != null) {
             val sentPerCard = t.sent.divide(t.got, MC)
             if (t.sentCurrency == home) return sentPerCard to RateBasis.RECEIPTS
+            // Отдавали не итоговую валюту (100 $ в драмы): почём её купили — тоже по чеку, иначе по ЦБ.
+            val bought = t.bought
+            if (bought != null) {
+                val (rate, inCurrency) = bought
+                if (inCurrency == home) return sentPerCard.multiply(rate, MC) to RateBasis.RECEIPTS
+                val toHome = official?.cross(inCurrency, home) ?: return null
+                return sentPerCard.multiply(rate, MC).multiply(toHome, MC) to RateBasis.ESTIMATE
+            }
             val toHome = official?.cross(t.sentCurrency, home) ?: return null
             return sentPerCard.multiply(toHome, MC) to RateBasis.ESTIMATE
         }

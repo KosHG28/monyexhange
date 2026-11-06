@@ -271,12 +271,23 @@ private fun Basis(state: MainUiState, onAddReceipt: (BankCard) -> Unit, onEditCa
         Text(text, style = style, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
         return
     }
-    val hintA11y = stringResource(R.string.add_receipt_a11y, state.wallet.spend.nameRu)
+    // Наличным нужен не чек покупки, а обмен или курс, по которому купили отданную валюту.
+    val missing = cashMissing(state)
+    val actionLabel = when (missing) {
+        CashMissing.EXCHANGE -> stringResource(R.string.cash_add_exchange)
+        CashMissing.BOUGHT -> stringResource(R.string.cash_add_bought, action.transfer?.sentCurrency?.symbol.orEmpty())
+        null -> stringResource(R.string.add_receipt)
+    }
+    val hintA11y = if (missing != null) {
+        stringResource(R.string.cash_edit_a11y, action.name)
+    } else {
+        stringResource(R.string.add_receipt_a11y, state.wallet.spend.nameRu)
+    }
     Row(
         modifier = Modifier
             .heightIn(min = ROW)
             .clip(RoundedCornerShape(12.dp))
-            .clickable(role = Role.Button, onClickLabel = hintA11y) { onAddReceipt(action) }
+            .clickable(role = Role.Button, onClickLabel = hintA11y) { if (missing != null) onEditCard(action) else onAddReceipt(action) }
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -288,7 +299,7 @@ private fun Basis(state: MainUiState, onAddReceipt: (BankCard) -> Unit, onEditCa
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false),
         )
-        Text(stringResource(R.string.add_receipt), style = style.copy(fontWeight = FontWeight.Medium), color = colors.accent, maxLines = 1)
+        Text(actionLabel, style = style.copy(fontWeight = FontWeight.Medium), color = colors.accent, maxLines = 1)
     }
 }
 

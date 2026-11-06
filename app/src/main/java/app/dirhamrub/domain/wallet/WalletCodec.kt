@@ -47,6 +47,10 @@ object WalletCodec {
                 p[k + "transfer.sentCurrency"] = t.sentCurrency.code
                 p[k + "transfer.got"] = t.got.toPlainString()
                 p[k + "transfer.date"] = t.date.toString()
+                t.bought?.let { (rate, inCurrency) ->
+                    p[k + "transfer.boughtAt"] = rate.toPlainString()
+                    p[k + "transfer.boughtIn"] = inCurrency.code
+                }
             }
             p[k + "purchases"] = c.purchases.size.toString()
             c.purchases.forEachIndexed { j, r ->
@@ -113,6 +117,8 @@ object WalletCodec {
                 sentCurrency = Currency.byCode(p.getProperty(k + "transfer.sentCurrency")) ?: Currency.RUB,
                 got = got,
                 date = p.date(k + "transfer.date") ?: LocalDate.now(),
+                boughtAt = p.decimal(k + "transfer.boughtAt"),
+                boughtIn = Currency.byCode(p.getProperty(k + "transfer.boughtIn")),
             )
         }
         val purchases = (0 until (p.int(k + "purchases") ?: 0)).mapNotNull { j ->

@@ -3,13 +3,27 @@ package app.dirhamrub.domain.wallet
 import java.math.BigDecimal
 import java.time.LocalDate
 
-/** Пополнение карты: отправил [sent] в [sentCurrency] → пришло [got] в валюте карты. */
+/**
+ * Пополнение карты (у наличных — обмен): отправил [sent] в [sentCurrency] → пришло [got] в валюте карты.
+ * Если отдавали не итоговую валюту (100 $ в драмы), [boughtAt] — почём её купили: 1 [sentCurrency] =
+ * [boughtAt] в [boughtIn] (обычно рубли); без него — по курсу ЦБ.
+ */
 data class TransferReceipt(
     val sent: BigDecimal,
     val sentCurrency: Currency,
     val got: BigDecimal,
     val date: LocalDate,
+    val boughtAt: BigDecimal? = null,
+    val boughtIn: Currency? = null,
 ) {
+    /** Почём купили отправленную валюту, если это известно: (курс, в какой валюте). */
+    val bought: Pair<BigDecimal, Currency>?
+        get() {
+            val rate = boughtAt?.takeIf { it.signum() > 0 } ?: return null
+            val c = boughtIn?.takeIf { it != sentCurrency } ?: return null
+            return rate to c
+        }
+
     val isValid: Boolean get() = sent.signum() > 0 && got.signum() > 0
 }
 

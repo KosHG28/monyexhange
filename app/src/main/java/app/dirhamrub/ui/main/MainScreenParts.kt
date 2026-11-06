@@ -38,9 +38,19 @@ internal fun basisStale(state: MainUiState): StaleReceipt? = state.staleReceipt
  */
 internal fun basisAction(state: MainUiState): BankCard? {
     val q = state.selectedQuote ?: return state.selectedCard?.takeIf { noOfficialForSpend(state) }
-    // У наличных чеков покупок нет: платят ровно ценой, курс — по обмену (или ЦБ, пока обмена нет).
-    if (q.card.kind == CardKind.CASH) return null
+    // У наличных чеков покупок нет: платят ровно ценой. Не хватать может обмена или курса отданной валюты.
+    if (q.card.kind == CardKind.CASH) return q.card.takeIf { cashMissing(state) != null }
     return q.card.takeIf { q.basis == RateBasis.ESTIMATE || q.basis == RateBasis.OFFICIAL || q.basis == RateBasis.UNIONPAY }
+}
+
+/** Чего не хватает наличным для точного курса: обмена или того, почём купили отданную в обменнике валюту. */
+internal enum class CashMissing { EXCHANGE, BOUGHT }
+
+internal fun cashMissing(state: MainUiState): CashMissing? {
+    val q = state.selectedQuote ?: return null
+    if (q.card.kind != CardKind.CASH || q.basis == RateBasis.RECEIPTS || q.basis == RateBasis.MANUAL) return null
+    val t = q.card.transfer?.takeIf { it.isValid } ?: return CashMissing.EXCHANGE
+    return CashMissing.BOUGHT.takeIf { t.sentCurrency != state.wallet.home && t.bought == null }
 }
 
 /**

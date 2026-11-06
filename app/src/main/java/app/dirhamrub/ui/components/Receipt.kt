@@ -72,6 +72,8 @@ fun ReceiptLine(
     onValueChange: (String) -> Unit,
     description: String,
     last: Boolean = false,
+    /** Серая подсказка в пустом поле (например, курс ЦБ). */
+    placeholder: String? = null,
     trailing: @Composable () -> Unit,
 ) {
     val colors = AppTheme.colors
@@ -106,6 +108,7 @@ fun ReceiptLine(
             description = description,
             imeAction = if (last) ImeAction.Done else ImeAction.Next,
             onDone = { focus.clearFocus() },
+            placeholder = placeholder,
             modifier = Modifier.width(RECEIPT_FIELD),
         )
         Box(

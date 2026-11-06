@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
             val theme by remember { derivedStateOf { state.value.settings.theme } }
             val motion by remember { derivedStateOf { state.value.settings.motion } }
             DirhamTheme(theme = theme, motion = motion) {
-                DirhamApp(startScreen = screen, vm = vm)
+                DirhamApp(startScreen = screen, startCard = intent?.getStringExtra(EXTRA_CARD), vm = vm)
                 CrashReportDialog()
             }
         }
@@ -49,6 +49,9 @@ class MainActivity : ComponentActivity() {
 
         /** Только для снимков CI: валюта трат демо-данных («IDR», «LKR»). */
         const val EXTRA_SPEND = "spend"
+
+        /** Только для снимков CI: редактор этой карты (id из демо-данных). */
+        const val EXTRA_CARD = "card"
         const val SCREEN_CAMERA = "camera"
         const val SCREEN_CHEAT = "cheat"
         const val SCREEN_CURRENCIES = "currencies"

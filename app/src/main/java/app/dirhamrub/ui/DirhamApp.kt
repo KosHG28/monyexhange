@@ -90,6 +90,7 @@ private fun requestCameraTile(context: Context) {
 @Composable
 fun DirhamApp(
     startScreen: String? = null,
+    startCard: String? = null,
     vm: MainViewModel = viewModel(factory = MainViewModel.Factory),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -101,7 +102,9 @@ fun DirhamApp(
     var cameraOrigin by remember { mutableStateOf<Offset?>(null) }
     // Скриншоты CI: сразу редактор выбранной карты.
     LaunchedEffect(state.loaded) {
-        if (state.loaded && startScreen == MainActivity.SCREEN_EDITOR) state.wallet.selected?.let { editing = Editing(it, isNew = false) }
+        if (state.loaded && startScreen == MainActivity.SCREEN_EDITOR) {
+            (state.wallet.cards.firstOrNull { it.id == startCard } ?: state.wallet.selected)?.let { editing = Editing(it, isNew = false) }
+        }
     }
     val context = LocalContext.current
     // Страну сети перечитываем при каждом возвращении в приложение: прилетели — подсказка уже на месте.

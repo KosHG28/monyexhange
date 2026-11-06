@@ -119,6 +119,17 @@ fun CardEditorSheet(
     var sent by remember(card.id) { mutableStateOf(card.transfer?.sent?.let(::field).orEmpty()) }
     var sentCurrency by remember(card.id) { mutableStateOf(card.transfer?.sentCurrency ?: home) }
     var got by remember(card.id) { mutableStateOf(card.transfer?.got?.let(::field).orEmpty()) }
+    // Отдавали не итоговую валюту (100 $ в драмы) — почём её купили, на единицу как у курса ЦБ: «1 $ = 82 ₽».
+    fun boughtUnitFor(c: Currency): BigDecimal =
+        Numbers.unitFor(official?.cross(c, home) ?: card.transfer?.bought?.first ?: BigDecimal.ONE)
+    var boughtAt by remember(card.id) {
+        mutableStateOf(
+            card.transfer?.let { t ->
+                t.bought?.takeIf { it.second == home }?.first?.let { Numbers.plain(it.multiply(boughtUnitFor(t.sentCurrency), MC), 4) }
+            }.orEmpty(),
+        )
+    }
+    val boughtUnit = boughtUnitFor(sentCurrency)
     val purchases = remember(card.id) {
         mutableStateListOf<PurchaseDraft>().apply {
             card.purchases.forEachIndexed { i, p -> add(PurchaseDraft(i, p.spend, field(p.paid), field(p.price), p.date)) }
@@ -159,6 +170,7 @@ fun CardEditorSheet(
                 }
                 is ScannedReceipt.Transfer -> {
                     sent = field(receipt.sent)
+                    if (sentCurrency != receipt.sentCurrency) boughtAt = ""
                     sentCurrency = receipt.sentCurrency
                     got = field(receipt.got)
                 }
@@ -176,7 +188,8 @@ fun CardEditorSheet(
         val transfer = if (sentValue != null && gotValue != null && sentValue.signum() > 0 && gotValue.signum() > 0) {
             val old = card.transfer
             val unchanged = old != null && old.sent.compareTo(sentValue) == 0 && old.got.compareTo(gotValue) == 0 && old.sentCurrency == sentCurrency
-            TransferReceipt(sentValue, sentCurrency, gotValue, if (unchanged) old!!.date else today)
+            val bought = Numbers.parse(boughtAt)?.takeIf { it.signum() > 0 && sentCurrency != home }?.divide(boughtUnit, MC)
+            TransferReceipt(sentValue, sentCurrency, gotValue, if (unchanged) old!!.date else today, bought, bought?.let { home })
         } else {
             null
         }
@@ -289,14 +302,17 @@ fun CardEditorSheet(
             }
             Spacer(Modifier.height(16.dp))
 
-            Column(Modifier.cascade(cascade, 4)) {
-                ScreenshotButton(
-                    result = scan,
-                    card = currency,
-                    onClick = { pickScreenshot.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                )
+            // Скриншот банка — только у карт: обмен наличных в приложении банка не виден.
+            if (!cash) {
+                Column(Modifier.cascade(cascade, 4)) {
+                    ScreenshotButton(
+                        result = scan,
+                        card = currency,
+                        onClick = { pickScreenshot.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
             }
-            Spacer(Modifier.height(12.dp))
             // Итог на лету: тот же расчёт, что на главном экране.
             val draft = build()
             val q = RateEngine.quote(draft, spend, home, official, unionPay)
@@ -314,7 +330,18 @@ fun CardEditorSheet(
                 val sentLabel = stringResource(if (cash) R.string.receipt_gave else R.string.receipt_sent)
                 val gotLabel = stringResource(if (cash) R.string.receipt_received else R.string.receipt_got)
                 ReceiptLine(sentLabel, sent, { sent = it }, sentLabel) {
-                    CurrencyDropdown(sentCurrency, (Currency.FREQUENT + home + currency + sentCurrency).distinct(), { sentCurrency = it }, pick)
+                    // В обменник несут рубли, доллары, евро или юани; карту пополняют и из других валют.
+                    val sentOptions = (if (cash) listOf(home) + EXCHANGE_FROM else Currency.FREQUENT + home)
+                        .filter { it != currency } + sentCurrency
+                    CurrencyDropdown(
+                        sentCurrency,
+                        sentOptions.distinct(),
+                        {
+                            if (it != sentCurrency) boughtAt = ""
+                            sentCurrency = it
+                        },
+                        pick,
+                    )
                 }
                 ReceiptLine(gotLabel, got, { got = it }, gotLabel) {
                     CurrencyMark(currency.symbol)
@@ -325,6 +352,18 @@ fun CardEditorSheet(
                     ReceiptRate(Numbers.transferRate(transfer.got.divide(transfer.sent, MC), currency.symbol, transfer.sentCurrency.symbol))
                 } else {
                     Hint(stringResource(if (cash) R.string.receipt_exchange_hint else R.string.receipt_transfer_hint))
+                }
+                if (sentCurrency != home) {
+                    BoughtPlate(
+                        sentCurrency = sentCurrency,
+                        home = home,
+                        card = currency,
+                        unit = boughtUnit,
+                        value = boughtAt,
+                        onValueChange = { boughtAt = it },
+                        official = official?.cross(sentCurrency, home),
+                        transfer = transfer,
+                    )
                 }
                 Spacer(Modifier.height(10.dp))
 
@@ -468,3 +507,6 @@ private fun BankCard.withoutManual(spend: Currency, home: Currency): BankCard =
 private fun field(value: BigDecimal): String = Numbers.groupInput(Numbers.plain(value))
 
 private const val MAX_NAME = 24
+
+/** Что несут в обменник за местные наличные (кроме итоговой валюты — она есть всегда). */
+private val EXCHANGE_FROM = listOf(Currency.RUB, Currency.USD, Currency.EUR, Currency.CNY)

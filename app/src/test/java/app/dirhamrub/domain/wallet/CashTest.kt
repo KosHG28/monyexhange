@@ -3,6 +3,7 @@ package app.dirhamrub.domain.wallet
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import app.dirhamrub.domain.MC
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -43,5 +44,31 @@ class CashTest {
         assertEquals(listOf("cny", "kzt", "cash"), wallet.reorder(listOf("cny", "kzt", "cash")).cards.map { it.id })
         // Не названные остаются после, неизвестные и повторы пропускаются.
         assertEquals(listOf("cash", "kzt", "cny"), wallet.reorder(listOf("cash", "zzz", "cash")).cards.map { it.id })
+    }
+
+    @Test
+    fun `меняли доллары на драмы — почём купили доллары`() {
+        val usd = OfficialRates(day, cbr.rubPerUnit + (Currency.USD to BigDecimal("81.79")))
+        val exchange = TransferReceipt(BigDecimal("100"), Currency.USD, BigDecimal("41000"), day)
+        val amd = BankCard("amd", "Наличные AMD", Currency.AMD, 3, kind = CardKind.CASH, transfer = exchange)
+        // Не знаем, почём купили доллары, — доллар по ЦБ: оценка.
+        val byCbr = RateEngine.quote(amd, Currency.AMD, Currency.RUB, usd)!!
+        assertEquals(RateBasis.ESTIMATE, byCbr.basis)
+        assertEquals(0, BigDecimal("100").divide(BigDecimal("41000"), MC).multiply(BigDecimal("81.79"), MC).compareTo(byCbr.homePerUnit))
+        // Купили по 82 ₽ — оба шага по чекам: 100 $ / 41 000 ֏ × 82 ₽ = 0,2 ₽ за драм.
+        val bought = amd.copy(transfer = exchange.copy(boughtAt = BigDecimal("82"), boughtIn = Currency.RUB))
+        val q = RateEngine.quote(bought, Currency.AMD, Currency.RUB, usd)!!
+        assertEquals(RateBasis.RECEIPTS, q.basis)
+        assertEquals(0, BigDecimal("0.2").compareTo(q.homePerUnit))
+        // Купили за евро, а итог в рублях — евро по ЦБ: оценка.
+        val inEur = amd.copy(transfer = exchange.copy(boughtAt = BigDecimal("0.92"), boughtIn = Currency.EUR))
+        val eur = OfficialRates(day, usd.rubPerUnit + (Currency.EUR to BigDecimal("93.9")))
+        val e = RateEngine.quote(inEur, Currency.AMD, Currency.RUB, eur)!!
+        assertEquals(RateBasis.ESTIMATE, e.basis)
+        // Сохраняется; «купили» в той же валюте или без курса — как будто не указано.
+        val wallet = Wallet(cards = listOf(bought))
+        assertEquals(wallet.cards, WalletCodec.decode(WalletCodec.encode(wallet))!!.cards)
+        assertNull(exchange.copy(boughtAt = BigDecimal("1"), boughtIn = Currency.USD).bought)
+        assertNull(exchange.copy(boughtAt = BigDecimal.ZERO, boughtIn = Currency.RUB).bought)
     }
 }

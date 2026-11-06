@@ -59,6 +59,11 @@ shot 14-currencies-narrow --es screen currencies
 adb shell wm density reset
 adb shell cmd uimode night yes
 
+# Другие валюты трат: рупия Индонезии (курс ЦБ есть, у карт — оценка) и Шри-Ланки (у ЦБ курса нет).
+shot 15-main-idr --es spend IDR
+shot 16-main-lkr --es spend LKR
+shot 17-currencies-idr --es spend IDR --es screen currencies
+
 # Первый запуск: данные стёрты — знакомство.
 adb shell pm clear "$PKG"
 adb shell am start -W -n "$PKG/.MainActivity" > /dev/null

@@ -22,7 +22,7 @@ class MainActivity : ComponentActivity() {
         val screen = intent?.getStringExtra(EXTRA_SCREEN)
         if (intent?.getBooleanExtra(EXTRA_DEMO, false) == true && Demo.allowed(this)) {
             // Только отладочная сборка: демо-данные пишутся до чтения состояния, поэтому синхронно.
-            runBlocking { Demo.seed(WalletRepository(settingsDataStore)) }
+            runBlocking { Demo.seed(WalletRepository(settingsDataStore), intent.getStringExtra(EXTRA_SPEND)) }
         }
         setContent {
             DirhamTheme {
@@ -34,6 +34,9 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_SCREEN = "screen"
+
+        /** Только для снимков CI: валюта трат демо-данных («IDR», «LKR»). */
+        const val EXTRA_SPEND = "spend"
         const val SCREEN_CAMERA = "camera"
         const val SCREEN_CHEAT = "cheat"
         const val SCREEN_CURRENCIES = "currencies"

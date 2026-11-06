@@ -64,9 +64,13 @@ class WalletCodecTest {
     fun `испорченное и пустое`() {
         assertNull(WalletCodec.decode(null))
         assertNull(WalletCodec.decode(""))
-        val w = WalletCodec.decode("cards=2\ncard.0.id=a\ncard.0.currency=ZZZ\ncard.1.id=b\ncard.1.currency=USD\nspend=RUB\nselected=a")!!
+        val w = WalletCodec.decode("cards=2\ncard.0.id=a\ncard.0.currency=ZZZ\ncard.1.id=b\ncard.1.currency=USD\nspend=ZZZ\nrecent=IDR,ZZZ,,AED\nselected=a")!!
         assertEquals(listOf("b"), w.cards.map { it.id })
+        // Неизвестная валюта трат — дирхамы; в недавних неизвестные коды пропускаются.
         assertEquals(Currency.AED, w.spend)
+        assertEquals(listOf(Currency.IDR, Currency.AED), w.recent)
+        // Тратить можно в любой валюте, и в рублях тоже (поездка по России).
+        assertEquals(Currency.RUB, WalletCodec.decode("spend=RUB")!!.spend)
         assertEquals("b", w.selectedId)
         assertNull(WalletCodec.decodeRates("date=oops"))
     }

@@ -8,6 +8,19 @@
     <string name="currency_sheet_spend">Где тратите</string>
     <string name="currency_sheet_home">Итог считать в</string>
     <string name="currency_sheet_home_hint">В этой валюте — крупная сумма и курс карт</string>
+    <string name="currency_search_hint">Страна, город или валюта</string>
+    <string name="currency_search_currency">Валюта, код или страна</string>
+    <string name="currency_search_clear">Очистить поиск</string>
+    <string name="currency_here">Вы сейчас здесь · по сети</string>
+    <string name="currency_recent">Недавние</string>
+    <string name="currency_frequent">Частые</string>
+    <string name="currency_all">Все валюты</string>
+    <string name="currency_more">Все валюты…</string>
+    <string name="currency_found">Найдено: %1$d</string>
+    <string name="currency_nothing">Ничего не нашлось. Попробуйте страну, город или код валюты — например, «Бали» или «IDR».</string>
+    <string name="currency_no_cbr">без ЦБ</string>
+    <string name="currency_home_only_cbr">Итог — в рубле или валюте, у которой есть курс ЦБ: иначе карты не сравнить.</string>
+    <string name="onboarding_other_country">Другая страна или валюта…</string>
     <string name="tile_camera">Ценник</string>
     <string name="tile_offer">Камера в шторке: плитка «Ценник» открывает её с любого экрана</string>
     <string name="tile_offer_add">Добавить</string>
@@ -26,6 +39,7 @@
     <string name="card_basis_official">курс ЦБ</string>
     <string name="card_basis_manual">вручную</string>
     <string name="card_no_rate">нет курса</string>
+    <string name="card_need_receipt">нужен чек</string>
     <string name="card_best_a11y">Самая выгодная карта, дешевле на %1$s %%</string>
     <string name="card_edit_a11y">Изменить карту</string>
     <string name="percent_value">%1$s %%</string>
@@ -49,6 +63,7 @@
     <string name="card_next">Следующая карта</string>
     <string name="card_prev">Предыдущая карта</string>
     <string name="result_no_rate">Нет курса: добавьте карту или обновите курсы ЦБ</string>
+    <string name="result_no_cbr">У ЦБ нет курса %1$s — нужен чек покупки</string>
     <string name="official_line_head">"ЦБ на %1$s: %2$s = "</string>
     <string name="official_line_head_short">"ЦБ %1$s: %2$s = "</string>
     <string name="official_trend_week">%1$s %% за неделю</string>
@@ -57,6 +72,7 @@
     <string name="official_offline">" · нет связи"</string>
     <string name="official_loading_short">ЦБ: обновляем…</string>
     <string name="official_missing_short">ЦБ: нет курсов</string>
+    <string name="official_no_currency">У ЦБ нет курса %1$s · считаем по вашим чекам</string>
     <string name="official_refresh">Обновить курсы ЦБ</string>
     <string name="line_a11y">%1$s: %2$s %3$s</string>
     <string name="input_a11y">Ввод в валюте %1$s: %2$s %3$s</string>

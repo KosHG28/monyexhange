@@ -32,7 +32,8 @@ CI: `.github/workflows/android.yml` — на каждый push тесты, lint,
 app/src/main/java/app/dirhamrub/
   domain/            чистый Kotlin, без android.* — всё покрыто тестами
     Numbers, Calculator                   разбор и форматирование ru-RU, выражение «22 + 15,5», Line
-    wallet/Currency                       14 валют, из них 10 — валюты трат
+    wallet/Currency, Countries            ~150 валют и ~240 стран — генерируются tools/currencies/gen.py из CLDR
+    wallet/CurrencySearch, QuickSums      поиск страны/валюты (и курортов), быстрые суммы и шпаргалка от размера валюты
     wallet/Wallet                         карты, чеки пополнения/покупок, ручные курсы
     wallet/RateEngine                     курс карты, наценка к ЦБ, лучшая карта
     wallet/OfficialRates, CbrParser       курсы ЦБ РФ (XML и JSON-зеркало)

@@ -176,6 +176,9 @@ fun DirhamApp(
             onSpend = vm::setSpend,
             onHome = vm::setHome,
             onDismiss = { currenciesOpen = false },
+            recent = state.wallet.recent,
+            country = country,
+            official = state.official,
         )
     }
     // Камера раскрывается кругом из кнопки «Ценник» и сворачивается в неё обратно; главный экран — под ней.

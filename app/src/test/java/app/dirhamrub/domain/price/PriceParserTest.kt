@@ -366,4 +366,38 @@ class PriceParserTest {
         assertEquals(PriceCurrency.VND, PriceCurrency.of("VND"))
         assertEquals(PriceCurrency.AED, PriceCurrency.of("XXX"))
     }
+
+    @Test
+    fun `ценники в валютах из справочника`() {
+        fun v(code: String, vararg words: String) = vals(PriceCurrency.of(code), line(*words))
+        // Индонезия: точка — разделитель тысяч.
+        assertEquals(listOf("150000"), v("IDR", "Rp", "150.000"))
+        assertEquals(listOf("150000"), v("IDR", "Rp150.000"))
+        // Индия: индийские разряды и «Rs.».
+        assertEquals(listOf("150000"), v("INR", "₹1,50,000"))
+        assertEquals(listOf("499"), v("INR", "Rs.", "499"))
+        // Кувейт: три знака после запятой.
+        assertEquals(listOf("1.250"), v("KWD", "KD", "1.250"))
+        assertEquals(listOf("1.250"), v("KWD", "1,250", "KWD"))
+        // Япония: без копеек, разряды запятой.
+        assertEquals(listOf("1280"), v("JPY", "¥1,280"))
+        // Малайзия, Марокко, Британия, Шри-Ланка.
+        assertEquals(listOf("12.90"), v("MYR", "RM", "12.90"))
+        assertEquals(listOf("120"), v("MAD", "120", "DH"))
+        assertEquals(listOf("4.50"), v("GBP", "£4.50"))
+        assertEquals(listOf("2500.00"), v("LKR", "Rs", "2,500.00"))
+        // Неизвестный код — правила дирхама, как раньше.
+        assertEquals(PriceCurrency.AED, PriceCurrency.of("XXX"))
+    }
+
+    @Test
+    fun `диапазон цен и длина кода — от размера валюты`() {
+        val idr = PriceCurrency.of("IDR")
+        assertEquals(0, BigDecimal("1000").compareTo(idr.min))
+        assertTrue(idr.longRunDigits >= 10)
+        // Слишком мелкое для рупии число — не цена.
+        assertTrue(vals(idr, line("Rp", "15")).isEmpty())
+        val kwd = PriceCurrency.of("KWD")
+        assertEquals(3, kwd.decimals)
+    }
 }

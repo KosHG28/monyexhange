@@ -276,6 +276,7 @@ private fun LazyListScope.cardItems(
             onLongClick = { onEdit(card) },
             width = cardWidth,
             height = CARD_HEIGHT * cardScale(),
+            needsReceipt = quote.official == null,
         )
     }
 }
@@ -337,6 +338,8 @@ private fun BankCardView(
     onLongClick: () -> Unit,
     width: Dp,
     height: Dp,
+    /** У валюты трат нет курса ЦБ: без чека покупки в ней курса нет — «нужен чек». */
+    needsReceipt: Boolean = false,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
@@ -369,7 +372,7 @@ private fun BankCardView(
             home.symbol,
             if (unit.compareTo(BigDecimal.ONE) == 0) spend.symbol else "${Numbers.moneyWhole(unit)} ${spend.symbol}",
         )
-    } ?: stringResource(R.string.card_no_rate)
+    } ?: stringResource(if (needsReceipt) R.string.card_need_receipt else R.string.card_no_rate)
     val vs = quote?.takeIf { it.basis != RateBasis.OFFICIAL }?.vsOfficial
     // Оценочный курс (нет чека покупки в валюте трат) — сумма со знаком «≈».
     val approx = if (quote?.basis == RateBasis.ESTIMATE) "≈ " else ""

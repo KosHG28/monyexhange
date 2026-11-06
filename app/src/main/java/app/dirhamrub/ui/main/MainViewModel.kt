@@ -16,6 +16,7 @@ import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.QuickSums
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.RateEngine
 import app.dirhamrub.domain.wallet.ReceiptAge
@@ -164,7 +165,7 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
         _state.update { s ->
             if (s.wallet.spend == currency) return@update s
             val home = s.totals.home
-            val next = s.copy(wallet = s.wallet.copy(spend = currency), active = Line.SPEND)
+            val next = s.copy(wallet = s.wallet.withSpend(currency), active = Line.SPEND)
             val rate = next.homePerUnit
             val amount = if (home != null && rate != null) divideOrZero(home, rate) else BigDecimal.ZERO
             next.copy(expression = Expression.of(amount))
@@ -336,23 +337,10 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
         }
 
         /** Быстрые суммы в валюте трат; у дирхама 22 — проезд в метро. */
-        fun chips(c: Currency): List<BigDecimal> = when (c) {
-            Currency.AED -> listOf(5, 10, 22, 50, 100, 200, 500)
-            Currency.TRY, Currency.THB -> listOf(50, 100, 200, 500, 1000, 2000, 5000)
-            Currency.CNY -> listOf(10, 20, 50, 100, 200, 500, 1000)
-            Currency.KZT, Currency.AMD -> listOf(500, 1000, 2000, 5000, 10000, 20000, 50000)
-            Currency.VND -> listOf(10000, 20000, 50000, 100000, 200000, 500000, 1000000)
-            else -> listOf(1, 5, 10, 20, 50, 100, 200)
-        }.map { BigDecimal(it) }
+        fun chips(c: Currency): List<BigDecimal> = QuickSums.chips(c)
 
         /** Строки шпаргалки: девять сумм, от мелкой покупки до крупной. */
-        fun cheat(c: Currency): List<BigDecimal> = when (c) {
-            Currency.AED, Currency.CNY -> listOf(1, 5, 10, 20, 50, 100, 200, 500, 1000)
-            Currency.TRY, Currency.THB -> listOf(10, 50, 100, 200, 500, 1000, 2000, 5000, 10000)
-            Currency.KZT, Currency.AMD -> listOf(100, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000)
-            Currency.VND -> listOf(1000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000)
-            else -> listOf(1, 2, 5, 10, 20, 50, 100, 200, 500)
-        }.map { BigDecimal(it) }
+        fun cheat(c: Currency): List<BigDecimal> = QuickSums.cheat(c)
     }
 }
 

@@ -264,7 +264,11 @@ private fun Basis(state: MainUiState, onAddReceipt: (BankCard) -> Unit, onEditCa
     val basis = basisText(state) ?: return
     val style = type.body.copy(fontSize = 14.sp)
     val q = state.selectedQuote
-    val text = if (state.homePerUnit == null || q == null) stringResource(R.string.result_no_rate) else basisShort(q)
+    val text = when {
+        noOfficialForSpend(state) && (state.homePerUnit == null || q == null) -> stringResource(R.string.result_no_cbr, state.wallet.spend.code)
+        state.homePerUnit == null || q == null -> stringResource(R.string.result_no_rate)
+        else -> basisShort(q)
+    }
     val action = basisAction(state)
     if (action == null) {
         Text(text, style = style, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
@@ -436,10 +440,17 @@ internal fun OfficialLine(state: MainUiState, onRefresh: () -> Unit, modifier: M
     ) {
         if (rate == null || rates == null) {
             Text(
-                stringResource(if (state.ratesLoading) R.string.official_loading_short else R.string.official_missing_short),
+                when {
+                    rates == null && state.ratesLoading -> stringResource(R.string.official_loading_short)
+                    rates == null -> stringResource(R.string.official_missing_short)
+                    // Курсы есть, но этой валюты у ЦБ нет: считаем только по чекам и своему курсу.
+                    else -> stringResource(R.string.official_no_currency, wallet.spend.code)
+                },
                 style = style,
-                color = colors.muted,
+                color = if (rates != null) colors.warn else colors.muted,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
             )
         } else {
             val date = RuDates.short(rates.date)

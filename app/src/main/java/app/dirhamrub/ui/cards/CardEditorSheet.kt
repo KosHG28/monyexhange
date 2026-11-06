@@ -78,6 +78,7 @@ import app.dirhamrub.ui.components.ReceiptSection
 import app.dirhamrub.ui.components.ReceiptShape
 import app.dirhamrub.ui.components.cascade
 import app.dirhamrub.ui.components.rememberCascade
+import app.dirhamrub.ui.currency.CurrencyPickerSheet
 import app.dirhamrub.ui.main.basisLabel
 import app.dirhamrub.ui.theme.AppTheme
 import java.math.BigDecimal
@@ -153,6 +154,7 @@ fun CardEditorSheet(
         mutableStateOf(card.manualFor(spend, home)?.homePerUnit?.let { Numbers.plain(it.multiply(manualUnit, MC), 4) }.orEmpty())
     }
     var confirmDelete by remember(card.id) { mutableStateOf(false) }
+    var cardPicker by remember(card.id) { mutableStateOf(false) }
 
     // Чек из скриншота: уведомление или операция в приложении банка → суммы в поля чека.
     val context = LocalContext.current
@@ -277,7 +279,15 @@ fun CardEditorSheet(
                 stringResource(if (cash) R.string.editor_currency_cash else R.string.editor_currency),
                 Modifier.cascade(cascade, 3),
             )
-            CurrencyChips(options = Currency.entries, selected = currency, onSelect = { currency = it }, modifier = Modifier.cascade(cascade, 3))
+            // Частые валюты карт чипами, остальные — в окне с поиском.
+            CurrencyChips(
+                options = (Currency.FREQUENT + currency).distinct(),
+                selected = currency,
+                onSelect = { currency = it },
+                modifier = Modifier.cascade(cascade, 3),
+                onMore = { cardPicker = true },
+                moreLabel = stringResource(R.string.currency_more),
+            )
             Spacer(Modifier.height(16.dp))
 
             Column(Modifier.cascade(cascade, 4)) {
@@ -305,7 +315,7 @@ fun CardEditorSheet(
                 val sentLabel = stringResource(if (cash) R.string.receipt_gave else R.string.receipt_sent)
                 val gotLabel = stringResource(if (cash) R.string.receipt_received else R.string.receipt_got)
                 ReceiptLine(sentLabel, sent, { sent = it }, sentLabel) {
-                    CurrencyDropdown(sentCurrency, Currency.entries, { sentCurrency = it }, pick)
+                    CurrencyDropdown(sentCurrency, (Currency.FREQUENT + home + currency + sentCurrency).distinct(), { sentCurrency = it }, pick)
                 }
                 ReceiptLine(gotLabel, got, { got = it }, gotLabel) {
                     CurrencyMark(currency.symbol)
@@ -323,7 +333,7 @@ fun CardEditorSheet(
                     ReceiptSection(stringResource(R.string.receipt_purchases))
                     for (d in purchases) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            CurrencyDropdown(d.spend, Currency.SPEND, { d.spend = it }, pick, chip = true)
+                            CurrencyDropdown(d.spend, (listOf(spend, d.spend) + Currency.POPULAR).distinct(), { d.spend = it }, pick, chip = true)
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 d.spend.nameRu,
@@ -360,7 +370,7 @@ fun CardEditorSheet(
                     }
                     TextButton(onClick = {
                         val used = purchases.map { it.spend }.toSet()
-                        val first = if (spend !in used) spend else Currency.SPEND.firstOrNull { it !in used } ?: spend
+                        val first = if (spend !in used) spend else Currency.POPULAR.firstOrNull { it !in used } ?: spend
                         purchases.add(PurchaseDraft(nextKey++, first, "", "", LocalDate.now()))
                     }) { Text(stringResource(R.string.receipt_add), style = type.bodyStrong, color = colors.accent) }
                     // Общая подсказка — пока чеков покупок нет; потом — только если курс для валюты трат оценочный.
@@ -454,6 +464,15 @@ fun CardEditorSheet(
                     .heightIn(min = 52.dp),
             ) { Text(stringResource(R.string.save), style = type.bodyStrong.copy(fontSize = 16.sp)) }
         }
+    }
+    if (cardPicker) {
+        CurrencyPickerSheet(
+            title = stringResource(if (cash) R.string.editor_currency_cash else R.string.editor_currency),
+            selected = currency,
+            options = Currency.entries,
+            onPick = { currency = it },
+            onDismiss = { cardPicker = false },
+        )
     }
     if (confirmDelete) {
         AlertDialog(

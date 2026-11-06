@@ -58,13 +58,21 @@ data class BankCard(
         manual.firstOrNull { it.spend == spend && it.home == home && it.homePerUnit.signum() > 0 }
 }
 
-/** Всё, что пользователь настроил: карты, итоговая валюта, валюта трат, выбранная карта. */
+/**
+ * Всё, что пользователь настроил: карты, итоговая валюта, валюта трат, выбранная карта
+ * и недавние валюты трат (сначала последняя) — для быстрого выбора среди ~150 валют.
+ */
 data class Wallet(
     val cards: List<BankCard> = emptyList(),
     val home: Currency = Currency.RUB,
     val spend: Currency = Currency.AED,
     val selectedId: String? = null,
+    val recent: List<Currency> = emptyList(),
 ) {
+    /** Новая валюта трат; прежняя и она сама — в начале недавних (не больше [RECENT]). */
+    fun withSpend(currency: Currency): Wallet =
+        copy(spend = currency, recent = (listOf(currency, spend) + recent).distinct().take(RECENT))
+
     val selected: BankCard? get() = cards.firstOrNull { it.id == selectedId } ?: cards.firstOrNull()
 
     fun upsert(card: BankCard): Wallet {
@@ -83,5 +91,6 @@ data class Wallet(
 
     companion object {
         const val CARD_STYLES = 7
+        const val RECENT = 6
     }
 }

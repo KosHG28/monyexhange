@@ -28,10 +28,19 @@ internal fun basisText(state: MainUiState): RateBasis? {
 /** Устаревший чек выбранной карты — показываем вместо подписи «оценка». */
 internal fun basisStale(state: MainUiState): StaleReceipt? = state.staleReceipt
 
-/** Карта, которой не хватает чека покупки в валюте трат: курс — оценка или чистый ЦБ. */
+/**
+ * Карта, которой не хватает чека покупки в валюте трат: курс — оценка или чистый ЦБ,
+ * а у валюты без курса ЦБ — курса нет совсем, пока нет чека.
+ */
 internal fun basisAction(state: MainUiState): BankCard? {
-    val q = state.selectedQuote ?: return null
+    val q = state.selectedQuote ?: return state.selectedCard?.takeIf { noOfficialForSpend(state) }
     return q.card.takeIf { q.basis == RateBasis.ESTIMATE || q.basis == RateBasis.OFFICIAL }
+}
+
+/** Курсы ЦБ загружены, но валюты трат среди них нет: считаем только по чекам и своему курсу. */
+internal fun noOfficialForSpend(state: MainUiState): Boolean {
+    val rates = state.official ?: return false
+    return rates.cross(state.wallet.spend, state.wallet.home) == null
 }
 
 /** Сравнение с самой дешёвой из остальных карт, если разница заметна. */

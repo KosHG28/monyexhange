@@ -2,6 +2,7 @@ package app.dirhamrub.ui.onboarding
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.ui.components.CurrencyChips
+import app.dirhamrub.ui.currency.CurrencySheet
 import app.dirhamrub.ui.currency.CurrencyTile
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.CardPalette
@@ -179,21 +183,37 @@ private fun Feature(emoji: String, text: String) {
 
 @Composable
 private fun Currencies(spend: Currency, home: Currency, onSpend: (Currency) -> Unit, onHome: (Currency) -> Unit) {
+    var picker by remember { mutableStateOf(false) }
     Title(stringResource(R.string.onboarding_spend_title))
     Lead(stringResource(R.string.onboarding_spend_lead))
-    for (row in Currency.SPEND.chunked(2)) {
+    // Частые валюты трат плитками; выбранная другая (по сети или из списка) — первой.
+    for (row in (listOf(spend) + Currency.POPULAR).distinct().chunked(2)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
             for (c in row) CurrencyTile(c, selected = c == spend, wide = true, modifier = Modifier.weight(1f)) { onSpend(c) }
             if (row.size == 1) Spacer(Modifier.weight(1f))
         }
     }
+    // Остальные ~150 валют — в окне с поиском по стране, городу и валюте.
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .border(1.dp, AppTheme.colors.line, RoundedCornerShape(14.dp))
+            .clickable(role = Role.Button) { picker = true }
+            .padding(horizontal = 14.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Text(stringResource(R.string.onboarding_other_country), style = AppTheme.type.bodyStrong, color = AppTheme.colors.accent)
+    }
+    if (picker) CurrencySheet(spend = spend, home = home, onSpend = onSpend, onHome = null, onDismiss = { picker = false })
     Text(
         stringResource(R.string.currency_sheet_home),
         style = AppTheme.type.bodyStrong,
         color = AppTheme.colors.ink,
         modifier = Modifier.padding(top = 12.dp, bottom = 8.dp),
     )
-    CurrencyChips(options = Currency.entries, selected = home, onSelect = onHome)
+    CurrencyChips(options = (Currency.FREQUENT + home).distinct(), selected = home, onSelect = onHome)
 }
 
 @Composable

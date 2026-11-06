@@ -70,6 +70,16 @@ class CurrencyTest {
     }
 
     @Test
+    fun `пометка курса ЦБ совпадает с перечнем ЦБ на 06-11-2026`() {
+        // XML_daily.asp на 06.11.2026: 54 позиции — эти 53 валюты и СДР (XDR, не наличные).
+        val cbr = ("AUD AZN DZD GBP AMD BHD BYN BOB BRL HUF VND HKD GEL DKK AED USD EUR EGP INR IDR IRR KZT CAD QAR " +
+            "KGS CNY CUP MDL MNT NGN NZD NOK OMR PLN SAR RON SGD TJS THB BDT TRY TMT UZS UAH CZK SEK CHF ETB RSD ZAR " +
+            "KRW JPY MMK").split(' ').toSet()
+        assertEquals(53, cbr.size)
+        assertEquals(cbr, Currency.entries.filter { it.cbr }.map { it.code }.toSet())
+    }
+
+    @Test
     fun `у каждой страны есть валюта из справочника и часть света`() {
         assertTrue(Countries.all.size > 200)
         assertEquals(Countries.all.size, Countries.all.map { it.iso }.toSet().size)

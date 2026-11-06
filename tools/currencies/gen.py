@@ -51,10 +51,12 @@ KEEP = {
     "KGS": ("сом", "Киргизский сом", "Сомы", "🇰🇬"),
 }
 
-# Валюты, которые публикует ЦБ РФ (на конец 2026 г.). Точный список приложение берёт из ответа ЦБ;
-# этот нужен только до первой загрузки курсов (пометка «без ЦБ», выбор итоговой валюты).
+# Валюты, которые публикует ЦБ РФ: сверено с XML_daily.asp на 06.11.2026 — 54 позиции, это 53 валюты
+# ниже и СДР (XDR, не наличные). Точный список приложение берёт из ответа ЦБ; этот нужен только
+# до первой загрузки курсов (пометка «без ЦБ», выбор итоговой валюты).
 CBR = set("""AUD AZN DZD GBP AMD BHD BYN BOB BRL HUF VND HKD GEL DKK AED USD EUR EGP INR IDR IRR KZT CAD QAR
-KGS CNY CUP MDL MNT NGN NZD NOK OMR PLN SAR RON SGD TJS THB TRY TMT UZS UAH CZK SEK CHF RSD ZAR ETB KRW JPY MMK""".split())
+KGS CNY CUP MDL MNT NGN NZD NOK OMR PLN SAR RON SGD TJS THB BDT TRY TMT UZS UAH CZK SEK CHF RSD ZAR ETB KRW
+JPY MMK""".split())
 
 # Примерно сколько единиц валюты за 1 доллар — только порядок величины: быстрые суммы, шпаргалка,
 # правдоподобный диапазон цен на ценниках. Точность не важна, важна степень десяти.

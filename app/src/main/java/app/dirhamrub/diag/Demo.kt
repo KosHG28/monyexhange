@@ -59,7 +59,7 @@ object Demo {
                 Currency.BHD to bd("214.60"), Currency.OMR to bd("209.60"), Currency.IRR to bd("0.00192"),
                 Currency.CUP to bd("3.36"), Currency.MNT to bd("0.02240"), Currency.NGN to bd("0.05270"),
                 Currency.DZD to bd("0.6200"), Currency.BOB to bd("11.68"), Currency.ETB to bd("0.5800"),
-                Currency.MMK to bd("0.03840"),
+                Currency.MMK to bd("0.03840"), Currency.BDT to bd("0.6563"),
             ),
         )
         val weekAgo = OfficialRates(

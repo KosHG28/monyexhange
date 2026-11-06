@@ -147,7 +147,7 @@
     <string name="receipt_estimate_hint_unionpay">Чека покупки в %1$s нет — курс оценён по курсу UnionPay с наценкой карты по её чекам. Чек в %1$s сделает его точным.</string>
     <string name="receipt_bought_title">Почём купили %1$s</string>
     <string name="receipt_bought">%1$s купили за</string>
-    <string name="receipt_bought_total">Итог: %1$s = %2$s</string>
+    <string name="receipt_bought_total">✓ Итог: %1$s = %2$s</string>
     <string name="receipt_bought_hint_empty">Пусто — по курсу ЦБ (серым). Курс, по которому покупали, сделает итог точным.</string>
     <string name="receipt_bought_hint">Итог по обоим чекам: обмен и покупка валюты.</string>
     <string name="receipt_unionpay_hint">Чека покупки в %1$s нет — курс UnionPay в %2$s, без комиссий банка. Чек в %1$s сделает курс точным.</string>

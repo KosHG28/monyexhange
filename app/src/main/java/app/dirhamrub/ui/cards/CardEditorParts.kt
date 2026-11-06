@@ -150,9 +150,10 @@ internal fun CurrencyMark(symbol: String) {
 
 /** «✓ По этому чеку 1 ¥ = 12,3 ₽» — под заполненным чеком. */
 @Composable
-internal fun ReceiptRate(rate: String) {
+internal fun ReceiptRate(rate: String, whole: Boolean = false) {
     Text(
-        stringResource(R.string.receipt_rate, rate),
+        // [whole] — готовая строка («✓ Итог: …»), иначе «✓ По этому чеку …».
+        if (whole) rate else stringResource(R.string.receipt_rate, rate),
         style = AppTheme.type.caption.copy(fontSize = 13.sp, fontWeight = FontWeight.Medium),
         color = AppTheme.colors.good,
         modifier = Modifier.padding(top = 2.dp),
@@ -310,6 +311,7 @@ internal fun BoughtPlate(
                 "${Numbers.moneyWhole(u)} ${card.symbol}",
                 "${Numbers.rate(homePerCard.multiply(u, MC))} ${home.symbol}",
             ),
+            whole = true,
         )
     }
     Hint(stringResource(if (value.isBlank()) R.string.receipt_bought_hint_empty else R.string.receipt_bought_hint))

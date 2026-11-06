@@ -17,6 +17,7 @@ import app.dirhamrub.domain.wallet.ManualRate
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.PurchaseReceipt
 import app.dirhamrub.domain.wallet.TransferReceipt
+import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.domain.wallet.Wallet
 import app.dirhamrub.domain.wallet.WalletCodec
 import kotlinx.coroutines.flow.catch
@@ -25,6 +26,9 @@ import java.io.IOException
 import java.time.LocalDate
 
 val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+
+/** Курсы UnionPay (~2400 пар) — отдельно от настроек: те переписываются при каждом нажатии клавиши. */
+val Context.unionPayDataStore: DataStore<Preferences> by preferencesDataStore(name = "unionpay")
 
 /** Всё, что переживает перезапуск приложения. */
 data class StoredState(
@@ -48,16 +52,26 @@ data class StoredState(
     val cameraUsed: Boolean,
     /** Плитку «Ценник» уже предлагали (добавили или отказались). */
     val tileOffered: Boolean,
+    /** Курсы UnionPay — для карт UnionPay и справочного курса валют без ЦБ. */
+    val unionPay: UnionPayRates?,
+    /** Когда курсы UnionPay скачаны (мс), 0 — никогда или со старым справочником валют. */
+    val unionPayFetchedAt: Long,
 )
 
 /**
  * Хранит кошелёк (карты, чеки, валюты), курсы ЦБ, последнюю сумму и активную строку.
  * При первом запуске после обновления с «Дирхамов в рубли» (0.x) переносит две старые карты с чеками.
  */
-class WalletRepository(private val store: DataStore<Preferences>) {
+class WalletRepository(
+    private val store: DataStore<Preferences>,
+    private val unionPayStore: DataStore<Preferences>,
+) {
 
     suspend fun load(): StoredState {
         val p = store.data
+            .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+            .first()
+        val u = unionPayStore.data
             .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
             .first()
         return StoredState(
@@ -79,7 +93,16 @@ class WalletRepository(private val store: DataStore<Preferences>) {
             ratesHistory = p[RATES_HISTORY]?.takeIf(WalletCodec::isCurrentTable)?.let(WalletCodec::decodeHistory).orEmpty(),
             cameraUsed = p[CAMERA_USED] ?: false,
             tileOffered = p[TILE_OFFERED] ?: false,
+            unionPay = WalletCodec.decodeUnionPay(u[UNIONPAY]),
+            unionPayFetchedAt = if (WalletCodec.isCurrentTable(u[UNIONPAY])) u[UNIONPAY_AT] ?: 0L else 0L,
         )
+    }
+
+    suspend fun saveUnionPay(rates: UnionPayRates, fetchedAt: Long) {
+        unionPayStore.edit { p ->
+            p[UNIONPAY] = WalletCodec.encodeUnionPay(rates)
+            p[UNIONPAY_AT] = fetchedAt
+        }
     }
 
     suspend fun saveOfficialWeekAgo(rates: OfficialRates) {
@@ -119,7 +142,14 @@ class WalletRepository(private val store: DataStore<Preferences>) {
     }
 
     /** Демо-состояние для скриншотов CI ([app.dirhamrub.diag.Demo]): всё сразу, курсы «только что скачаны». */
-    suspend fun saveDemo(wallet: Wallet, official: OfficialRates, weekAgo: OfficialRates, expression: Expression) {
+    suspend fun saveDemo(
+        wallet: Wallet,
+        official: OfficialRates,
+        weekAgo: OfficialRates,
+        unionPay: UnionPayRates,
+        expression: Expression,
+    ) {
+        saveUnionPay(unionPay, System.currentTimeMillis())
         store.edit { p ->
             p.clear()
             p[WALLET] = WalletCodec.encode(wallet)
@@ -192,5 +222,7 @@ class WalletRepository(private val store: DataStore<Preferences>) {
         val RATES_HISTORY = stringPreferencesKey("rates_history")
         val CAMERA_USED = booleanPreferencesKey("camera_used")
         val TILE_OFFERED = booleanPreferencesKey("tile_offered")
+        val UNIONPAY = stringPreferencesKey("unionpay_rates")
+        val UNIONPAY_AT = longPreferencesKey("unionpay_fetched_at")
     }
 }

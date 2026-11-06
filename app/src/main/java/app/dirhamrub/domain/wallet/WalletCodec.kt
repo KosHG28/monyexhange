@@ -40,6 +40,8 @@ object WalletCodec {
             p[k + "currency"] = c.currency.code
             p[k + "style"] = c.style.toString()
             p[k + "kind"] = c.kind.name
+            if (c.unionPay) p[k + "unionpay"] = "1"
+            c.settlement?.let { p[k + "settlement"] = it.code }
             c.transfer?.let { t ->
                 p[k + "transfer.sent"] = t.sent.toPlainString()
                 p[k + "transfer.sentCurrency"] = t.sentCurrency.code
@@ -140,7 +142,34 @@ object WalletCodec {
             purchases = purchases,
             manual = manual,
             kind = CardKind.entries.firstOrNull { it.name == p.getProperty(k + "kind") } ?: CardKind.CARD,
+            unionPay = p.getProperty(k + "unionpay") == "1",
+            settlement = Currency.byCode(p.getProperty(k + "settlement"))?.takeIf { it in UnionPayRates.BASES },
         )
+    }
+
+    /** Курсы UnionPay: «CNY.LKR=0.02015521» — сколько валюты расчёта за 1 единицу валюты покупки. */
+    fun encodeUnionPay(rates: UnionPayRates): String {
+        val p = Properties()
+        p[TABLE] = RATES_TABLE.toString()
+        p["date"] = rates.date.toString()
+        for ((base, row) in rates.rates) for ((trans, v) in row) p["${base.code}.${trans.code}"] = v.toPlainString()
+        return store(p)
+    }
+
+    fun decodeUnionPay(text: String?): UnionPayRates? {
+        if (text.isNullOrBlank()) return null
+        val p = load(text) ?: return null
+        val date = p.date("date") ?: return null
+        val out = HashMap<Currency, HashMap<Currency, BigDecimal>>()
+        for (name in p.stringPropertyNames()) {
+            val parts = name.split('.')
+            if (parts.size != 2) continue
+            val base = Currency.byCode(parts[0]) ?: continue
+            val trans = Currency.byCode(parts[1]) ?: continue
+            val v = p.decimal(name)?.takeIf { it.signum() > 0 } ?: continue
+            out.getOrPut(base) { HashMap() }[trans] = v
+        }
+        return if (out.isEmpty()) null else UnionPayRates(date, out)
     }
 
     /** Курсы ЦБ на даты чеков: ключ — дата чека, значение — курсы, действовавшие на неё. */

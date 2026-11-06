@@ -19,6 +19,8 @@
     <string name="currency_found">Найдено: %1$d</string>
     <string name="currency_nothing">Ничего не нашлось. Попробуйте страну, город или код валюты — например, «Бали» или «IDR».</string>
     <string name="currency_no_cbr">без ЦБ</string>
+    <string name="currency_no_rate">без курса</string>
+    <string name="currency_unionpay">UnionPay</string>
     <string name="currency_home_only_cbr">Итог — в рубле или валюте, у которой есть курс ЦБ: иначе карты не сравнить.</string>
     <string name="onboarding_other_country">Другая страна или валюта…</string>
     <string name="tile_camera">Ценник</string>
@@ -34,9 +36,11 @@
     <!-- Карты -->
     <string name="card_rate_short">%1$s %2$s/%3$s</string>
     <string name="card_vs_official">%1$s %% к ЦБ</string>
+    <string name="card_vs_unionpay">%1$s %% к UnionPay</string>
     <string name="card_basis_receipts">по чекам</string>
     <string name="card_basis_estimate">оценка</string>
     <string name="card_basis_official">курс ЦБ</string>
+    <string name="card_basis_unionpay">курс UnionPay</string>
     <string name="card_basis_manual">вручную</string>
     <string name="card_no_rate">нет курса</string>
     <string name="card_need_receipt">нужен чек</string>
@@ -64,8 +68,11 @@
     <string name="card_prev">Предыдущая карта</string>
     <string name="result_no_rate">Нет курса: добавьте карту или обновите курсы ЦБ</string>
     <string name="result_no_cbr">У ЦБ нет курса %1$s — нужен чек покупки</string>
+    <string name="result_no_ref">Нет курса %1$s ни у ЦБ, ни у UnionPay — нужен чек покупки</string>
     <string name="official_line_head">"ЦБ на %1$s: %2$s = "</string>
     <string name="official_line_head_short">"ЦБ %1$s: %2$s = "</string>
+    <string name="official_line_head_unionpay">"UnionPay на %1$s: %2$s = "</string>
+    <string name="official_line_head_unionpay_short">"UnionPay %1$s: %2$s = "</string>
     <string name="official_trend_week">%1$s %% за неделю</string>
     <string name="official_trend_week_short">%1$s %%/нед.</string>
     <string name="official_trend_a11y">за неделю %1$s %%</string>
@@ -74,6 +81,7 @@
     <string name="official_missing_short">ЦБ: нет курсов</string>
     <string name="official_not_loaded">ЦБ: курс %1$s не загружен · обновить</string>
     <string name="official_no_currency">У ЦБ нет курса %1$s · считаем по вашим чекам</string>
+    <string name="official_no_ref">Нет курса %1$s у ЦБ и UnionPay · считаем по чекам</string>
     <string name="official_refresh">Обновить курсы ЦБ</string>
     <string name="line_a11y">%1$s: %2$s %3$s</string>
     <string name="input_a11y">Ввод в валюте %1$s: %2$s %3$s</string>
@@ -95,6 +103,8 @@
     <string name="cheat_title">Шпаргалка</string>
     <string name="cheat_subtitle">%1$s → %2$s по каждой карте и по курсу ЦБ</string>
     <string name="cheat_official">ЦБ</string>
+    <string name="cheat_unionpay">UnionPay</string>
+    <string name="cheat_subtitle_unionpay">%1$s → %2$s по каждой карте и по курсу UnionPay</string>
 
     <!-- Редактор карты -->
     <string name="scan_button">Заполнить из скриншота банка</string>
@@ -129,7 +139,13 @@
     <string name="receipt_remove">Удалить чек</string>
     <string name="receipt_rate">✓ По этому чеку %1$s</string>
     <string name="receipt_estimate_hint">Чека покупки в %1$s нет — курс оценён по ЦБ с наценкой карты по её чекам. Чек в %1$s сделает его точным.</string>
+    <string name="receipt_estimate_hint_unionpay">Чека покупки в %1$s нет — курс оценён по курсу UnionPay с наценкой карты по её чекам. Чек в %1$s сделает его точным.</string>
+    <string name="receipt_unionpay_hint">Чека покупки в %1$s нет — курс UnionPay в %2$s, без комиссий банка. Чек в %1$s сделает курс точным.</string>
     <string name="receipt_purchases_hint">По чеку в нужной валюте курс точный. Для других валют — курс ЦБ с наценкой карты по её чекам.</string>
+    <string name="editor_unionpay">Карта UnionPay</string>
+    <string name="editor_unionpay_hint">Покупку в любой валюте UnionPay пересчитывает по своему курсу — курс есть и без чека.</string>
+    <string name="editor_settlement">Валюта расчёта UnionPay</string>
+    <string name="editor_settlement_hint">Обычно юань. Из %1$s в %2$s — по курсу банка: его даст чек покупки в %1$s.</string>
     <string name="editor_manual">Свой курс: %1$s =</string>
     <string name="editor_manual_hint">Пусто — считать по чекам; серым — курс по ним сейчас</string>
     <string name="editor_result">%1$s = %2$s %3$s</string>
@@ -150,6 +166,7 @@
     <string name="camera_resume">Продолжить</string>
     <string name="camera_card_switch">Карта: %1$s. Переключить</string>
     <string name="camera_official">ЦБ</string>
+    <string name="camera_unionpay">UnionPay</string>
     <string name="camera_hint">Наведите на ценник · %1$s</string>
     <string name="camera_paused">Кадр заморожен</string>
     <string name="camera_label_a11y">%1$s %2$s, около %3$s %4$s</string>
@@ -161,6 +178,7 @@
     <string name="camera_zoom_a11y">Увеличение %1$s</string>
     <string name="camera_hold_hint">Удерживайте экран — оригинальные цены</string>
     <string name="camera_focus_cbr">ЦБ %1$s %2$s</string>
+    <string name="camera_focus_unionpay">UnionPay %1$s %2$s</string>
     <string name="camera_focus_old">было %1$s</string>
     <string name="camera_focus_open">Подробнее: все карты</string>
     <string name="camera_focus_add">Добавить в список</string>

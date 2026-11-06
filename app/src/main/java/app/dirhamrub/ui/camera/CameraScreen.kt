@@ -498,6 +498,7 @@ private fun CameraContent(
         Column(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing)) {
             TopControls(
                 wallet = wallet,
+                viaUnionPay = quote.viaUnionPay,
                 torch = torch,
                 paused = paused,
                 embedded = embedded,
@@ -557,6 +558,7 @@ private fun CameraContent(
                     home = wallet.home,
                     cardName = wallet.selected?.name,
                     cardQuote = selectedQuote,
+                    viaUnionPay = quote.viaUnionPay,
                     comparison = comparison,
                     onOpen = { sheet = frame.value.labels.firstOrNull { it.id == info.id } },
                     onAdd = { basket = basket + info.value.toPlainString() },

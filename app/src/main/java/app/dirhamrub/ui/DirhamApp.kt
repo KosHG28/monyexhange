@@ -178,7 +178,7 @@ fun DirhamApp(
             onDismiss = { currenciesOpen = false },
             recent = state.wallet.recent,
             country = country,
-            official = state.official,
+            official = state.reference,
         )
     }
     // Камера раскрывается кругом из кнопки «Ценник» и сворачивается в неё обратно; главный экран — под ней.
@@ -234,7 +234,8 @@ fun DirhamApp(
             isNew = e.isNew,
             spend = state.wallet.spend,
             home = state.wallet.home,
-            official = state.official,
+            official = state.reference,
+            unionPay = state.unionPay,
             onSave = {
                 vm.saveCard(it)
                 editing = null

@@ -101,7 +101,9 @@ fun CurrencySheet(
                 all = stringResource(R.string.currency_all),
                 found = stringResource(R.string.currency_found),
                 nothing = stringResource(R.string.currency_nothing),
-                noCbr = stringResource(R.string.currency_no_cbr),
+                // С курсами UnionPay «без ЦБ» — почти у всех стран: тогда помечаем только те, где курса нет совсем.
+                noCbr = stringResource(if (official?.derived.isNullOrEmpty()) R.string.currency_no_cbr else R.string.currency_no_rate),
+                unionPay = stringResource(R.string.currency_unionpay),
                 homeHint = stringResource(R.string.currency_sheet_home_hint) + ". " + stringResource(R.string.currency_home_only_cbr),
             )
             LazyColumn(
@@ -180,6 +182,7 @@ private class SheetTexts(
     val found: String,
     val nothing: String,
     val noCbr: String,
+    val unionPay: String,
     val homeHint: String,
 )
 
@@ -198,7 +201,7 @@ private fun LazyListScope.spendItems(
         val found = CurrencySearch.countries(query)
         item(key = "found") { Section(texts.found.format(found.size)) }
         if (found.isEmpty()) item(key = "nothing") { Note(texts.nothing) }
-        items(found, key = { "f-" + it.iso }) { c -> CountryRow(c, c.currency == spend, home, official, texts.noCbr) { onPick(c.currency) } }
+        items(found, key = { "f-" + it.iso }) { c -> CountryRow(c, c.currency == spend, home, official, texts.noCbr, texts.unionPay) { onPick(c.currency) } }
         return
     }
     var index = 0
@@ -229,7 +232,7 @@ private fun LazyListScope.spendItems(
         for (c in list) {
             val r = index++
             item(key = "c-" + c.iso) {
-                CountryRow(c, c.currency == spend, home, official, texts.noCbr, Modifier.cascade(cascade, r)) { onPick(c.currency) }
+                CountryRow(c, c.currency == spend, home, official, texts.noCbr, texts.unionPay, Modifier.cascade(cascade, r)) { onPick(c.currency) }
             }
         }
     }
@@ -272,14 +275,18 @@ private fun LazyListScope.homeItems(
 /** «IDR · Rp» или просто «AED», если знак — это код. */
 internal fun label(c: Currency): String = if (c.symbol == c.code) c.code else "${c.code} · ${c.symbol}"
 
-/** «10 000 Rp = 57,69 ₽» по курсу ЦБ; null — у итоговой валюты или если у ЦБ курса нет. */
+/**
+ * «10 000 Rp = 57,69 ₽» по курсу ЦБ, «100 Rs ≈ 24,65 ₽» — по справочному курсу UnionPay;
+ * null — у итоговой валюты или если курса нет.
+ */
 internal fun rateText(c: Currency, home: Currency, official: OfficialRates?): String? {
-    if (c == home) return null
-    val rate = official?.cross(c, home) ?: return null
+    if (c == home || official == null) return null
+    val rate = official.cross(c, home) ?: return null
     val unit = Numbers.unitFor(rate)
-    return "${Numbers.moneyWhole(unit)} ${c.symbol} = ${Numbers.rateShort(rate.multiply(unit, MC))} ${home.symbol}"
+    val sign = if (official.viaUnionPay(c, home)) "≈" else "="
+    return "${Numbers.moneyWhole(unit)} ${c.symbol} $sign ${Numbers.rateShort(rate.multiply(unit, MC))} ${home.symbol}"
 }
 
-/** У ЦБ нет курса: валюты нет ни в известном списке, ни в загруженных курсах. */
+/** Курса нет: валюты нет ни в известном списке ЦБ, ни в загруженных курсах ЦБ, ни у UnionPay. */
 internal fun noCbr(c: Currency, home: Currency, official: OfficialRates?): Boolean =
-    c != home && !cbrPublishes(c, official)
+    c != home && !cbrPublishes(c, official) && (official == null || c !in official.derived)

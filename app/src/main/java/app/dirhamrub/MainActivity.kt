@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import app.dirhamrub.data.WalletRepository
 import app.dirhamrub.data.settingsDataStore
+import app.dirhamrub.data.unionPayDataStore
 import app.dirhamrub.diag.CrashLog
 import app.dirhamrub.diag.Demo
 import app.dirhamrub.diag.CrashReportDialog
@@ -22,7 +23,7 @@ class MainActivity : ComponentActivity() {
         val screen = intent?.getStringExtra(EXTRA_SCREEN)
         if (intent?.getBooleanExtra(EXTRA_DEMO, false) == true && Demo.allowed(this)) {
             // Только отладочная сборка: демо-данные пишутся до чтения состояния, поэтому синхронно.
-            runBlocking { Demo.seed(WalletRepository(settingsDataStore), intent.getStringExtra(EXTRA_SPEND)) }
+            runBlocking { Demo.seed(WalletRepository(settingsDataStore, unionPayDataStore), intent.getStringExtra(EXTRA_SPEND)) }
         }
         setContent {
             DirhamTheme {

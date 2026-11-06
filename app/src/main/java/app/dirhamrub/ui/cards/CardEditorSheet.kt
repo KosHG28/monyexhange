@@ -63,6 +63,7 @@ import app.dirhamrub.domain.wallet.RateEngine
 import app.dirhamrub.domain.wallet.ReceiptScanner
 import app.dirhamrub.domain.wallet.ScannedReceipt
 import app.dirhamrub.domain.wallet.TransferReceipt
+import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.ui.components.CurrencyChips
 import app.dirhamrub.ui.components.CurrencyDropdown
 import app.dirhamrub.ui.components.DashedDivider
@@ -93,6 +94,8 @@ fun CardEditorSheet(
     onSave: (BankCard) -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
+    /** Курсы UnionPay — для карт UnionPay. */
+    unionPay: UnionPayRates? = null,
     /** Добавить пустой чек покупки в этой валюте (если его ещё нет). */
     addPurchaseFor: Currency? = null,
 ) {
@@ -109,6 +112,9 @@ fun CardEditorSheet(
     var name by remember(card.id) { mutableStateOf(card.name) }
     var currency by remember(card.id) { mutableStateOf(card.currency) }
     var kind by remember(card.id) { mutableStateOf(card.kind) }
+    var unionPayCard by remember(card.id) { mutableStateOf(card.unionPay) }
+    var settlement by remember(card.id) { mutableStateOf(card.settlement) }
+    var settlementPicker by remember(card.id) { mutableStateOf(false) }
     val cash = kind == CardKind.CASH
     var sent by remember(card.id) { mutableStateOf(card.transfer?.sent?.let(::field).orEmpty()) }
     var sentCurrency by remember(card.id) { mutableStateOf(card.transfer?.sentCurrency ?: home) }
@@ -126,7 +132,7 @@ fun CardEditorSheet(
     // Свой курс — на ту же единицу, что в итоге и на картах («100 ₸ = …»); единица считается один раз при открытии,
     // чтобы не менялась, пока курс набирают.
     val manualUnit = remember(card.id) {
-        val auto = RateEngine.quote(card.withoutManual(spend, home), spend, home, official)?.homePerUnit
+        val auto = RateEngine.quote(card.withoutManual(spend, home), spend, home, official, unionPay)?.homePerUnit
         (auto ?: card.manualFor(spend, home)?.homePerUnit)?.let(Numbers::unitFor) ?: BigDecimal.ONE
     }
     var manual by remember(card.id) {
@@ -191,6 +197,8 @@ fun CardEditorSheet(
             name = name.trim().ifEmpty { defaultName },
             currency = currency,
             kind = kind,
+            unionPay = unionPayCard && kind == CardKind.CARD,
+            settlement = settlement,
             transfer = transfer,
             purchases = receipts,
             manual = otherManual + listOfNotNull(manualValue?.let { ManualRate(spend, home, it, manualDate) }),
@@ -267,6 +275,18 @@ fun CardEditorSheet(
                 onMore = { cardPicker = true },
                 moreLabel = stringResource(R.string.currency_more),
             )
+            if (!cash) {
+                Spacer(Modifier.height(12.dp))
+                UnionPaySection(
+                    enabled = unionPayCard,
+                    settlement = settlement ?: UnionPayRates.defaultSettlement(currency),
+                    cardCurrency = currency,
+                    onEnabled = { unionPayCard = it },
+                    onSettlement = { settlement = it },
+                    onMoreSettlements = { settlementPicker = true },
+                    modifier = Modifier.cascade(cascade, 3),
+                )
+            }
             Spacer(Modifier.height(16.dp))
 
             Column(Modifier.cascade(cascade, 4)) {
@@ -279,7 +299,7 @@ fun CardEditorSheet(
             Spacer(Modifier.height(12.dp))
             // Итог на лету: тот же расчёт, что на главном экране.
             val draft = build()
-            val q = RateEngine.quote(draft, spend, home, official)
+            val q = RateEngine.quote(draft, spend, home, official, unionPay)
             // Бумажный чек: пополнение и покупки.
             Column(
                 modifier = Modifier
@@ -316,7 +336,11 @@ fun CardEditorSheet(
                         pick = pick,
                         // Общая подсказка — пока чеков покупок нет; потом — только если курс для валюты трат оценочный.
                         hint = when {
+                            q?.basis == RateBasis.UNIONPAY ->
+                                stringResource(R.string.receipt_unionpay_hint, spend.symbol, draft.settlementCurrency.code)
                             draft.purchases.isEmpty() -> stringResource(R.string.receipt_purchases_hint)
+                            q != null && q.basis == RateBasis.ESTIMATE && q.viaUnionPay ->
+                                stringResource(R.string.receipt_estimate_hint_unionpay, spend.symbol)
                             q?.basis == RateBasis.ESTIMATE -> stringResource(R.string.receipt_estimate_hint, spend.symbol)
                             else -> null
                         },
@@ -365,7 +389,7 @@ fun CardEditorSheet(
 
             Spacer(Modifier.height(14.dp))
             // Свой курс для текущей пары валют; серым в пустом поле — курс по чекам сейчас.
-            val auto = RateEngine.quote(draft.withoutManual(spend, home), spend, home, official)?.homePerUnit
+            val auto = RateEngine.quote(draft.withoutManual(spend, home), spend, home, official, unionPay)?.homePerUnit
             ManualRatePanel(
                 unit = manualUnit,
                 spend = spend,
@@ -401,6 +425,15 @@ fun CardEditorSheet(
             options = Currency.entries,
             onPick = { currency = it },
             onDismiss = { cardPicker = false },
+        )
+    }
+    if (settlementPicker) {
+        CurrencyPickerSheet(
+            title = stringResource(R.string.editor_settlement),
+            selected = settlement ?: UnionPayRates.defaultSettlement(currency),
+            options = UnionPayRates.BASES,
+            onPick = { settlement = it },
+            onDismiss = { settlementPicker = false },
         )
     }
     if (confirmDelete) {

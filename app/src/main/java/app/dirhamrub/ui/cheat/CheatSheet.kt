@@ -97,7 +97,7 @@ fun CheatSheet(
                     .semantics { heading() },
             )
             Text(
-                stringResource(R.string.cheat_subtitle, spend.code, home.symbol),
+                stringResource(if (quote.viaUnionPay) R.string.cheat_subtitle_unionpay else R.string.cheat_subtitle, spend.code, home.symbol),
                 style = type.body,
                 color = colors.muted,
                 modifier = Modifier.cascade(cascade, 1),
@@ -107,7 +107,13 @@ fun CheatSheet(
             // Колонки: карты (по курсу каждой) и ЦБ. Много карт — таблица прокручивается вбок.
             val columns = quote.quotes.map {
                 CheatColumn(it.card.name, CardPalette.style(it.card).start, it.homePerUnit, it.card.id == selectedId, it == best)
-            } + CheatColumn(stringResource(R.string.cheat_official), null, quote.official, selected = false, best = false)
+            } + CheatColumn(
+                stringResource(if (quote.viaUnionPay) R.string.cheat_unionpay else R.string.cheat_official),
+                null,
+                quote.official,
+                selected = false,
+                best = false,
+            )
             val amounts = MainViewModel.cheat(spend)
             val current = amount.takeIf { it.signum() > 0 }
             val rows = (amounts + listOfNotNull(current?.takeIf { a -> amounts.none { it.compareTo(a) == 0 } })).sorted()

@@ -7,14 +7,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -35,6 +39,8 @@ import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.ScannedReceipt
+import app.dirhamrub.domain.wallet.UnionPayRates
+import app.dirhamrub.ui.components.CurrencyChips
 import app.dirhamrub.ui.components.NumberField
 import app.dirhamrub.ui.theme.AppTheme
 import java.math.BigDecimal
@@ -200,3 +206,72 @@ internal fun ManualRatePanel(
 }
 
 private val MANUAL_FIELD = 116.dp
+
+/**
+ * «Карта UnionPay» и валюта расчёта: UnionPay пересчитывает покупку в любой валюте по своему курсу
+ * в валюту расчёта (обычно юань), банк — из неё в валюту карты.
+ */
+@Composable
+internal fun UnionPaySection(
+    enabled: Boolean,
+    settlement: Currency,
+    cardCurrency: Currency,
+    onEnabled: (Boolean) -> Unit,
+    onSettlement: (Currency) -> Unit,
+    onMoreSettlements: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(colors.surface)
+            .padding(start = 14.dp, end = 10.dp, top = 4.dp, bottom = 10.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+                .toggleable(value = enabled, role = Role.Switch, onValueChange = onEnabled),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.editor_unionpay), style = type.bodyStrong, color = colors.ink)
+                Text(stringResource(R.string.editor_unionpay_hint), style = type.caption, color = colors.muted)
+            }
+            Spacer(Modifier.width(8.dp))
+            Switch(
+                checked = enabled,
+                onCheckedChange = null,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = colors.onAccent,
+                    checkedTrackColor = colors.accent,
+                    uncheckedThumbColor = colors.muted,
+                    uncheckedTrackColor = colors.bg,
+                    uncheckedBorderColor = colors.line,
+                ),
+            )
+        }
+        if (enabled) {
+            Spacer(Modifier.height(4.dp))
+            Text(stringResource(R.string.editor_settlement), style = type.caption, color = colors.muted)
+            Spacer(Modifier.height(6.dp))
+            CurrencyChips(
+                options = (UnionPayRates.BASES.take(SETTLEMENT_CHIPS) + settlement).distinct(),
+                selected = settlement,
+                onSelect = onSettlement,
+                onMore = onMoreSettlements,
+                moreLabel = stringResource(R.string.currency_more),
+            )
+            if (settlement != cardCurrency) {
+                Spacer(Modifier.height(4.dp))
+                Hint(stringResource(R.string.editor_settlement_hint, settlement.code, cardCurrency.code))
+            }
+        }
+    }
+}
+
+/** Частые валюты расчёта чипами: юань, доллар, евро, гонконгский доллар; остальные — в списке. */
+private const val SETTLEMENT_CHIPS = 4

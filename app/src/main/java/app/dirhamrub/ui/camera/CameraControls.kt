@@ -153,6 +153,7 @@ internal fun FocusRing(at: Offset) {
 @Composable
 internal fun TopControls(
     wallet: Wallet,
+    viaUnionPay: Boolean,
     torch: Boolean,
     paused: Boolean,
     embedded: Boolean,
@@ -171,7 +172,7 @@ internal fun TopControls(
         RoundButton(R.drawable.ic_arrow_back, stringResource(R.string.camera_back), onBack)
         Spacer(Modifier.width(6.dp))
         // Карта занимает свободное место; длинное название сокращается, кнопки справа на месте.
-        Box(Modifier.weight(1f)) { CardSwitch(wallet, onSelectCard) }
+        Box(Modifier.weight(1f)) { CardSwitch(wallet, viaUnionPay, onSelectCard) }
         Spacer(Modifier.width(4.dp))
         RoundButton(
             if (embedded) R.drawable.ic_mode_embed else R.drawable.ic_mode_bubbles,
@@ -210,12 +211,12 @@ internal fun RoundButton(icon: Int, description: String, onClick: () -> Unit, hi
     }
 }
 
-/** Карта для меток: показывает валюту и название выбранной, тап — следующая карта. Без карт — «ЦБ». */
+/** Карта для меток: показывает валюту и название выбранной, тап — следующая карта. Без карт — «ЦБ» (или «UnionPay»). */
 @Composable
-internal fun CardSwitch(wallet: Wallet, onSelect: (String) -> Unit) {
+internal fun CardSwitch(wallet: Wallet, viaUnionPay: Boolean, onSelect: (String) -> Unit) {
     val colors = AppTheme.colors
     val card = wallet.selected
-    val title = card?.name ?: stringResource(R.string.camera_official)
+    val title = card?.name ?: stringResource(if (viaUnionPay) R.string.camera_unionpay else R.string.camera_official)
     val desc = stringResource(R.string.camera_card_switch, title)
     Row(
         modifier = Modifier

@@ -35,14 +35,22 @@ internal fun basisStale(state: MainUiState): StaleReceipt? = state.staleReceipt
  */
 internal fun basisAction(state: MainUiState): BankCard? {
     val q = state.selectedQuote ?: return state.selectedCard?.takeIf { noOfficialForSpend(state) }
-    return q.card.takeIf { q.basis == RateBasis.ESTIMATE || q.basis == RateBasis.OFFICIAL }
+    return q.card.takeIf { q.basis == RateBasis.ESTIMATE || q.basis == RateBasis.OFFICIAL || q.basis == RateBasis.UNIONPAY }
 }
 
-/** Курсы ЦБ загружены, но валюты трат среди них нет: считаем только по чекам и своему курсу. */
+/**
+ * Курсы ЦБ загружены, но курса валюты трат нет ни у ЦБ, ни у UnionPay (справочный):
+ * считаем только по чекам и своему курсу.
+ */
 internal fun noOfficialForSpend(state: MainUiState): Boolean {
-    val rates = state.official ?: return false
-    return !cbrPublishes(state.wallet.spend, rates) || !cbrPublishes(state.wallet.home, rates)
+    val rates = state.reference ?: return false
+    fun known(c: Currency) = cbrPublishes(c, rates) || c in rates.derived
+    return !known(state.wallet.spend) || !known(state.wallet.home)
 }
+
+/** Сообщение «нет курса» называет UnionPay, только если его курсы есть (иначе — как раньше, только ЦБ). */
+internal fun noRefText(state: MainUiState, cbrOnly: Int, both: Int): Pair<Int, String> =
+    (if (state.unionPay == null) cbrOnly else both) to state.wallet.spend.code
 
 /** Сравнение с самой дешёвой из остальных карт, если разница заметна. */
 internal fun comparison(state: MainUiState): CardComparison? =

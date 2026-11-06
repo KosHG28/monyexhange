@@ -67,6 +67,8 @@ internal fun FocusCard(
     home: Currency,
     cardName: String?,
     cardQuote: CardQuote?,
+    /** Справочный курс — UnionPay (у ЦБ нет валюты трат): подписи «UnionPay» вместо «ЦБ». */
+    viaUnionPay: Boolean,
     comparison: CardComparison?,
     onOpen: () -> Unit,
     onAdd: () -> Unit,
@@ -92,15 +94,15 @@ internal fun FocusCard(
                     Markup.BAD -> colors.accent
                 }
                 withStyle(SpanStyle(color = tint, fontWeight = FontWeight.Medium)) {
-                    append(stringResource(R.string.card_vs_official, signedPercent(vs)))
+                    append(stringResource(if (viaUnionPay) R.string.card_vs_unionpay else R.string.card_vs_official, signedPercent(vs)))
                 }
             }
         } else if (info.homeAmount != null) {
-            append(stringResource(R.string.card_basis_official))
+            append(stringResource(if (viaUnionPay) R.string.card_basis_unionpay else R.string.card_basis_official))
         }
         info.officialAmount?.let {
             append(if (length > 0) " · " else "")
-            append(stringResource(R.string.camera_focus_cbr, Numbers.cheat(it), home.symbol))
+            append(stringResource(if (viaUnionPay) R.string.camera_focus_unionpay else R.string.camera_focus_cbr, Numbers.cheat(it), home.symbol))
         }
     }
     val open = stringResource(R.string.camera_focus_open)

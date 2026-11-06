@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import app.dirhamrub.data.CbrClient
+import app.dirhamrub.data.UnionPayClient
 import app.dirhamrub.data.WalletRepository
 import app.dirhamrub.data.settingsDataStore
+import app.dirhamrub.data.unionPayDataStore
 import app.dirhamrub.domain.Expression
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
@@ -21,6 +23,7 @@ import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.RateEngine
 import app.dirhamrub.domain.wallet.ReceiptAge
 import app.dirhamrub.domain.wallet.StaleReceipt
+import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.domain.wallet.Wallet
 import app.dirhamrub.domain.wallet.WalletQuote
 import kotlinx.coroutines.delay
@@ -63,7 +66,12 @@ data class MainUiState(
     val ratesHistory: Map<LocalDate, OfficialRates> = emptyMap(),
     val cameraUsed: Boolean = false,
     val tileOffered: Boolean = true,
+    /** Курсы UnionPay: карты UnionPay и справочный курс валют, которых нет у ЦБ. */
+    val unionPay: UnionPayRates? = null,
 ) {
+    /** Справочные курсы: ЦБ, а валюты без ЦБ — по UnionPay к доллару и ЦБ доллара (они в [OfficialRates.derived]). */
+    val reference: OfficialRates? by lazy { official?.withUnionPay(unionPay) }
+
     /** Устаревший чек выбранной карты: давно, а ЦБ с тех пор заметно сдвинулся. */
     val staleReceipt: StaleReceipt?
         get() = selectedCard?.let { ReceiptAge.check(it, wallet.spend, wallet.home, LocalDate.now(), official, ratesHistory) }
@@ -71,7 +79,7 @@ data class MainUiState(
     /** Изменение курса ЦБ валюты трат к итоговой за неделю, в процентах. */
     val weekTrend: BigDecimal? get() = official?.trendPercent(officialWeekAgo, wallet.spend, wallet.home)
 
-    val quote: WalletQuote by lazy { RateEngine.quoteAll(wallet, official) }
+    val quote: WalletQuote by lazy { RateEngine.quoteAll(wallet, reference, unionPay) }
     val selectedCard: BankCard? get() = wallet.selected
     val selectedQuote: CardQuote? get() = quote.of(selectedCard?.id)
 
@@ -112,11 +120,14 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
     private val _state = MutableStateFlow(MainUiState())
     val state: StateFlow<MainUiState> = _state.asStateFlow()
     private var officialFetchedAt = 0L
+    private var unionPayFetchedAt = 0L
+    private var unionPayLoading = false
 
     init {
         viewModelScope.launch {
             val stored = repository.load()
             officialFetchedAt = stored.officialFetchedAt
+            unionPayFetchedAt = stored.unionPayFetchedAt
             _state.value = MainUiState(
                 loaded = true,
                 wallet = stored.wallet,
@@ -131,6 +142,7 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
                 ratesHistory = stored.ratesHistory,
                 cameraUsed = stored.cameraUsed,
                 tileOffered = stored.tileOffered,
+                unionPay = stored.unionPay,
             )
             refreshRates(force = false)
             // Сохраняем не чаще раза в 300 мс: collectLatest отменяет отложенную запись при новом нажатии.
@@ -230,8 +242,9 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
         return BankCard(id = UUID.randomUUID().toString(), name = "", currency = currency, style = w.nextStyle())
     }
 
-    /** Курсы ЦБ: при запуске — если старше 6 часов, по кнопке — всегда. */
+    /** Курсы ЦБ и UnionPay: при запуске — если старше 6 часов, по кнопке — всегда. */
     fun refreshRates(force: Boolean = true) {
+        refreshUnionPay(force)
         val s = _state.value
         if (s.ratesLoading) return
         if (!force && s.official != null && System.currentTimeMillis() - officialFetchedAt < RATES_TTL_MS) {
@@ -249,6 +262,22 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
             _state.update { it.copy(official = rates ?: it.official, ratesLoading = false, ratesFailed = rates == null) }
             refreshWeekAgo()
             refreshReceiptRates()
+        }
+    }
+
+    /** Курсы UnionPay: тихо, без индикатора — не скачались, так остаются прежние (или ЦБ и чеки). */
+    private fun refreshUnionPay(force: Boolean) {
+        if (unionPayLoading) return
+        if (!force && _state.value.unionPay != null && System.currentTimeMillis() - unionPayFetchedAt < RATES_TTL_MS) return
+        unionPayLoading = true
+        viewModelScope.launch {
+            val rates = UnionPayClient.fetch()
+            if (rates != null) {
+                unionPayFetchedAt = System.currentTimeMillis()
+                repository.saveUnionPay(rates, unionPayFetchedAt)
+                _state.update { it.copy(unionPay = rates) }
+            }
+            unionPayLoading = false
         }
     }
 
@@ -332,7 +361,7 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]!!
-                MainViewModel(WalletRepository(app.settingsDataStore))
+                MainViewModel(WalletRepository(app.settingsDataStore, app.unionPayDataStore))
             }
         }
 

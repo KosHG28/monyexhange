@@ -62,6 +62,7 @@ import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.RateBasis
+import app.dirhamrub.domain.wallet.approximate
 import app.dirhamrub.ui.components.RollingText
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.CardPalette
@@ -119,7 +120,7 @@ internal fun BankCardView(
     } ?: stringResource(if (needsReceipt) R.string.card_need_receipt else R.string.card_no_rate)
     val vs = quote?.takeIf { it.basis != RateBasis.OFFICIAL }?.vsOfficial
     // Оценочный курс (нет чека покупки в валюте трат) — сумма со знаком «≈».
-    val approx = if (quote?.basis == RateBasis.ESTIMATE) "≈ " else ""
+    val approx = if (quote?.basis?.approximate == true) "≈ " else ""
     val sumText = sum?.let { "$approx$it ${home.symbol}" } ?: "—"
     val a11y = buildString {
         append(stringResource(R.string.card_a11y, card.name, sumText, rate))

@@ -63,6 +63,9 @@ adb shell cmd uimode night yes
 shot 15-main-idr --es spend IDR
 shot 16-main-lkr --es spend LKR
 shot 17-currencies-idr --es spend IDR --es screen currencies
+WAIT=12 shot 18-editor-lkr --es spend LKR --es screen editor
+shot 19-cheat-lkr --es spend LKR --es screen cheat
+shot 20-currencies-lkr --es spend LKR --es screen currencies
 
 # Первый запуск: данные стёрты — знакомство.
 adb shell pm clear "$PKG"

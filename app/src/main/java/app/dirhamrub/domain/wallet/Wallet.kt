@@ -39,7 +39,11 @@ enum class CardKind {
     CASH,
 }
 
-/** Карта пользователя (или наличные — [kind]). [style] — номер оформления (градиент). */
+/**
+ * Карта пользователя (или наличные — [kind]). [style] — номер оформления (градиент).
+ * У карты UnionPay ([unionPay]) покупка в любой валюте пересчитывается по курсу UnionPay в валюту
+ * расчёта [settlementCurrency], а из неё в валюту карты — по курсу банка.
+ */
 data class BankCard(
     val id: String,
     val name: String,
@@ -49,7 +53,13 @@ data class BankCard(
     val purchases: List<PurchaseReceipt> = emptyList(),
     val manual: List<ManualRate> = emptyList(),
     val kind: CardKind = CardKind.CARD,
+    val unionPay: Boolean = false,
+    /** Валюта расчёта UnionPay, если пользователь её выбрал; иначе — [UnionPayRates.defaultSettlement]. */
+    val settlement: Currency? = null,
 ) {
+    /** В какую валюту UnionPay пересчитывает покупки по этой карте. */
+    val settlementCurrency: Currency get() = settlement ?: UnionPayRates.defaultSettlement(currency)
+
     /** Последний чек покупки в валюте трат [spend]. */
     fun purchaseFor(spend: Currency): PurchaseReceipt? =
         purchases.filter { it.spend == spend && it.isValid }.maxByOrNull { it.date }

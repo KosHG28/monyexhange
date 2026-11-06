@@ -203,7 +203,10 @@ internal fun HereCard(country: Country, selected: Boolean, home: Currency, offic
     }
 }
 
-/** Строка страны: флаг, страна, валюта с кодом и знаком; справа — курс ЦБ или «без ЦБ». */
+/**
+ * Строка страны: флаг, страна, валюта с кодом и знаком; справа — курс ЦБ, справочный курс
+ * с пометкой «UnionPay» или «без ЦБ» («без курса»).
+ */
 @Composable
 internal fun CountryRow(
     country: Country,
@@ -211,21 +214,25 @@ internal fun CountryRow(
     home: Currency,
     official: OfficialRates?,
     noCbrLabel: String,
+    unionPayLabel: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     val c = country.currency
     val rate = rateText(c, home, official)
+    val note = unionPayLabel.takeIf { rate != null && official?.viaUnionPay(c, home) == true }
     val sub = "${c.nameRu} · ${label(c)}"
     PickRow(
         flag = country.flag,
         title = country.nameRu,
         sub = sub,
         right = rate,
+        rightNote = note,
         noCbr = rate == null && noCbr(c, home, official),
         noCbrLabel = noCbrLabel,
         selected = selected,
-        a11y = listOfNotNull(country.nameRu, sub, rate ?: noCbrLabel.takeIf { noCbr(c, home, official) }).joinToString(", "),
+        a11y = listOfNotNull(country.nameRu, sub, rate, note, noCbrLabel.takeIf { rate == null && noCbr(c, home, official) })
+            .joinToString(", "),
         modifier = modifier,
         onClick = onClick,
     )
@@ -259,6 +266,8 @@ internal fun PickRow(
     selected: Boolean,
     a11y: String,
     modifier: Modifier,
+    /** Мелкая подпись под курсом справа — откуда курс («UnionPay»). */
+    rightNote: String? = null,
     onClick: () -> Unit,
 ) {
     val colors = AppTheme.colors
@@ -291,14 +300,12 @@ internal fun PickRow(
             Text(sub, style = type.caption, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         when {
-            right != null -> Text(
-                right,
-                style = type.caption,
-                color = colors.muted,
-                textAlign = TextAlign.End,
-                maxLines = 1,
-                modifier = Modifier.padding(start = 8.dp),
-            )
+            right != null -> Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 8.dp)) {
+                Text(right, style = type.caption, color = colors.muted, textAlign = TextAlign.End, maxLines = 1)
+                if (rightNote != null) {
+                    Text(rightNote, style = type.caption.copy(fontSize = 11.sp), color = colors.muted, maxLines = 1)
+                }
+            }
             noCbr -> Text(
                 noCbrLabel,
                 style = type.caption.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),

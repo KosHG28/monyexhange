@@ -16,12 +16,22 @@ enum class RateBasis {
 
     /** Чеков нет: чистый курс ЦБ. */
     OFFICIAL,
+
+    /**
+     * Карта UnionPay без чека в этой валюте: курс UnionPay в валюту расчёта, а из неё в валюту карты —
+     * по чеку покупки в валюте расчёта (или валюты совпадают). Комиссии банка в курс не входят.
+     */
+    UNIONPAY,
 }
+
+/** Курс оценочный — перед суммой «≈». */
+val RateBasis.approximate: Boolean get() = this == RateBasis.ESTIMATE || this == RateBasis.UNIONPAY
 
 /**
  * Цена 1 единицы валюты трат при оплате картой.
  * [homePerUnit] — в итоговой валюте, [cardPerUnit] — сколько спишут с карты;
- * [vsOfficial] — разница с курсом ЦБ в процентах (+3,1 — дороже ЦБ на 3,1 %).
+ * [vsOfficial] — разница с курсом ЦБ в процентах (+3,1 — дороже ЦБ на 3,1 %);
+ * [viaUnionPay] — у ЦБ нет курса пары, вместо него справочный курс UnionPay (подписи «к UnionPay»).
  */
 data class CardQuote(
     val card: BankCard,
@@ -29,6 +39,7 @@ data class CardQuote(
     val cardPerUnit: BigDecimal,
     val basis: RateBasis,
     val vsOfficial: BigDecimal?,
+    val viaUnionPay: Boolean = false,
 )
 
 /** Выбранная карта [selected] против самой дешёвой из остальных [other]. */
@@ -59,6 +70,8 @@ data class WalletQuote(
     val quotes: List<CardQuote>,
     /** Официальный курс: 1 единица валюты трат в итоговой валюте. */
     val official: BigDecimal?,
+    /** [official] — не курс ЦБ, а справочный курс UnionPay (у ЦБ этой валюты нет). */
+    val viaUnionPay: Boolean = false,
 ) {
     val best: CardQuote? get() = quotes.minByOrNull { it.homePerUnit }
 
@@ -89,21 +102,31 @@ private val HUNDRED = BigDecimal(100)
  * - Итоговая за единицу карты: 1, если валюты совпадают; иначе по чеку пополнения
  *   (отправленная валюта приводится к итоговой по курсу ЦБ); без чека — по курсу ЦБ.
  * - Валюта карты за единицу трат: 1, если совпадают; иначе по последнему чеку покупки в этой валюте;
- *   без такого чека — курс ЦБ с наценкой карты (средняя наценка её чеков покупок к курсу ЦБ).
+ *   у карты UnionPay без такого чека — по курсу UnionPay в валюту расчёта (и по чеку в валюте расчёта);
+ *   иначе — курс ЦБ с наценкой карты (средняя наценка её чеков покупок к курсу ЦБ).
+ *
+ * [official] — курсы ЦБ или справочные ([OfficialRates.withUnionPay]); [unionPay] — курсы UnionPay.
  */
 object RateEngine {
 
-    fun quote(card: BankCard, spend: Currency, home: Currency, official: OfficialRates?): CardQuote? {
+    fun quote(
+        card: BankCard,
+        spend: Currency,
+        home: Currency,
+        official: OfficialRates?,
+        unionPay: UnionPayRates? = null,
+    ): CardQuote? {
         val manual = card.manualFor(spend, home)
         val homePerCard = homePerCard(card, home, official)
-        val (cardPerSpend, spendBasis) = cardPerSpend(card, spend, official) ?: (null to RateBasis.OFFICIAL)
+        val (cardPerSpend, spendBasis) = cardPerSpend(card, spend, official, unionPay) ?: (null to RateBasis.OFFICIAL)
         val officialRate = official?.cross(spend, home)
+        val via = official?.viaUnionPay(spend, home) == true
 
         if (manual != null) {
             val cardPer = cardPerSpend
                 ?: homePerCard?.first?.takeIf { it.signum() > 0 }?.let { manual.homePerUnit.divide(it, MC) }
                 ?: BigDecimal.ZERO
-            return CardQuote(card, manual.homePerUnit, cardPer, RateBasis.MANUAL, percent(manual.homePerUnit, officialRate))
+            return CardQuote(card, manual.homePerUnit, cardPer, RateBasis.MANUAL, percent(manual.homePerUnit, officialRate), via)
         }
         val (homePer, homeBasis) = homePerCard ?: return null
         cardPerSpend ?: return null
@@ -111,14 +134,16 @@ object RateEngine {
         val basis = when {
             spendBasis == RateBasis.RECEIPTS && homeBasis == RateBasis.RECEIPTS -> RateBasis.RECEIPTS
             spendBasis == RateBasis.OFFICIAL && homeBasis == RateBasis.OFFICIAL -> RateBasis.OFFICIAL
+            spendBasis == RateBasis.UNIONPAY && homeBasis == RateBasis.RECEIPTS -> RateBasis.UNIONPAY
             else -> RateBasis.ESTIMATE
         }
-        return CardQuote(card, value, cardPerSpend, basis, percent(value, officialRate))
+        return CardQuote(card, value, cardPerSpend, basis, percent(value, officialRate), via)
     }
 
-    fun quoteAll(wallet: Wallet, official: OfficialRates?): WalletQuote = WalletQuote(
-        quotes = wallet.cards.mapNotNull { quote(it, wallet.spend, wallet.home, official) },
+    fun quoteAll(wallet: Wallet, official: OfficialRates?, unionPay: UnionPayRates? = null): WalletQuote = WalletQuote(
+        quotes = wallet.cards.mapNotNull { quote(it, wallet.spend, wallet.home, official, unionPay) },
         official = official?.cross(wallet.spend, wallet.home),
+        viaUnionPay = official?.viaUnionPay(wallet.spend, wallet.home) == true,
     )
 
     /** Наценка карты к курсу ЦБ по её чекам покупок (0,031 — на 3,1 % дороже); null без данных. */
@@ -145,10 +170,41 @@ object RateEngine {
         return o to RateBasis.OFFICIAL
     }
 
-    private fun cardPerSpend(card: BankCard, spend: Currency, official: OfficialRates?): Pair<BigDecimal, RateBasis>? {
+    private fun cardPerSpend(
+        card: BankCard,
+        spend: Currency,
+        official: OfficialRates?,
+        unionPay: UnionPayRates?,
+    ): Pair<BigDecimal, RateBasis>? {
         if (card.currency == spend) return BigDecimal.ONE to RateBasis.RECEIPTS
         val p = card.purchaseFor(spend)
         if (p != null) return p.paid.divide(p.price, MC) to RateBasis.RECEIPTS
+        return viaUnionPay(card, spend, official, unionPay) ?: byOfficial(card, spend, official)
+    }
+
+    /**
+     * Карта UnionPay без чека в [spend]: UnionPay пересчитывает покупку в валюту расчёта по своему курсу,
+     * банк — из валюты расчёта в валюту карты (по чеку покупки в валюте расчёта; без него — оценка).
+     */
+    private fun viaUnionPay(
+        card: BankCard,
+        spend: Currency,
+        official: OfficialRates?,
+        unionPay: UnionPayRates?,
+    ): Pair<BigDecimal, RateBasis>? {
+        if (!card.unionPay || card.kind != CardKind.CARD || unionPay == null) return null
+        val settlement = card.settlementCurrency
+        if (spend == settlement) return null
+        val toSettlement = unionPay.rate(spend, settlement) ?: return null
+        if (settlement == card.currency) return toSettlement to RateBasis.UNIONPAY
+        val receipt = card.purchaseFor(settlement)
+        if (receipt != null) return toSettlement.multiply(receipt.paid.divide(receipt.price, MC), MC) to RateBasis.UNIONPAY
+        val (leg, _) = byOfficial(card, settlement, official) ?: return null
+        return toSettlement.multiply(leg, MC) to RateBasis.ESTIMATE
+    }
+
+    /** Без чека: курс ЦБ (или справочный) с наценкой карты по её чекам. */
+    private fun byOfficial(card: BankCard, spend: Currency, official: OfficialRates?): Pair<BigDecimal, RateBasis>? {
         val o = official?.cross(spend, card.currency) ?: return null
         val m = markup(card, official) ?: return o to RateBasis.OFFICIAL
         return o.multiply(BigDecimal.ONE.add(m, MC), MC) to RateBasis.ESTIMATE

@@ -70,6 +70,7 @@ import app.dirhamrub.domain.wallet.CardComparison
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.StaleReceipt
+import app.dirhamrub.domain.wallet.approximate
 import app.dirhamrub.ui.components.RollingText
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.LocalReduceMotion
@@ -168,7 +169,7 @@ internal fun ResultBlock(
     ) {
         val heroCurrency = heroLine.currency(state) ?: wallet.home
         val heroValue = state.totals.of(heroLine)
-        val estimate = q?.basis == RateBasis.ESTIMATE
+        val estimate = q?.basis?.approximate == true
         val number = heroValue?.let(Numbers::money) ?: "—"
         val heroPlain = (if (estimate && heroValue != null) "≈ " else "") + "$number ${heroCurrency.symbol}"
         val base = if (compact) HERO_COMPACT_SP else HERO_SP
@@ -249,7 +250,8 @@ private fun Basis(state: MainUiState, onAddReceipt: (BankCard) -> Unit, onEditCa
     val style = type.body.copy(fontSize = 14.sp)
     val q = state.selectedQuote
     val text = when {
-        noOfficialForSpend(state) && (state.homePerUnit == null || q == null) -> stringResource(R.string.result_no_cbr, state.wallet.spend.code)
+        noOfficialForSpend(state) && (state.homePerUnit == null || q == null) ->
+            noRefText(state, R.string.result_no_cbr, R.string.result_no_ref).let { (res, code) -> stringResource(res, code) }
         state.homePerUnit == null || q == null -> stringResource(R.string.result_no_rate)
         else -> basisShort(q)
     }
@@ -268,7 +270,7 @@ private fun Basis(state: MainUiState, onAddReceipt: (BankCard) -> Unit, onEditCa
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = (if (basis == RateBasis.ESTIMATE) "≈ " else "") + text,
+            text = (if (basis.approximate) "≈ " else "") + text,
             style = style,
             color = colors.muted,
             maxLines = 1,

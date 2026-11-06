@@ -107,7 +107,7 @@ internal fun OfficialLine(state: MainUiState, onRefresh: () -> Unit, modifier: M
             val missing = if (rates?.cross(wallet.spend, Currency.RUB) == null) wallet.spend else wallet.home
             Text(
                 when {
-                    noCbr -> stringResource(R.string.official_no_currency, wallet.spend.code)
+                    noCbr -> noRefText(state, R.string.official_no_currency, R.string.official_no_ref).let { (res, code) -> stringResource(res, code) }
                     state.ratesLoading -> stringResource(R.string.official_loading_short)
                     rates == null -> stringResource(R.string.official_missing_short)
                     // Курсы старые, без этой валюты (сохранены прежней версией) и свежие не скачались.
@@ -120,15 +120,17 @@ internal fun OfficialLine(state: MainUiState, onRefresh: () -> Unit, modifier: M
                 modifier = Modifier.weight(1f, fill = false),
             )
         } else {
-            val date = RuDates.short(rates.date)
+            // У ЦБ нет валюты трат — справочный курс UnionPay (к доллару) × ЦБ (доллар): подпись и дата — UnionPay.
+            val via = state.quote.viaUnionPay
+            val date = RuDates.short(state.unionPay?.date?.takeIf { via } ?: rates.date)
             val offline = if (state.ratesFailed) stringResource(R.string.official_offline) else ""
             val full = Triple(
-                stringResource(R.string.official_line_head, date, rate.first),
+                stringResource(if (via) R.string.official_line_head_unionpay else R.string.official_line_head, date, rate.first),
                 arrow?.let { stringResource(R.string.official_trend_week, it) },
                 offline,
             )
             val short = Triple(
-                stringResource(R.string.official_line_head_short, date, rate.first),
+                stringResource(if (via) R.string.official_line_head_unionpay_short else R.string.official_line_head_short, date, rate.first),
                 arrow?.let { stringResource(R.string.official_trend_week_short, it) },
                 offline,
             )

@@ -17,14 +17,15 @@ fun markupOf(vsOfficial: BigDecimal): Markup = when {
     else -> Markup.BAD
 }
 
-/** «по чекам», «оценка», «курс ЦБ», «вручную». */
+/** «по чекам», «оценка», «курс ЦБ» (или «курс UnionPay»), «вручную». */
 @Composable
 fun basisShort(q: CardQuote): String = stringResource(
     when (q.basis) {
         RateBasis.RECEIPTS -> R.string.card_basis_receipts
         RateBasis.ESTIMATE -> R.string.card_basis_estimate
-        RateBasis.OFFICIAL -> R.string.card_basis_official
+        RateBasis.OFFICIAL -> if (q.viaUnionPay) R.string.card_basis_unionpay else R.string.card_basis_official
         RateBasis.MANUAL -> R.string.card_basis_manual
+        RateBasis.UNIONPAY -> R.string.card_basis_unionpay
     },
 )
 
@@ -33,7 +34,7 @@ fun basisShort(q: CardQuote): String = stringResource(
 fun basisLabel(q: CardQuote): String {
     val basis = basisShort(q)
     val vs = q.vsOfficial?.takeIf { q.basis != RateBasis.OFFICIAL }?.let { signedPercent(it) }
-    return if (vs == null) basis else basis + " · " + stringResource(R.string.card_vs_official, vs)
+    return if (vs == null) basis else basis + " · " + stringResource(if (q.viaUnionPay) R.string.card_vs_unionpay else R.string.card_vs_official, vs)
 }
 
 /** «+4,7», «−1,2», «0». */

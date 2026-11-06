@@ -115,7 +115,12 @@ fun PriceSheet(
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(stringResource(R.string.cheat_official), style = type.label, color = colors.muted, modifier = Modifier.weight(1f))
+                    Text(
+                        stringResource(if (quote.viaUnionPay) R.string.cheat_unionpay else R.string.cheat_official),
+                        style = type.label,
+                        color = colors.muted,
+                        modifier = Modifier.weight(1f),
+                    )
                     Text("${Numbers.money(amount.multiply(o, MC))} ${home.symbol}", style = type.mono, color = colors.muted)
                 }
             }

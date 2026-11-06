@@ -36,11 +36,12 @@ app/src/main/java/app/dirhamrub/
     wallet/CurrencySearch, QuickSums      поиск страны/валюты (и курортов), быстрые суммы и шпаргалка от размера валюты
     wallet/Wallet                         карты, чеки пополнения/покупок, ручные курсы
     wallet/RateEngine                     курс карты, наценка к ЦБ, лучшая карта
-    wallet/OfficialRates, CbrParser       курсы ЦБ РФ (XML и JSON-зеркало)
+    wallet/OfficialRates, CbrParser       курсы ЦБ РФ (XML и JSON-зеркало), справочный курс с UnionPay
+    wallet/UnionPay                       курсы UnionPay: разбор файла, валюты расчёта
     wallet/WalletCodec                    хранение кошелька и курсов (Properties)
     price/PriceParser, PriceCurrency      цены из OCR-строк для каждой валюты трат
     price/PriceTracker                    стабилизация меток между кадрами
-  data/              WalletRepository (DataStore + перенос с 0.x), CbrClient (сеть)
+  data/              WalletRepository (DataStore + перенос с 0.x), CbrClient и UnionPayClient (сеть)
   ui/theme/          цвета, шрифты, тема, оформления карт
   ui/main/           главный экран (MainScreen, TopBar, ResultBlock, InputArea) + MainViewModel
   ui/onboarding/     знакомство при первом запуске
@@ -68,6 +69,6 @@ app/src/main/java/app/dirhamrub/
 - Нажимаемые элементы ≥ 48 dp и с `contentDescription`/семантикой для TalkBack.
 - Анимации через `LocalReduceMotion`: при отключённых системных анимациях — без них.
 - Главный экран не вызывает системную клавиатуру; она есть только в шторке «Курс».
-- Сеть — только для курсов ЦБ (`CbrClient`); всё остальное работает офлайн.
+- Сеть — только для курсов ЦБ (`CbrClient`) и UnionPay (`UnionPayClient`); всё остальное работает офлайн.
 - Новые неочевидные решения — строкой в `docs/DECISIONS.md`.
 - Коммит на этап, перед коммитом — тесты + lint + сборка (локально или в CI).

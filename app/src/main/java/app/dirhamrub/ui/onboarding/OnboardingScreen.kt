@@ -2,7 +2,6 @@ package app.dirhamrub.ui.onboarding
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -28,49 +26,52 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
+import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
-import app.dirhamrub.ui.components.CurrencyChips
-import app.dirhamrub.ui.currency.CurrencySheet
-import app.dirhamrub.ui.currency.CurrencyTile
+import app.dirhamrub.domain.wallet.OfficialRates
+import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.ui.theme.AppTheme
-import app.dirhamrub.ui.theme.CardPalette
 
-private const val STEPS = 3
+private const val STEPS = 5
 
 /**
- * Знакомство при первом запуске: что умеет приложение → где тратите и в чём считать итог →
- * добавить карту (или пока считать по ЦБ). Показывается, пока нет карт и знакомство не пройдено.
- * [suggested] — валюта страны сотовой сети: выбирается сразу на втором шаге.
+ * Знакомство при первом запуске (и из настроек): зачем → как считаем → что учитываем → откуда и куда
+ * считаем (валюта трат и итога) → чем будете платить (мастер первой карты или наличных).
+ * Без привязки к конкретным картам: способы оплаты — карта в итоговой валюте, в другой валюте,
+ * наличные или пока ничего. [suggested] — валюта страны сотовой сети: выбирается сразу.
+ * [onFinish] — карта из мастера (или null — без неё / «пропустить»), [onOpenEditor] — та же карта
+ * в полном редакторе («заполнить из скриншота»).
  */
 @Composable
 fun OnboardingScreen(
     spend: Currency,
     home: Currency,
     suggested: Currency?,
+    official: OfficialRates?,
+    unionPay: UnionPayRates?,
     onSpend: (Currency) -> Unit,
     onHome: (Currency) -> Unit,
-    onAddCard: () -> Unit,
-    onSkip: () -> Unit,
+    newCard: () -> BankCard,
+    onFinish: (BankCard?) -> Unit,
+    onOpenEditor: (BankCard) -> Unit,
+    /** С какого шага начать (снимки CI). */
+    startStep: Int = 0,
 ) {
     val colors = AppTheme.colors
-    var step by rememberSaveable { mutableIntStateOf(0) }
+    var step by rememberSaveable { mutableIntStateOf(startStep.coerceIn(0, STEPS - 1)) }
     BackHandler(enabled = step > 0) { step-- }
     LaunchedEffect(suggested) { if (suggested != null) onSpend(suggested) }
 
@@ -82,6 +83,11 @@ fun OnboardingScreen(
             .padding(horizontal = 20.dp),
     ) {
         Dots(step)
+        if (step == STEPS - 1) {
+            // Мастер сам рисует кнопки: «Готово» зависит от выбранного способа и полей.
+            PayStep(spend, home, official, unionPay, newCard, onFinish, onOpenEditor, Modifier.weight(1f))
+            return@Column
+        }
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -89,21 +95,24 @@ fun OnboardingScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             when (step) {
-                0 -> Intro()
-                1 -> Currencies(spend, home, onSpend, onHome)
-                else -> AddCard()
+                0 -> WhyPage()
+                1 -> HowPage(home)
+                2 -> WhatPage()
+                else -> CurrenciesPage(spend, home, official, onSpend, onHome)
             }
         }
         Spacer(Modifier.height(12.dp))
-        when (step) {
-            STEPS - 1 -> {
-                PrimaryButton(stringResource(R.string.onboarding_add_card), onAddCard)
-                SecondaryButton(stringResource(R.string.onboarding_skip), onSkip)
-            }
-            else -> {
-                PrimaryButton(stringResource(if (step == 0) R.string.onboarding_start else R.string.onboarding_next)) { step++ }
-                Spacer(Modifier.height(48.dp))
-            }
+        val label = when (step) {
+            0 -> R.string.onboarding_why_next
+            1 -> R.string.onboarding_how_next
+            2 -> R.string.onboarding_what_next
+            else -> R.string.onboarding_next
+        }
+        PrimaryButton(stringResource(label)) { step++ }
+        if (step == 0) {
+            SecondaryButton(stringResource(R.string.onboarding_skip_intro), muted = true) { onFinish(null) }
+        } else {
+            Spacer(Modifier.height(48.dp))
         }
         Spacer(Modifier.height(8.dp))
     }
@@ -135,117 +144,29 @@ private fun Dots(step: Int) {
 }
 
 @Composable
-private fun Title(text: String) {
+internal fun Title(text: String) {
     Text(
         text,
-        style = AppTheme.type.title.copy(fontSize = 28.sp, lineHeight = 34.sp),
+        style = AppTheme.type.title.copy(fontSize = 27.sp, lineHeight = 33.sp),
         color = AppTheme.colors.ink,
         modifier = Modifier
-            .padding(top = 12.dp)
+            .padding(top = 8.dp)
             .semantics { heading() },
     )
 }
 
 @Composable
-private fun Lead(text: String) {
+internal fun Lead(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
-        style = AppTheme.type.body.copy(fontSize = 16.sp, lineHeight = 22.sp),
+        style = AppTheme.type.body.copy(fontSize = 15.sp, lineHeight = 21.sp),
         color = AppTheme.colors.muted,
-        modifier = Modifier.padding(top = 8.dp, bottom = 20.dp),
+        modifier = modifier.padding(top = 8.dp, bottom = 14.dp),
     )
 }
 
 @Composable
-private fun Intro() {
-    Title(stringResource(R.string.app_name))
-    Lead(stringResource(R.string.onboarding_intro))
-    Feature("🧾", stringResource(R.string.onboarding_feature_receipts))
-    Feature("⚖️", stringResource(R.string.onboarding_feature_compare))
-    Feature("📷", stringResource(R.string.onboarding_feature_camera))
-}
-
-@Composable
-private fun Feature(emoji: String, text: String) {
-    val colors = AppTheme.colors
-    Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(colors.surface),
-            contentAlignment = Alignment.Center,
-        ) { Text(emoji, fontSize = 22.sp) }
-        Spacer(Modifier.width(14.dp))
-        Text(text, style = AppTheme.type.body.copy(fontSize = 16.sp, lineHeight = 21.sp), color = colors.ink)
-    }
-}
-
-@Composable
-private fun Currencies(spend: Currency, home: Currency, onSpend: (Currency) -> Unit, onHome: (Currency) -> Unit) {
-    var picker by remember { mutableStateOf(false) }
-    Title(stringResource(R.string.onboarding_spend_title))
-    Lead(stringResource(R.string.onboarding_spend_lead))
-    // Частые валюты трат плитками; выбранная другая (по сети или из списка) — первой.
-    for (row in (listOf(spend) + Currency.POPULAR).distinct().chunked(2)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
-            for (c in row) CurrencyTile(c, selected = c == spend, wide = true, modifier = Modifier.weight(1f)) { onSpend(c) }
-            if (row.size == 1) Spacer(Modifier.weight(1f))
-        }
-    }
-    // Остальные ~150 валют — в окне с поиском по стране, городу и валюте.
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = 52.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .border(1.dp, AppTheme.colors.line, RoundedCornerShape(14.dp))
-            .clickable(role = Role.Button) { picker = true }
-            .padding(horizontal = 14.dp),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Text(stringResource(R.string.onboarding_other_country), style = AppTheme.type.bodyStrong, color = AppTheme.colors.accent)
-    }
-    if (picker) CurrencySheet(spend = spend, home = home, onSpend = onSpend, onHome = null, onDismiss = { picker = false })
-    Text(
-        stringResource(R.string.currency_sheet_home),
-        style = AppTheme.type.bodyStrong,
-        color = AppTheme.colors.ink,
-        modifier = Modifier.padding(top = 12.dp, bottom = 8.dp),
-    )
-    CurrencyChips(options = (Currency.FREQUENT + home).distinct(), selected = home, onSelect = onHome)
-}
-
-@Composable
-private fun AddCard() {
-    val colors = AppTheme.colors
-    val type = AppTheme.type
-    Title(stringResource(R.string.onboarding_card_title))
-    Lead(stringResource(R.string.onboarding_card_lead))
-    // Пример карты — как она будет выглядеть на главном экране.
-    val style = CardPalette.style(1)
-    Column(
-        Modifier
-            .size(width = 220.dp, height = 132.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(Brush.linearGradient(listOf(style.start, style.end)))
-            .padding(16.dp),
-    ) {
-        Text(stringResource(R.string.onboarding_card_sample_name), style = type.label, color = CardPalette.onCard.copy(alpha = 0.9f))
-        Spacer(Modifier.weight(1f))
-        Text("3 749 ₽", style = type.number.copy(fontSize = 26.sp, fontWeight = FontWeight.Medium), color = CardPalette.onCard)
-        Text(stringResource(R.string.onboarding_card_sample_rate), style = type.caption, color = CardPalette.onCard.copy(alpha = 0.85f))
-    }
-    Text(
-        stringResource(R.string.onboarding_card_hint),
-        style = type.body,
-        color = colors.muted,
-        modifier = Modifier.padding(top = 16.dp),
-    )
-}
-
-@Composable
-private fun PrimaryButton(text: String, onClick: () -> Unit) {
+internal fun PrimaryButton(text: String, onClick: () -> Unit) {
     val colors = AppTheme.colors
     Box(
         modifier = Modifier
@@ -261,7 +182,7 @@ private fun PrimaryButton(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SecondaryButton(text: String, onClick: () -> Unit) {
+internal fun SecondaryButton(text: String, muted: Boolean = false, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -270,6 +191,6 @@ private fun SecondaryButton(text: String, onClick: () -> Unit) {
             .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, style = AppTheme.type.bodyStrong, color = AppTheme.colors.accent)
+        Text(text, style = AppTheme.type.bodyStrong, color = if (muted) AppTheme.colors.muted else AppTheme.colors.accent)
     }
 }

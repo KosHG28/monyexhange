@@ -68,6 +68,12 @@ shot 19-cheat-lkr --es spend LKR --es screen cheat
 shot 20-currencies-lkr --es spend LKR --es screen currencies
 shot 21-settings --es screen settings
 WAIT=12 shot 22-cash-editor --es screen editor --es card demo-aed-cash
+# Знакомство по шагам: зачем, как считаем, что учитываем, откуда и куда, чем платите.
+shot 23-onb-1-why --es screen onboarding --ei step 0
+shot 24-onb-2-how --es screen onboarding --ei step 1
+shot 25-onb-3-what --es screen onboarding --ei step 2
+shot 26-onb-4-currencies --es screen onboarding --ei step 3
+shot 27-onb-5-pay --es screen onboarding --ei step 4
 
 # Первый запуск: данные стёрты — знакомство.
 adb shell pm clear "$PKG"

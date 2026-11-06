@@ -38,7 +38,12 @@ class MainActivity : ComponentActivity() {
             val theme by remember { derivedStateOf { state.value.settings.theme } }
             val motion by remember { derivedStateOf { state.value.settings.motion } }
             DirhamTheme(theme = theme, motion = motion) {
-                DirhamApp(startScreen = screen, startCard = intent?.getStringExtra(EXTRA_CARD), vm = vm)
+                DirhamApp(
+                    startScreen = screen,
+                    startCard = intent?.getStringExtra(EXTRA_CARD),
+                    startStep = intent?.getIntExtra(EXTRA_STEP, 0) ?: 0,
+                    vm = vm,
+                )
                 CrashReportDialog()
             }
         }
@@ -57,6 +62,10 @@ class MainActivity : ComponentActivity() {
         const val SCREEN_CURRENCIES = "currencies"
         const val SCREEN_EDITOR = "editor"
         const val SCREEN_SETTINGS = "settings"
+
+        /** Знакомство поверх демо-данных — для снимков CI; [EXTRA_STEP] — с какого шага. */
+        const val SCREEN_ONBOARDING = "onboarding"
+        const val EXTRA_STEP = "step"
         const val EXTRA_DEMO = "demo"
     }
 }

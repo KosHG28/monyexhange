@@ -91,6 +91,7 @@ private fun requestCameraTile(context: Context) {
 fun DirhamApp(
     startScreen: String? = null,
     startCard: String? = null,
+    startStep: Int = 0,
     vm: MainViewModel = viewModel(factory = MainViewModel.Factory),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -98,6 +99,8 @@ fun DirhamApp(
     var currenciesOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CURRENCIES) }
     var cameraOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CAMERA) }
     var settingsOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_SETTINGS) }
+    // Снимки CI: знакомство поверх демо-данных, с нужного шага.
+    var onboardingForced by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_ONBOARDING) }
     var editing by remember { mutableStateOf<Editing?>(null) }
     var cameraOrigin by remember { mutableStateOf<Offset?>(null) }
     // Скриншоты CI: сразу редактор выбранной карты.
@@ -128,23 +131,31 @@ fun DirhamApp(
             ?.let { CountryOffer(iso, it) }
     }
 
-    if (!state.onboardingDone && !cameraOpen) {
+    if ((!state.onboardingDone || onboardingForced) && !cameraOpen) {
         fun finish() {
+            onboardingForced = false
             vm.finishOnboarding()
             // Валюту трат только что выбрали сами — плашку «вы в другой стране» сразу не показываем.
             country?.takeIf { Currency.forCountry(it) != null }?.let { vm.handleCountry(it, accept = null) }
         }
         OnboardingScreen(
+            startStep = startStep,
             spend = state.wallet.spend,
             home = state.wallet.home,
             suggested = country?.let { Currency.forCountry(it) },
+            official = state.reference,
+            unionPay = state.activeUnionPay,
             onSpend = vm::setSpend,
             onHome = vm::setHome,
-            onAddCard = {
+            newCard = vm::newCard,
+            onFinish = { card ->
+                card?.let(vm::saveCard)
                 finish()
-                editing = Editing(vm.newCard(), isNew = true)
             },
-            onSkip = { finish() },
+            onOpenEditor = { card ->
+                finish()
+                editing = Editing(card, isNew = true)
+            },
         )
         return
     }

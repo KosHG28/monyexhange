@@ -103,7 +103,7 @@ internal fun WhyPage() {
     ) {
         ExampleRow(null, stringResource(R.string.onboarding_why_cbr), stringResource(R.string.onboarding_why_cbr_sub), EXAMPLE_CBR, null, best = false)
         ways.forEachIndexed { i, w ->
-            val rate = "${Numbers.rate(w.rate)} ₽"
+            val rate = "${Numbers.rateShort(w.rate)} ₽"
             ExampleRow(w.style, stringResource(w.name), stringResource(w.sub, rate), w.rate, EXAMPLE_CBR, best = i == 0)
         }
     }

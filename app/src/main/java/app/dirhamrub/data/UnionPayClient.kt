@@ -31,7 +31,8 @@ object UnionPayClient {
             val day = today.minusDays(back).format(DateTimeFormatter.BASIC_ISO_DATE)
             val (code, body) = get(URL_FORMAT.format(day)) ?: return@withContext null
             when (code) {
-                HttpURLConnection.HTTP_OK -> return@withContext UnionPayParser.parse(String(body, Charsets.UTF_8))
+                // Файл не официальный: что бы в нём ни пришло, разбор не должен ронять приложение.
+                HttpURLConnection.HTTP_OK -> return@withContext runCatching { UnionPayParser.parse(String(body, Charsets.UTF_8)) }.getOrNull()
                 HttpURLConnection.HTTP_NOT_FOUND -> continue
                 else -> return@withContext null
             }

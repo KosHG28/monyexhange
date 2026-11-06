@@ -36,7 +36,8 @@ data class UnionPayRates(
  */
 object UnionPayParser {
     private val date = Regex(""""curDate"\s*:\s*"(\d{4})-(\d{2})-(\d{2})"""")
-    private val item = Regex("""\{[^{}]*}""")
+    // Фигурные скобки экранированы везде: регулярные выражения Android (ICU) строже JVM — `\{[^{}]*}` там не компилируется.
+    private val item = Regex("""\{[^\{\}]*\}""")
     private val trans = Regex(""""transCur"\s*:\s*"([A-Z]{3})"""")
     private val base = Regex(""""baseCur"\s*:\s*"([A-Z]{3})"""")
     private val rate = Regex(""""rateData"\s*:\s*"?([0-9.]+(?:[eE][-+]?\d+)?)""")

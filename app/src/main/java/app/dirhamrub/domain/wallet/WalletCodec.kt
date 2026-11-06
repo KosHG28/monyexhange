@@ -12,6 +12,19 @@ import java.util.Properties
  * Числа — строками BigDecimal, даты — ISO. Испорченные записи пропускаются.
  */
 object WalletCodec {
+    /**
+     * Отпечаток справочника валют. Курсы ЦБ разбираются только по валютам справочника, поэтому курсы,
+     * сохранённые с другим справочником (до 1.11 — 14 валют), неполные: их показывают, но скачивают заново.
+     */
+    val RATES_TABLE: Int = tableOf(Currency.entries.map { it.code })
+
+    fun tableOf(codes: List<String>): Int = codes.joinToString(",").hashCode()
+
+    /** Курсы (или история курсов) сохранены с нынешним справочником валют. */
+    fun isCurrentTable(text: String?): Boolean =
+        !text.isNullOrBlank() && load(text)?.int(TABLE) == RATES_TABLE
+
+    private const val TABLE = "table"
 
     fun encode(wallet: Wallet): String {
         val p = Properties()
@@ -68,6 +81,7 @@ object WalletCodec {
 
     fun encodeRates(rates: OfficialRates): String {
         val p = Properties()
+        p[TABLE] = RATES_TABLE.toString()
         p["date"] = rates.date.toString()
         for ((c, v) in rates.rubPerUnit) p["rub." + c.code] = v.toPlainString()
         return store(p)
@@ -132,6 +146,7 @@ object WalletCodec {
     /** Курсы ЦБ на даты чеков: ключ — дата чека, значение — курсы, действовавшие на неё. */
     fun encodeHistory(history: Map<LocalDate, OfficialRates>): String {
         val p = Properties()
+        p[TABLE] = RATES_TABLE.toString()
         for ((day, rates) in history) {
             p["$day.date"] = rates.date.toString()
             for ((c, v) in rates.rubPerUnit) p["$day.rub.${c.code}"] = v.toPlainString()

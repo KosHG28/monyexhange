@@ -80,6 +80,17 @@ class CurrencyTest {
     }
 
     @Test
+    fun `знак не повторяет код другими буквами`() {
+        // «ТМТ» кириллицей в списке выглядел как «TMT · TMT».
+        val lookalike = mapOf('А' to 'A', 'В' to 'B', 'Е' to 'E', 'К' to 'K', 'М' to 'M', 'Н' to 'H', 'О' to 'O', 'Р' to 'P', 'С' to 'C', 'Т' to 'T', 'Х' to 'X')
+        for (c in Currency.entries) {
+            val latin = c.symbol.uppercase().map { lookalike[it] ?: it }.joinToString("")
+            assertTrue("${c.code}: ${c.symbol}", latin != c.code || c.symbol == c.code)
+        }
+        assertEquals("TMT", Currency.TMT.symbol)
+    }
+
+    @Test
     fun `у каждой страны есть валюта из справочника и часть света`() {
         assertTrue(Countries.all.size > 200)
         assertEquals(Countries.all.size, Countries.all.map { it.iso }.toSet().size)

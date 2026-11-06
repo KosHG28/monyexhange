@@ -197,6 +197,7 @@ def cap(s):
     return s[:1].upper() + s[1:]
 
 
+LOOKALIKE = str.maketrans("АВЕКМНОРСТХ", "ABEKMHOPCTX")
 rows = []
 for code in sorted(used, key=lambda c: (c not in KEEP, list(KEEP).index(c) if c in KEEP else 0, c)):
     meta = ru_cur.get(code, {})
@@ -207,6 +208,9 @@ for code in sorted(used, key=lambda c: (c not in KEEP, list(KEEP).index(c) if c 
         short = name
         symbol = meta.get("symbol") if meta.get("symbol") and meta.get("symbol") != code else meta.get("symbol-alt-narrow", code)
         symbol = (symbol or code).replace(" ", " ")
+        # «ТМТ» кириллицей выглядит как код TMT — показываем код, иначе в списке «TMT · ТМТ».
+        if symbol.upper().translate(LOOKALIKE) == code:
+            symbol = code
         r = main_region(code)
         fl = flag(r) if r else "🌍"
     digits = int(cur_data["fractions"].get(code, cur_data["fractions"]["DEFAULT"])["_digits"])

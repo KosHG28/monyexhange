@@ -79,6 +79,7 @@ import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.WalletQuote
+import app.dirhamrub.domain.wallet.cbrPublishes
 import app.dirhamrub.ui.components.RollingText
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.CardPalette
@@ -276,7 +277,7 @@ private fun LazyListScope.cardItems(
             onLongClick = { onEdit(card) },
             width = cardWidth,
             height = CARD_HEIGHT * cardScale(),
-            needsReceipt = quote.official == null,
+            needsReceipt = quote.official == null && !(cbrPublishes(spend) && cbrPublishes(home)),
         )
     }
 }

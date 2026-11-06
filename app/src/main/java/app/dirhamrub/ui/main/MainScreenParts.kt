@@ -8,6 +8,7 @@ import app.dirhamrub.domain.wallet.CardComparison
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.StaleReceipt
+import app.dirhamrub.domain.wallet.cbrPublishes
 
 /* Общие для частей главного экрана размеры и расчёты. */
 
@@ -40,7 +41,7 @@ internal fun basisAction(state: MainUiState): BankCard? {
 /** Курсы ЦБ загружены, но валюты трат среди них нет: считаем только по чекам и своему курсу. */
 internal fun noOfficialForSpend(state: MainUiState): Boolean {
     val rates = state.official ?: return false
-    return rates.cross(state.wallet.spend, state.wallet.home) == null
+    return !cbrPublishes(state.wallet.spend, rates) || !cbrPublishes(state.wallet.home, rates)
 }
 
 /** Сравнение с самой дешёвой из остальных карт, если разница заметна. */

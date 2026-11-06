@@ -439,15 +439,19 @@ internal fun OfficialLine(state: MainUiState, onRefresh: () -> Unit, modifier: M
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (rate == null || rates == null) {
+            // Курсы есть, но этой валюты у ЦБ нет: считаем только по чекам и своему курсу.
+            val noCbr = noOfficialForSpend(state)
+            val missing = if (rates?.cross(wallet.spend, Currency.RUB) == null) wallet.spend else wallet.home
             Text(
                 when {
-                    rates == null && state.ratesLoading -> stringResource(R.string.official_loading_short)
+                    noCbr -> stringResource(R.string.official_no_currency, wallet.spend.code)
+                    state.ratesLoading -> stringResource(R.string.official_loading_short)
                     rates == null -> stringResource(R.string.official_missing_short)
-                    // Курсы есть, но этой валюты у ЦБ нет: считаем только по чекам и своему курсу.
-                    else -> stringResource(R.string.official_no_currency, wallet.spend.code)
+                    // Курсы старые, без этой валюты (сохранены прежней версией) и свежие не скачались.
+                    else -> stringResource(R.string.official_not_loaded, missing.code)
                 },
                 style = style,
-                color = if (rates != null) colors.warn else colors.muted,
+                color = if (noCbr) colors.warn else colors.muted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),

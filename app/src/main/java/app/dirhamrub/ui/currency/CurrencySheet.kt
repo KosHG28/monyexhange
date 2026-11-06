@@ -65,6 +65,7 @@ import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.CurrencySearch
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.Region
+import app.dirhamrub.domain.wallet.cbrPublishes
 import app.dirhamrub.ui.components.CurrencyChips
 import app.dirhamrub.ui.components.cascade
 import app.dirhamrub.ui.components.rememberCascade
@@ -274,7 +275,7 @@ private fun LazyListScope.homeItems(
 ) {
     // Итог — только в рубле и валютах с курсом ЦБ: иначе карты не с чем сравнить и нечем пересчитать.
     val allowed = Currency.entries
-        .filter { it == Currency.RUB || (official?.rubPerUnit?.containsKey(it) ?: it.cbr) }
+        .filter { cbrPublishes(it, official) }
         .sortedWith(compareBy<Currency> { it != Currency.RUB }.thenBy { it.nameRu })
     if (query.isNotBlank()) {
         val found = CurrencySearch.currencies(query, allowed)
@@ -574,9 +575,9 @@ private fun rateText(c: Currency, home: Currency, official: OfficialRates?): Str
     return "${Numbers.moneyWhole(unit)} ${c.symbol} = ${Numbers.rateShort(rate.multiply(unit, MC))} ${home.symbol}"
 }
 
-/** У ЦБ нет курса: по загруженным курсам, а до загрузки — по известному списку. */
+/** У ЦБ нет курса: валюты нет ни в известном списке, ни в загруженных курсах. */
 private fun noCbr(c: Currency, home: Currency, official: OfficialRates?): Boolean =
-    c != home && c != Currency.RUB && (if (official != null) official.cross(c, home) == null else !c.cbr)
+    c != home && !cbrPublishes(c, official)
 
 /**
  * Плитка валюты: флаг, код (и знак, если он не совпадает с кодом), в широкой — название.

@@ -1,7 +1,10 @@
 package app.dirhamrub.domain.wallet
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -73,5 +76,24 @@ class WalletCodecTest {
         assertEquals(Currency.RUB, WalletCodec.decode("spend=RUB")!!.spend)
         assertEquals("b", w.selectedId)
         assertNull(WalletCodec.decodeRates("date=oops"))
+    }
+
+    @Test
+    fun `курсы со старым справочником валют показываются, но скачиваются заново`() {
+        val rates = OfficialRates(day, mapOf(Currency.USD to BigDecimal("81.5"), Currency.MDL to BigDecimal("4.56")))
+        assertTrue(WalletCodec.isCurrentTable(WalletCodec.encodeRates(rates)))
+        assertTrue(WalletCodec.isCurrentTable(WalletCodec.encodeHistory(mapOf(day to rates))))
+        assertEquals(mapOf(day to rates), WalletCodec.decodeHistory(WalletCodec.encodeHistory(mapOf(day to rates))))
+
+        // Так курсы сохраняла 1.10: без отпечатка, только 14 валют — нет ни лея, ни сомони.
+        val old = "date=2026-11-06\nrub.USD=81.7947\nrub.KZT=0.180598\n"
+        assertEquals(OfficialRates(LocalDate.of(2026, 11, 6), mapOf(Currency.USD to BigDecimal("81.7947"), Currency.KZT to BigDecimal("0.180598"))), WalletCodec.decodeRates(old))
+        assertFalse(WalletCodec.isCurrentTable(old))
+        assertFalse(WalletCodec.isCurrentTable(null))
+        assertFalse(WalletCodec.isCurrentTable(""))
+
+        val table110 = WalletCodec.tableOf("RUB AED TRY THB USD EUR CNY KZT GEL AMD VND BYN UZS KGS".split(' '))
+        assertNotEquals(table110, WalletCodec.RATES_TABLE)
+        assertFalse(WalletCodec.isCurrentTable("table=$table110\n$old"))
     }
 }

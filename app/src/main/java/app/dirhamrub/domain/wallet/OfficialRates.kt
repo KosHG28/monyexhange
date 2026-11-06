@@ -4,6 +4,14 @@ import app.dirhamrub.domain.MC
 import java.math.BigDecimal
 import java.time.LocalDate
 
+/**
+ * Есть ли у ЦБ курс валюты [c]: по известному списку ([Currency.cbr]) или по загруженным курсам [official]
+ * (если ЦБ добавил валюту). Отсутствия в загруженных курсах мало, чтобы сказать «у ЦБ нет»: их могла
+ * сохранить старая версия с меньшим справочником, а свежие ещё не скачаны.
+ */
+fun cbrPublishes(c: Currency, official: OfficialRates? = null): Boolean =
+    c == Currency.RUB || c.cbr || official?.rubPerUnit?.containsKey(c) == true
+
 /** Официальные курсы ЦБ РФ: сколько рублей стоит 1 единица валюты (у рубля — 1). */
 data class OfficialRates(
     val date: LocalDate,

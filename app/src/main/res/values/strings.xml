@@ -72,6 +72,7 @@
     <string name="official_offline">" · нет связи"</string>
     <string name="official_loading_short">ЦБ: обновляем…</string>
     <string name="official_missing_short">ЦБ: нет курсов</string>
+    <string name="official_not_loaded">ЦБ: курс %1$s не загружен · обновить</string>
     <string name="official_no_currency">У ЦБ нет курса %1$s · считаем по вашим чекам</string>
     <string name="official_refresh">Обновить курсы ЦБ</string>
     <string name="line_a11y">%1$s: %2$s %3$s</string>

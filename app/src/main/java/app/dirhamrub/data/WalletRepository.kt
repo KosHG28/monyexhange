@@ -62,9 +62,11 @@ class WalletRepository(private val store: DataStore<Preferences>) {
             .first()
         return StoredState(
             wallet = WalletCodec.decode(p[WALLET]) ?: legacyWallet(p) ?: Wallet(),
+            // Курсы, сохранённые со старым справочником валют, неполные (в 1.10 — только 14 валют):
+            // показываем их, пока не скачаны свежие, но срок годности не учитываем — скачиваем сразу.
             official = WalletCodec.decodeRates(p[OFFICIAL]),
-            officialFetchedAt = p[OFFICIAL_AT] ?: 0L,
-            officialWeekAgo = WalletCodec.decodeRates(p[OFFICIAL_WEEK]),
+            officialFetchedAt = if (WalletCodec.isCurrentTable(p[OFFICIAL])) p[OFFICIAL_AT] ?: 0L else 0L,
+            officialWeekAgo = p[OFFICIAL_WEEK]?.takeIf(WalletCodec::isCurrentTable)?.let(WalletCodec::decodeRates),
             active = when (p[ACTIVE]) {
                 "RUB", "HOME" -> Line.HOME
                 "CARD" -> Line.CARD
@@ -74,7 +76,7 @@ class WalletRepository(private val store: DataStore<Preferences>) {
             countryHandled = p[COUNTRY_HANDLED],
             onboardingDone = p[ONBOARDING_DONE] ?: false,
             cameraEmbedded = p[CAMERA_EMBEDDED] ?: true,
-            ratesHistory = WalletCodec.decodeHistory(p[RATES_HISTORY]),
+            ratesHistory = p[RATES_HISTORY]?.takeIf(WalletCodec::isCurrentTable)?.let(WalletCodec::decodeHistory).orEmpty(),
             cameraUsed = p[CAMERA_USED] ?: false,
             tileOffered = p[TILE_OFFERED] ?: false,
         )

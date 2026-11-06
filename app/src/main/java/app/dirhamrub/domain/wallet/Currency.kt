@@ -150,7 +150,7 @@ enum class Currency(
     SYP("SYP", "Сирийский фунт", "Сирийский фунт", "🇸🇾", 0, 4, false, NumberStyle.COMMA),
     SZL("SZL", "Свазилендский лилангени", "Свазилендский лилангени", "🇸🇿", 2, 1, false, NumberStyle.COMMA),
     TJS("TJS", "Таджикский сомони", "Таджикский сомони", "🇹🇯", 2, 0, true, NumberStyle.SPACE),
-    TMT("ТМТ", "Новый туркменский манат", "Новый туркменский манат", "🇹🇲", 2, 0, true, NumberStyle.SPACE),
+    TMT("TMT", "Новый туркменский манат", "Новый туркменский манат", "🇹🇲", 2, 0, true, NumberStyle.SPACE),
     TND("TND", "Тунисский динар", "Тунисский динар", "🇹🇳", 3, 0, false, NumberStyle.DOT),
     TOP("T\$", "Тонганская паанга", "Тонганская паанга", "🇹🇴", 2, 0, false, NumberStyle.COMMA),
     TTD("TTD", "Доллар Тринидада и Тобаго", "Доллар Тринидада и Тобаго", "🇹🇹", 2, 0, false, NumberStyle.COMMA),

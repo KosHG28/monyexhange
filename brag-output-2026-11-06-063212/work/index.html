@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Курс по чеку — Reels</title>
+<style>
+@font-face { font-family: "Inter Tight"; font-weight: 300; src: url("../../app/src/main/res/font/inter_tight_light.ttf"); }
+@font-face { font-family: "Inter Tight"; font-weight: 400; src: url("../../app/src/main/res/font/inter_tight_regular.ttf"); }
+@font-face { font-family: "Inter Tight"; font-weight: 500; src: url("../../app/src/main/res/font/inter_tight_medium.ttf"); }
+@font-face { font-family: "Inter Tight"; font-weight: 600; src: url("../../app/src/main/res/font/inter_tight_semibold.ttf"); }
+/* Тёмная тема приложения: DarkColors и CardPalette из ui/theme/Color.kt */
+:root {
+  --bg: #0D1217; --surface: #151D25; --paper: #1B2530; --ink: #E7ECF1; --muted: #93A0AC; --line: #27323D;
+  --accent: #FF5C5C; --accent-soft: #351C20; --good: #5CCB92; --good-soft: #15301F; --warn: #E9B949;
+  --good-on-card: #7BE3AE; --warn-on-card: #FFD27A; --star: #FFD66B; --metro: #C8272D;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1080px; height: 1920px; overflow: hidden; background: var(--bg); }
+body { font-family: "Inter Tight", "Inter", "DejaVu Sans", sans-serif; color: var(--ink);
+       font-feature-settings: "tnum"; -webkit-font-smoothing: antialiased; position: relative; }
+.abs { position: absolute; }
+.scene { position: absolute; inset: 0; display: none; }
+
+/* Подпись сцены — сверху, вне зон интерфейса Reels */
+.cap { position: absolute; left: 64px; width: 952px; top: 236px; }
+.kicker { font-size: 38px; font-weight: 500; color: var(--accent); margin-bottom: 20px; }
+.headline { font-size: 84px; line-height: 1.08; font-weight: 600; letter-spacing: -2px; }
+.word { display: inline-block; }
+
+/* Камера */
+.vf { position: absolute; left: 40px; top: 590px; width: 1000px; height: 900px; border-radius: 56px; overflow: hidden;
+      background: #15100d; box-shadow: 0 0 0 2px #1c252e; }
+.world { position: absolute; inset: -40px; }
+.wall { position: absolute; inset: 0;
+  background:
+    radial-gradient(circle at 16% 18%, rgba(255, 196, 120, 0.30) 0 50px, transparent 150px),
+    radial-gradient(circle at 84% 12%, rgba(255, 230, 190, 0.22) 0 40px, transparent 130px),
+    radial-gradient(circle at 90% 70%, rgba(120, 190, 255, 0.12) 0 60px, transparent 170px),
+    radial-gradient(circle at 6% 80%, rgba(255, 150, 90, 0.18) 0 60px, transparent 170px),
+    linear-gradient(180deg, #4a3a2e 0%, #2b211b 55%, #17120f 100%); }
+.goods { position: absolute; border-radius: 18px 18px 6px 6px; opacity: 0.9; }
+.shelf { position: absolute; left: 0; right: 0; height: 40px;
+  background: linear-gradient(180deg, #c9ced3 0%, #8c949b 60%, #5d646a 100%); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5); }
+.tag { position: absolute; background: #fbfaf6; border-radius: 10px; overflow: hidden; color: #1b1b1b;
+       box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45); font-family: "Inter", "DejaVu Sans", sans-serif; font-feature-settings: normal; }
+.tag .band { background: #ffd54a; font-weight: 800; letter-spacing: 3px; text-align: center; font-size: 24px; padding: 8px 0; }
+.tag .price { font-weight: 800; letter-spacing: -2px; line-height: 1; white-space: nowrap; }
+.tag .name { font-weight: 600; color: #444; letter-spacing: 0.5px; font-size: 26px; }
+.embed-patch { position: absolute; background: #fbfaf6; border-radius: 8px; box-shadow: 0 0 12px 8px #fbfaf6; }
+.embed-text { position: absolute; font-family: "Inter", sans-serif; font-weight: 800; letter-spacing: -2px; color: #1b1b1b;
+              white-space: nowrap; line-height: 1; }
+.embed-mark { position: absolute; height: 9px; background: var(--metro); border-radius: 2px; }
+.corner { position: absolute; width: 34px; height: 34px; border: 0 solid var(--metro); }
+.ctrl { position: absolute; top: 28px; left: 28px; right: 28px; display: flex; align-items: center; gap: 14px; }
+.rb { width: 96px; height: 96px; border-radius: 50%; background: rgba(13, 18, 23, 0.62); display: flex; align-items: center; justify-content: center; }
+.rb svg { width: 44px; height: 44px; }
+.chip-card { height: 96px; border-radius: 48px; background: rgba(13, 18, 23, 0.62); display: flex; align-items: center; gap: 16px; padding: 0 30px 0 16px;
+             font-size: 34px; font-weight: 600; color: #fff; }
+.coin { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: 600; color: #fff; }
+.hint { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; color: #fff; font-weight: 600; font-size: 33px;
+        padding: 18px 34px; border-radius: 999px; background: rgba(13, 18, 23, 0.66); display: flex; align-items: center; gap: 12px; }
+.focus { position: absolute; left: 24px; right: 24px; bottom: 24px; background: var(--surface); border-radius: 40px; padding: 26px 34px 24px; }
+.focus .h { font-size: 30px; color: var(--muted); }
+.focus .big { font-size: 74px; font-weight: 400; letter-spacing: -1px; line-height: 1.12; }
+.focus .d { font-size: 29px; color: var(--muted); }
+.focus .sep { height: 2px; background: var(--line); margin: 16px 0 14px; }
+.focus .cmp { font-size: 28px; color: var(--muted); }
+
+/* Флаг ОАЭ */
+.flag-ae { display: inline-block; width: 48px; height: 32px; border-radius: 5px; overflow: hidden; position: relative; vertical-align: middle;
+  background: linear-gradient(180deg, #00843D 0 33.3%, #ffffff 33.3% 66.6%, #111 66.6% 100%); }
+.flag-ae::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 28%; background: #EF3340; }
+
+/* Иконка: ic_launcher_foreground.xml на #141A20 */
+.icon { border-radius: 24%; overflow: hidden; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5), 0 0 0 2px #222c36; }
+.icon svg { display: block; width: 100%; height: 100%; }
+
+/* Главный экран */
+.card { position: absolute; width: 404px; height: 262px; border-radius: 42px; overflow: hidden; color: #fff; transform-origin: 50% 50%; }
+.card .mark { position: absolute; right: -4px; bottom: -86px; font-size: 270px; font-weight: 300; line-height: 1; opacity: 0.2; }
+.card .in { position: absolute; inset: 0; padding: 30px 32px; display: flex; flex-direction: column; }
+.card .nm { font-size: 31px; font-weight: 500; opacity: 0.92; }
+.card .sum { margin-top: auto; font-size: 58px; font-weight: 500; line-height: 1.1; }
+.card .rt { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-size: 30px; }
+.card .rt .r { opacity: 0.88; }
+.card .chip { font-size: 28px; font-weight: 600; padding: 3px 13px; border-radius: 18px; background: rgba(0, 0, 0, 0.28); }
+.star { position: absolute; font-size: 36px; color: var(--star); }
+.ring { position: absolute; border: 5px solid var(--accent); border-radius: 52px; }
+.addtile { position: absolute; width: 135px; height: 262px; border-radius: 42px; border: 3px dashed #313d48; display: flex; align-items: center;
+           justify-content: center; color: var(--muted); font-size: 72px; font-weight: 300; }
+.hero { position: absolute; left: 0; width: 1080px; text-align: center; font-size: 160px; font-weight: 300; letter-spacing: -2px; line-height: 1.1; white-space: nowrap; }
+.hero .m { color: var(--muted); }
+.roll { display: inline-block; position: relative; overflow: hidden; vertical-align: bottom; }
+.roll > span { display: block; }
+.roll > span + span { position: absolute; left: 0; top: 0; width: 100%; text-align: center; }
+.plashka { position: absolute; height: 124px; border-radius: 62px; display: flex; align-items: center; justify-content: center; font-size: 35px; white-space: nowrap; overflow: hidden; }
+.plashka .t { position: absolute; left: 0; right: 0; text-align: center; }
+.cbline { position: absolute; left: 0; width: 1080px; text-align: center; font-size: 31px; color: var(--muted); white-space: nowrap; }
+.cbline .trend { color: var(--warn); }
+.cbline .rf { color: var(--accent); display: inline-block; margin-left: 18px; font-weight: 600; }
+.input { position: absolute; left: 42px; width: 996px; height: 150px; border-radius: 44px; background: var(--surface); }
+.input .seg { position: absolute; left: 14px; top: 14px; bottom: 14px; width: 398px; border-radius: 36px; background: var(--bg); display: flex; align-items: center; padding: 0 12px; }
+.input .seg span { flex: 1; text-align: center; font-size: 34px; color: var(--muted); height: 98px; line-height: 98px; border-radius: 28px; }
+.input .seg .on { background: var(--accent-soft); color: var(--accent); flex: 0 0 124px; }
+.input .val { position: absolute; right: 44px; top: 0; height: 150px; display: flex; align-items: baseline; gap: 14px; padding-top: 22px; }
+.input .val b { font-size: 92px; font-weight: 300; }
+.input .val i { font-style: normal; font-size: 44px; color: var(--muted); }
+.finger { position: absolute; width: 104px; height: 104px; border-radius: 50%; background: rgba(231, 236, 241, 0.32); border: 3px solid rgba(231, 236, 241, 0.6); }
+
+/* Редактор карты */
+.blk { position: absolute; left: 42px; width: 996px; background: var(--surface); border-radius: 30px; }
+.segc { height: 104px; display: flex; padding: 10px; }
+.segc span { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 600; color: var(--muted); border-radius: 22px; }
+.segc .on { background: var(--accent-soft); color: var(--accent); }
+.scan { height: 130px; display: flex; align-items: center; gap: 26px; padding: 0 34px; }
+.scan .ic { width: 52px; height: 64px; border: 4px solid var(--accent); border-radius: 8px; position: relative; flex: none; }
+.scan .ic::before, .scan .ic::after { content: ""; position: absolute; left: 10px; right: 10px; height: 4px; background: var(--accent); border-radius: 2px; }
+.scan .ic::before { top: 14px; } .scan .ic::after { top: 28px; right: 18px; }
+.scan .t1 { font-size: 35px; font-weight: 600; }
+.scan .t2 { font-size: 27px; color: var(--muted); margin-top: 4px; white-space: nowrap; }
+.scanmsg { position: absolute; left: 52px; width: 976px; font-size: 30px; font-weight: 500; color: var(--good); }
+.rc { padding: 22px 34px 26px; }
+.rc .sec { font-size: 28px; font-weight: 500; color: var(--muted); margin: 8px 0 2px; }
+.rc .row { display: flex; align-items: center; height: 84px; }
+.rc .lbl { font-size: 34px; }
+.rc .dots { flex: 1; height: 14px; margin: 0 12px; background-image: radial-gradient(circle, var(--muted) 2px, transparent 2.4px);
+            background-size: 11px 14px; background-repeat: repeat-x; background-position: 0 100%; opacity: 0.8; }
+.rc .fld { width: 270px; height: 72px; border-radius: 20px; background: var(--bg); border: 2px solid transparent; font-size: 36px; font-weight: 500;
+           display: flex; align-items: center; justify-content: flex-end; padding: 0 22px; }
+.rc .cur { width: 84px; text-align: center; font-size: 32px; color: var(--muted); }
+.rc .ok { font-size: 29px; font-weight: 500; color: var(--good); margin: 2px 0 6px; }
+.rc .sp { display: flex; align-items: center; gap: 16px; height: 70px; font-size: 30px; color: var(--muted); }
+.rc .sp .pill { display: flex; align-items: center; gap: 10px; background: var(--bg); border-radius: 30px; padding: 10px 18px; color: var(--accent); font-weight: 500; }
+.shot { position: absolute; width: 560px; border-radius: 34px; background: #1f2933; box-shadow: 0 30px 70px rgba(0, 0, 0, 0.6), 0 0 0 2px #2c3742; padding: 26px 30px; }
+.shot .a { font-size: 25px; color: var(--muted); display: flex; justify-content: space-between; }
+.shot .b { font-size: 34px; font-weight: 600; margin-top: 10px; }
+.shot .c { font-size: 30px; color: var(--ink); margin-top: 6px; }
+
+/* Шпаргалка */
+.cheat-t { position: absolute; left: 50px; top: 594px; font-size: 46px; font-weight: 600; }
+.cheat-s { position: absolute; left: 50px; top: 656px; font-size: 30px; color: var(--muted); }
+.tbl { position: absolute; left: 42px; top: 720px; width: 996px; height: 774px; background: var(--surface); border-radius: 30px; overflow: hidden; }
+.tr { position: absolute; left: 0; right: 0; height: 66px; display: flex; align-items: center; font-size: 33px; }
+.tr > span { text-align: right; padding-right: 30px; }
+.tr .c0 { width: 200px; text-align: left; padding-left: 30px; }
+.tr .c1, .tr .c2 { width: 280px; }
+.tr .c3 { width: 236px; }
+.th { height: 96px; font-size: 26px; color: var(--muted); line-height: 1.2; }
+.sweep { position: absolute; left: 0; height: 66px; background: var(--accent-soft); }
+
+/* Финал */
+.final { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 240px; }
+.final .ttl { font-size: 146px; font-weight: 600; letter-spacing: -4px; margin-top: 50px; line-height: 1.05; }
+.final .sub { font-size: 46px; color: var(--muted); margin-top: 24px; }
+.final .feat { display: flex; flex-direction: column; gap: 22px; margin-top: 64px; font-size: 38px; color: var(--ink); }
+.final .feat div { display: flex; align-items: center; gap: 22px; }
+.final .feat i { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); flex: none; }
+</style>
+</head>
+<body>
+
+<template id="iconTpl">
+  <svg viewBox="0 0 108 108" aria-hidden="true">
+    <rect width="108" height="108" fill="#141A20"/>
+    <g transform="translate(0 2) translate(54 54) scale(0.667) translate(-54 -54)">
+      <path fill="#FFFFFF" d="M32,22H76A4,4 0,0 1,80 26V80L73.5,75L67,80L60.5,75L54,80L47.5,75L41,80L34.5,75L28,80V26A4,4 0,0 1,32 22Z"/>
+      <path fill="#D5DCE3" d="M38.5,31h17a1.5,1.5 0,0 1,0 3h-17a1.5,1.5 0,0 1,0 -3zM39.5,64h29a1.5,1.5 0,0 1,0 3h-29a1.5,1.5 0,0 1,0 -3z"/>
+      <path fill="#C8272D" d="M55.8 49.72H44.27V46.44H55.71Q57.1 46.44 57.99 46Q58.89 45.57 59.32 44.78Q59.76 43.99 59.74 42.94Q59.76 41.92 59.32 41.1Q58.89 40.28 58.02 39.79Q57.14 39.31 55.8 39.31H51.48V58H47.52V36H55.8Q58.36 36 60.13 36.92Q61.9 37.85 62.81 39.4Q63.73 40.96 63.73 42.91Q63.73 44.92 62.8 46.45Q61.87 47.99 60.1 48.85Q58.33 49.7 55.8 49.72ZM56.29 51.34V54.62H44.27V51.34Z"/>
+    </g>
+  </svg>
+</template>
+
+<!-- Камера (сцены 1–2) -->
+<div class="scene" id="cam">
+  <div class="vf" id="vf">
+    <div class="world" id="world">
+      <div class="wall"></div>
+      <div class="goods" style="left:90px; top:40px; width:210px; height:250px; background:linear-gradient(180deg,#7a4a2a,#3b2414);"></div>
+      <div class="goods" style="left:330px; top:70px; width:240px; height:220px; background:linear-gradient(180deg,#a0703c,#5b3a1a);"></div>
+      <div class="goods" style="left:600px; top:30px; width:210px; height:260px; background:linear-gradient(180deg,#6f3b22,#341a0d);"></div>
+      <div class="goods" style="left:840px; top:90px; width:180px; height:200px; background:linear-gradient(180deg,#8a5b30,#47301a);"></div>
+      <div class="shelf" style="top:290px;"></div>
+      <div class="tag" id="tag" style="left:200px; top:316px; width:640px;">
+        <div class="band">PRICE</div>
+        <div class="price" style="font-size:132px; padding:22px 0 8px 46px;"><span id="pd">167.00</span> <span id="pc" style="font-size:46px; font-weight:700; letter-spacing:0;">AED</span></div>
+        <div class="name" style="padding:30px 0 20px 50px;">MEDJOOL DATES · 1 KG</div>
+      </div>
+      <div id="emb" class="abs" style="inset:0;"></div>
+    </div>
+    <div class="ctrl">
+      <div class="rb"><svg viewBox="0 0 24 24"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20z" fill="#fff"/></svg></div>
+      <div class="chip-card"><div class="coin" style="background:#C8272D;">¥</div>Карта в юанях</div>
+      <div style="flex:1"></div>
+      <div class="rb"><svg viewBox="0 0 24 24"><path d="M21.4 11.6l-9-9C12.1 2.2 11.6 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .6.2 1.1.6 1.4l9 9c.4.4.9.6 1.4.6s1-.2 1.4-.6l7-7c.4-.4.6-.9.6-1.4s-.2-1-.6-1.4zM12.9 20L4 11V4h7l9 9-7.1 7zM6.5 5C5.7 5 5 5.7 5 6.5S5.7 8 6.5 8 8 7.3 8 6.5 7.3 5 6.5 5z" fill="#fff"/></svg></div>
+      <div class="rb"><svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l3-8z" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg></div>
+      <div class="rb"><svg viewBox="0 0 24 24"><path d="M7 5h3v14H7zM14 5h3v14h-3z" fill="#fff"/></svg></div>
+    </div>
+    <div class="hint" id="hint" style="bottom:40px;">Наведите на ценник · <span class="flag-ae"></span> AED</div>
+    <div class="focus" id="focus">
+      <div class="h">167 AED · Карта в юанях</div>
+      <div class="big">3 749 <span style="color:var(--muted)">₽</span></div>
+      <div class="d">по чекам · <span style="color:var(--good); font-weight:500;">+2,2 % к ЦБ</span> · ЦБ 3 669 ₽</div>
+      <div class="sep"></div>
+      <div class="cmp"><span style="color:var(--good); font-weight:600;">✓ </span>Выгоднее всего · <span style="color:#14B3A6;">● </span>«Карта в тенге» — 3 881 ₽</div>
+    </div>
+  </div>
+</div>
+
+<!-- 1: хук -->
+<div class="scene" id="s1"><div class="cap"><div class="kicker">Ценник в Дубае</div><div class="headline" id="h1"></div></div></div>
+
+<!-- 2: раскрытие -->
+<div class="scene" id="s2">
+  <div class="cap">
+    <div style="display:flex; align-items:center; gap:34px;">
+      <div class="icon" id="ic2" style="width:132px; height:132px; flex:none;"></div>
+      <div class="headline" id="t2" style="font-size:112px; letter-spacing:-3.5px;">Курс по чеку</div>
+    </div>
+    <div class="headline" id="h2" style="font-size:52px; font-weight:500; letter-spacing:-0.6px; color:var(--muted); margin-top:30px; line-height:1.16;"></div>
+  </div>
+</div>
+
+<!-- 3: какой картой платить -->
+<div class="scene" id="s3">
+  <div class="cap"><div class="kicker">Какой картой платить</div><div class="headline" id="h3"></div></div>
+  <div id="cards"></div>
+  <div class="hero" id="hero" style="top:925px;"></div>
+  <div class="plashka" id="pl" style="top:1105px;"><span class="t" id="plA"></span><span class="t" id="plB"></span></div>
+  <div class="cbline" id="cb" style="top:1262px;">ЦБ на 5 ноя: 1 AED = 21,97 ₽ · <span class="trend">↑0,4 % за неделю</span><span class="rf" id="rf">↻</span></div>
+  <div class="input" id="inp" style="top:1340px;">
+    <div class="seg"><span class="on">AED</span><span>₽</span><span id="cur3"></span></div>
+    <div class="val"><b>167</b><i>AED</i></div>
+  </div>
+  <div class="finger" id="finger"></div>
+</div>
+
+<!-- 4: чек из скриншота -->
+<div class="scene" id="s4">
+  <div class="cap"><div class="kicker">Чек из скриншота</div><div class="headline" id="h4"></div></div>
+  <div class="blk segc" id="b1" style="top:596px;"><span class="on">Карта</span><span>Наличные</span></div>
+  <div class="blk scan" id="b2" style="top:720px;"><div class="ic" id="scanic"></div><div><div class="t1">Заполнить из скриншота банка</div><div class="t2" id="scanhint">Уведомление или операция — суммы найдём сами</div></div></div>
+  <div class="scanmsg" id="scanmsg" style="top:862px;">Заполнили чек покупки: 691,65 ¥ за 379 AED. Проверьте и сохраните.</div>
+  <div class="blk rc" id="b3" style="top:912px;">
+    <div class="sec">Пополнение</div>
+    <div class="row"><span class="lbl">Отправил</span><span class="dots"></span><span class="fld">30 000</span><span class="cur">₽ ▾</span></div>
+    <div class="row"><span class="lbl">Пришло</span><span class="dots"></span><span class="fld">2 439,02</span><span class="cur">¥</span></div>
+    <div class="ok">✓ По этому чеку 1 ¥ = 12,3 ₽</div>
+    <div class="sec">Покупки по карте</div>
+    <div class="sp"><span class="pill"><span class="flag-ae" style="width:40px;height:27px;"></span>AED ▾</span>Дирхам ОАЭ</div>
+    <div class="row"><span class="lbl">Списали</span><span class="dots"></span><span class="fld" id="fA"></span><span class="cur">¥</span></div>
+    <div class="row"><span class="lbl">За</span><span class="dots"></span><span class="fld" id="fB"></span><span class="cur">AED</span></div>
+    <div class="ok" id="okB" style="margin-bottom:0;">✓ По этому чеку 1 AED = 1,8249 ¥</div>
+  </div>
+  <div class="shot" id="shot">
+    <div class="a"><span>Банк · уведомление</span><span>сейчас</span></div>
+    <div class="b">Покупка 379,00 AED</div>
+    <div class="c">Списано 691,65 ¥</div>
+  </div>
+</div>
+
+<!-- 5: шпаргалка -->
+<div class="scene" id="s5">
+  <div class="cap"><div class="kicker">Шпаргалка</div><div class="headline" id="h5"></div></div>
+  <div class="cheat-t" id="ct">Шпаргалка</div>
+  <div class="cheat-s" id="cs">AED → ₽ по каждой карте и по курсу ЦБ</div>
+  <div class="tbl" id="tbl"><div class="sweep" id="sweep"></div></div>
+</div>
+
+<!-- 6: финал -->
+<div class="scene" id="s6">
+  <div class="final">
+    <div class="icon" id="ic6" style="width:240px; height:240px;"></div>
+    <div class="ttl" id="t6">Курс по чеку</div>
+    <div class="sub" id="u6">Android · APK на GitHub</div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const prog = (t, s, d) => clamp((t - s) / d);
+const eo = (x) => 1 - Math.pow(1 - x, 3);
+const eio = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const eb = (x) => { const c1 = 1.4, c3 = c1 + 1; return x <= 0 ? 0 : 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+/* Пружина с затуханием (как spring() в Compose): 0 → 1 с лёгким перелётом. */
+const spring = (x, damp = 5.2, freq = 11) => (x <= 0 ? 0 : x >= 1.6 ? 1 : 1 - Math.exp(-damp * x) * Math.cos(freq * x));
+const lerp = (a, b, k) => a + (b - a) * k;
+const mixHex = (a, b, k) => {
+  const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const A = p(a), B = p(b);
+  return `rgb(${A.map((v, i) => Math.round(lerp(v, B[i], k))).join(",")})`;
+};
+
+for (const id of ["ic2", "ic6"]) $(id).appendChild($("iconTpl").content.cloneNode(true));
+
+function words(el, text) {
+  el.innerHTML = "";
+  const out = [];
+  text.split(" ").forEach((w, i, arr) => {
+    if (w === "\n") { el.appendChild(document.createElement("br")); return; }
+    const s = document.createElement("span");
+    s.className = "word"; s.textContent = w; el.appendChild(s); out.push(s);
+    if (i < arr.length - 1 && arr[i + 1] !== "\n") el.appendChild(document.createTextNode(" "));
+  });
+  return out;
+}
+const W1 = words($("h1"), "Цена в рублях — \n прямо в ценнике");
+const W2 = words($("h2"), "Сколько покупка стоит на самом деле — \n по курсу вашей карты");
+const W3 = words($("h3"), "Подскажет, какой картой \n платить дешевле");
+const W4 = words($("h4"), "Курс — по вашим чекам. \n Набирать не нужно");
+const W5 = words($("h5"), "Все суммы — по каждой \n карте и ЦБ");
+function showWords(ws, t, start, step = 0.06) {
+  ws.forEach((w, i) => {
+    const k = eo(prog(t, start + i * step, 0.35));
+    w.style.opacity = k;
+    w.style.transform = `translateY(${(1 - k) * 34}px)`;
+  });
+}
+function rise(el, t, start, dist = 30, dur = 0.4) {
+  const k = eo(prog(t, start, dur));
+  el.style.opacity = k;
+  el.style.transform = `translateY(${(1 - k) * dist}px)`;
+}
+/* Сцена уходит за 0,25 с до склейки: старое уходит, затем входит новое (без двойной экспозиции). */
+function sceneEnv(el, t, start, end, outDur = 0.25) {
+  const vis = t >= start - 1e-3 && t < end;
+  el.style.display = vis ? "block" : "none";
+  if (!vis) return false;
+  const k = eio(prog(t, end - outDur, outDur));
+  el.style.opacity = 1 - k;
+  el.style.transform = `translateY(${-k * 24}px)`;
+  return true;
+}
+
+/* ---------- RollingText: меняются только изменившиеся символы, справа налево ---------- */
+function makeRoll(host, from, to, lineH) {
+  host.innerHTML = "";
+  const slots = [];
+  const n = Math.max(from.length, to.length);
+  const a = from.padStart(n, " "), b = to.padStart(n, " ");
+  for (let i = 0; i < n; i++) {
+    const s = document.createElement("span");
+    s.className = "roll";
+    s.style.height = lineH + "px";
+    s.innerHTML = `<span>${a[i] === " " ? "&nbsp;" : a[i]}</span><span>${b[i] === " " ? "&nbsp;" : b[i]}</span>`;
+    host.appendChild(s);
+    slots.push({ el: s, changed: a[i] !== b[i], fromRight: n - 1 - i });
+  }
+  return { slots, lineH };
+}
+function drawRoll(R, t, start, stagger = 0.03, dur = 0.34) {
+  let order = 0;
+  const changed = R.slots.filter((s) => s.changed).sort((x, y) => x.fromRight - y.fromRight);
+  for (const s of R.slots) {
+    const [o, nw] = s.el.children;
+    if (!s.changed) { o.style.transform = ""; nw.style.opacity = 0; continue; }
+    const k = eo(prog(t, start + changed.indexOf(s) * stagger, dur));
+    o.style.transform = `translateY(${-k * R.lineH}px)`;
+    o.style.opacity = 1 - k;
+    nw.style.opacity = k;
+    nw.style.transform = `translateY(${(1 - k) * R.lineH}px)`;
+    order++;
+  }
+}
+
+/* ---------- Сцена 1: сумма вписывается в ценник ---------- */
+let EMB;
+function relRect(el, host) {
+  const a = el.getBoundingClientRect(), b = host.getBoundingClientRect();
+  return { x: a.left - b.left, y: a.top - b.top, w: a.width, h: a.height };
+}
+function layoutEmbed() {
+  const host = $("emb"), world = $("world");
+  const d = relRect($("pd"), world), c = relRect($("pc"), world);
+  // Высота цифр ≈ 0,78 рамки; рамка «цена + валюта» — от левого края цифр до конца AED.
+  const ext = { x: d.x - 6, y: d.y + d.h * 0.12, w: c.x + c.w - d.x + 12, h: d.h * 0.8 };
+  const patch = document.createElement("div"); patch.className = "embed-patch"; host.appendChild(patch);
+  const text = document.createElement("div"); text.className = "embed-text"; text.textContent = "3 749 ₽"; host.appendChild(text);
+  text.style.fontSize = getComputedStyle($("pd")).fontSize;
+  const tw = text.offsetWidth;
+  const pw = Math.max(ext.w, tw + 20);
+  Object.assign(patch.style, { left: ext.x + "px", top: ext.y + "px", width: pw + "px", height: ext.h + "px" });
+  Object.assign(text.style, { left: d.x + "px", top: d.y + "px" });
+  const mark = document.createElement("div"); mark.className = "embed-mark"; host.appendChild(mark);
+  Object.assign(mark.style, { left: d.x + 4 + "px", top: ext.y + ext.h + 2 + "px", width: tw - 8 + "px" });
+  const corners = [0, 1, 2, 3].map((i) => {
+    const el = document.createElement("div"); el.className = "corner";
+    const cx = i % 2, cy = i >> 1;
+    el.style[cy ? "borderBottomWidth" : "borderTopWidth"] = "6px";
+    el.style[cx ? "borderRightWidth" : "borderLeftWidth"] = "6px";
+    host.appendChild(el);
+    return { el, cx, cy };
+  });
+  const box = { x: ext.x - 14, y: ext.y - 14, w: pw + 28, h: ext.h + 46 };
+  EMB = { patch, text, mark, corners, box, pw };
+}
+function drawEmbed(t, lockAt, revealAt, dur) {
+  const lk = eo(prog(t, lockAt, 0.45));
+  const grow = 1 + 0.25 * (1 - lk);
+  const b = EMB.box, cx = b.x + b.w / 2, cy = b.y + b.h / 2, hw = b.w / 2 * grow, hh = b.h / 2 * grow;
+  for (const { el, cx: x1, cy: y1 } of EMB.corners) {
+    el.style.left = (x1 ? cx + hw - 34 : cx - hw) + "px";
+    el.style.top = (y1 ? cy + hh - 34 : cy - hh) + "px";
+    el.style.opacity = prog(t, lockAt, 0.15);
+  }
+  const r = prog(t, revealAt, dur);
+  const wipe = eo(clamp(r / 0.7));
+  EMB.patch.style.clipPath = `inset(-30px ${(1 - wipe) * 100}% -30px -30px)`;
+  EMB.patch.style.opacity = r > 0 ? 1 : 0;
+  EMB.text.style.opacity = clamp((r - 0.3) / 0.45);
+  EMB.mark.style.clipPath = `inset(0 ${(1 - eo(clamp((r - 0.5) / 0.5))) * 100}% 0 0)`;
+}
+
+/* ---------- Сцена 3: карты ---------- */
+const CARDS = [
+  { name: "Карта в тенге", mark: "₸", g: ["#14B3A6", "#0B5C6E"], m: "#BFF3EC", sum: "3 881 ₽", rate: "23,24 ₽/AED", vs: "+5,8 %", c: "var(--warn-on-card)" },
+  { name: "Карта в юанях", mark: "¥", g: ["#8E1B22", "#3E0A0F"], m: "#E2C275", sum: "3 749 ₽", rate: "22,45 ₽/AED", vs: "+2,2 %", c: "var(--good-on-card)" },
+];
+const CY = 632, CW = 404, CH = 262, CX = [42, 472];
+const cardEls = CARDS.map((c, i) => {
+  const d = document.createElement("div");
+  d.className = "card";
+  d.style.background = `linear-gradient(135deg, ${c.g[0]}, ${c.g[1]})`;
+  d.innerHTML = `<div class="mark" style="color:${c.m}">${c.mark}</div><div class="in"><div class="nm">${c.name}</div>
+    <div class="sum">${c.sum}</div><div class="rt"><span class="r">${c.rate}</span><span class="chip" style="color:${c.c}">${c.vs}</span></div></div>`;
+  $("cards").appendChild(d);
+  return d;
+});
+const star = document.createElement("div"); star.className = "star"; star.textContent = "★"; $("cards").appendChild(star);
+const ring = document.createElement("div"); ring.className = "ring"; $("cards").appendChild(ring);
+const tile = document.createElement("div"); tile.className = "addtile"; tile.textContent = "+"; $("cards").appendChild(tile);
+let HERO, CUR3;
+
+/* ---------- Сцена 5: шпаргалка ---------- */
+const ROWS = [
+  ["1,00", "23,24", "22,45", "21,97"], ["5,00", "116", "112", "110"], ["10,00", "232", "224", "220"], ["20,00", "465", "449", "439"],
+  ["50,00", "1 162", "1 122", "1 099"], ["100", "2 324", "2 245", "2 197"], ["167", "3 881", "3 749", "3 669"], ["200", "4 648", "4 489", "4 394"],
+  ["500", "11 620", "11 223", "10 985"], ["1 000", "23 240", "22 447", "21 970"],
+];
+const rowEls = [];
+{
+  const head = document.createElement("div");
+  head.className = "tr th";
+  head.style.top = "0px";
+  head.innerHTML = `<span class="c0">AED</span><span class="c1"><span style="color:#14B3A6">●</span> Карта<br>в тенге</span>` +
+    `<span class="c2"><span style="color:#C8272D">●</span> Карта<br>в юанях</span><span class="c3">ЦБ</span>`;
+  $("tbl").appendChild(head);
+  rowEls.push(head);
+  ROWS.forEach((r, i) => {
+    const d = document.createElement("div");
+    d.className = "tr";
+    d.style.top = 96 + i * 66 + "px";
+    const hl = r[0] === "167";
+    d.innerHTML = `<span class="c0" style="${hl ? "color:var(--accent); font-weight:600" : ""}">${r[0]}</span><span class="c1">${r[1]}</span>` +
+      `<span class="c2" style="color:var(--good); font-weight:600">${r[2]}</span><span class="c3" style="color:var(--muted)">${r[3]}</span>`;
+    $("tbl").appendChild(d);
+    rowEls.push(d);
+  });
+}
+
+var ready = false;
+async function init() {
+  await document.fonts.ready;
+  await Promise.all([...document.fonts].map((f) => f.load().catch(() => {})));
+  for (const id of ["cam", "s1", "s2", "s3", "s4", "s5", "s6"]) $(id).style.display = "block";
+  layoutEmbed();
+  HERO = makeRoll($("hero"), "3 881,05", "3 748,60", 176);
+  $("hero").insertAdjacentHTML("beforeend", ' <span class="m">₽</span>');
+  CUR3 = makeRoll($("cur3"), "₸", "¥", 98);
+  ready = true;
+  render(0);
+}
+
+function placeCard(i, scale, x, alpha) {
+  const el = cardEls[i];
+  Object.assign(el.style, { left: x + "px", top: CY + "px", transform: `scale(${scale})`, opacity: alpha });
+}
+
+function render(t) {
+  /* Камера: 0–6,5 */
+  if (sceneEnv($("cam"), t, 0, 6.5)) {
+    const sway = 0.4 + 0.6 * (1 - eo(prog(t, 0.3, 0.9)));
+    const zoom = 1 + 0.04 * eio(prog(t, 3.0, 3.5));
+    $("world").style.transform = `translate(${Math.sin(t * 1.7) * 8 * sway}px, ${Math.cos(t * 1.3) * 6 * sway}px) rotate(${Math.sin(t * 1.1) * 0.45 * sway}deg) scale(${zoom})`;
+    drawEmbed(t, 0.5, 1.0, 0.7);
+    $("hint").style.opacity = 1 - eo(prog(t, 1.25, 0.25));
+    // Карточка цены выезжает снизу пружиной.
+    const fk = spring(prog(t, 1.5, 0.75) * 1.0);
+    $("focus").style.transform = `translateY(${(1 - fk) * 360}px)`;
+    $("focus").style.opacity = clamp(prog(t, 1.5, 0.12));
+  }
+  if (sceneEnv($("s1"), t, 0, 3.0)) showWords(W1, t, 0.0, 0.07);
+  if (sceneEnv($("s2"), t, 3.0, 6.5)) {
+    const ik = prog(t, 3.0, 0.5);
+    $("ic2").style.opacity = clamp(ik * 3);
+    $("ic2").style.transform = `scale(${0.4 + 0.6 * eb(ik)}) rotate(${(1 - eo(ik)) * -12}deg)`;
+    rise($("t2"), t, 3.12, 40);
+    showWords(W2, t, 3.4, 0.05);
+  }
+
+  /* 3: какой картой платить, 6,5–11 */
+  if (sceneEnv($("s3"), t, 6.5, 11.0)) {
+    showWords(W3, t, 6.55, 0.07);
+    const SW = 8.0; // карта сменилась
+    // Палец ведёт сумму: 7,5–8,0.
+    const drag = eio(prog(t, 7.5, 0.5));
+    const rel = spring(prog(t, SW, 0.7));
+    const fingerX = lerp(760, 540, drag);
+    const heroOff = t < SW ? -0.55 * (760 - fingerX) : lerp(-0.55 * 220, 0, rel);
+    // Рамка: ползёт до 35 % пути, после смены карты доезжает пружиной (затухание 0,62).
+    const ringK = t < SW ? 0.35 * drag : lerp(0.35, 1, spring(prog(t, SW, 0.75), 6, 9));
+    const selK = eio(prog(t, SW, 0.3));
+    CARDS.forEach((c, i) => {
+      const k = eo(prog(t, 6.5 + i * 0.08, 0.45));
+      const sc = i === 0 ? lerp(1, 0.96, selK) : lerp(0.96, 1, selK);
+      placeCard(i, sc, CX[i] + (1 - k) * 220, k);
+    });
+    const tk = eo(prog(t, 6.66, 0.45));
+    Object.assign(tile.style, { left: 900 + (1 - tk) * 200 + "px", top: CY + "px", opacity: tk });
+    const rx = lerp(CX[0], CX[1], ringK);
+    Object.assign(ring.style, { left: rx - 11 + "px", top: CY - 11 + "px", width: CW + 22 + "px", height: CH + 22 + "px", opacity: eo(prog(t, 6.8, 0.3)) });
+    Object.assign(star.style, { left: CX[1] + CW - 64 + "px", top: CY + 26 + "px", opacity: eo(prog(t, 6.7, 0.3)) });
+    // Крупная сумма.
+    const hk = eo(prog(t, 6.7, 0.45));
+    $("hero").style.opacity = hk;
+    $("hero").style.transform = `translate(${heroOff}px, ${(1 - hk) * 30}px)`;
+    drawRoll(HERO, t, SW, 0.035, 0.34);
+    drawRoll(CUR3, t, SW, 0, 0.3);
+    // Плашка сравнения: цвет и ширина плавно, текст растворяется при смене «дороже → выгоднее».
+    const pk = eio(prog(t, SW, 0.3));
+    const pl = $("pl");
+    const wA = 906, wB = 866;
+    const w = lerp(wA, wB, pk);
+    Object.assign(pl.style, { left: 540 - w / 2 + "px", width: w + "px", background: mixHex("#351C20", "#15301F", pk) });
+    const plIn = eo(prog(t, 6.85, 0.4));
+    pl.style.opacity = plIn;
+    pl.style.transform = `translateY(${(1 - plIn) * 30}px)`;
+    $("plA").innerHTML = "Дешевле на 132 ₽ (3,4 %) — «Карта в юанях» ›";
+    $("plA").style.color = "var(--accent)";
+    $("plA").style.opacity = 1 - eio(prog(t, SW, 0.16));
+    $("plB").innerHTML = "На 132 ₽ (3,4 %) дешевле, чем «Карта в тенге»";
+    $("plB").style.color = "var(--good)";
+    $("plB").style.opacity = eio(prog(t, SW + 0.14, 0.2));
+    rise($("cb"), t, 6.95, 24);
+    const sp = eio(prog(t, 9.5, 0.6));
+    $("rf").style.transform = `rotate(${sp * 360}deg)`;
+    rise($("inp"), t, 7.05, 30);
+    const f = $("finger");
+    const fv = t < 7.4 ? 0 : t < SW ? eo(prog(t, 7.4, 0.12)) : 1 - eo(prog(t, SW, 0.2));
+    Object.assign(f.style, { left: fingerX - 52 + "px", top: 960 + "px", opacity: fv, transform: `scale(${t < 7.5 ? 1.25 - 0.25 * eo(prog(t, 7.4, 0.12)) : 1})` });
+  }
+
+  /* 4: чек из скриншота, 11–15 */
+  if (sceneEnv($("s4"), t, 11.0, 15.0)) {
+    showWords(W4, t, 11.05, 0.07);
+    // Шторка каскадом: блоки проявляются и поднимаются друг за другом.
+    ["b1", "b2", "b3"].forEach((id, i) => rise($(id), t, 11.0 + i * 0.09, 40, 0.42));
+    const tap = prog(t, 11.75, 0.3);
+    $("b2").style.background = t >= 11.75 && t < 12.1 ? mixHex("#151D25", "#24303b", 1 - tap) : "";
+    // Скриншот влетает и уходит в кнопку.
+    const s = $("shot");
+    const inK = spring(prog(t, 11.875, 0.5), 5, 10);
+    const outK = eio(prog(t, 12.375, 0.3));
+    const sx = lerp(260, 80, outK), sy = lerp(lerp(1650, 1080, inK), 750, outK);
+    Object.assign(s.style, { left: sx + "px", top: sy + "px", transform: `scale(${lerp(1, 0.12, outK)}) rotate(${lerp(-4, 0, outK)}deg)`,
+      transformOrigin: "0 0", opacity: t < 11.875 ? 0 : 1 - eio(prog(t, 12.55, 0.15)) });
+    $("scanhint").textContent = t >= 12.5 && t < 12.75 ? "Читаем скриншот…" : "Уведомление или операция — суммы найдём сами";
+    $("scanic").style.transform = `scale(${1 + 0.25 * Math.sin(Math.PI * prog(t, 12.5, 0.3))})`;
+    const fill = (id, at, val) => {
+      const el = $(id), k = prog(t, at, 0.35);
+      el.textContent = t >= at ? val : "";
+      el.style.transform = `scale(${t >= at ? 0.8 + 0.2 * eb(k) : 1})`;
+      el.style.borderColor = t >= at && t < at + 0.8 ? `rgba(92,203,146,${1 - prog(t, at + 0.4, 0.4)})` : "transparent";
+    };
+    fill("fA", 12.75, "691,65");
+    fill("fB", 12.875, "379");
+    const ok = prog(t, 13.125, 0.35);
+    $("okB").style.opacity = eo(ok);
+    $("okB").style.transform = `translateY(${(1 - eo(ok)) * 12}px)`;
+    const m = prog(t, 13.0, 0.35);
+    $("scanmsg").style.opacity = eo(m);
+  }
+
+  /* 5: шпаргалка, 15–18 */
+  if (sceneEnv($("s5"), t, 15.0, 18.0)) {
+    showWords(W5, t, 15.05, 0.07);
+    rise($("ct"), t, 15.0, 30); rise($("cs"), t, 15.05, 30);
+    rise($("tbl"), t, 15.0, 30, 0.35);
+    rowEls.forEach((r, i) => rise(r, t, 15.1 + Math.min(i, 16) * 0.06, 26, 0.35));
+    // Текущая сумма — полоса пробегает слева направо.
+    const sw = eio(prog(t, 15.875, 0.45));
+    Object.assign($("sweep").style, { top: 96 + 6 * 66 + "px", width: sw * 996 + "px" });
+  }
+
+  /* 6: финал, 18–21 */
+  if (sceneEnv($("s6"), t, 18.0, 21.5)) {
+    const ik = prog(t, 18.0, 0.5);
+    $("ic6").style.opacity = clamp(ik * 3);
+    $("ic6").style.transform = `scale(${0.4 + 0.6 * eb(ik)}) rotate(${(1 - eo(ik)) * -12}deg)`;
+    rise($("t6"), t, 18.15, 40);
+    rise($("u6"), t, 18.35, 30);
+  }
+}
+init();
+</script>
+</body>
+</html>

@@ -67,6 +67,7 @@ import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardComparison
+import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.StaleReceipt
@@ -107,17 +108,19 @@ internal fun ResultBlock(
     val wallet = state.wallet
     val card = state.selectedCard
     val q = state.selectedQuote
-    val cardIndex = wallet.cards.indexOfFirst { it.id == card?.id }
+    // Наличные в другой валюте в ряду не показываются — листаем только то, чем можно заплатить.
+    val cards = wallet.usable
+    val cardIndex = cards.indexOfFirst { it.id == card?.id }
     val step by rememberUpdatedState(onStepCard)
     val view = LocalView.current
-    val canSwipe = wallet.cards.size > 1
+    val canSwipe = cards.size > 1
     // Сумма идёт за пальцем (с сопротивлением), рамка в ряду карт ползёт к соседней. Дотянули — карта
     // сменилась, мало — сумма пружинит обратно. Без анимаций — как раньше: только смена карты.
     val reduceMotion = LocalReduceMotion.current
     val scope = rememberCoroutineScope()
     val drag = remember { mutableFloatStateOf(0f) }
     val index by rememberUpdatedState(cardIndex)
-    val last by rememberUpdatedState(wallet.cards.lastIndex)
+    val last by rememberUpdatedState(cards.lastIndex)
     val swipeModifier = if (canSwipe) {
         Modifier.pointerInput(Unit) {
             val threshold = 56.dp.toPx()
@@ -211,7 +214,7 @@ internal fun ResultBlock(
                     liveRegion = LiveRegionMode.Polite
                     if (canSwipe) {
                         customActions = listOfNotNull(
-                            CustomAccessibilityAction(nextLabel) { onStepCard(1); true }.takeIf { cardIndex < wallet.cards.lastIndex },
+                            CustomAccessibilityAction(nextLabel) { onStepCard(1); true }.takeIf { cardIndex < cards.lastIndex },
                             CustomAccessibilityAction(prevLabel) { onStepCard(-1); true }.takeIf { cardIndex > 0 },
                         )
                     }
@@ -249,7 +252,15 @@ private fun Basis(state: MainUiState, onAddReceipt: (BankCard) -> Unit, onEditCa
     val basis = basisText(state) ?: return
     val style = type.body.copy(fontSize = 14.sp)
     val q = state.selectedQuote
+    val cash = card?.takeIf { it.kind == CardKind.CASH && q?.basis == RateBasis.RECEIPTS }
+    val exchange = cash?.transfer
     val text = when {
+        cash != null && exchange != null -> stringResource(
+            R.string.basis_exchange,
+            RuDates.short(exchange.date),
+            "${Numbers.money(exchange.sent)} ${exchange.sentCurrency.symbol}",
+            "${Numbers.money(exchange.got)} ${cash.currency.symbol}",
+        )
         noOfficialForSpend(state) && (state.homePerUnit == null || q == null) ->
             noRefText(state, R.string.result_no_cbr, R.string.result_no_ref).let { (res, code) -> stringResource(res, code) }
         state.homePerUnit == null || q == null -> stringResource(R.string.result_no_rate)

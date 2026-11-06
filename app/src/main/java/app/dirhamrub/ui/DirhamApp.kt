@@ -8,9 +8,16 @@ import android.os.Build
 import android.telephony.TelephonyManager
 import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,6 +57,8 @@ import app.dirhamrub.ui.main.CountryOffer
 import app.dirhamrub.ui.main.MainScreen
 import app.dirhamrub.ui.main.MainViewModel
 import app.dirhamrub.ui.onboarding.OnboardingScreen
+import app.dirhamrub.ui.settings.SettingsActions
+import app.dirhamrub.ui.settings.SettingsScreen
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import kotlin.math.hypot
@@ -87,6 +96,7 @@ fun DirhamApp(
     var cheatOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CHEAT) }
     var currenciesOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CURRENCIES) }
     var cameraOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CAMERA) }
+    var settingsOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_SETTINGS) }
     var editing by remember { mutableStateOf<Editing?>(null) }
     var cameraOrigin by remember { mutableStateOf<Offset?>(null) }
     // Скриншоты CI: сразу редактор выбранной карты.
@@ -96,8 +106,10 @@ fun DirhamApp(
     val context = LocalContext.current
     // Страну сети перечитываем при каждом возвращении в приложение: прилетели — подсказка уже на месте.
     var country by remember { mutableStateOf<String?>(null) }
+    // Заодно курсы: старше 6 часов — скачиваем (если так в настройках).
     LifecycleResumeEffect(Unit) {
         country = networkCountry(context)
+        vm.onResume()
         onPauseOrDispose { }
     }
 
@@ -107,7 +119,7 @@ fun DirhamApp(
         return
     }
 
-    val offer = country?.let { iso ->
+    val offer = country?.takeIf { state.settings.countryHint }?.let { iso ->
         Currency.forCountry(iso)
             ?.takeIf { it != state.wallet.spend && iso != state.countryHandled }
             ?.let { CountryOffer(iso, it) }
@@ -154,8 +166,9 @@ fun DirhamApp(
         onChip = vm::putAmount,
         onOpenCurrencies = { currenciesOpen = true },
         onCountry = { accept -> offer?.let { vm.handleCountry(it.iso, if (accept) it.currency else null) } },
-        onRefreshRates = { vm.refreshRates(force = true) },
+        onRefreshRates = vm::refreshRates,
         onOpenCheat = { cheatOpen = true },
+        onOpenSettings = { settingsOpen = true },
         onOpenCamera = { cameraOpen = true },
         onCameraPlaced = { cameraOrigin = it },
     )
@@ -181,8 +194,42 @@ fun DirhamApp(
             official = state.reference,
         )
     }
-    // Камера раскрывается кругом из кнопки «Ценник» и сворачивается в неё обратно; главный экран — под ней.
     val reduceMotion = LocalReduceMotion.current
+    // Настройки — экран поверх главного, въезжает справа.
+    AnimatedVisibility(
+        visible = settingsOpen,
+        enter = if (reduceMotion) EnterTransition.None else slideInHorizontally(tween(260)) { it / 3 } + fadeIn(tween(200)),
+        exit = if (reduceMotion) ExitTransition.None else slideOutHorizontally(tween(220)) { it / 3 } + fadeOut(tween(180)),
+    ) {
+        BackHandler { settingsOpen = false }
+        SettingsScreen(
+            state = state,
+            actions = SettingsActions(
+                onBack = { settingsOpen = false },
+                onRefresh = vm::refreshRates,
+                onUnionPay = vm::setUnionPayEnabled,
+                onRatesUpdate = vm::setRatesUpdate,
+                onHome = vm::setHome,
+                onCountryHint = vm::setCountryHint,
+                onEditCard = { editing = Editing(it, isNew = false) },
+                onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
+                onReorder = vm::reorderCards,
+                onCameraEmbedded = vm::setCameraEmbedded,
+                onAddTile = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) requestCameraTile(context) }
+                } else {
+                    null
+                },
+                onTheme = vm::setTheme,
+                onMotion = vm::setMotion,
+                onOnboarding = {
+                    settingsOpen = false
+                    vm.restartOnboarding()
+                },
+            ),
+        )
+    }
+    // Камера раскрывается кругом из кнопки «Ценник» и сворачивается в неё обратно; главный экран — под ней.
     val reveal = remember { Animatable(if (cameraOpen) 1f else 0f) }
     LaunchedEffect(cameraOpen) {
         val target = if (cameraOpen) 1f else 0f
@@ -235,7 +282,7 @@ fun DirhamApp(
             spend = state.wallet.spend,
             home = state.wallet.home,
             official = state.reference,
-            unionPay = state.unionPay,
+            unionPay = state.activeUnionPay,
             onSave = {
                 vm.saveCard(it)
                 editing = null

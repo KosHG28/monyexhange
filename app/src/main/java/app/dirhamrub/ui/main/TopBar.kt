@@ -49,9 +49,15 @@ import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import java.util.Locale
 
-/** Шапка: «🇦🇪 AED → ₽ ▾» (выбор валют) и шпаргалка. */
+/** Шапка: «🇦🇪 AED → ₽ ▾» (выбор валют), шпаргалка и настройки. */
 @Composable
-internal fun TopBar(spend: Currency, home: Currency, onOpenCurrencies: () -> Unit, onOpenCheat: () -> Unit) {
+internal fun TopBar(
+    spend: Currency,
+    home: Currency,
+    onOpenCurrencies: () -> Unit,
+    onOpenCheat: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     Row(
@@ -88,18 +94,26 @@ internal fun TopBar(spend: Currency, home: Currency, onOpenCurrencies: () -> Uni
             Text("▾", style = type.caption, color = colors.muted)
         }
         Spacer(Modifier.weight(1f))
-        val cheat = stringResource(R.string.cheat_button)
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(colors.surface)
-                .clickable(role = Role.Button, onClickLabel = cheat, onClick = onOpenCheat)
-                .semantics { contentDescription = cheat },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(R.drawable.ic_table), contentDescription = null, tint = colors.ink, modifier = Modifier.size(22.dp))
-        }
+        RoundIcon(R.drawable.ic_table, stringResource(R.string.cheat_button), onOpenCheat)
+        Spacer(Modifier.width(8.dp))
+        RoundIcon(R.drawable.ic_settings, stringResource(R.string.settings_button), onOpenSettings)
+    }
+}
+
+/** Круглая кнопка шапки со значком. */
+@Composable
+private fun RoundIcon(icon: Int, label: String, onClick: () -> Unit) {
+    val colors = AppTheme.colors
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(colors.surface)
+            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(painterResource(icon), contentDescription = null, tint = colors.ink, modifier = Modifier.size(22.dp))
     }
 }
 

@@ -123,10 +123,10 @@ class UnionPayTest {
         val wallet = Wallet(cards = listOf(plain), spend = Currency.LKR)
         assertTrue(RateEngine.quoteAll(wallet, cbr.withUnionPay(up), up).viaUnionPay)
         assertFalse(RateEngine.quoteAll(wallet.copy(spend = Currency.CNY), cbr.withUnionPay(up), up).viaUnionPay)
-        // Наличные UnionPay не бывают.
+        // Наличные UnionPay не бывают, а юанями наличными в рупиях не заплатить.
         val cash = BankCard("cash", "Наличные", Currency.CNY, 0, kind = CardKind.CASH, unionPay = true)
-        assertNotNull(RateEngine.quote(cash, Currency.LKR, Currency.RUB, cbr.withUnionPay(up), up))
-        assertEquals(RateBasis.OFFICIAL, RateEngine.quote(cash, Currency.LKR, Currency.RUB, cbr.withUnionPay(up), up)!!.basis)
+        assertNull(RateEngine.quote(cash, Currency.LKR, Currency.RUB, cbr.withUnionPay(up), up))
+        assertNotNull(RateEngine.quote(cash, Currency.CNY, Currency.RUB, cbr.withUnionPay(up), up))
     }
 
     @Test

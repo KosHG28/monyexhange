@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.Numbers
+import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.ui.components.RollingText
 import app.dirhamrub.ui.components.TypingText
@@ -165,7 +166,12 @@ internal fun SecondaryLine(state: MainUiState, line: Line, onSelectLine: (Line) 
     val colors = AppTheme.colors
     val type = AppTheme.type
     val currency = line.currency(state) ?: return
-    val label = if (line == Line.CARD) stringResource(R.string.debit_card) else currency.shortRu
+    val cash = state.selectedCard?.kind == CardKind.CASH
+    val label = when {
+        line == Line.CARD && cash -> stringResource(R.string.debit_cash)
+        line == Line.CARD -> stringResource(R.string.debit_card)
+        else -> currency.shortRu
+    }
     val value = valueText(state, line)
     val a11y = stringResource(R.string.line_a11y, label, value, currency.symbol)
     Row(

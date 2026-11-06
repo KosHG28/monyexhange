@@ -5,6 +5,7 @@ import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardComparison
+import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.StaleReceipt
@@ -23,6 +24,8 @@ internal const val HERO_COMPACT_SP = 46
 internal fun basisText(state: MainUiState): RateBasis? {
     if (state.homePerUnit == null) return RateBasis.OFFICIAL
     val q = state.selectedQuote ?: return null
+    // Наличные по обмену — подпись «по обмену …», чтобы было видно, откуда курс.
+    if (q.card.kind == CardKind.CASH && q.basis == RateBasis.RECEIPTS && q.card.transfer != null) return RateBasis.RECEIPTS
     return q.basis.takeIf { it != RateBasis.RECEIPTS }
 }
 
@@ -35,6 +38,8 @@ internal fun basisStale(state: MainUiState): StaleReceipt? = state.staleReceipt
  */
 internal fun basisAction(state: MainUiState): BankCard? {
     val q = state.selectedQuote ?: return state.selectedCard?.takeIf { noOfficialForSpend(state) }
+    // У наличных чеков покупок нет: платят ровно ценой, курс — по обмену (или ЦБ, пока обмена нет).
+    if (q.card.kind == CardKind.CASH) return null
     return q.card.takeIf { q.basis == RateBasis.ESTIMATE || q.basis == RateBasis.OFFICIAL || q.basis == RateBasis.UNIONPAY }
 }
 
@@ -50,7 +55,7 @@ internal fun noOfficialForSpend(state: MainUiState): Boolean {
 
 /** Сообщение «нет курса» называет UnionPay, только если его курсы есть (иначе — как раньше, только ЦБ). */
 internal fun noRefText(state: MainUiState, cbrOnly: Int, both: Int): Pair<Int, String> =
-    (if (state.unionPay == null) cbrOnly else both) to state.wallet.spend.code
+    (if (state.activeUnionPay == null) cbrOnly else both) to state.wallet.spend.code
 
 /** Сравнение с самой дешёвой из остальных карт, если разница заметна. */
 internal fun comparison(state: MainUiState): CardComparison? =

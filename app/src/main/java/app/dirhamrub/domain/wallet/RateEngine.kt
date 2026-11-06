@@ -116,6 +116,8 @@ object RateEngine {
         official: OfficialRates?,
         unionPay: UnionPayRates? = null,
     ): CardQuote? {
+        // Наличными платят только в их валюте: дирхамами в Армении не заплатить — ни курса, ни чека.
+        if (!card.canPay(spend)) return null
         val manual = card.manualFor(spend, home)
         val homePerCard = homePerCard(card, home, official)
         val (cardPerSpend, spendBasis) = cardPerSpend(card, spend, official, unionPay) ?: (null to RateBasis.OFFICIAL)

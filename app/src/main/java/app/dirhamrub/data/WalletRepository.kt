@@ -9,8 +9,12 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import app.dirhamrub.domain.AppSettings
 import app.dirhamrub.domain.Expression
 import app.dirhamrub.domain.Line
+import app.dirhamrub.domain.MotionMode
+import app.dirhamrub.domain.RatesUpdate
+import app.dirhamrub.domain.ThemeMode
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.ManualRate
@@ -56,6 +60,9 @@ data class StoredState(
     val unionPay: UnionPayRates?,
     /** Когда курсы UnionPay скачаны (мс), 0 — никогда или со старым справочником валют. */
     val unionPayFetchedAt: Long,
+    /** Откуда в последний раз пришли курсы ЦБ: «cbr.ru» или зеркало. */
+    val officialSource: String?,
+    val settings: AppSettings,
 )
 
 /**
@@ -95,7 +102,25 @@ class WalletRepository(
             tileOffered = p[TILE_OFFERED] ?: false,
             unionPay = WalletCodec.decodeUnionPay(u[UNIONPAY]),
             unionPayFetchedAt = if (WalletCodec.isCurrentTable(u[UNIONPAY])) u[UNIONPAY_AT] ?: 0L else 0L,
+            officialSource = p[OFFICIAL_SOURCE],
+            settings = AppSettings(
+                unionPay = p[SET_UNIONPAY] ?: true,
+                ratesUpdate = RatesUpdate.entries.firstOrNull { it.name == p[SET_RATES_UPDATE] } ?: RatesUpdate.EVERY_6H,
+                countryHint = p[SET_COUNTRY_HINT] ?: true,
+                theme = ThemeMode.entries.firstOrNull { it.name == p[SET_THEME] } ?: ThemeMode.SYSTEM,
+                motion = MotionMode.entries.firstOrNull { it.name == p[SET_MOTION] } ?: MotionMode.SYSTEM,
+            ),
         )
+    }
+
+    suspend fun saveSettings(settings: AppSettings) {
+        store.edit { p ->
+            p[SET_UNIONPAY] = settings.unionPay
+            p[SET_RATES_UPDATE] = settings.ratesUpdate.name
+            p[SET_COUNTRY_HINT] = settings.countryHint
+            p[SET_THEME] = settings.theme.name
+            p[SET_MOTION] = settings.motion.name
+        }
     }
 
     suspend fun saveUnionPay(rates: UnionPayRates, fetchedAt: Long) {
@@ -125,8 +150,8 @@ class WalletRepository(
         store.edit { p -> p[CAMERA_EMBEDDED] = value }
     }
 
-    suspend fun saveOnboardingDone() {
-        store.edit { p -> p[ONBOARDING_DONE] = true }
+    suspend fun saveOnboardingDone(done: Boolean = true) {
+        store.edit { p -> p[ONBOARDING_DONE] = done }
     }
 
     suspend fun saveCountryHandled(iso: String) {
@@ -166,10 +191,11 @@ class WalletRepository(
         }
     }
 
-    suspend fun saveOfficial(rates: OfficialRates, fetchedAt: Long) {
+    suspend fun saveOfficial(rates: OfficialRates, fetchedAt: Long, source: String) {
         store.edit { p ->
             p[OFFICIAL] = WalletCodec.encodeRates(rates)
             p[OFFICIAL_AT] = fetchedAt
+            p[OFFICIAL_SOURCE] = source
         }
     }
 
@@ -222,6 +248,12 @@ class WalletRepository(
         val RATES_HISTORY = stringPreferencesKey("rates_history")
         val CAMERA_USED = booleanPreferencesKey("camera_used")
         val TILE_OFFERED = booleanPreferencesKey("tile_offered")
+        val OFFICIAL_SOURCE = stringPreferencesKey("official_source")
+        val SET_UNIONPAY = booleanPreferencesKey("settings_unionpay")
+        val SET_RATES_UPDATE = stringPreferencesKey("settings_rates_update")
+        val SET_COUNTRY_HINT = booleanPreferencesKey("settings_country_hint")
+        val SET_THEME = stringPreferencesKey("settings_theme")
+        val SET_MOTION = stringPreferencesKey("settings_motion")
         val UNIONPAY = stringPreferencesKey("unionpay_rates")
         val UNIONPAY_AT = longPreferencesKey("unionpay_fetched_at")
     }

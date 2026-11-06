@@ -1,5 +1,6 @@
 package app.dirhamrub.ui.theme
 
+import android.app.Activity
 import android.provider.Settings
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.snap
@@ -11,9 +12,14 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import app.dirhamrub.domain.MotionMode
+import app.dirhamrub.domain.ThemeMode
 
 /** true, если в системе отключены анимации («уменьшить анимацию»). */
 val LocalReduceMotion = staticCompositionLocalOf { false }
@@ -33,13 +39,37 @@ object AppTheme {
 fun <T> motion(durationMs: Int = 220): AnimationSpec<T> =
     if (LocalReduceMotion.current) snap() else tween(durationMs)
 
+/**
+ * Тема приложения: [theme] — как в системе или своя, [motion] — анимации как в системе или выключены.
+ * Значки системных панелей подстраиваются под тему приложения, а не системы.
+ */
 @Composable
-fun DirhamTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
+fun DirhamTheme(
+    theme: ThemeMode = ThemeMode.SYSTEM,
+    motion: MotionMode = MotionMode.SYSTEM,
+    content: @Composable () -> Unit,
+) {
+    val systemDark = isSystemInDarkTheme()
+    val dark = when (theme) {
+        ThemeMode.SYSTEM -> systemDark
+        ThemeMode.DARK -> true
+        ThemeMode.LIGHT -> false
+    }
     val colors = if (dark) DarkColors else LightColors
     val context = LocalContext.current
-    val reduceMotion = remember(context) {
+    val systemReduce = remember(context) {
         Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }
+    val reduceMotion = motion == MotionMode.OFF || systemReduce
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (context as? Activity)?.window ?: return@SideEffect
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !dark
+                isAppearanceLightNavigationBars = !dark
+            }
+        }
     }
     val type = remember { AppType() }
     val scheme = if (dark) {

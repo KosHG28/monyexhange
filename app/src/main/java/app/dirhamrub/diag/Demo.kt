@@ -6,6 +6,7 @@ import app.dirhamrub.data.WalletRepository
 import app.dirhamrub.domain.Expression
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.wallet.BankCard
+import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.PurchaseReceipt
@@ -42,6 +43,11 @@ object Demo {
             purchases = listOf(PurchaseReceipt(Currency.AED, bd("691.65"), bd("379"), day)),
             unionPay = true,
         )
+        // Наличные дирхамы из обменника: в ряду карт — только когда тратите AED.
+        val cash = BankCard(
+            id = "demo-aed-cash", name = "Наличные AED", currency = Currency.AED, style = 2, kind = CardKind.CASH,
+            transfer = TransferReceipt(bd("10000"), Currency.RUB, bd("440.50"), day),
+        )
         val now = OfficialRates(
             today,
             mapOf(
@@ -71,7 +77,7 @@ object Demo {
         )
         repository.saveDemo(
             wallet = Wallet(
-                cards = listOf(tenge, yuan),
+                cards = listOf(tenge, yuan, cash),
                 spend = spend,
                 selectedId = yuan.id,
                 recent = listOf(spend, Currency.AED, Currency.KZT, Currency.THB, Currency.TRY).distinct(),

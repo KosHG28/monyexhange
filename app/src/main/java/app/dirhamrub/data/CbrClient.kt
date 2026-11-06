@@ -15,14 +15,20 @@ import java.time.format.DateTimeFormatter
  * при ошибке — JSON-зеркало `cbr-xml-daily.ru`. Сеть приложению нужна только для этого.
  */
 object CbrClient {
+    /** Откуда пришли курсы — для настроек: «cbr.ru» или зеркало. */
+    data class Fetched(val rates: OfficialRates, val source: String)
+
+    const val SOURCE_CBR = "cbr.ru"
+    const val SOURCE_MIRROR = "cbr-xml-daily.ru"
+
     private const val XML_URL = "https://www.cbr.ru/scripts/XML_daily.asp"
     private const val JSON_URL = "https://www.cbr-xml-daily.ru/daily_json.js"
     private const val ARCHIVE_URL = "https://www.cbr-xml-daily.ru/archive/%04d/%02d/%02d/daily_json.js"
     private const val TIMEOUT_MS = 10_000
     private val CBR_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 
-    suspend fun fetch(): OfficialRates? = withContext(Dispatchers.IO) {
-        xml(XML_URL) ?: json(JSON_URL)
+    suspend fun fetch(): Fetched? = withContext(Dispatchers.IO) {
+        xml(XML_URL)?.let { Fetched(it, SOURCE_CBR) } ?: json(JSON_URL)?.let { Fetched(it, SOURCE_MIRROR) }
     }
 
     /**

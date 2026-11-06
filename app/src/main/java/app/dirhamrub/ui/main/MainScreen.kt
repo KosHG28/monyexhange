@@ -65,6 +65,7 @@ fun MainScreen(
     onCountry: (accept: Boolean) -> Unit,
     onRefreshRates: () -> Unit,
     onOpenCheat: () -> Unit,
+    onOpenSettings: () -> Unit,
     onOpenCamera: () -> Unit,
     /** Центр кнопки «Ценник» на экране — из неё раскрывается камера. */
     onCameraPlaced: (Offset) -> Unit = {},
@@ -87,7 +88,7 @@ fun MainScreen(
             .background(colors.bg)
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        TopBar(wallet.spend, wallet.home, onOpenCurrencies, onOpenCheat)
+        TopBar(wallet.spend, wallet.home, onOpenCurrencies, onOpenCheat, onOpenSettings)
         // Верх экрана на низких телефонах прокручивается, низ (ввод, чипы, клавиатура) всегда на месте.
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             // Крупная сумма мельче, только если иначе группа под картами не помещается без прокрутки.
@@ -106,7 +107,7 @@ fun MainScreen(
                         tileOffer -> TileBanner(onTileOffer)
                     }
                     BankCardsRow(
-                        cards = wallet.cards,
+                        cards = wallet.usable,
                         quote = state.quote,
                         selectedId = wallet.selected?.id,
                         spend = wallet.spend,

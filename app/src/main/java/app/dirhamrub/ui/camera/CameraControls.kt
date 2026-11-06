@@ -223,9 +223,10 @@ internal fun CardSwitch(wallet: Wallet, viaUnionPay: Boolean, onSelect: (String)
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(50))
             .background(Scrim)
-            .clickable(role = Role.Button, enabled = wallet.cards.size > 1) {
-                val i = wallet.cards.indexOfFirst { it.id == card?.id }
-                onSelect(wallet.cards[(i + 1) % wallet.cards.size].id)
+            .clickable(role = Role.Button, enabled = wallet.usable.size > 1) {
+                val cards = wallet.usable
+                val i = cards.indexOfFirst { it.id == card?.id }
+                onSelect(cards[(i + 1) % cards.size].id)
             }
             .semantics { contentDescription = desc }
             .padding(start = if (card != null) 8.dp else 14.dp, end = 14.dp),

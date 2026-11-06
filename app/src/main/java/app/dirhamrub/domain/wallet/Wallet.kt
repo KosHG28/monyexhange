@@ -60,6 +60,9 @@ data class BankCard(
     /** В какую валюту UnionPay пересчитывает покупки по этой карте. */
     val settlementCurrency: Currency get() = settlement ?: UnionPayRates.defaultSettlement(currency)
 
+    /** Можно ли заплатить в [spend]: картой — всегда (банк пересчитает), наличными — только в их валюте. */
+    fun canPay(spend: Currency): Boolean = kind != CardKind.CASH || currency == spend
+
     /** Последний чек покупки в валюте трат [spend]. */
     fun purchaseFor(spend: Currency): PurchaseReceipt? =
         purchases.filter { it.spend == spend && it.isValid }.maxByOrNull { it.date }
@@ -83,7 +86,21 @@ data class Wallet(
     fun withSpend(currency: Currency): Wallet =
         copy(spend = currency, recent = (listOf(currency, spend) + recent).distinct().take(RECENT))
 
-    val selected: BankCard? get() = cards.firstOrNull { it.id == selectedId } ?: cards.firstOrNull()
+    /** Чем можно заплатить в валюте трат: карты и наличные в этой валюте — в порядке пользователя. */
+    val usable: List<BankCard> get() = cards.filter { it.canPay(spend) }
+
+    /**
+     * Выбранная карта, если ею можно заплатить в валюте трат; иначе — первая подходящая.
+     * Выбор не теряется: вернулись к валюте наличных — снова выбраны наличные.
+     */
+    val selected: BankCard? get() = usable.firstOrNull { it.id == selectedId } ?: usable.firstOrNull()
+
+    /** Карты в порядке [ids] (настройки); не названные — после них, в прежнем порядке. */
+    fun reorder(ids: List<String>): Wallet {
+        val byId = cards.associateBy { it.id }
+        val ordered = ids.distinct().mapNotNull { byId[it] }
+        return copy(cards = ordered + cards.filter { it !in ordered })
+    }
 
     fun upsert(card: BankCard): Wallet {
         val exists = cards.any { it.id == card.id }

@@ -122,7 +122,7 @@ internal fun OfficialLine(state: MainUiState, onRefresh: () -> Unit, modifier: M
         } else {
             // У ЦБ нет валюты трат — справочный курс UnionPay (к доллару) × ЦБ (доллар): подпись и дата — UnionPay.
             val via = state.quote.viaUnionPay
-            val date = RuDates.short(state.unionPay?.date?.takeIf { via } ?: rates.date)
+            val date = RuDates.short(state.activeUnionPay?.date?.takeIf { via } ?: rates.date)
             val offline = if (state.ratesFailed) stringResource(R.string.official_offline) else ""
             val full = Triple(
                 stringResource(if (via) R.string.official_line_head_unionpay else R.string.official_line_head, date, rate.first),

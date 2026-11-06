@@ -66,6 +66,7 @@ shot 17-currencies-idr --es spend IDR --es screen currencies
 WAIT=12 shot 18-editor-lkr --es spend LKR --es screen editor
 shot 19-cheat-lkr --es spend LKR --es screen cheat
 shot 20-currencies-lkr --es spend LKR --es screen currencies
+shot 21-settings --es screen settings
 
 # Первый запуск: данные стёрты — знакомство.
 adb shell pm clear "$PKG"

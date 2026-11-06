@@ -15,9 +15,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -45,14 +43,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
@@ -72,7 +66,6 @@ import app.dirhamrub.domain.wallet.TransferReceipt
 import app.dirhamrub.ui.components.CurrencyChips
 import app.dirhamrub.ui.components.CurrencyDropdown
 import app.dirhamrub.ui.components.DashedDivider
-import app.dirhamrub.ui.components.NumberField
 import app.dirhamrub.ui.components.ReceiptLine
 import app.dirhamrub.ui.components.ReceiptSection
 import app.dirhamrub.ui.components.ReceiptShape
@@ -84,20 +77,6 @@ import app.dirhamrub.ui.theme.AppTheme
 import java.math.BigDecimal
 import java.time.LocalDate
 import kotlinx.coroutines.launch
-
-/** Чтение скриншота банка: идёт, не нашли, нашли и заполнили чек. */
-private sealed interface ScanResult {
-    data object Reading : ScanResult
-    data object NotFound : ScanResult
-    data class Found(val receipt: ScannedReceipt) : ScanResult
-}
-
-/** Черновик чека покупки в редакторе: поля — как набрал пользователь. */
-private class PurchaseDraft(val key: Int, spend: Currency, paid: String, price: String, val date: LocalDate) {
-    var spend by mutableStateOf(spend)
-    var paid by mutableStateOf(paid)
-    var price by mutableStateOf(price)
-}
 
 /**
  * Редактор карты: название, валюта, чек пополнения, чеки покупок в разных валютах трат
@@ -330,54 +309,23 @@ fun CardEditorSheet(
                 Spacer(Modifier.height(10.dp))
 
                 if (!cash) {
-                    ReceiptSection(stringResource(R.string.receipt_purchases))
-                    for (d in purchases) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CurrencyDropdown(d.spend, (listOf(spend, d.spend) + Currency.POPULAR).distinct(), { d.spend = it }, pick, chip = true)
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                d.spend.nameRu,
-                                style = type.caption,
-                                color = colors.muted,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
-                            )
-                            val remove = stringResource(R.string.receipt_remove)
-                            Icon(
-                                painterResource(R.drawable.ic_close),
-                                contentDescription = remove,
-                                tint = colors.muted,
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .clickable(role = Role.Button) { purchases.remove(d) }
-                                    .padding(10.dp),
-                            )
-                        }
-                        ReceiptLine(stringResource(R.string.receipt_paid), d.paid, { d.paid = it }, stringResource(R.string.receipt_paid)) {
-                            CurrencyMark(currency.symbol)
-                        }
-                        ReceiptLine(stringResource(R.string.receipt_for), d.price, { d.price = it }, stringResource(R.string.receipt_for)) {
-                            CurrencyMark(d.spend.symbol)
-                        }
-                        val paid = Numbers.parse(d.paid)?.takeIf { it.signum() > 0 }
-                        val price = Numbers.parse(d.price)?.takeIf { it.signum() > 0 }
-                        if (paid != null && price != null) {
-                            ReceiptRate(Numbers.transferRate(paid.divide(price, MC), currency.symbol, d.spend.symbol))
-                        }
-                        Spacer(Modifier.height(6.dp))
-                    }
-                    TextButton(onClick = {
-                        val used = purchases.map { it.spend }.toSet()
-                        val first = if (spend !in used) spend else Currency.POPULAR.firstOrNull { it !in used } ?: spend
-                        purchases.add(PurchaseDraft(nextKey++, first, "", "", LocalDate.now()))
-                    }) { Text(stringResource(R.string.receipt_add), style = type.bodyStrong, color = colors.accent) }
-                    // Общая подсказка — пока чеков покупок нет; потом — только если курс для валюты трат оценочный.
-                    when {
-                        draft.purchases.isEmpty() -> Hint(stringResource(R.string.receipt_purchases_hint))
-                        q?.basis == RateBasis.ESTIMATE -> Hint(stringResource(R.string.receipt_estimate_hint, spend.symbol))
-                    }
+                    PurchaseReceipts(
+                        purchases = purchases,
+                        cardCurrency = currency,
+                        spend = spend,
+                        pick = pick,
+                        // Общая подсказка — пока чеков покупок нет; потом — только если курс для валюты трат оценочный.
+                        hint = when {
+                            draft.purchases.isEmpty() -> stringResource(R.string.receipt_purchases_hint)
+                            q?.basis == RateBasis.ESTIMATE -> stringResource(R.string.receipt_estimate_hint, spend.symbol)
+                            else -> null
+                        },
+                        onAdd = {
+                            val used = purchases.map { it.spend }.toSet()
+                            val first = if (spend !in used) spend else Currency.POPULAR.firstOrNull { it !in used } ?: spend
+                            purchases.add(PurchaseDraft(nextKey++, first, "", "", LocalDate.now()))
+                        },
+                    )
                     Spacer(Modifier.height(10.dp))
                 }
                 DashedDivider()
@@ -418,35 +366,16 @@ fun CardEditorSheet(
             Spacer(Modifier.height(14.dp))
             // Свой курс для текущей пары валют; серым в пустом поле — курс по чекам сейчас.
             val auto = RateEngine.quote(draft.withoutManual(spend, home), spend, home, official)?.homePerUnit
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .cascade(cascade, 6)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(colors.surface)
-                    .padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 10.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        stringResource(R.string.editor_manual, "${Numbers.moneyWhole(manualUnit)} ${spend.symbol}"),
-                        style = type.monoStrong.copy(fontSize = 15.sp),
-                        color = colors.ink,
-                        modifier = Modifier.weight(1f),
-                    )
-                    NumberField(
-                        value = manual,
-                        onValueChange = { manual = it },
-                        style = type.monoStrong.copy(fontSize = 17.sp),
-                        description = stringResource(R.string.editor_manual_hint),
-                        onDone = { focus.clearFocus() },
-                        placeholder = auto?.let { Numbers.rate(it.multiply(manualUnit, MC)) },
-                        modifier = Modifier.width(MANUAL_FIELD),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    CurrencyMark(home.symbol)
-                }
-                Hint(stringResource(R.string.editor_manual_hint))
-            }
+            ManualRatePanel(
+                unit = manualUnit,
+                spend = spend,
+                home = home,
+                value = manual,
+                onValueChange = { manual = it },
+                auto = auto,
+                onDone = { focus.clearFocus() },
+                modifier = Modifier.cascade(cascade, 6),
+            )
         }
         Box(
             Modifier
@@ -498,123 +427,11 @@ fun CardEditorSheet(
     }
 }
 
-/** «Карта | Наличные» в редакторе. */
-@Composable
-private fun KindSwitch(kind: CardKind, onChange: (CardKind) -> Unit) {
-    val colors = AppTheme.colors
-    val type = AppTheme.type
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(colors.surface)
-            .padding(4.dp),
-    ) {
-        for (option in CardKind.entries) {
-            val selected = option == kind
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 48.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) colors.accentSoft else colors.surface)
-                    .selectable(selected = selected, role = Role.Tab) { onChange(option) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    stringResource(if (option == CardKind.CASH) R.string.kind_cash else R.string.kind_card),
-                    style = type.bodyStrong,
-                    color = if (selected) colors.accent else colors.muted,
-                )
-            }
-        }
-    }
-}
-
-/** «Заполнить из скриншота банка» и что получилось. */
-@Composable
-private fun ScreenshotButton(result: ScanResult?, card: Currency, onClick: () -> Unit) {
-    val colors = AppTheme.colors
-    val type = AppTheme.type
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 52.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(colors.surface)
-            .clickable(role = Role.Button, enabled = result != ScanResult.Reading, onClick = onClick)
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(painterResource(R.drawable.ic_screenshot), contentDescription = null, tint = colors.accent, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.scan_button), style = type.bodyStrong, color = colors.ink)
-            Text(stringResource(R.string.scan_hint), style = type.caption, color = colors.muted)
-        }
-    }
-    val message = when (result) {
-        null -> null
-        ScanResult.Reading -> stringResource(R.string.scan_reading)
-        ScanResult.NotFound -> stringResource(R.string.scan_not_found, card.symbol)
-        is ScanResult.Found -> when (val r = result.receipt) {
-            is ScannedReceipt.Purchase -> stringResource(
-                R.string.scan_purchase,
-                "${Numbers.money(r.paid)} ${card.symbol}",
-                "${Numbers.money(r.price)} ${r.spend.symbol}",
-            )
-            is ScannedReceipt.Transfer -> stringResource(
-                R.string.scan_transfer,
-                "${Numbers.money(r.sent)} ${r.sentCurrency.symbol}",
-                "${Numbers.money(r.got)} ${card.symbol}",
-            )
-        }
-    }
-    if (message != null) {
-        Text(
-            text = message,
-            style = type.caption.copy(fontSize = 13.sp),
-            color = when (result) {
-                ScanResult.NotFound -> colors.accent
-                is ScanResult.Found -> colors.good
-                else -> colors.muted
-            },
-            modifier = Modifier
-                .padding(top = 6.dp)
-                .semantics { liveRegion = LiveRegionMode.Polite },
-        )
-    }
-}
-
-@Composable
-private fun CurrencyMark(symbol: String) {
-    Text(symbol, style = AppTheme.type.mono, color = AppTheme.colors.muted, maxLines = 1, softWrap = false)
-}
-
-/** «✓ По этому чеку 1 ¥ = 12,3 ₽» — под заполненным чеком. */
-@Composable
-private fun ReceiptRate(rate: String) {
-    Text(
-        stringResource(R.string.receipt_rate, rate),
-        style = AppTheme.type.caption.copy(fontSize = 13.sp, fontWeight = FontWeight.Medium),
-        color = AppTheme.colors.good,
-        modifier = Modifier.padding(top = 2.dp),
-    )
-}
-
 /** Карта без своего курса для этой пары — чтобы показать, сколько выходит по чекам. */
 private fun BankCard.withoutManual(spend: Currency, home: Currency): BankCard =
     copy(manual = manual.filterNot { it.spend == spend && it.home == home })
-
-@Composable
-private fun Hint(text: String) {
-    Text(text, style = AppTheme.type.caption, color = AppTheme.colors.muted, modifier = Modifier.padding(top = 2.dp))
-}
 
 /** Значение для поля чека: «2 757,48». */
 private fun field(value: BigDecimal): String = Numbers.groupInput(Numbers.plain(value))
 
 private const val MAX_NAME = 24
-
-/** Поле своего курса: «18,1724» помещается, подпись слева не переносится. */
-private val MANUAL_FIELD = 116.dp

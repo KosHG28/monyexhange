@@ -2,22 +2,13 @@ package app.dirhamrub.ui.main
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -28,46 +19,25 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.text.TextAutoSize
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,36 +45,32 @@ import app.dirhamrub.R
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.BankCard
-import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.Currency
-import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.WalletQuote
 import app.dirhamrub.domain.wallet.cbrPublishes
-import app.dirhamrub.ui.components.RollingText
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.CardPalette
 import app.dirhamrub.ui.theme.LocalReduceMotion
-import app.dirhamrub.ui.theme.motion
 import java.math.BigDecimal
 import kotlin.math.PI
 import kotlin.math.floor
 import kotlin.math.sin
 
 private val CARD_HEIGHT = 100.dp
-private val ADD_WIDTH = 52.dp
-private val CARD_RADIUS = 18.dp
-private val CARD_SHAPE = RoundedCornerShape(CARD_RADIUS)
+internal val ADD_WIDTH = 52.dp
+internal val CARD_RADIUS = 18.dp
+internal val CARD_SHAPE = RoundedCornerShape(CARD_RADIUS)
 /** Зазор между картой и обводкой выбранной: обводка рисуется в нём и не сдвигает соседей. */
-private val RING_GAP = 4.dp
+internal val RING_GAP = 4.dp
 
 /** Место под звезду лучшей карты в строке названия (звезду рисует ряд). */
-private val STAR_SLOT = 16.dp
+internal val STAR_SLOT = 16.dp
 
 /** Насколько рамка доползает к соседней карте, пока палец тянет сумму. */
 private const val SWIPE_RING_SHARE = 0.35f
 private const val STAR_FLIGHT_MS = 520
 private val STAR_ARC = 26.dp
-private val RATE_MIN_SP = 9.sp
+internal val RATE_MIN_SP = 9.sp
 
 /**
  * Карты пользователя в ряд (прокручивается) и плитка «+»: ширина карт — от ширины экрана,
@@ -287,264 +253,3 @@ private fun LazyListScope.cardItems(
 internal fun cardScale(): Float = LocalDensity.current.fontScale.coerceIn(1f, MAX_CARD_SCALE)
 
 private const val MAX_CARD_SCALE = 1.3f
-
-/** Насколько курс карты дороже ЦБ: до 3 % — хорошо, до 7 % — заметно, дальше — дорого. */
-enum class Markup { GOOD, WARN, BAD }
-
-fun markupOf(vsOfficial: BigDecimal): Markup = when {
-    vsOfficial < BigDecimal(3) -> Markup.GOOD
-    vsOfficial < BigDecimal(7) -> Markup.WARN
-    else -> Markup.BAD
-}
-
-/** «по чекам», «оценка», «курс ЦБ», «вручную». */
-@Composable
-fun basisShort(q: CardQuote): String = stringResource(
-    when (q.basis) {
-        RateBasis.RECEIPTS -> R.string.card_basis_receipts
-        RateBasis.ESTIMATE -> R.string.card_basis_estimate
-        RateBasis.OFFICIAL -> R.string.card_basis_official
-        RateBasis.MANUAL -> R.string.card_basis_manual
-    },
-)
-
-/** «22,45 ₽ за AED · по чекам · +4,7 % к ЦБ» — как посчитан курс карты. */
-@Composable
-fun basisLabel(q: CardQuote): String {
-    val basis = basisShort(q)
-    val vs = q.vsOfficial?.takeIf { q.basis != RateBasis.OFFICIAL }?.let { signedPercent(it) }
-    return if (vs == null) basis else basis + " · " + stringResource(R.string.card_vs_official, vs)
-}
-
-/** «+4,7», «−1,2», «0». */
-fun signedPercent(value: BigDecimal): String {
-    val text = Numbers.percent(value.abs())
-    return when {
-        text == "0" -> "0"
-        value.signum() > 0 -> "+$text"
-        else -> "−$text"
-    }
-}
-
-@Composable
-private fun BankCardView(
-    card: BankCard,
-    quote: CardQuote?,
-    spend: Currency,
-    home: Currency,
-    sum: String?,
-    selected: Boolean,
-    best: String?,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    width: Dp,
-    height: Dp,
-    /** У валюты трат нет курса ЦБ: без чека покупки в ней курса нет — «нужен чек». */
-    needsReceipt: Boolean = false,
-) {
-    val colors = AppTheme.colors
-    val type = AppTheme.type
-    val style = CardPalette.style(card)
-    val dim by animateFloatAsState(if (selected) 1f else 0.82f, motion(), label = "cardDim")
-    // Невыбранные карты чуть меньше: выбранная — «впереди».
-    val shrink by animateFloatAsState(if (selected) 1f else 0.96f, motion(260), label = "cardScale")
-    // Чеки карты изменились (сохранили редактор) — карта переворачивается и коротко светится: курс новый.
-    val receipts = Triple(card.transfer, card.purchases, card.manual)
-    var seenReceipts by remember(card.id) { mutableStateOf(receipts) }
-    val turn = remember(card.id) { Animatable(0f) }
-    val glow = remember(card.id) { Animatable(0f) }
-    val reduceMotion = LocalReduceMotion.current
-    LaunchedEffect(receipts) {
-        if (receipts == seenReceipts) return@LaunchedEffect
-        seenReceipts = receipts
-        if (reduceMotion) return@LaunchedEffect
-        turn.animateTo(90f, tween(150))
-        turn.snapTo(-90f)
-        turn.animateTo(0f, tween(240, easing = FastOutSlowInEasing))
-        glow.snapTo(1f)
-        glow.animateTo(0f, tween(800))
-    }
-
-    val rate = quote?.let {
-        val unit = Numbers.unitFor(it.homePerUnit)
-        stringResource(
-            R.string.card_rate_short,
-            Numbers.rateShort(it.homePerUnit.multiply(unit, MC)),
-            home.symbol,
-            if (unit.compareTo(BigDecimal.ONE) == 0) spend.symbol else "${Numbers.moneyWhole(unit)} ${spend.symbol}",
-        )
-    } ?: stringResource(if (needsReceipt) R.string.card_need_receipt else R.string.card_no_rate)
-    val vs = quote?.takeIf { it.basis != RateBasis.OFFICIAL }?.vsOfficial
-    // Оценочный курс (нет чека покупки в валюте трат) — сумма со знаком «≈».
-    val approx = if (quote?.basis == RateBasis.ESTIMATE) "≈ " else ""
-    val sumText = sum?.let { "$approx$it ${home.symbol}" } ?: "—"
-    val a11y = buildString {
-        append(stringResource(R.string.card_a11y, card.name, sumText, rate))
-        if (quote != null) append(", ").append(basisLabel(quote))
-        if (best != null) append(". ").append(best)
-    }
-    val editLabel = stringResource(R.string.card_edit_a11y)
-    val sumSize = if (sumText.length > 11) 17.sp else 22.sp
-
-    // Зазор под общую рамку выбранной карты (её рисует ряд): размер и соседи не меняются.
-    Box(Modifier.padding(RING_GAP)) {
-        Box(
-            modifier = Modifier
-                .size(width, height)
-                .graphicsLayer {
-                    alpha = dim
-                    scaleX = shrink
-                    scaleY = shrink
-                    rotationY = turn.value
-                    cameraDistance = 12f * density
-                }
-                .drawWithContent {
-                    drawContent()
-                    if (glow.value > 0f) {
-                        drawRoundRect(
-                            color = CardPalette.goodOnCard.copy(alpha = glow.value),
-                            cornerRadius = CornerRadius(CARD_RADIUS.toPx()),
-                            style = Stroke(2.5.dp.toPx()),
-                        )
-                    }
-                }
-                .clip(CARD_SHAPE)
-                .background(Brush.linearGradient(listOf(style.start, style.end)))
-                .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = editLabel)
-                .clearAndSetSemantics {
-                    contentDescription = a11y
-                    this.selected = selected
-                    role = Role.RadioButton
-                },
-        ) {
-            // Водяной знак валюты карты.
-            val mark = card.currency.symbol
-            Text(
-                text = mark,
-                style = type.hero.copy(fontSize = if (mark.length > 2) 40.sp else 88.sp, lineHeight = 92.sp, letterSpacing = 0.sp),
-                color = style.mark.copy(alpha = 0.2f),
-                maxLines = 1,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .offset(x = 6.dp, y = if (mark.length > 2) 4.dp else 24.dp),
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 13.dp, vertical = 11.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = card.name,
-                        style = type.label.copy(fontSize = 12.5.sp),
-                        color = CardPalette.onCard.copy(alpha = 0.92f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    // Звезду лучшей карты рисует ряд: при смене лучшей она перелетает к другой карте.
-                    if (best != null) Spacer(Modifier.width(STAR_SLOT))
-                }
-                Spacer(Modifier.weight(1f))
-                // Сумма меняется на каждом нажатии — перекатываются только изменившиеся цифры.
-                val sumStyle = type.number.copy(fontSize = sumSize, lineHeight = sumSize * 1.15f, fontWeight = FontWeight.Medium, letterSpacing = 0.sp)
-                Row {
-                    if (sum != null) {
-                        if (approx.isNotEmpty()) Text(approx, style = sumStyle, color = CardPalette.onCard, maxLines = 1, softWrap = false)
-                        RollingText(sum, style = sumStyle, color = CardPalette.onCard)
-                        Text(" " + home.symbol, style = sumStyle, color = CardPalette.onCard, maxLines = 1, softWrap = false)
-                    } else {
-                        Text(sumText, style = sumStyle, color = CardPalette.onCard, maxLines = 1, softWrap = false)
-                    }
-                }
-                Spacer(Modifier.height(3.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Курс не сокращается многоточием: на узкой карте шрифт сам уменьшается, пока строка не влезет.
-                    BasicText(
-                        text = rate,
-                        style = type.caption.copy(fontSize = 11.5.sp, lineHeight = 14.sp, color = CardPalette.onCard.copy(alpha = 0.88f)),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        autoSize = TextAutoSize.StepBased(minFontSize = RATE_MIN_SP, maxFontSize = 11.5.sp, stepSize = 0.25.sp),
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    if (vs != null) {
-                        Spacer(Modifier.width(5.dp))
-                        Text(
-                            text = stringResource(R.string.percent_value, signedPercent(vs)),
-                            style = type.caption.copy(fontSize = 10.5.sp, lineHeight = 13.sp, fontWeight = FontWeight.SemiBold),
-                            color = when (markupOf(vs)) {
-                                Markup.GOOD -> CardPalette.goodOnCard
-                                Markup.WARN -> CardPalette.warnOnCard
-                                Markup.BAD -> CardPalette.badOnCard
-                            },
-                            maxLines = 1,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(CardPalette.chipScrim)
-                                .padding(horizontal = 5.dp, vertical = 1.dp),
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-/** Узкая плитка «+» в конце ряда: показывает, что карт может быть больше. */
-@Composable
-private fun AddCardTile(onAdd: () -> Unit, height: Dp) {
-    val colors = AppTheme.colors
-    val label = stringResource(R.string.card_add)
-    Box(Modifier.padding(RING_GAP)) {
-        Box(
-            modifier = Modifier
-                .size(ADD_WIDTH, height)
-                .clip(CARD_SHAPE)
-                .clickable(role = Role.Button, onClickLabel = label, onClick = onAdd)
-                .semantics { contentDescription = label },
-            contentAlignment = Alignment.Center,
-        ) {
-            val line = colors.line
-            Canvas(Modifier.fillMaxSize()) {
-                drawRoundRect(
-                    color = line,
-                    cornerRadius = CornerRadius(18.dp.toPx()),
-                    style = Stroke(width = 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 6.dp.toPx()))),
-                )
-            }
-            Icon(painterResource(R.drawable.ic_add), contentDescription = null, tint = colors.muted, modifier = Modifier.size(26.dp))
-        }
-    }
-}
-
-/** Пустой кошелёк: широкая плитка с объяснением. */
-@Composable
-private fun AddCardHint(onAdd: () -> Unit, modifier: Modifier = Modifier) {
-    val colors = AppTheme.colors
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.line, RoundedCornerShape(16.dp))
-            .clickable(role = Role.Button, onClick = onAdd)
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(colors.accentSoft),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(R.drawable.ic_add), contentDescription = null, tint = colors.accent)
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.card_add), style = AppTheme.type.bodyStrong, color = colors.ink)
-            Text(stringResource(R.string.card_add_hint), style = AppTheme.type.caption, color = colors.muted, textAlign = TextAlign.Start)
-        }
-    }
-}

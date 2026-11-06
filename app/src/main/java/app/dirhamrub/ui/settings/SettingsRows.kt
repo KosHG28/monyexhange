@@ -180,9 +180,12 @@ internal fun LinkRow(
     }
 }
 
-/** Источник курсов: значок, название, состояние справа (✓ сегодня 19:41) и что в нём. */
+/**
+ * Источник курсов: значок, название, состояние справа (✓ сегодня 19:41) и что в нём.
+ * Состояние зелёное, если всё есть, жёлтое при [warn] (нет связи, нет курсов), иначе серое («—»).
+ */
 @Composable
-internal fun SourceRow(badge: String, title: String, status: String, ok: Boolean, subtitle: String) {
+internal fun SourceRow(badge: String, title: String, status: String, ok: Boolean, subtitle: String, warn: Boolean = false) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     Row(
@@ -204,7 +207,16 @@ internal fun SourceRow(badge: String, title: String, status: String, ok: Boolean
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink, modifier = Modifier.weight(1f))
-                Text(status, style = type.caption.copy(fontSize = 13.sp), color = if (ok) colors.good else colors.warn, maxLines = 1)
+                Text(
+                    status,
+                    style = type.caption.copy(fontSize = 13.sp),
+                    color = when {
+                        ok -> colors.good
+                        warn -> colors.warn
+                        else -> colors.muted
+                    },
+                    maxLines = 1,
+                )
             }
             Text(subtitle, style = type.caption, color = colors.muted)
         }

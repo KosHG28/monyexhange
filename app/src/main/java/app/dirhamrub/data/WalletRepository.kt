@@ -182,6 +182,7 @@ class WalletRepository(
             p[EXPRESSION] = expression.serialize()
             p[OFFICIAL] = WalletCodec.encodeRates(official)
             p[OFFICIAL_AT] = System.currentTimeMillis()
+            p[OFFICIAL_SOURCE] = CbrClient.SOURCE_CBR
             p[OFFICIAL_WEEK] = WalletCodec.encodeRates(weekAgo)
             p[ONBOARDING_DONE] = true
             // Эмулятор CI «находится» в США — плашку «считать в USD?» на скриншотах не показываем,

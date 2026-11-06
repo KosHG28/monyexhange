@@ -162,6 +162,7 @@ private fun RatesSection(state: MainUiState, actions: SettingsActions) {
             title = stringResource(R.string.settings_cbr),
             status = cbrStatus,
             ok = official != null && !state.ratesFailed && !state.ratesLoading,
+            warn = official == null || state.ratesFailed,
             subtitle = official?.let {
                 stringResource(R.string.settings_cbr_sub, RuDates.short(it.date), it.rubPerUnit.size, state.officialSource ?: "—")
             } ?: stringResource(R.string.settings_cbr_empty),

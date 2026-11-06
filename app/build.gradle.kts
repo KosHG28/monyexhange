@@ -15,7 +15,8 @@ android {
         versionCode = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull() ?: 1
         versionName = "1.11.1"
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            // Только 64-битные телефоны: копия распознавания текста для 32-битных весила 6,8 МБ из 23.
+            abiFilters += listOf("arm64-v8a")
             // Для прогона на x86_64-эмуляторе в CI: ./gradlew assembleRelease -Pdirhamrub.x86=true
             if (providers.gradleProperty("dirhamrub.x86").isPresent) abiFilters += "x86_64"
         }

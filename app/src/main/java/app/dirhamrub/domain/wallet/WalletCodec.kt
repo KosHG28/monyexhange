@@ -25,6 +25,7 @@ object WalletCodec {
             p[k + "name"] = c.name
             p[k + "currency"] = c.currency.code
             p[k + "style"] = c.style.toString()
+            p[k + "kind"] = c.kind.name
             c.transfer?.let { t ->
                 p[k + "transfer.sent"] = t.sent.toPlainString()
                 p[k + "transfer.sentCurrency"] = t.sentCurrency.code
@@ -122,7 +123,37 @@ object WalletCodec {
             transfer = transfer,
             purchases = purchases,
             manual = manual,
+            kind = CardKind.entries.firstOrNull { it.name == p.getProperty(k + "kind") } ?: CardKind.CARD,
         )
+    }
+
+    /** Курсы ЦБ на даты чеков: ключ — дата чека, значение — курсы, действовавшие на неё. */
+    fun encodeHistory(history: Map<LocalDate, OfficialRates>): String {
+        val p = Properties()
+        for ((day, rates) in history) {
+            p["$day.date"] = rates.date.toString()
+            for ((c, v) in rates.rubPerUnit) p["$day.rub.${c.code}"] = v.toPlainString()
+        }
+        return store(p)
+    }
+
+    fun decodeHistory(text: String?): Map<LocalDate, OfficialRates> {
+        if (text.isNullOrEmpty()) return emptyMap()
+        val p = load(text) ?: return emptyMap()
+        val out = HashMap<LocalDate, OfficialRates>()
+        for (name in p.stringPropertyNames()) {
+            if (!name.endsWith(".date")) continue
+            val key = name.removeSuffix(".date")
+            val day = runCatching { LocalDate.parse(key) }.getOrNull() ?: continue
+            val date = p.date(name) ?: continue
+            val rates = p.stringPropertyNames().filter { it.startsWith("$key.rub.") }.mapNotNull { n ->
+                val c = Currency.byCode(n.removePrefix("$key.rub.")) ?: return@mapNotNull null
+                val v = p.decimal(n) ?: return@mapNotNull null
+                c to v
+            }.toMap()
+            if (rates.isNotEmpty()) out[day] = OfficialRates(date, rates)
+        }
+        return out
     }
 
     private fun store(p: Properties): String = StringWriter().also { p.store(it, null) }.toString()

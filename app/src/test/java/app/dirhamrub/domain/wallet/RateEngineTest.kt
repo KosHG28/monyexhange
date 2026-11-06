@@ -4,6 +4,7 @@ import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.NBSP
 import app.dirhamrub.domain.Numbers
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -60,6 +61,32 @@ class RateEngineTest {
         assertEquals("cny", all.best!!.card.id)
         assertEquals("3,4", Numbers.percent(all.bestSavingsPercent!!))
         assertEquals("22,19", Numbers.rate(all.official!!, 2))
+    }
+
+    @Test
+    fun `сравнение выбранной карты с самой дешёвой из остальных`() {
+        val all = RateEngine.quoteAll(Wallet(cards = listOf(tenge, yuan), spend = Currency.AED), official)
+        val dear = all.compare("kzt")!!
+        assertEquals("cny", dear.other.card.id)
+        assertFalse(dear.selectedIsBest)
+        // (23,2398 − 22,4467) / 23,2398 = 3,4 %; на 100 AED — 79,31 ₽
+        assertEquals("3,4", Numbers.percent(dear.percent))
+        assertEquals("79,31", Numbers.money(dear.difference(bd("100"))))
+        assertTrue(dear.isExact)
+        val best = all.compare("cny")!!
+        assertEquals("kzt", best.other.card.id)
+        assertTrue(best.selectedIsBest)
+        assertEquals("3,4", Numbers.percent(best.percent))
+        assertEquals("79,31", Numbers.money(best.difference(bd("100"))))
+        assertNull(all.compare("nope"))
+        assertNull(RateEngine.quoteAll(Wallet(cards = listOf(tenge), spend = Currency.AED), official).compare("kzt"))
+    }
+
+    @Test
+    fun `сравнение по оценочным курсам не точное`() {
+        // Чеков покупки в батах нет: обе карты — курс ЦБ с наценкой.
+        val all = RateEngine.quoteAll(Wallet(cards = listOf(tenge, yuan), spend = Currency.THB), official)
+        assertFalse(all.compare("kzt")!!.isExact)
     }
 
     @Test

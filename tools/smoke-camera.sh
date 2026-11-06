@@ -24,7 +24,8 @@ retrace_crash() {
 }
 
 fail_if_crashed() {
-  if adb logcat -d | grep -q 'FATAL EXCEPTION'; then
+  # Только падения нашего процесса: системные приложения эмулятора (Gmail и т. п.) тоже иногда падают.
+  if adb logcat -d -b crash | grep -A1 'FATAL EXCEPTION' | grep -q "Process: $PKG,"; then
     echo "=== ПАДЕНИЕ: $1 ==="
     adb logcat -d -b crash -v raw > crash.txt
     cat crash.txt

@@ -11,6 +11,17 @@ data class PriceCandidate(
     val hasCurrency: Boolean,
     /** Старая цена (рядом WAS или она зачёркнута/перебита новой). */
     val isOld: Boolean,
+    /**
+     * Похоже на цену уверенно: валюта рядом или в том же блоке, или копейки. Голое крупное целое
+     * («200» на этикетке) — догадка, её метка рисуется иначе.
+     */
+    val confident: Boolean = true,
+    /** Цена вместе со знаком валюты рядом («17 990 ТГ») — что закрывать, когда сумма вписывается в ценник. */
+    val extent: Box = box,
+    /** Наклон строки с ценой, градусы. */
+    val angle: Float = 0f,
+    /** Высота цифр «как на ценнике» (у наклонённой строки меньше высоты [box]). */
+    val height: Float = box.height,
 )
 
 /**
@@ -34,9 +45,12 @@ class PriceCurrency(
             BigDecimal("0.5"), BigDecimal("100000"),
         )
 
-        /** Тенге: ₸, KZT, TENGE, «тг»; латинский OCR часто читает ₸ как одиночную T. */
+        /**
+         * Тенге: ₸, KZT, TENGE, «тг»; латинский OCR часто читает ₸ как одиночную T,
+         * а кириллическое «ТГ» — как «TF» или «Tr».
+         */
         val KZT = PriceCurrency(
-            currency(words("KZT", "TENGE", "TG", "T") + "|₸|(?<![А-Яа-я])(?:тг|тенге)(?![А-Яа-я])\\.?"),
+            currency(words("KZT", "TENGE", "TG", "TF", "TR", "T") + "|₸|(?<![А-Яа-я])(?:тг|тенге)(?![А-Яа-я])\\.?"),
             BigDecimal("10"), BigDecimal("10000000"), longRunDigits = 9,
         )
 
@@ -103,11 +117,14 @@ class PriceCurrency(
  * 1. Склеивает разорванные части числа: «79» + «.95», «1,299» + «.00», копейки верхним индексом.
  * 2. Маскирует телефоны, длинные коды, даты и время, отбрасывает проценты, объём, вес, размеры.
  * 3. Оценивает каждую находку: валюта рядом, дробная часть, высота текста относительно кадра.
- * 4. Помечает старые цены: слово WAS/OLD/RRP рядом или мелкая и бо́льшая цена возле крупной новой.
+ * 4. Если в кадре есть цены с валютой, голые целые без валюты и копеек отбрасывает: это надписи
+ *    на упаковке («200 years» на бутылке), номера полок и т. п. Без таких цен — оставляет как догадку.
+ * 5. Отбрасывает числа у левого и правого края кадра [bounds]: ценник обрезан, «8» может быть «8.50» или «18».
+ * 6. Помечает старые цены: слово WAS/OLD/RRP рядом или мелкая и бо́льшая цена возле крупной новой.
  */
 class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
 
-    fun parse(blocks: List<OcrBlock>): List<PriceCandidate> {
+    fun parse(blocks: List<OcrBlock>, bounds: Box? = null): List<PriceCandidate> {
         val raw = ArrayList<Raw>()
         for (block in blocks) {
             val lines = mergeSuperscripts(block.lines)
@@ -115,7 +132,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
             val blockHasCurrency = currency.pattern.containsMatchIn(blockText)
             lines.forEachIndexed { index, line ->
                 val prevLine = if (index > 0) lines[index - 1] else null
-                parseLine(glueFragments(line.words), prevLine, blockHasCurrency, raw)
+                parseLine(glueFragments(line.words), prevLine, blockHasCurrency, raw, line.angle)
             }
         }
         if (raw.isEmpty()) return emptyList()
@@ -133,10 +150,24 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
             r.score = score
             accepted += r
         }
-        markStruckOut(accepted)
-        return dedupe(accepted)
+        val anyCurrency = accepted.any { it.hasCurrency }
+        val kept = accepted.filter { r ->
+            when {
+                anyCurrency && !r.confident -> false
+                bounds != null && nearSideEdge(r.box, bounds) -> false
+                else -> true
+            }
+        }
+        markStruckOut(kept)
+        return dedupe(kept)
             .sortedByDescending { it.score }
-            .map { PriceCandidate(it.value, it.box, it.score, it.hasCurrency, it.isOld) }
+            .map { PriceCandidate(it.value, it.box, it.score, it.hasCurrency, it.isOld, it.confident, it.extent, it.angle, it.height) }
+    }
+
+    /** Число у левого или правого края (ближе 0,6 высоты цифр) или за ним — могло обрезаться. */
+    private fun nearSideEdge(box: Box, bounds: Box): Boolean {
+        val margin = EDGE_MARGIN * box.height
+        return box.left < bounds.left + margin || box.right > bounds.right - margin
     }
 
     private class Raw(
@@ -147,21 +178,25 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         val hasFraction: Boolean,
         val digits: Int,
         var isOld: Boolean,
+        val extent: Box,
+        val angle: Float,
+        val height: Float,
     ) {
         var score: Float = 0f
+        val confident: Boolean get() = hasCurrency || blockCurrency || hasFraction
     }
 
-    private class Token(val text: String, val box: Box, val start: Int) {
+    private class Token(val text: String, val box: Box, val start: Int, val height: Float) {
         val end: Int get() = start + text.length
     }
 
-    private fun parseLine(words: List<OcrWord>, prevLine: OcrLine?, blockCurrency: Boolean, out: MutableList<Raw>) {
+    private fun parseLine(words: List<OcrWord>, prevLine: OcrLine?, blockCurrency: Boolean, out: MutableList<Raw>, angle: Float) {
         if (words.isEmpty()) return
         val tokens = ArrayList<Token>(words.size)
         val sb = StringBuilder()
         for (w in words) {
             if (sb.isNotEmpty()) sb.append(' ')
-            tokens += Token(w.text, w.box, sb.length)
+            tokens += Token(w.text, w.box, sb.length, w.height)
             sb.append(w.text)
         }
         val text = sb.toString()
@@ -190,12 +225,14 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
             val value = parseNumber(numberText) ?: continue
             if (value < currency.min || value > currency.max) continue
 
-            val hasCurrency = currencies.any { c ->
+            val marker = currencies.firstOrNull { c ->
                 val gapBefore = m.range.first - c.last - 1
                 val gapAfter = c.first - m.range.last - 1
                 gapBefore in 0..CURRENCY_GAP || gapAfter in 0..CURRENCY_GAP
             }
+            val hasCurrency = marker != null
             val box = boxOf(tokens, m.range.first, m.range.last + 1) ?: continue
+            val extent = marker?.let { c -> boxOf(tokens, minOf(c.first, m.range.first), maxOf(c.last, m.range.last) + 1) } ?: box
             out += Raw(
                 value = value,
                 box = box,
@@ -204,6 +241,9 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
                 hasFraction = FRACTION.containsMatchIn(numberText),
                 digits = numberText.count { it.isDigit() },
                 isOld = oldKeyword,
+                extent = extent,
+                angle = angle,
+                height = tokens.filter { maxOf(it.start, m.range.first) < minOf(it.end, m.range.last + 1) }.maxOfOrNull { it.height } ?: box.height,
             )
         }
     }
@@ -218,19 +258,22 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         return normalized.toBigDecimalOrNull()
     }
 
-    /** Рамка подстроки [start, end) строки: части слов — пропорционально числу символов. */
+    /**
+     * Рамка подстроки [start, end) строки: части слов — пропорционально ширине символов. В «179.00DHS»
+     * буквы «DHS» шире цифр, а точка уже: по одному числу символов рамка цены съезжала на «D».
+     */
     private fun boxOf(tokens: List<Token>, start: Int, end: Int): Box? {
         var result: Box? = null
         for (t in tokens) {
             val s = max(start, t.start)
             val e = minOf(end, t.end)
             if (s >= e) continue
-            val len = t.text.length.coerceAtLeast(1)
+            val total = widthOf(t.text, 0, t.text.length).coerceAtLeast(1e-3f)
             val w = t.box.width
             val part = Box(
-                left = t.box.left + w * (s - t.start) / len,
+                left = t.box.left + w * widthOf(t.text, 0, s - t.start) / total,
                 top = t.box.top,
-                right = t.box.left + w * (e - t.start) / len,
+                right = t.box.left + w * widthOf(t.text, 0, e - t.start) / total,
                 bottom = t.box.bottom,
             )
             result = result?.union(part) ?: part
@@ -261,7 +304,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
                     else -> null
                 }
                 if (glued != null) {
-                    out[out.lastIndex] = OcrWord(glued, prev.box.union(w.box))
+                    out[out.lastIndex] = OcrWord(glued, prev.box.union(w.box), maxOf(prev.height, w.height))
                     continue
                 }
             }
@@ -291,12 +334,12 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
                     s.box.top >= big.box.top - 0.3f * bh &&
                     s.box.top <= big.box.top + 0.3f * bh
             } ?: continue
-            replaced[big] = OcrWord(big.text + "." + small.text, big.box.union(small.box))
+            replaced[big] = OcrWord(big.text + "." + small.text, big.box.union(small.box), big.height)
             removed += small
         }
         if (replaced.isEmpty()) return lines
         return lines.map { line ->
-            OcrLine(line.words.filter { it !in removed }.map { replaced[it] ?: it })
+            line.copy(words = line.words.filter { it !in removed }.map { replaced[it] ?: it })
         }.filter { it.words.isNotEmpty() }
     }
 
@@ -319,14 +362,33 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         }
     }
 
-    /** OCR иногда отдаёт одно и то же дважды — оставляем лучшую находку. */
+    /**
+     * OCR иногда отдаёт одно и то же дважды, а то и два прочтения одного места («200» и «20») —
+     * на одном месте оставляем лучшую находку.
+     */
     private fun dedupe(items: List<Raw>): List<Raw> {
         val sorted = items.sortedByDescending { it.score }
         val out = ArrayList<Raw>(sorted.size)
         for (r in sorted) {
-            if (out.none { it.value.compareTo(r.value) == 0 && it.box.iou(r.box) > 0.5f }) out += r
+            if (out.none { it.box.iou(r.box) > SAME_PLACE_IOU }) out += r
         }
         return out
+    }
+
+    /** Относительная ширина символов [from, to) строки [text]: цифры — 1, точка и запятая уже, прописные шире. */
+    private fun widthOf(text: String, from: Int, to: Int): Float {
+        var sum = 0f
+        for (i in from until to) {
+            val c = text[i]
+            sum += when {
+                c.isDigit() -> 1f
+                c in NARROW_CHARS -> 0.5f
+                c in WIDE_CHARS -> 1.5f
+                c.isUpperCase() -> 1.3f
+                else -> 1f
+            }
+        }
+        return sum
     }
 
     private fun similarHeight(a: Box, b: Box): Boolean {
@@ -335,6 +397,8 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
     }
 
     companion object {
+        private const val NARROW_CHARS = ".,:;'’ |!iIlj"
+        private const val WIDE_CHARS = "MWmw"
         private const val TALL_TEXT = 0.75f
         private const val CURRENCY_GAP = 2
         private const val GLUE_GAP = 0.8f
@@ -342,6 +406,8 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         private const val SUPERSCRIPT_RATIO = 0.75f
         private const val STRUCK_HEIGHT_RATIO = 0.8f
         private const val STRUCK_DISTANCE = 2.5f
+        private const val EDGE_MARGIN = 0.6f
+        private const val SAME_PLACE_IOU = 0.5f
 
         private val NUMBER = Regex("""(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\d]|[.,]\d)""")
         private val NUMBER_DOT = Regex(
@@ -357,7 +423,8 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         )
 
         private val DATE = Regex("""\d{1,4}[./-]\d{1,2}[./-]\d{1,4}""")
-        private val SLASHED = Regex("""\d+\s?/\s?\d+""")
+        /** Дроби и артикулы через слеш целиком: «1/2», «9598/202/251» (раньше «251» в конце оставался числом). */
+        private val SLASHED = Regex("""\d+(?:\s?/\s?\d+)+""")
         private val TIME = Regex("""\d{1,2}:\d{2}(?::\d{2})?|\d{1,2}[.:]\d{2}\s?(?:am|pm)\b""", RegexOption.IGNORE_CASE)
         private val DIGIT_RUN = Regex("""\+?\d(?:[ \-()]?\d)+""")
         private val PHONE_PREFIX = Regex("""\+\s?971[\d \-()]*""")

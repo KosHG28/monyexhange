@@ -3,6 +3,8 @@ package app.dirhamrub.ui.theme
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import app.dirhamrub.domain.wallet.BankCard
+import app.dirhamrub.domain.wallet.CardKind
 
 /** Палитра из SPEC: прохладный фон, красный дубайского метро. */
 @Immutable
@@ -84,4 +86,9 @@ object CardPalette {
     )
 
     fun style(index: Int): CardStyle = styles[((index % styles.size) + styles.size) % styles.size]
+
+    /** Наличные: зелень купюр — сразу видно, что это не карта. */
+    val cash = CardStyle(Color(0xFF3F8F5A), Color(0xFF1F4A30), Color(0xFFCDEBD6), gold)
+
+    fun style(card: BankCard): CardStyle = if (card.kind == CardKind.CASH) cash else style(card.style)
 }

@@ -20,7 +20,8 @@
 ```
 
 CI: `.github/workflows/android.yml` — на каждый push тесты, lint, debug и release APK (artifact
-`dirhamrub-apk`); на тег `v*` — GitHub Release с `dirhamrub-vX.Y.Z.apk`. Если тег не запушить
+`dirhamrub-apk`), дымовой тест камеры и скриншоты экранов на эмуляторе (пререлиз «screens»:
+`tools/screens.sh`, демо-данные — extra `demo` в отладочной сборке, экран — extra `screen`); на тег `v*` — GitHub Release с `dirhamrub-vX.Y.Z.apk`. Если тег не запушить
 (в облачном окружении пуш тегов запрещён), релиз создаёт ручной запуск workflow с `release=vX.Y.Z`.
 
 ## Архитектура
@@ -40,7 +41,8 @@ app/src/main/java/app/dirhamrub/
     price/PriceTracker                    стабилизация меток между кадрами
   data/              WalletRepository (DataStore + перенос с 0.x), CbrClient (сеть)
   ui/theme/          цвета, шрифты, тема, оформления карт
-  ui/main/           главный экран + MainViewModel
+  ui/main/           главный экран (MainScreen, TopBar, ResultBlock, InputArea) + MainViewModel
+  ui/onboarding/     знакомство при первом запуске
   ui/cards/          редактор карты и чеков
   ui/currency/       выбор валюты трат и итоговой
   ui/cheat/          шпаргалка

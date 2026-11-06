@@ -14,6 +14,7 @@ class CalculatorTest {
         when (it) {
             ',' -> Key.Comma
             '+' -> Key.Plus
+            '*' -> Key.Times
             '=' -> Key.Equals
             else -> Key.Digit(it - '0')
         }
@@ -25,6 +26,56 @@ class CalculatorTest {
         assertEquals("22 + 15,5 + 8", e.display())
         assertEquals(0, BigDecimal("45.5").compareTo(e.value))
         assertTrue(e.isCompound)
+    }
+
+    @Test
+    fun `умножение раньше сложения`() {
+        val e = type(*digits("3*22+15,5"))
+        assertEquals("3 × 22 + 15,5", e.display())
+        assertEquals(0, BigDecimal("81.5").compareTo(e.value))
+        assertEquals(0, BigDecimal("47").compareTo(type(*digits("2+3*15")).value))
+        assertEquals(0, BigDecimal("30").compareTo(type(*digits("2*3*5")).value))
+    }
+
+    @Test
+    fun `недописанный множитель не обнуляет сумму`() {
+        val e = type(*digits("3*"))
+        assertEquals("3 × ", e.display())
+        assertEquals(0, BigDecimal("3").compareTo(e.value))
+        assertEquals(0, BigDecimal("15").compareTo(type(*digits("10+5*")).value))
+    }
+
+    @Test
+    fun `знак после знака заменяет его`() {
+        assertEquals("3 × ", type(*digits("3+*")).display())
+        assertEquals("3 + ", type(*digits("3*+")).display())
+        assertEquals("", type(*digits("*")).display())
+    }
+
+    @Test
+    fun `стирание знака умножения`() {
+        val e = type(*digits("3*2"))
+        assertEquals("3 × ", e.press(Key.Backspace).display())
+        val back = e.press(Key.Backspace).press(Key.Backspace)
+        assertEquals("3", back.display())
+        assertEquals("3 + 1", back.press(Key.Plus).press(Key.Digit(1)).display())
+    }
+
+    @Test
+    fun `чип после умножения становится множителем`() {
+        val e = type(*digits("3*")).putAmount(BigDecimal("22"))
+        assertEquals("3 × 22", e.display())
+        assertEquals(0, BigDecimal("66").compareTo(e.value))
+    }
+
+    @Test
+    fun `умножение сохраняется и читается`() {
+        val e = type(*digits("3*22+15,5"))
+        assertEquals("3*22+15,5", e.serialize())
+        assertEquals(e, Expression.parse(e.serialize()))
+        // Сохранения прежних версий — только сложение.
+        assertEquals("22 + 15,5", Expression.parse("22+15,5").display())
+        assertEquals(0, BigDecimal("37.5").compareTo(Expression.parse("22+15,5").value))
     }
 
     @Test

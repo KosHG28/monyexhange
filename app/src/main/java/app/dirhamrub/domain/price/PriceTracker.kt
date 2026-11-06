@@ -12,6 +12,14 @@ data class TrackedPrice(
     val isOld: Boolean,
     /** Прозрачность 0..1: плавное исчезновение после пропажи. */
     val alpha: Float,
+    /** См. [PriceCandidate.confident]. */
+    val confident: Boolean = true,
+    /** Цена со знаком валюты, сглаженная как [box]. */
+    val extent: Box = box,
+    /** Наклон строки, градусы, сглаженный. */
+    val angle: Float = 0f,
+    /** Высота цифр «как на ценнике», сглаженная. */
+    val height: Float = box.height,
 )
 
 /**
@@ -20,6 +28,9 @@ data class TrackedPrice(
  * - сглаживает рамку экспоненциальным средним;
  * - показывает метку после [minHits] попаданий из [window] последних кадров;
  * - держит метку [holdMs] после пропажи, во второй половине срока — плавно гасит;
+ * - если среди меток есть уверенная цена — догадки (числа без валюты) скрывает;
+ * - если на одном месте две метки с разными числами (OCR читает то «200», то «20») — оставляет ту,
+ *   что видна стабильнее, при равенстве — с бо́льшим скорингом;
  * - отдаёт не больше [maxLabels] лучших по скорингу.
  */
 class PriceTracker(
@@ -36,14 +47,23 @@ class PriceTracker(
         var top: Float,
         var right: Float,
         var bottom: Float,
+        /** Отступы рамки «цена + валюта» от рамки цены — сглаживаются вместе с ней. */
+        var extentLeft: Float,
+        var extentTop: Float,
+        var extentRight: Float,
+        var extentBottom: Float,
+        var angle: Float,
+        var height: Float,
         var score: Float,
         var hasCurrency: Boolean,
         var isOld: Boolean,
+        var confident: Boolean,
         var history: Int,
         var lastSeenMs: Long,
         var shown: Boolean = false,
     ) {
         val box: Box get() = Box(left, top, right, bottom)
+        val extent: Box get() = Box(left - extentLeft, top - extentTop, right + extentRight, bottom + extentBottom)
     }
 
     private val tracks = ArrayList<Track>()
@@ -64,7 +84,11 @@ class PriceTracker(
                 val t = Track(
                     id = nextId++, value = c.value,
                     left = c.box.left, top = c.box.top, right = c.box.right, bottom = c.box.bottom,
-                    score = c.score, hasCurrency = c.hasCurrency, isOld = c.isOld,
+                    extentLeft = c.box.left - c.extent.left, extentTop = c.box.top - c.extent.top,
+                    extentRight = c.extent.right - c.box.right, extentBottom = c.extent.bottom - c.box.bottom,
+                    angle = c.angle,
+                    height = c.height,
+                    score = c.score, hasCurrency = c.hasCurrency, isOld = c.isOld, confident = c.confident,
                     history = 1, lastSeenMs = nowMs,
                 )
                 tracks += t
@@ -74,9 +98,16 @@ class PriceTracker(
                 track.top += smoothing * (c.box.top - track.top)
                 track.right += smoothing * (c.box.right - track.right)
                 track.bottom += smoothing * (c.box.bottom - track.bottom)
+                track.extentLeft += smoothing * (c.box.left - c.extent.left - track.extentLeft)
+                track.extentTop += smoothing * (c.box.top - c.extent.top - track.extentTop)
+                track.extentRight += smoothing * (c.extent.right - c.box.right - track.extentRight)
+                track.extentBottom += smoothing * (c.extent.bottom - c.box.bottom - track.extentBottom)
+                track.angle += smoothing * (c.angle - track.angle)
+                track.height += smoothing * (c.height - track.height)
                 track.score += smoothing * (c.score - track.score)
                 track.hasCurrency = track.hasCurrency || c.hasCurrency
                 track.isOld = c.isOld
+                track.confident = track.confident || c.confident
                 track.history = track.history or 1
                 track.lastSeenMs = nowMs
                 matched += track
@@ -91,15 +122,25 @@ class PriceTracker(
             if (expired) it.remove()
         }
 
-        return tracks.asSequence()
-            .filter { it.shown }
+        val visible = ArrayList<Track>()
+        // Есть уверенная цена (с валютой или копейками) — догадки без валюты не показываем: в соседних кадрах
+        // OCR не всегда видит валюту, и голые числа (артикул, размер) успевали проскочить серыми метками.
+        val shown = tracks.filter { it.shown }
+        val anyConfident = shown.any { it.confident && !it.isOld }
+        for (t in shown.filter { it.confident || !anyConfident }.sortedWith(compareByDescending<Track> { Integer.bitCount(it.history) }.thenByDescending { it.score })) {
+            if (visible.none { samePlace(it.box, t.box) }) visible += t
+        }
+        return visible
             .sortedByDescending { it.score }
             .take(maxLabels)
             .map { t ->
-                TrackedPrice(t.id, t.value, t.box, t.score, t.hasCurrency, t.isOld, alpha(t, nowMs))
+                TrackedPrice(t.id, t.value, t.box, t.score, t.hasCurrency, t.isOld, alpha(t, nowMs), t.confident, t.extent, t.angle, t.height)
             }
-            .toList()
     }
+
+    /** Одно место кадра: рамки сильно пересекаются или центр одной внутри другой. */
+    private fun samePlace(a: Box, b: Box): Boolean =
+        a.iou(b) > SAME_PLACE_IOU || a.contains(b.centerX, b.centerY) || b.contains(a.centerX, a.centerY)
 
     private fun alpha(t: Track, nowMs: Long): Float {
         val missing = nowMs - t.lastSeenMs
@@ -128,5 +169,6 @@ class PriceTracker(
     private companion object {
         const val NEAR_FACTOR = 1.5f
         const val MIN_IOU = 0.3f
+        const val SAME_PLACE_IOU = 0.3f
     }
 }

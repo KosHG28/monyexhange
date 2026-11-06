@@ -1,8 +1,15 @@
 package app.dirhamrub.ui.main
 
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,25 +24,48 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.Key
 import app.dirhamrub.ui.theme.AppTheme
+import app.dirhamrub.ui.theme.LocalReduceMotion
 
-private val KEY_HEIGHT = 58.dp
+/** Высота клавиш: на коротких экранах ниже, чтобы сумма и подсказки не уходили под прокрутку. */
+@Composable
+private fun keyHeight(): Dp {
+    val h = LocalConfiguration.current.screenHeightDp
+    return when {
+        h < SHORT_SCREEN_DP -> 44.dp
+        h < MEDIUM_SCREEN_DP -> 48.dp
+        else -> 54.dp
+    }
+}
+
+/** Ниже этой высоты экрана (dp) — короткий телефон: клавиши ниже, быстрых сумм нет. */
+internal const val SHORT_SCREEN_DP = 760
+private const val MEDIUM_SCREEN_DP = 820
 private val KEY_GAP = 8.dp
 
 /**
@@ -43,9 +73,16 @@ private val KEY_GAP = 8.dp
  * Кнопка «Ценник» — в правом нижнем углу, под большим пальцем.
  */
 @Composable
-fun Keypad(onKey: (Key) -> Unit, onCamera: () -> Unit, modifier: Modifier = Modifier) {
+fun Keypad(
+    onKey: (Key) -> Unit,
+    onCamera: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** Где на экране кнопка «Ценник» (центр, в координатах окна): из неё раскрывается камера. */
+    onCameraPlaced: (Offset) -> Unit = {},
+) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(KEY_GAP)) {
         val plus = stringResource(R.string.key_plus)
+        val times = stringResource(R.string.key_times)
         val equals = stringResource(R.string.key_equals)
         val comma = stringResource(R.string.key_comma)
         KeyRow(
@@ -54,15 +91,16 @@ fun Keypad(onKey: (Key) -> Unit, onCamera: () -> Unit, modifier: Modifier = Modi
         )
         KeyRow(
             left = { DigitKey(4, onKey); DigitKey(5, onKey) },
-            right = { DigitKey(6, onKey); OperatorKey("+", plus) { onKey(Key.Plus) } },
+            // Долгое нажатие на «+» — «=»: свернуть выражение в одно число.
+            right = { DigitKey(6, onKey); OperatorKey("+", plus, onLongClick = { onKey(Key.Equals) }, longClickLabel = equals) { onKey(Key.Plus) } },
         )
         KeyRow(
             left = { DigitKey(1, onKey); DigitKey(2, onKey) },
-            right = { DigitKey(3, onKey); OperatorKey("=", equals) { onKey(Key.Equals) } },
+            right = { DigitKey(3, onKey); OperatorKey("×", times) { onKey(Key.Times) } },
         )
         KeyRow(
             left = { TextKey(",", comma) { onKey(Key.Comma) }; DigitKey(0, onKey) },
-            right = { CameraKey(onCamera) },
+            right = { CameraKey(onCamera, onCameraPlaced) },
         )
     }
 }
@@ -81,17 +119,40 @@ private fun RowScope.KeyBase(
     description: String,
     background: Color,
     onLongClick: (() -> Unit)? = null,
+    longClickLabel: String? = null,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     val view = LocalView.current
+    // Клавиша «проседает» при нажатии: даже короткий тап доигрывает нажатие, потом пружинит обратно.
+    val source = remember { MutableInteractionSource() }
+    val press = remember { Animatable(1f) }
+    val reduceMotion = LocalReduceMotion.current
+    LaunchedEffect(source, reduceMotion) {
+        if (reduceMotion) return@LaunchedEffect
+        source.interactions.collect { interaction ->
+            when (interaction) {
+                is PressInteraction.Press -> press.animateTo(PRESSED_SCALE, tween(PRESS_MS))
+                is PressInteraction.Release, is PressInteraction.Cancel ->
+                    press.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium))
+            }
+        }
+    }
     Box(
-        modifier = Modifier
+        modifier = modifier
             .weight(1f)
-            .height(KEY_HEIGHT)
+            .height(keyHeight())
+            .graphicsLayer {
+                scaleX = press.value
+                scaleY = press.value
+            }
             .clip(RoundedCornerShape(18.dp))
             .background(background)
             .combinedClickable(
+                interactionSource = source,
+                indication = LocalIndication.current,
+                onLongClickLabel = longClickLabel,
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     onClick()
@@ -106,6 +167,14 @@ private fun RowScope.KeyBase(
             .clearAndSetSemantics {
                 contentDescription = description
                 role = Role.Button
+                // Долгое нажатие доступно и из TalkBack.
+                val longClick = onLongClick
+                if (longClick != null) {
+                    this.onLongClick(label = longClickLabel) {
+                        longClick()
+                        true
+                    }
+                }
             },
         contentAlignment = Alignment.Center,
     ) { content() }
@@ -125,10 +194,16 @@ private fun RowScope.TextKey(label: String, description: String, onClick: () -> 
 }
 
 @Composable
-private fun RowScope.OperatorKey(label: String, description: String, onClick: () -> Unit) {
+private fun RowScope.OperatorKey(
+    label: String,
+    description: String,
+    onLongClick: (() -> Unit)? = null,
+    longClickLabel: String? = null,
+    onClick: () -> Unit,
+) {
     val colors = AppTheme.colors
     // Знаки действий без подложки — только цветом: клавиатура спокойнее.
-    KeyBase(description, Color.Transparent, onClick = onClick) {
+    KeyBase(description, Color.Transparent, onLongClick = onLongClick, longClickLabel = longClickLabel, onClick = onClick) {
         Text(label, style = AppTheme.type.key.copy(fontSize = 30.sp, fontWeight = FontWeight.Light), color = colors.accent)
     }
 }
@@ -147,9 +222,14 @@ private fun RowScope.BackspaceKey(onKey: (Key) -> Unit) {
 }
 
 @Composable
-private fun RowScope.CameraKey(onClick: () -> Unit) {
+private fun RowScope.CameraKey(onClick: () -> Unit, onPlaced: (Offset) -> Unit) {
     val colors = AppTheme.colors
-    KeyBase(stringResource(R.string.price_tag_a11y), colors.accent, onClick = onClick) {
+    KeyBase(
+        stringResource(R.string.price_tag_a11y),
+        colors.accent,
+        onClick = onClick,
+        modifier = Modifier.onGloballyPositioned { onPlaced(it.boundsInRoot().center) },
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(painterResource(R.drawable.ic_camera), contentDescription = null, tint = colors.onAccent, modifier = Modifier.size(24.dp))
             Spacer(Modifier.width(8.dp))
@@ -157,3 +237,7 @@ private fun RowScope.CameraKey(onClick: () -> Unit) {
         }
     }
 }
+
+/** Насколько клавиша «проседает» при нажатии и за сколько. */
+private const val PRESSED_SCALE = 0.92f
+private const val PRESS_MS = 60

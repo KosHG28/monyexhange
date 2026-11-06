@@ -1,28 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Белый ценник со знаком ₽ на красном фоне. Всё внутри безопасной зоны 66 dp. -->
+<!-- «Курс по чеку»: белый чек с зубчатым краем и красным знаком ₽ на тёмном фоне (вариант C). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Масштаб 2/3: чек целиком внутри безопасной зоны адаптивной иконки (круг 66 dp). -->
     <group
         android:pivotX="54"
         android:pivotY="54"
-        android:rotation="-28"
-        android:scaleX="0.86"
-        android:scaleY="0.86">
-        <!-- Ценник с отверстием (evenOdd вырезает дырку). -->
+        android:scaleX="0.667"
+        android:scaleY="0.667"
+        android:translateY="2">
         <path
             android:fillColor="#FFFFFFFF"
-            android:fillType="evenOdd"
-            android:pathData="M54,22 L72,40 L72,80 Q72,86 66,86 L42,86 Q36,86 36,80 L36,40 Z M54,33 m-4,0 a4,4 0,1 0,8 0 a4,4 0,1 0,-8 0 Z" />
-        <!-- ₽ -->
+            android:pathData="M32,22H76A4,4 0,0 1,80 26V80L73.5,75L67,80L60.5,75L54,80L47.5,75L41,80L34.5,75L28,80V26A4,4 0,0 1,32 22Z" />
         <path
-            android:fillColor="#00000000"
-            android:pathData="M50,48 L50,77 M46,69 L59,69 M46,62 L58,62 Q63,62 63,55 Q63,48 58,48 L50,48"
-            android:strokeWidth="4"
-            android:strokeColor="#FFC8272D"
-            android:strokeLineCap="round"
-            android:strokeLineJoin="round" />
+            android:fillColor="#FFD5DCE3"
+            android:pathData="M38.5,31h17a1.5,1.5 0,0 1,0 3h-17a1.5,1.5 0,0 1,0 -3zM39.5,64h29a1.5,1.5 0,0 1,0 3h-29a1.5,1.5 0,0 1,0 -3z" />
+        <path
+            android:fillColor="#FFC8272D"
+            android:pathData="M55.8 49.72H44.27V46.44H55.71Q57.1 46.44 57.99 46Q58.89 45.57 59.32 44.78Q59.76 43.99 59.74 42.94Q59.76 41.92 59.32 41.1Q58.89 40.28 58.02 39.79Q57.14 39.31 55.8 39.31H51.48V58H47.52V36H55.8Q58.36 36 60.13 36.92Q61.9 37.85 62.81 39.4Q63.73 40.96 63.73 42.91Q63.73 44.92 62.8 46.45Q61.87 47.99 60.1 48.85Q58.33 49.7 55.8 49.72ZM56.29 51.34V54.62H44.27V51.34Z" />
     </group>
 </vector>

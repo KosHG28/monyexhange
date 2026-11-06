@@ -1,6 +1,7 @@
 package app.dirhamrub.domain.price
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.math.BigDecimal
@@ -15,6 +16,52 @@ class PriceTrackerTest {
         assertTrue(t.update(listOf(cand("10", 0f)), 0).isEmpty())
         assertTrue(t.update(emptyList(), 33).isEmpty())
         assertEquals(1, t.update(listOf(cand("10", 4f)), 66).size)
+    }
+
+    @Test
+    fun `два числа на одном месте — остаётся стабильное`() {
+        val t = PriceTracker()
+        // OCR читает на одном месте то «200», то «20»; «200» — чаще.
+        t.update(listOf(cand("200", 0f)), 0)
+        t.update(listOf(cand("20", 2f)), 33)
+        t.update(listOf(cand("200", 0f)), 66)
+        val shown = t.update(listOf(cand("20", 2f), cand("200", 1f)), 100)
+        assertEquals(listOf("200"), shown.map { it.value.toPlainString() })
+    }
+
+    @Test
+    fun `догадка остаётся догадкой`() {
+        val t = PriceTracker()
+        val guess = cand("200", 0f).copy(hasCurrency = false, confident = false)
+        t.update(listOf(guess), 0)
+        assertFalse(t.update(listOf(guess), 33).single().confident)
+        val sure = cand("15", 400f)
+        t.update(listOf(sure), 66)
+        assertTrue(t.update(listOf(sure, guess), 100).first { it.value.compareTo(BigDecimal("15")) == 0 }.confident)
+    }
+
+    @Test
+    fun `при уверенной цене догадки скрыты`() {
+        val t = PriceTracker()
+        val guess = cand("251", 0f, y = 600f).copy(hasCurrency = false, confident = false)
+        val price = cand("17990", 0f, y = 1100f)
+        // Догадка успела набрать попадания в кадрах, где OCR не видел валюту у цены.
+        t.update(listOf(guess), 0)
+        assertEquals(listOf("251"), t.update(listOf(guess), 33).map { it.value.toPlainString() })
+        t.update(listOf(guess, price), 66)
+        assertEquals(listOf("17990"), t.update(listOf(guess, price), 100).map { it.value.toPlainString() })
+    }
+
+    @Test
+    fun `рамка с валютой сглаживается вместе с ценой`() {
+        val t = PriceTracker()
+        val c = cand("17990", 0f).let { it.copy(extent = Box(it.box.left, it.box.top, it.box.right + 40f, it.box.bottom)) }
+        t.update(listOf(c), 0)
+        val moved = c.copy(box = Box(20f, 100f, 120f, 140f), extent = Box(20f, 100f, 160f, 140f))
+        val shown = t.update(listOf(moved), 33).single()
+        // Рамка цены сдвинулась на 0,35 × 20 = 7, хвост с валютой остался на 40 правее.
+        assertEquals(7f, shown.box.left, 0.01f)
+        assertEquals(shown.box.right + 40f, shown.extent.right, 0.01f)
     }
 
     @Test

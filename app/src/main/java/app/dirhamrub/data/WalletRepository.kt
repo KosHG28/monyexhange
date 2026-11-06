@@ -3,6 +3,7 @@ package app.dirhamrub.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -31,8 +32,22 @@ data class StoredState(
     val official: OfficialRates?,
     /** Когда курсы ЦБ скачаны (мс), 0 — никогда. */
     val officialFetchedAt: Long,
+    /** Курсы ЦБ неделю назад — для стрелки изменения. */
+    val officialWeekAgo: OfficialRates?,
     val active: Line,
     val expression: Expression,
+    /** Страна сети, для которой подсказку «переключить валюту» уже показали (приняли или закрыли). */
+    val countryHandled: String?,
+    /** Знакомство с приложением пройдено (или пропущено). */
+    val onboardingDone: Boolean,
+    /** Камера вписывает суммы в ценники (иначе — плашки). */
+    val cameraEmbedded: Boolean,
+    /** Курсы ЦБ на даты чеков — чтобы заметить устаревший чек. */
+    val ratesHistory: Map<LocalDate, OfficialRates>,
+    /** Камерой уже пользовались — можно предложить плитку «Ценник». */
+    val cameraUsed: Boolean,
+    /** Плитку «Ценник» уже предлагали (добавили или отказались). */
+    val tileOffered: Boolean,
 )
 
 /**
@@ -49,13 +64,48 @@ class WalletRepository(private val store: DataStore<Preferences>) {
             wallet = WalletCodec.decode(p[WALLET]) ?: legacyWallet(p) ?: Wallet(),
             official = WalletCodec.decodeRates(p[OFFICIAL]),
             officialFetchedAt = p[OFFICIAL_AT] ?: 0L,
+            officialWeekAgo = WalletCodec.decodeRates(p[OFFICIAL_WEEK]),
             active = when (p[ACTIVE]) {
                 "RUB", "HOME" -> Line.HOME
                 "CARD" -> Line.CARD
                 else -> Line.SPEND
             },
             expression = Expression.parse(p[EXPRESSION]),
+            countryHandled = p[COUNTRY_HANDLED],
+            onboardingDone = p[ONBOARDING_DONE] ?: false,
+            cameraEmbedded = p[CAMERA_EMBEDDED] ?: true,
+            ratesHistory = WalletCodec.decodeHistory(p[RATES_HISTORY]),
+            cameraUsed = p[CAMERA_USED] ?: false,
+            tileOffered = p[TILE_OFFERED] ?: false,
         )
+    }
+
+    suspend fun saveOfficialWeekAgo(rates: OfficialRates) {
+        store.edit { p -> p[OFFICIAL_WEEK] = WalletCodec.encodeRates(rates) }
+    }
+
+    suspend fun saveCameraUsed() {
+        store.edit { p -> p[CAMERA_USED] = true }
+    }
+
+    suspend fun saveTileOffered() {
+        store.edit { p -> p[TILE_OFFERED] = true }
+    }
+
+    suspend fun saveRatesHistory(history: Map<LocalDate, OfficialRates>) {
+        store.edit { p -> p[RATES_HISTORY] = WalletCodec.encodeHistory(history) }
+    }
+
+    suspend fun saveCameraEmbedded(value: Boolean) {
+        store.edit { p -> p[CAMERA_EMBEDDED] = value }
+    }
+
+    suspend fun saveOnboardingDone() {
+        store.edit { p -> p[ONBOARDING_DONE] = true }
+    }
+
+    suspend fun saveCountryHandled(iso: String) {
+        store.edit { p -> p[COUNTRY_HANDLED] = iso }
     }
 
     suspend fun saveSession(wallet: Wallet, active: Line, expression: Expression) {
@@ -63,6 +113,24 @@ class WalletRepository(private val store: DataStore<Preferences>) {
             p[WALLET] = WalletCodec.encode(wallet)
             p[ACTIVE] = active.name
             p[EXPRESSION] = expression.serialize()
+        }
+    }
+
+    /** Демо-состояние для скриншотов CI ([app.dirhamrub.diag.Demo]): всё сразу, курсы «только что скачаны». */
+    suspend fun saveDemo(wallet: Wallet, official: OfficialRates, weekAgo: OfficialRates, expression: Expression) {
+        store.edit { p ->
+            p.clear()
+            p[WALLET] = WalletCodec.encode(wallet)
+            p[ACTIVE] = Line.SPEND.name
+            p[EXPRESSION] = expression.serialize()
+            p[OFFICIAL] = WalletCodec.encodeRates(official)
+            p[OFFICIAL_AT] = System.currentTimeMillis()
+            p[OFFICIAL_WEEK] = WalletCodec.encodeRates(weekAgo)
+            p[ONBOARDING_DONE] = true
+            // Эмулятор CI «находится» в США — плашку «считать в USD?» на скриншотах не показываем,
+            // как и предложение плитки «Ценник».
+            p[COUNTRY_HANDLED] = "US"
+            p[TILE_OFFERED] = true
         }
     }
 
@@ -115,5 +183,12 @@ class WalletRepository(private val store: DataStore<Preferences>) {
         val OFFICIAL_AT = longPreferencesKey("official_fetched_at")
         val ACTIVE = stringPreferencesKey("active_line")
         val EXPRESSION = stringPreferencesKey("expression")
+        val COUNTRY_HANDLED = stringPreferencesKey("country_handled")
+        val OFFICIAL_WEEK = stringPreferencesKey("official_week_ago")
+        val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
+        val CAMERA_EMBEDDED = booleanPreferencesKey("camera_embedded")
+        val RATES_HISTORY = stringPreferencesKey("rates_history")
+        val CAMERA_USED = booleanPreferencesKey("camera_used")
+        val TILE_OFFERED = booleanPreferencesKey("tile_offered")
     }
 }

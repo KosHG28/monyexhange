@@ -53,6 +53,22 @@ class OfficialRatesTest {
     }
 
     @Test
+    fun `изменение курса за неделю`() {
+        val week = OfficialRates(LocalDate.of(2026, 10, 22), mapOf(Currency.AED to java.math.BigDecimal("21.88"), Currency.CNY to java.math.BigDecimal("11.50")))
+        val now = OfficialRates(LocalDate.of(2026, 10, 29), mapOf(Currency.AED to java.math.BigDecimal("21.97"), Currency.CNY to java.math.BigDecimal("11.42")))
+        // 21,97 / 21,88 − 1 = +0,41 %
+        assertEquals("0,4", Numbers.percent(now.trendPercent(week, Currency.AED, Currency.RUB)!!))
+        // Юань подешевел: 11,42 / 11,50 − 1 = −0,70 %
+        assertEquals("−0,7", Numbers.percent(now.trendPercent(week, Currency.CNY, Currency.RUB)!!))
+        // Кросс-курс: AED в юанях — (21,97/11,42) / (21,88/11,50) − 1 = +1,1 %
+        assertEquals("1,1", Numbers.percent(now.trendPercent(week, Currency.AED, Currency.CNY)!!))
+        // Старые курсы не раньше текущих или валюты нет — тренда нет.
+        assertNull(week.trendPercent(now, Currency.AED, Currency.RUB))
+        assertNull(now.trendPercent(week, Currency.THB, Currency.RUB))
+        assertNull(now.trendPercent(null, Currency.AED, Currency.RUB))
+    }
+
+    @Test
     fun `мусор не разбирается`() {
         assertNull(CbrParser.parseXml("<html>error</html>"))
         assertNull(CbrParser.parseJson("{}"))

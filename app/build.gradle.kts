@@ -23,13 +23,15 @@ android {
     }
 
     signingConfigs {
-        // Личное приложение: стабильный ключ лежит в репозитории, чтобы обновления ставились поверх.
+        // Один и тот же ключ, чтобы обновления ставились поверх. В CI — из секретов репозитория
+        // (SIGNING_KEYSTORE_FILE и пароли, см. android.yml); пока секретов нет — ключ из репозитория.
+        fun secret(name: String): String? = providers.environmentVariable(name).orNull?.takeIf { it.isNotEmpty() }
         create("app") {
-            storeFile = rootProject.file("keystore/app.keystore")
+            storeFile = secret("SIGNING_KEYSTORE_FILE")?.let { file(it) } ?: rootProject.file("keystore/app.keystore")
             storeType = "pkcs12"
-            storePassword = "dirhamrub"
-            keyAlias = "dirhamrub"
-            keyPassword = "dirhamrub"
+            storePassword = secret("SIGNING_STORE_PASSWORD") ?: "dirhamrub"
+            keyAlias = secret("SIGNING_KEY_ALIAS") ?: "dirhamrub"
+            keyPassword = secret("SIGNING_KEY_PASSWORD") ?: "dirhamrub"
         }
     }
 

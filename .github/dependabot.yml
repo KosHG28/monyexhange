@@ -1,0 +1,40 @@
+# Обновления библиотек: раз в неделю — pull request'ы с новыми версиями, CI их проверяет, сливать или нет — решаем сами.
+# Связанные библиотеки — одним pull request'ом (группы проверяются по порядку: первая подходящая).
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "Зависимости"
+    groups:
+      camera-mlkit:
+        patterns: ["androidx.camera*", "com.google.mlkit*"]
+      compose:
+        patterns: ["androidx.compose*"]
+      androidx:
+        patterns: ["androidx.*"]
+      kotlin-agp:
+        patterns: ["org.jetbrains.kotlin*", "com.android.*"]
+
+  - package-ecosystem: gradle
+    directory: "/tools/domain-check"
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "Зависимости (domain-check)"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "CI"
+    groups:
+      actions:
+        patterns: ["*"]

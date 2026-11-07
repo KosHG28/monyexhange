@@ -15,6 +15,11 @@ on:
 permissions:
   contents: write
 
+env:
+  SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+  SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+  SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+
 concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: false
@@ -28,6 +33,19 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
+
+      # Ключ подписи — из секретов репозитория (KEYSTORE_BASE64 и пароли); пока их нет — ключ из репозитория.
+      - name: Ключ подписи из секретов
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/app.keystore"
+            echo "SIGNING_KEYSTORE_FILE=$RUNNER_TEMP/app.keystore" >> "$GITHUB_ENV"
+            echo "ключ — из секретов"
+          else
+            echo "секрета KEYSTORE_BASE64 нет — ключ из репозитория"
+          fi
 
       - uses: actions/setup-java@v5
         with:
@@ -97,6 +115,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Ключ подписи — из секретов репозитория (KEYSTORE_BASE64 и пароли); пока их нет — ключ из репозитория.
+      - name: Ключ подписи из секретов
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/app.keystore"
+            echo "SIGNING_KEYSTORE_FILE=$RUNNER_TEMP/app.keystore" >> "$GITHUB_ENV"
+            echo "ключ — из секретов"
+          else
+            echo "секрета KEYSTORE_BASE64 нет — ключ из репозитория"
+          fi
+
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -138,6 +169,19 @@ jobs:
       LANG: C.UTF-8
     steps:
       - uses: actions/checkout@v5
+
+      # Ключ подписи — из секретов репозитория (KEYSTORE_BASE64 и пароли); пока их нет — ключ из репозитория.
+      - name: Ключ подписи из секретов
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/app.keystore"
+            echo "SIGNING_KEYSTORE_FILE=$RUNNER_TEMP/app.keystore" >> "$GITHUB_ENV"
+            echo "ключ — из секретов"
+          else
+            echo "секрета KEYSTORE_BASE64 нет — ключ из репозитория"
+          fi
 
       - uses: actions/setup-java@v5
         with:

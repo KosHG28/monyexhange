@@ -23,6 +23,9 @@ CI: `.github/workflows/android.yml` — на каждый push тесты, lint,
 `dirhamrub-apk`), дымовой тест камеры и скриншоты экранов на эмуляторе (пререлиз «screens»:
 `tools/screens.sh`, демо-данные — extra `demo` в отладочной сборке, экран — extra `screen`); на тег `v*` — GitHub Release с `dirhamrub-vX.Y.Z.apk`. Если тег не запушить
 (в облачном окружении пуш тегов запрещён), релиз создаёт ручной запуск workflow с `release=vX.Y.Z`.
+Ещё: «Перечень валют ЦБ» (`.github/workflows/cbr-list.yml`, по понедельникам) — `tools/cbr-check.py` сверяет
+валюты из ответа ЦБ с `Currency.cbr`; Dependabot (`.github/dependabot.yml`) — еженедельные PR с обновлениями.
+Подпись: ключ из секретов репозитория (`KEYSTORE_BASE64`, `SIGNING_*`), пока их нет — `keystore/app.keystore`.
 
 ## Архитектура
 

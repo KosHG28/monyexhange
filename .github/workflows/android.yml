@@ -39,12 +39,16 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/app.keystore"
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "секрета KEYSTORE_BASE64 нет — ключ из репозитория"
+          elif echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/app.keystore" 2>/dev/null \
+              && keytool -list -keystore "$RUNNER_TEMP/app.keystore" -storetype pkcs12 \
+                   -storepass "${SIGNING_STORE_PASSWORD:-dirhamrub}" > /dev/null 2>&1; then
             echo "SIGNING_KEYSTORE_FILE=$RUNNER_TEMP/app.keystore" >> "$GITHUB_ENV"
             echo "ключ — из секретов"
           else
-            echo "секрета KEYSTORE_BASE64 нет — ключ из репозитория"
+            # Неверный секрет (не base64 или не тот пароль) не должен ронять сборку: подписываем прежним ключом.
+            echo "::warning::KEYSTORE_BASE64 не открывается как ключ (нужно содержимое keystore/app.keystore в base64) — ключ из репозитория"
           fi
 
       - uses: actions/setup-java@v5
@@ -120,12 +124,16 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/app.keystore"
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "секрета KEYSTORE_BASE64 нет — ключ из репозитория"
+          elif echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/app.keystore" 2>/dev/null \
+              && keytool -list -keystore "$RUNNER_TEMP/app.keystore" -storetype pkcs12 \
+                   -storepass "${SIGNING_STORE_PASSWORD:-dirhamrub}" > /dev/null 2>&1; then
             echo "SIGNING_KEYSTORE_FILE=$RUNNER_TEMP/app.keystore" >> "$GITHUB_ENV"
             echo "ключ — из секретов"
           else
-            echo "секрета KEYSTORE_BASE64 нет — ключ из репозитория"
+            # Неверный секрет (не base64 или не тот пароль) не должен ронять сборку: подписываем прежним ключом.
+            echo "::warning::KEYSTORE_BASE64 не открывается как ключ (нужно содержимое keystore/app.keystore в base64) — ключ из репозитория"
           fi
 
       - uses: actions/setup-java@v5
@@ -175,12 +183,16 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/app.keystore"
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "секрета KEYSTORE_BASE64 нет — ключ из репозитория"
+          elif echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/app.keystore" 2>/dev/null \
+              && keytool -list -keystore "$RUNNER_TEMP/app.keystore" -storetype pkcs12 \
+                   -storepass "${SIGNING_STORE_PASSWORD:-dirhamrub}" > /dev/null 2>&1; then
             echo "SIGNING_KEYSTORE_FILE=$RUNNER_TEMP/app.keystore" >> "$GITHUB_ENV"
             echo "ключ — из секретов"
           else
-            echo "секрета KEYSTORE_BASE64 нет — ключ из репозитория"
+            # Неверный секрет (не base64 или не тот пароль) не должен ронять сборку: подписываем прежним ключом.
+            echo "::warning::KEYSTORE_BASE64 не открывается как ключ (нужно содержимое keystore/app.keystore в base64) — ключ из репозитория"
           fi
 
       - uses: actions/setup-java@v5

@@ -22,28 +22,36 @@ android {
         }
     }
 
+    // Ключ подписи — только из секретов репозитория (CI: SIGNING_KEYSTORE_FILE и пароли, см. android.yml),
+    // один и тот же — обновления ставятся поверх. Без них (pull request'ы Dependabot, локальная сборка) —
+    // отладочный ключ Android: такой APK поверх установленного не встанет, и выпуск CI без ключа не делает.
+    fun secret(name: String): String? = providers.environmentVariable(name).orNull?.takeIf { it.isNotEmpty() }
+    val keystore = secret("SIGNING_KEYSTORE_FILE")?.let { file(it) }?.takeIf { it.exists() }
+    val keystorePassword = secret("SIGNING_STORE_PASSWORD")
+    val signingAlias = secret("SIGNING_KEY_ALIAS")
+    val signingKeyPassword = secret("SIGNING_KEY_PASSWORD")
     signingConfigs {
-        // Один и тот же ключ, чтобы обновления ставились поверх. В CI — из секретов репозитория
-        // (SIGNING_KEYSTORE_FILE и пароли, см. android.yml); пока секретов нет — ключ из репозитория.
-        fun secret(name: String): String? = providers.environmentVariable(name).orNull?.takeIf { it.isNotEmpty() }
-        create("app") {
-            storeFile = secret("SIGNING_KEYSTORE_FILE")?.let { file(it) } ?: rootProject.file("keystore/app.keystore")
-            storeType = "pkcs12"
-            storePassword = secret("SIGNING_STORE_PASSWORD") ?: "dirhamrub"
-            keyAlias = secret("SIGNING_KEY_ALIAS") ?: "dirhamrub"
-            keyPassword = secret("SIGNING_KEY_PASSWORD") ?: "dirhamrub"
+        if (keystore != null && keystorePassword != null && signingAlias != null && signingKeyPassword != null) {
+            create("app") {
+                storeFile = keystore
+                storeType = "pkcs12"
+                storePassword = keystorePassword
+                keyAlias = signingAlias
+                keyPassword = signingKeyPassword
+            }
         }
     }
+    val signing = signingConfigs.findByName("app") ?: signingConfigs.getByName("debug")
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("app")
+            signingConfig = signing
         }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("app")
+            signingConfig = signing
         }
     }
 

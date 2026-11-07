@@ -25,7 +25,8 @@ CI: `.github/workflows/android.yml` — на каждый push тесты, lint,
 (в облачном окружении пуш тегов запрещён), релиз создаёт ручной запуск workflow с `release=vX.Y.Z`.
 Ещё: «Перечень валют ЦБ» (`.github/workflows/cbr-list.yml`, по понедельникам) — `tools/cbr-check.py` сверяет
 валюты из ответа ЦБ с `Currency.cbr`; Dependabot (`.github/dependabot.yml`) — еженедельные PR с обновлениями.
-Подпись: ключ из секретов репозитория (`KEYSTORE_BASE64`, `SIGNING_*`), пока их нет — `keystore/app.keystore`.
+Подпись: ключ только из секретов репозитория (`KEYSTORE_BASE64` — ключ в base64, `SIGNING_*` — пароли); без них
+(pull request'ы Dependabot, локальная сборка) — отладочный ключ, и выпуск CI отменяет.
 
 ## Архитектура
 

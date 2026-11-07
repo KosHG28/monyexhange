@@ -45,6 +45,11 @@ object Demo {
         )
         // Наличные дирхамы из обменника — выменяны на доллары, купленные по 81,50 ₽: в ряду карт —
         // только когда тратите AED.
+        // Баты из банкомата в Таиланде — сняты с карты в юанях (комиссия банкомата внутри списания).
+        val atm = BankCard(
+            id = "demo-thb-atm", name = "Наличные THB", currency = Currency.THB, style = 2, kind = CardKind.CASH,
+            transfer = TransferReceipt(bd("2210"), Currency.CNY, bd("10000"), day, fromCard = "demo-cny"),
+        )
         val cash = BankCard(
             id = "demo-aed-cash", name = "Наличные AED", currency = Currency.AED, style = 2, kind = CardKind.CASH,
             transfer = TransferReceipt(bd("300"), Currency.USD, bd("1101.75"), day, boughtAt = bd("81.50"), boughtIn = Currency.RUB),
@@ -78,7 +83,7 @@ object Demo {
         )
         repository.saveDemo(
             wallet = Wallet(
-                cards = listOf(tenge, yuan, cash),
+                cards = listOf(tenge, yuan, cash, atm),
                 spend = spend,
                 selectedId = yuan.id,
                 recent = listOf(spend, Currency.AED, Currency.KZT, Currency.THB, Currency.TRY).distinct(),

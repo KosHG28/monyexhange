@@ -96,6 +96,8 @@ fun CardEditorSheet(
     onDismiss: () -> Unit,
     /** Курсы UnionPay — для карт UnionPay. */
     unionPay: UnionPayRates? = null,
+    /** Все карты кошелька: наличные из банкомата снимают с одной из них. */
+    cards: List<BankCard> = emptyList(),
     /** Добавить пустой чек покупки в этой валюте (если его ещё нет). */
     addPurchaseFor: Currency? = null,
 ) {
@@ -122,6 +124,11 @@ fun CardEditorSheet(
     // Отдавали не итоговую валюту (100 $ в драмы) — почём её купили, на единицу как у курса ЦБ: «1 $ = 82 ₽».
     fun boughtUnitFor(c: Currency): BigDecimal =
         Numbers.unitFor(official?.cross(c, home) ?: card.transfer?.bought?.first ?: BigDecimal.ONE)
+    // Наличные из банкомата: с какой карты сняли (курс — по ней).
+    var atm by remember(card.id) { mutableStateOf(card.transfer?.fromCard != null) }
+    var fromCard by remember(card.id) { mutableStateOf(card.transfer?.fromCard) }
+    val atmSources = cards.filter { it.kind == CardKind.CARD && it.id != card.id }
+    val atmSource = atmSources.firstOrNull { it.id == fromCard }
     var boughtAt by remember(card.id) {
         mutableStateOf(
             card.transfer?.let { t ->
@@ -143,7 +150,7 @@ fun CardEditorSheet(
     // Свой курс — на ту же единицу, что в итоге и на картах («100 ₸ = …»); единица считается один раз при открытии,
     // чтобы не менялась, пока курс набирают.
     val manualUnit = remember(card.id) {
-        val auto = RateEngine.quote(card.withoutManual(spend, home), spend, home, official, unionPay)?.homePerUnit
+        val auto = RateEngine.quote(card.withoutManual(spend, home), spend, home, official, unionPay, cards)?.homePerUnit
         (auto ?: card.manualFor(spend, home)?.homePerUnit)?.let(Numbers::unitFor) ?: BigDecimal.ONE
     }
     var manual by remember(card.id) {
@@ -188,8 +195,17 @@ fun CardEditorSheet(
         val transfer = if (sentValue != null && gotValue != null && sentValue.signum() > 0 && gotValue.signum() > 0) {
             val old = card.transfer
             val unchanged = old != null && old.sent.compareTo(sentValue) == 0 && old.got.compareTo(gotValue) == 0 && old.sentCurrency == sentCurrency
-            val bought = Numbers.parse(boughtAt)?.takeIf { it.signum() > 0 && sentCurrency != home }?.divide(boughtUnit, MC)
-            TransferReceipt(sentValue, sentCurrency, gotValue, if (unchanged) old!!.date else today, bought, bought?.let { home })
+            val fromAtm = atmSource?.takeIf { kind == CardKind.CASH && atm }
+            val bought = Numbers.parse(boughtAt)?.takeIf { it.signum() > 0 && sentCurrency != home && fromAtm == null }?.divide(boughtUnit, MC)
+            TransferReceipt(
+                sentValue,
+                fromAtm?.currency ?: sentCurrency,
+                gotValue,
+                if (unchanged) old!!.date else today,
+                bought,
+                bought?.let { home },
+                fromCard = fromAtm?.id,
+            )
         } else {
             null
         }
@@ -315,7 +331,7 @@ fun CardEditorSheet(
             }
             // Итог на лету: тот же расчёт, что на главном экране.
             val draft = build()
-            val q = RateEngine.quote(draft, spend, home, official, unionPay)
+            val q = RateEngine.quote(draft, spend, home, official, unionPay, cards)
             // Бумажный чек: пополнение и покупки.
             Column(
                 modifier = Modifier
@@ -325,45 +341,99 @@ fun CardEditorSheet(
                     .background(colors.paper)
                     .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 28.dp),
             ) {
-                ReceiptSection(stringResource(if (cash) R.string.receipt_exchange else R.string.receipt_transfer))
-                val pick = stringResource(R.string.editor_pick_currency)
-                val sentLabel = stringResource(if (cash) R.string.receipt_gave else R.string.receipt_sent)
-                val gotLabel = stringResource(if (cash) R.string.receipt_received else R.string.receipt_got)
-                ReceiptLine(sentLabel, sent, { sent = it }, sentLabel) {
-                    // В обменник несут рубли, доллары, евро или юани; карту пополняют и из других валют.
-                    val sentOptions = (if (cash) listOf(home) + EXCHANGE_FROM else Currency.FREQUENT + home)
-                        .filter { it != currency } + sentCurrency
-                    CurrencyDropdown(
-                        sentCurrency,
-                        sentOptions.distinct(),
-                        {
-                            if (it != sentCurrency) boughtAt = ""
-                            sentCurrency = it
-                        },
-                        pick,
-                    )
+                // Наличные — из обменника или из банкомата (снятие с одной из карт).
+                if (cash) {
+                    CashSourceSwitch(atm) { on ->
+                        atm = on
+                        if (on) {
+                            val first = atmSource ?: atmSources.firstOrNull()
+                            fromCard = first?.id
+                            first?.let { sentCurrency = it.currency }
+                            boughtAt = ""
+                        } else {
+                            fromCard = null
+                            sentCurrency = home
+                        }
+                    }
                 }
-                ReceiptLine(gotLabel, got, { got = it }, gotLabel) {
-                    CurrencyMark(currency.symbol)
-                }
-                // Чек заполнен — курс по нему; пустой — что будет без него.
-                val transfer = draft.transfer
-                if (transfer != null) {
-                    ReceiptRate(Numbers.transferRate(transfer.got.divide(transfer.sent, MC), currency.symbol, transfer.sentCurrency.symbol))
+                if (cash && atm) {
+                    ReceiptSection(stringResource(R.string.receipt_atm))
+                    if (atmSources.isEmpty()) {
+                        Hint(stringResource(R.string.receipt_atm_no_cards))
+                    } else {
+                        val gotAtm = stringResource(R.string.receipt_atm_got)
+                        val paidAtm = stringResource(R.string.receipt_atm_paid)
+                        ReceiptLine(gotAtm, got, { got = it }, gotAtm) { CurrencyMark(currency.symbol) }
+                        ReceiptLine(paidAtm, sent, { sent = it }, paidAtm, last = true) {
+                            CardDropdown(
+                                atmSource,
+                                atmSources,
+                                {
+                                    fromCard = it.id
+                                    sentCurrency = it.currency
+                                },
+                                stringResource(R.string.editor_pick_card),
+                            )
+                        }
+                        val transfer = draft.transfer
+                        if (transfer != null) {
+                            ReceiptRate(Numbers.transferRate(transfer.got.divide(transfer.sent, MC), currency.symbol, transfer.sentCurrency.symbol))
+                            // Итог в итоговой валюте — по курсу карты, с которой сняли.
+                            RateEngine.cardToHome(draft, home, official, cards)?.first?.let { perCash ->
+                                val u = Numbers.unitFor(perCash)
+                                ReceiptRate(
+                                    stringResource(
+                                        R.string.receipt_bought_total,
+                                        "${Numbers.moneyWhole(u)} ${currency.symbol}",
+                                        "${Numbers.rate(perCash.multiply(u, MC))} ${home.symbol}",
+                                    ),
+                                    whole = true,
+                                )
+                            }
+                        }
+                        Hint(stringResource(R.string.receipt_atm_hint))
+                    }
                 } else {
-                    Hint(stringResource(if (cash) R.string.receipt_exchange_hint else R.string.receipt_transfer_hint))
-                }
-                if (sentCurrency != home) {
-                    BoughtPlate(
-                        sentCurrency = sentCurrency,
-                        home = home,
-                        card = currency,
-                        unit = boughtUnit,
-                        value = boughtAt,
-                        onValueChange = { boughtAt = it },
-                        official = official?.cross(sentCurrency, home),
-                        transfer = transfer,
-                    )
+                    ReceiptSection(stringResource(if (cash) R.string.receipt_exchange else R.string.receipt_transfer))
+                    val pick = stringResource(R.string.editor_pick_currency)
+                    val sentLabel = stringResource(if (cash) R.string.receipt_gave else R.string.receipt_sent)
+                    val gotLabel = stringResource(if (cash) R.string.receipt_received else R.string.receipt_got)
+                    ReceiptLine(sentLabel, sent, { sent = it }, sentLabel) {
+                        // В обменник несут рубли, доллары, евро или юани; карту пополняют и из других валют.
+                        val sentOptions = (if (cash) listOf(home) + EXCHANGE_FROM else Currency.FREQUENT + home)
+                            .filter { it != currency } + sentCurrency
+                        CurrencyDropdown(
+                            sentCurrency,
+                            sentOptions.distinct(),
+                            {
+                                if (it != sentCurrency) boughtAt = ""
+                                sentCurrency = it
+                            },
+                            pick,
+                        )
+                    }
+                    ReceiptLine(gotLabel, got, { got = it }, gotLabel) {
+                        CurrencyMark(currency.symbol)
+                    }
+                    // Чек заполнен — курс по нему; пустой — что будет без него.
+                    val transfer = draft.transfer
+                    if (transfer != null) {
+                        ReceiptRate(Numbers.transferRate(transfer.got.divide(transfer.sent, MC), currency.symbol, transfer.sentCurrency.symbol))
+                    } else {
+                        Hint(stringResource(if (cash) R.string.receipt_exchange_hint else R.string.receipt_transfer_hint))
+                    }
+                    if (sentCurrency != home) {
+                        BoughtPlate(
+                            sentCurrency = sentCurrency,
+                            home = home,
+                            card = currency,
+                            unit = boughtUnit,
+                            value = boughtAt,
+                            onValueChange = { boughtAt = it },
+                            official = official?.cross(sentCurrency, home),
+                            transfer = transfer,
+                        )
+                    }
                 }
                 Spacer(Modifier.height(10.dp))
 
@@ -428,7 +498,7 @@ fun CardEditorSheet(
 
             Spacer(Modifier.height(14.dp))
             // Свой курс для текущей пары валют; серым в пустом поле — курс по чекам сейчас.
-            val auto = RateEngine.quote(draft.withoutManual(spend, home), spend, home, official, unionPay)?.homePerUnit
+            val auto = RateEngine.quote(draft.withoutManual(spend, home), spend, home, official, unionPay, cards)?.homePerUnit
             ManualRatePanel(
                 unit = manualUnit,
                 spend = spend,

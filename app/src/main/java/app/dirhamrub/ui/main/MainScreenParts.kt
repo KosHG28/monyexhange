@@ -50,6 +50,8 @@ internal fun cashMissing(state: MainUiState): CashMissing? {
     val q = state.selectedQuote ?: return null
     if (q.card.kind != CardKind.CASH || q.basis == RateBasis.RECEIPTS || q.basis == RateBasis.MANUAL) return null
     val t = q.card.transfer?.takeIf { it.isValid } ?: return CashMissing.EXCHANGE
+    // Из банкомата — курс по карте, с которой сняли: «почём купили» тут ни при чём.
+    if (t.fromCard != null) return null
     return CashMissing.BOUGHT.takeIf { t.sentCurrency != state.wallet.home && t.bought == null }
 }
 

@@ -13,17 +13,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -36,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
+import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.ScannedReceipt
@@ -315,4 +324,67 @@ internal fun BoughtPlate(
         )
     }
     Hint(stringResource(if (value.isBlank()) R.string.receipt_bought_hint_empty else R.string.receipt_bought_hint))
+}
+
+/** Откуда наличные: «Обменник | Банкомат». */
+@Composable
+internal fun CashSourceSwitch(atm: Boolean, onChange: (Boolean) -> Unit) {
+    val colors = AppTheme.colors
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = 6.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.bg)
+            .padding(3.dp)
+            .selectableGroup(),
+    ) {
+        for ((value, label) in listOf(false to R.string.receipt_source_exchange, true to R.string.receipt_source_atm)) {
+            val on = value == atm
+            Box(
+                Modifier
+                    .weight(1f)
+                    .heightIn(min = 44.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (on) colors.accentSoft else Color.Transparent)
+                    .selectable(selected = on, role = Role.RadioButton) { onChange(value) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    stringResource(label),
+                    style = AppTheme.type.body.copy(fontWeight = FontWeight.Medium),
+                    color = if (on) colors.accent else colors.muted,
+                )
+            }
+        }
+    }
+}
+
+/** Карта, с которой сняли в банкомате: в строке — «¥ ▾», в списке — названия карт. */
+@Composable
+internal fun CardDropdown(selected: BankCard?, cards: List<BankCard>, onSelect: (BankCard) -> Unit, description: String) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Box(
+            modifier = Modifier
+                .heightIn(min = 44.dp)
+                .clip(RoundedCornerShape(20))
+                .clickable(role = Role.DropdownList, onClickLabel = description) { open = true }
+                .padding(horizontal = 6.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("${selected?.currency?.symbol ?: "?"} ▾", style = AppTheme.type.mono, color = AppTheme.colors.accent, maxLines = 1, softWrap = false)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            for (c in cards) {
+                DropdownMenuItem(
+                    text = { Text("${c.name} · ${c.currency.code}", style = AppTheme.type.body) },
+                    onClick = {
+                        open = false
+                        onSelect(c)
+                    },
+                )
+            }
+        }
+    }
 }

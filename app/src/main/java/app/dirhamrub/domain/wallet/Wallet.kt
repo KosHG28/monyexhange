@@ -7,6 +7,8 @@ import java.time.LocalDate
  * Пополнение карты (у наличных — обмен): отправил [sent] в [sentCurrency] → пришло [got] в валюте карты.
  * Если отдавали не итоговую валюту (100 $ в драмы), [boughtAt] — почём её купили: 1 [sentCurrency] =
  * [boughtAt] в [boughtIn] (обычно рубли); без него — по курсу ЦБ.
+ * У наличных из банкомата [fromCard] — карта, с которой сняли: списали [sent] в её валюте за [got] на руки
+ * (комиссии банкомата и банка — внутри), а в итоговую валюту — по курсу этой карты.
  */
 data class TransferReceipt(
     val sent: BigDecimal,
@@ -15,6 +17,7 @@ data class TransferReceipt(
     val date: LocalDate,
     val boughtAt: BigDecimal? = null,
     val boughtIn: Currency? = null,
+    val fromCard: String? = null,
 ) {
     /** Почём купили отправленную валюту, если это известно: (курс, в какой валюте). */
     val bought: Pair<BigDecimal, Currency>?

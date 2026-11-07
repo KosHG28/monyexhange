@@ -94,6 +94,7 @@
     <string name="cash_add_bought">" · почём купили %1$s ›"</string>
     <string name="cash_edit_a11y">Открыть «%1$s», чтобы указать обмен</string>
     <string name="basis_exchange">по обмену %1$s: %2$s → %3$s</string>
+    <string name="basis_atm">из банкомата %1$s: %2$s за %3$s</string>
     <string name="chip_a11y">%1$s %2$s</string>
     <string name="chip_metro_a11y">22 дирхама, проезд в метро</string>
     <string name="key_backspace">Стереть. Долгое нажатие — очистить</string>
@@ -145,6 +146,14 @@
     <string name="receipt_rate">✓ По этому чеку %1$s</string>
     <string name="receipt_estimate_hint">Чека покупки в %1$s нет — курс оценён по ЦБ с наценкой карты по её чекам. Чек в %1$s сделает его точным.</string>
     <string name="receipt_estimate_hint_unionpay">Чека покупки в %1$s нет — курс оценён по курсу UnionPay с наценкой карты по её чекам. Чек в %1$s сделает его точным.</string>
+    <string name="receipt_source_exchange">Обменник</string>
+    <string name="receipt_source_atm">Банкомат</string>
+    <string name="receipt_atm">Снятие в банкомате</string>
+    <string name="receipt_atm_got">Сняли</string>
+    <string name="receipt_atm_paid">Списали с карты</string>
+    <string name="receipt_atm_no_cards">Сначала добавьте карту, с которой снимаете, — курс наличных посчитаем по ней.</string>
+    <string name="receipt_atm_hint">Комиссии банкомата и банка — уже в сумме списания. Фиксированная комиссия банкомата меньше в пересчёте, если снимать больше за раз.</string>
+    <string name="editor_pick_card">Карта, с которой сняли</string>
     <string name="receipt_bought_title">Почём купили %1$s</string>
     <string name="receipt_bought">%1$s купили за</string>
     <string name="receipt_bought_total">✓ Итог: %1$s = %2$s</string>

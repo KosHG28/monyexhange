@@ -74,6 +74,9 @@ shot 24-onb-2-how --es screen onboarding --ei step 1
 shot 25-onb-3-what --es screen onboarding --ei step 2
 shot 26-onb-4-currencies --es screen onboarding --ei step 3
 shot 27-onb-5-pay --es screen onboarding --ei step 4
+# Наличные из банкомата: баты сняты с карты в юанях.
+WAIT=12 shot 28-atm-editor --es spend THB --es screen editor --es card demo-thb-atm
+shot 29-main-thb --es spend THB
 
 # Первый запуск: данные стёрты — знакомство.
 adb shell pm clear "$PKG"

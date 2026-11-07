@@ -255,6 +255,12 @@ private fun Basis(state: MainUiState, onAddReceipt: (BankCard) -> Unit, onEditCa
     val cash = card?.takeIf { it.kind == CardKind.CASH && q?.basis == RateBasis.RECEIPTS }
     val exchange = cash?.transfer
     val text = when {
+        cash != null && exchange != null && exchange.fromCard != null -> stringResource(
+            R.string.basis_atm,
+            RuDates.short(exchange.date),
+            "${Numbers.money(exchange.got)} ${cash.currency.symbol}",
+            "${Numbers.money(exchange.sent)} ${exchange.sentCurrency.symbol}",
+        )
         cash != null && exchange != null -> stringResource(
             R.string.basis_exchange,
             RuDates.short(exchange.date),

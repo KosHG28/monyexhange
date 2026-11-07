@@ -115,11 +115,13 @@ object RateEngine {
         home: Currency,
         official: OfficialRates?,
         unionPay: UnionPayRates? = null,
+        /** Все карты кошелька: наличные из банкомата считаются по курсу карты, с которой их сняли. */
+        cards: List<BankCard> = emptyList(),
     ): CardQuote? {
         // Наличными платят только в их валюте: дирхамами в Армении не заплатить — ни курса, ни чека.
         if (!card.canPay(spend)) return null
         val manual = card.manualFor(spend, home)
-        val homePerCard = homePerCard(card, home, official)
+        val homePerCard = homePerCard(card, home, official, cards)
         val (cardPerSpend, spendBasis) = cardPerSpend(card, spend, official, unionPay) ?: (null to RateBasis.OFFICIAL)
         val officialRate = official?.cross(spend, home)
         val via = official?.viaUnionPay(spend, home) == true
@@ -143,7 +145,7 @@ object RateEngine {
     }
 
     fun quoteAll(wallet: Wallet, official: OfficialRates?, unionPay: UnionPayRates? = null): WalletQuote = WalletQuote(
-        quotes = wallet.cards.mapNotNull { quote(it, wallet.spend, wallet.home, official, unionPay) },
+        quotes = wallet.cards.mapNotNull { quote(it, wallet.spend, wallet.home, official, unionPay, wallet.cards) },
         official = official?.cross(wallet.spend, wallet.home),
         viaUnionPay = official?.viaUnionPay(wallet.spend, wallet.home) == true,
     )
@@ -159,11 +161,29 @@ object RateEngine {
         return ratios.fold(BigDecimal.ZERO) { acc, r -> acc.add(r, MC) }.divide(BigDecimal(ratios.size), MC)
     }
 
-    private fun homePerCard(card: BankCard, home: Currency, official: OfficialRates?): Pair<BigDecimal, RateBasis>? {
+    /**
+     * Итоговая валюта за единицу карты [card] (у наличных — за единицу наличных): по чеку пополнения
+     * (обмена, снятия), иначе по ЦБ. Для наличных из банкомата — ещё и курс карты, с которой сняли.
+     */
+    fun cardToHome(card: BankCard, home: Currency, official: OfficialRates?, cards: List<BankCard> = emptyList()): Pair<BigDecimal, RateBasis>? =
+        homePerCard(card, home, official, cards)
+
+    private fun homePerCard(
+        card: BankCard,
+        home: Currency,
+        official: OfficialRates?,
+        cards: List<BankCard> = emptyList(),
+    ): Pair<BigDecimal, RateBasis>? {
         if (card.currency == home) return BigDecimal.ONE to RateBasis.RECEIPTS
         val t = card.transfer?.takeIf { it.isValid }
         if (t != null) {
             val sentPerCard = t.sent.divide(t.got, MC)
+            // Наличные из банкомата: списали с карты — дальше по курсу этой карты (без цепочек глубже).
+            val source = t.fromCard?.let { id -> cards.firstOrNull { it.id == id && it.kind == CardKind.CARD } }
+            if (source != null && source.currency == t.sentCurrency) {
+                val (leg, legBasis) = homePerCard(source, home, official) ?: return null
+                return sentPerCard.multiply(leg, MC) to (if (legBasis == RateBasis.RECEIPTS) RateBasis.RECEIPTS else RateBasis.ESTIMATE)
+            }
             if (t.sentCurrency == home) return sentPerCard to RateBasis.RECEIPTS
             // Отдавали не итоговую валюту (100 $ в драмы): почём её купили — тоже по чеку, иначе по ЦБ.
             val bought = t.bought

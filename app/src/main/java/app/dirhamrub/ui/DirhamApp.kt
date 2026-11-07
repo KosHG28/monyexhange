@@ -297,6 +297,7 @@ fun DirhamApp(
             home = state.wallet.home,
             official = state.reference,
             unionPay = state.activeUnionPay,
+            cards = state.wallet.cards,
             onSave = {
                 vm.saveCard(it)
                 editing = null

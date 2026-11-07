@@ -341,6 +341,7 @@ fun CardEditorSheet(
                     .background(colors.paper)
                     .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 28.dp),
             ) {
+                val pick = stringResource(R.string.editor_pick_currency)
                 // Наличные — из обменника или из банкомата (снятие с одной из карт).
                 if (cash) {
                     CashSourceSwitch(atm) { on ->
@@ -395,7 +396,6 @@ fun CardEditorSheet(
                     }
                 } else {
                     ReceiptSection(stringResource(if (cash) R.string.receipt_exchange else R.string.receipt_transfer))
-                    val pick = stringResource(R.string.editor_pick_currency)
                     val sentLabel = stringResource(if (cash) R.string.receipt_gave else R.string.receipt_sent)
                     val gotLabel = stringResource(if (cash) R.string.receipt_received else R.string.receipt_got)
                     ReceiptLine(sentLabel, sent, { sent = it }, sentLabel) {

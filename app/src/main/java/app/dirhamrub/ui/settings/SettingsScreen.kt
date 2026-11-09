@@ -317,9 +317,9 @@ private fun AboutSection(actions: SettingsActions) {
         LinkRow(stringResource(R.string.settings_onboarding), null, stringResource(R.string.settings_onboarding_show), actions.onOnboarding)
         Divider()
         // Политика — в репозитории; ссылку на неё требует и карточка RuStore.
-        LinkRow(stringResource(R.string.settings_privacy), null, stringResource(R.string.settings_privacy_open)) {
+        LinkRow(stringResource(R.string.settings_privacy), null, stringResource(R.string.settings_privacy_open), onClick = {
             runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, PRIVACY_URL.toUri())) }
-        }
+        })
         Divider()
         var crash by remember(context) { mutableStateOf(CrashLog.last(context)) }
         val report = crash

@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,10 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,13 +43,15 @@ import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.ui.theme.AppTheme
+import app.dirhamrub.ui.theme.LocalReduceMotion
+import kotlinx.coroutines.launch
 
 private const val STEPS = 5
 
 /**
  * Знакомство при первом запуске (и из настроек): зачем → как считаем → что учитываем → откуда и куда
  * считаем (валюта трат и итога) → чем будете платить (мастер первой карты или наличных).
- * Без привязки к конкретным картам: способы оплаты — карта в итоговой валюте, в другой валюте,
+ * Шаги листаются свайпом. Без привязки к конкретным картам: способы оплаты — карта в итоговой валюте, в другой валюте,
  * наличные или пока ничего. [suggested] — валюта страны сотовой сети: выбирается сразу.
  * [onFinish] — карта из мастера (или null — без неё / «пропустить»), [onOpenEditor] — та же карта
  * в полном редакторе («заполнить из скриншота»).
@@ -71,50 +72,63 @@ fun OnboardingScreen(
     startStep: Int = 0,
 ) {
     val colors = AppTheme.colors
-    var step by rememberSaveable { mutableIntStateOf(startStep.coerceIn(0, STEPS - 1)) }
-    BackHandler(enabled = step > 0) { step-- }
+    val pager = rememberPagerState(initialPage = startStep.coerceIn(0, STEPS - 1)) { STEPS }
+    val scope = rememberCoroutineScope()
+    val reduceMotion = LocalReduceMotion.current
+    fun go(page: Int) {
+        scope.launch { if (reduceMotion) pager.scrollToPage(page) else pager.animateScrollToPage(page) }
+    }
+    BackHandler(enabled = pager.currentPage > 0) { go(pager.currentPage - 1) }
     LaunchedEffect(suggested) { if (suggested != null) onSpend(suggested) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.bg)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(horizontal = 20.dp),
+            .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        Dots(step)
-        if (step == STEPS - 1) {
-            // Мастер сам рисует кнопки: «Готово» зависит от выбранного способа и полей.
-            PayStep(spend, home, official, unionPay, newCard, onFinish, onOpenEditor, Modifier.weight(1f))
-            return@Column
-        }
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
-        ) {
-            when (step) {
-                0 -> WhyPage()
-                1 -> HowPage(home)
-                2 -> WhatPage()
-                else -> CurrenciesPage(spend, home, official, onSpend, onHome)
+        Dots(pager.currentPage)
+        // Шаги листаются и свайпом, и кнопками; последний шаг сам рисует кнопки
+        // («Готово» зависит от выбранного способа и полей).
+        HorizontalPager(
+            state = pager,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+        ) { step ->
+            Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+                if (step == STEPS - 1) {
+                    PayStep(spend, home, official, unionPay, newCard, onFinish, onOpenEditor, Modifier.weight(1f))
+                    return@Column
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    when (step) {
+                        0 -> WhyPage()
+                        1 -> HowPage(home)
+                        2 -> WhatPage()
+                        else -> CurrenciesPage(spend, home, official, onSpend, onHome)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                val label = when (step) {
+                    0 -> R.string.onboarding_why_next
+                    1 -> R.string.onboarding_how_next
+                    2 -> R.string.onboarding_what_next
+                    else -> R.string.onboarding_next
+                }
+                PrimaryButton(stringResource(label)) { go(step + 1) }
+                if (step == 0) {
+                    SecondaryButton(stringResource(R.string.onboarding_skip_intro), muted = true) { onFinish(null) }
+                } else {
+                    Spacer(Modifier.height(48.dp))
+                }
+                Spacer(Modifier.height(8.dp))
             }
         }
-        Spacer(Modifier.height(12.dp))
-        val label = when (step) {
-            0 -> R.string.onboarding_why_next
-            1 -> R.string.onboarding_how_next
-            2 -> R.string.onboarding_what_next
-            else -> R.string.onboarding_next
-        }
-        PrimaryButton(stringResource(label)) { step++ }
-        if (step == 0) {
-            SecondaryButton(stringResource(R.string.onboarding_skip_intro), muted = true) { onFinish(null) }
-        } else {
-            Spacer(Modifier.height(48.dp))
-        }
-        Spacer(Modifier.height(8.dp))
     }
 }
 

@@ -3,6 +3,7 @@ package app.dirhamrub.ui.settings
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,6 +44,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import app.dirhamrub.R
 import app.dirhamrub.diag.CrashLog
 import app.dirhamrub.domain.MotionMode
@@ -299,6 +301,8 @@ private fun LookSection(state: MainUiState, actions: SettingsActions) {
     }
 }
 
+private const val PRIVACY_URL = "https://github.com/KosHG28/monyexhange/blob/main/docs/privacy.md"
+
 @Composable
 private fun AboutSection(actions: SettingsActions) {
     val context = LocalContext.current
@@ -311,6 +315,11 @@ private fun AboutSection(actions: SettingsActions) {
         LinkRow(stringResource(R.string.settings_version), null, version, null)
         Divider()
         LinkRow(stringResource(R.string.settings_onboarding), null, stringResource(R.string.settings_onboarding_show), actions.onOnboarding)
+        Divider()
+        // Политика — в репозитории; ссылку на неё требует и карточка RuStore.
+        LinkRow(stringResource(R.string.settings_privacy), null, stringResource(R.string.settings_privacy_open)) {
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, PRIVACY_URL.toUri())) }
+        }
         Divider()
         var crash by remember(context) { mutableStateOf(CrashLog.last(context)) }
         val report = crash

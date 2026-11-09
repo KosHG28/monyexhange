@@ -371,6 +371,8 @@
     <string name="settings_version">Версия</string>
     <string name="settings_onboarding">Знакомство</string>
     <string name="settings_onboarding_show">Показать снова ›</string>
+    <string name="settings_privacy">Конфиденциальность</string>
+    <string name="settings_privacy_open">Политика ›</string>
     <string name="settings_crash">Журнал ошибок</string>
     <string name="settings_crash_none">Ошибок не было</string>
     <string name="settings_crash_last">Последняя: %1$s</string>

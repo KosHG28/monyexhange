@@ -49,7 +49,7 @@ import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import java.util.Locale
 
-/** Шапка: «🇦🇪 AED → ₽ ▾» (выбор валют), шпаргалка и настройки. */
+/** Шапка: «🇦🇪 AED → RUB ▾» (выбор валют), шпаргалка и настройки. */
 @Composable
 internal fun TopBar(
     spend: Currency,
@@ -89,8 +89,9 @@ internal fun TopBar(
             Spacer(Modifier.width(8.dp))
             RollingText(spend.code, style = pairStyle, color = colors.ink)
             Text("  →  ", style = pairStyle.copy(fontWeight = FontWeight.Normal), color = colors.muted, maxLines = 1)
-            RollingText(home.symbol, style = pairStyle, color = colors.ink)
-            Spacer(Modifier.width(8.dp))
+            // Итоговая валюта — кодом, как и валюта трат: символ «₽» на маленьком экране читался плохо.
+            RollingText(home.code, style = pairStyle, color = colors.ink)
+            Spacer(Modifier.width(6.dp))
             Text("▾", style = type.caption, color = colors.muted)
         }
         Spacer(Modifier.weight(1f))

@@ -9,7 +9,7 @@
         <intent
             android:action="android.intent.action.VIEW"
             android:targetClass="app.dirhamrub.MainActivity"
-            android:targetPackage="app.dirhamrub">
+            android:targetPackage="ru.kurspocheku">
             <extra
                 android:name="screen"
                 android:value="camera" />

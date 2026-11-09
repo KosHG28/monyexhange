@@ -4,16 +4,17 @@ plugins {
 }
 
 android {
+    // Пакет в коде прежний (app.dirhamrub), идентификатор приложения — ru.kurspocheku (с 1.18, новый ключ).
     namespace = "app.dirhamrub"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "app.dirhamrub"
+        applicationId = "ru.kurspocheku"
         minSdk = 26
         targetSdk = 37
         // В CI номер сборки растёт, поэтому каждое новое APK ставится поверх старого.
         versionCode = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull() ?: 1
-        versionName = "1.17.0"
+        versionName = "1.18.0"
         ndk {
             // Только 64-битные телефоны: копия распознавания текста для 32-битных весила 6,8 МБ из 23.
             abiFilters += listOf("arm64-v8a")

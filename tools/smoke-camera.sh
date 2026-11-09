@@ -5,7 +5,8 @@
 # Падение (FATAL EXCEPTION или пропавший процесс) валит тест; стек и logcat — в логе шага.
 set -u
 APK=app/build/outputs/apk/release/app-release.apk
-PKG=app.dirhamrub
+PKG=ru.kurspocheku
+ACT=app.dirhamrub.MainActivity  # класс — в пакете кода, не в идентификаторе приложения
 
 MAPPING=app/build/outputs/mapping/release/mapping.txt
 
@@ -50,14 +51,14 @@ fail_if_crashed() {
 adb install -r "$APK"
 
 adb logcat -c
-adb shell am start -W -n "$PKG/.MainActivity" --es screen camera
+adb shell am start -W -n "$PKG/$ACT" --es screen camera
 sleep 8
 fail_if_crashed "экран камеры без разрешения"
 
 adb shell am force-stop "$PKG"
 adb shell pm grant "$PKG" android.permission.CAMERA
 adb logcat -c
-adb shell am start -W -n "$PKG/.MainActivity" --es screen camera
+adb shell am start -W -n "$PKG/$ACT" --es screen camera
 sleep 40
 echo "=== logcat: предупреждения и ошибки ==="
 adb logcat -d -v brief '*:W' | grep -v chatty | tail -n 150

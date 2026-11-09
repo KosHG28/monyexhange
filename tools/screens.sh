@@ -3,7 +3,8 @@
 # Снимки — в screens/*.png; workflow выкладывает их в пререлиз «screens».
 set -u
 APK=app/build/outputs/apk/debug/app-debug.apk
-PKG=app.dirhamrub
+PKG=ru.kurspocheku
+ACT=app.dirhamrub.MainActivity  # класс — в пакете кода, не в идентификаторе приложения
 OUT=screens
 mkdir -p "$OUT"
 
@@ -19,7 +20,7 @@ shot() {
   local name=$1
   shift
   adb shell am force-stop "$PKG"
-  adb shell am start -W -n "$PKG/.MainActivity" --ez demo true "$@" > /dev/null
+  adb shell am start -W -n "$PKG/$ACT" --ez demo true "$@" > /dev/null
   sleep "${WAIT:-7}"
   adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS > /dev/null 2>&1 || true
   sleep 1
@@ -80,7 +81,7 @@ shot 29-main-thb --es spend THB
 
 # Первый запуск: данные стёрты — знакомство.
 adb shell pm clear "$PKG"
-adb shell am start -W -n "$PKG/.MainActivity" > /dev/null
+adb shell am start -W -n "$PKG/$ACT" > /dev/null
 sleep 10
 adb exec-out screencap -p > "$OUT/10-onboarding.png"
 echo "снимок: 10-onboarding"

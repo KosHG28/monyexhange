@@ -72,6 +72,9 @@ private const val STAR_FLIGHT_MS = 520
 private val STAR_ARC = 26.dp
 internal val RATE_MIN_SP = 9.sp
 
+/** Уже — компактная карта: сумма мельче, наценка под курсом. */
+internal val COMPACT_CARD_WIDTH = 130.dp
+
 /**
  * Карты пользователя в ряд (прокручивается) и плитка «+»: ширина карт — от ширины экрана,
  * чтобы две карты и «+» помещались целиком.
@@ -113,7 +116,13 @@ fun BankCardsRow(
         // При крупном системном шрифте карты шире и выше, иначе название и курс обрезаются
         // (тогда «+» и вторая карта уходят вправо — ряд прокручивается).
         val scale = cardScale()
-        val cardWidth = (((maxWidth - 16.dp * 2 - 10.dp * 2 - ADD_WIDTH) / 2) * scale).coerceIn(140.dp, minOf(240.dp, maxWidth * 0.62f))
+        // Три карты и больше — три узкие на экране целиком (четвёртая и «+» — прокруткой),
+        // иначе две широкие и «+».
+        val cardWidth = if (cards.size >= 3) {
+            (((maxWidth - 16.dp * 2 - 10.dp * 2) / 3) * scale).coerceIn(104.dp, minOf(240.dp, maxWidth * 0.62f))
+        } else {
+            (((maxWidth - 16.dp * 2 - 10.dp * 2 - ADD_WIDTH) / 2) * scale).coerceIn(140.dp, minOf(240.dp, maxWidth * 0.62f))
+        }
         // Рамка выбранной карты — одна на весь ряд: при выборе другой карты она переезжает к ней
         // с лёгким пружинящим докатом, а не гаснет на одной и загорается на другой.
         val selectedIndex = cards.indexOfFirst { it.id == selectedId }

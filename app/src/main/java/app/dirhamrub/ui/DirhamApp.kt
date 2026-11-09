@@ -236,6 +236,8 @@ fun DirhamApp(
                 },
                 onTheme = vm::setTheme,
                 onMotion = vm::setMotion,
+                onDynamicColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) vm::setDynamicColor else null,
+                onKeyHaptics = vm::setKeyHaptics,
                 onOnboarding = {
                     settingsOpen = false
                     vm.restartOnboarding()

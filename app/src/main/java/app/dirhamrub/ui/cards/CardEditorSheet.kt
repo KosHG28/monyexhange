@@ -157,6 +157,8 @@ fun CardEditorSheet(
         mutableStateOf(card.manualFor(spend, home)?.homePerUnit?.let { Numbers.plain(it.multiply(manualUnit, MC), 4) }.orEmpty())
     }
     var confirmDelete by remember(card.id) { mutableStateOf(false) }
+    // Нажали «Сохранить», а в чеке заполнена только одна сумма из двух — подсвечиваем вторую, шторку не закрываем.
+    var showErrors by remember(card.id) { mutableStateOf(false) }
     var cardPicker by remember(card.id) { mutableStateOf(false) }
 
     // Чек из скриншота: уведомление или операция в приложении банка → суммы в поля чека.
@@ -295,14 +297,20 @@ fun CardEditorSheet(
                 stringResource(if (cash) R.string.editor_currency_cash else R.string.editor_currency),
                 Modifier.cascade(cascade, 3),
             )
-            // Частые валюты карт чипами, остальные — в окне с поиском.
+            // Четыре валюты чипами: та, что была у карты, валюта трат, валюты других карт и итоговая
+            // (добираются частыми); остальные — в окне с поиском. Список не прыгает при выборе.
+            val chipOptions = remember(card.id) {
+                (listOf(card.currency, spend) + cards.filter { it.id != card.id }.map { it.currency } + home + Currency.FREQUENT)
+                    .distinct()
+                    .take(EDITOR_CHIPS)
+            }
             CurrencyChips(
-                options = (Currency.FREQUENT + currency).distinct(),
+                options = (chipOptions + currency).distinct(),
                 selected = currency,
                 onSelect = { currency = it },
                 modifier = Modifier.cascade(cascade, 3),
                 onMore = { cardPicker = true },
-                moreLabel = stringResource(R.string.currency_more),
+                moreLabel = stringResource(R.string.currency_more_count, Currency.entries.size),
             )
             if (!cash) {
                 Spacer(Modifier.height(12.dp))
@@ -364,8 +372,8 @@ fun CardEditorSheet(
                     } else {
                         val gotAtm = stringResource(R.string.receipt_atm_got)
                         val paidAtm = stringResource(R.string.receipt_atm_paid)
-                        ReceiptLine(gotAtm, got, { got = it }, gotAtm) { CurrencyMark(currency.symbol) }
-                        ReceiptLine(paidAtm, sent, { sent = it }, paidAtm, last = true) {
+                        ReceiptLine(gotAtm, got, { got = it }, gotAtm, error = missing(showErrors, got, sent)) { CurrencyMark(currency.symbol) }
+                        ReceiptLine(paidAtm, sent, { sent = it }, paidAtm, last = true, error = missing(showErrors, sent, got)) {
                             CardDropdown(
                                 atmSource,
                                 atmSources,
@@ -398,7 +406,7 @@ fun CardEditorSheet(
                     ReceiptSection(stringResource(if (cash) R.string.receipt_exchange else R.string.receipt_transfer))
                     val sentLabel = stringResource(if (cash) R.string.receipt_gave else R.string.receipt_sent)
                     val gotLabel = stringResource(if (cash) R.string.receipt_received else R.string.receipt_got)
-                    ReceiptLine(sentLabel, sent, { sent = it }, sentLabel) {
+                    ReceiptLine(sentLabel, sent, { sent = it }, sentLabel, error = missing(showErrors, sent, got)) {
                         // В обменник несут рубли, доллары, евро или юани; карту пополняют и из других валют.
                         val sentOptions = (if (cash) listOf(home) + EXCHANGE_FROM else Currency.FREQUENT + home)
                             .filter { it != currency } + sentCurrency
@@ -412,7 +420,7 @@ fun CardEditorSheet(
                             pick,
                         )
                     }
-                    ReceiptLine(gotLabel, got, { got = it }, gotLabel) {
+                    ReceiptLine(gotLabel, got, { got = it }, gotLabel, error = missing(showErrors, got, sent)) {
                         CurrencyMark(currency.symbol)
                     }
                     // Чек заполнен — курс по нему; пустой — что будет без него.
@@ -440,6 +448,7 @@ fun CardEditorSheet(
                 if (!cash) {
                     PurchaseReceipts(
                         purchases = purchases,
+                        showErrors = showErrors,
                         cardCurrency = currency,
                         spend = spend,
                         pick = pick,
@@ -518,7 +527,14 @@ fun CardEditorSheet(
                 .padding(top = 8.dp, bottom = 16.dp),
         ) {
             Button(
-                onClick = { val result = build(); close { onSave(result) } },
+                onClick = {
+                    if (halfFilled(sent, got) || (!cash && purchases.any { halfFilled(it.paid, it.price) })) {
+                        showErrors = true
+                    } else {
+                        val result = build()
+                        close { onSave(result) }
+                    }
+                },
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = colors.accent, contentColor = colors.onAccent),
                 modifier = Modifier
@@ -580,3 +596,6 @@ private const val MAX_NAME = 24
 
 /** Что несут в обменник за местные наличные (кроме итоговой валюты — она есть всегда). */
 private val EXCHANGE_FROM = listOf(Currency.RUB, Currency.USD, Currency.EUR, Currency.CNY)
+
+/** Сколько валют показывать чипами в редакторе карты. */
+private const val EDITOR_CHIPS = 4

@@ -128,7 +128,13 @@ internal fun BankCardView(
         if (best != null) append(". ").append(best)
     }
     val editLabel = stringResource(R.string.card_edit_a11y)
-    val sumSize = if (sumText.length > 11) 17.sp else 22.sp
+    // Узкая карта (три в ряд): сумма мельче, наценка — строкой под курсом, а не рядом.
+    val compact = width < COMPACT_CARD_WIDTH
+    val sumSize = when {
+        compact -> if (sumText.length > 11) 15.sp else 18.sp
+        sumText.length > 11 -> 17.sp
+        else -> 22.sp
+    }
 
     // Зазор под общую рамку выбранной карты (её рисует ряд): размер и соседи не меняются.
     Box(Modifier.padding(RING_GAP)) {
@@ -175,12 +181,12 @@ internal fun BankCardView(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 13.dp, vertical = 11.dp),
+                    .padding(horizontal = if (compact) 10.dp else 13.dp, vertical = if (compact) 9.dp else 11.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = card.name,
-                        style = type.label.copy(fontSize = 12.5.sp),
+                        style = type.label.copy(fontSize = if (compact) 11.5.sp else 12.5.sp),
                         color = CardPalette.onCard.copy(alpha = 0.92f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -202,18 +208,20 @@ internal fun BankCardView(
                     }
                 }
                 Spacer(Modifier.height(3.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Курс не сокращается многоточием: на узкой карте шрифт сам уменьшается, пока строка не влезет.
+                val rateStyle = type.caption.copy(fontSize = 11.5.sp, lineHeight = 14.sp, color = CardPalette.onCard.copy(alpha = 0.88f))
+                // Курс не сокращается многоточием: на узкой карте шрифт сам уменьшается, пока строка не влезет.
+                val rateText: @Composable (Modifier) -> Unit = { m ->
                     BasicText(
                         text = rate,
-                        style = type.caption.copy(fontSize = 11.5.sp, lineHeight = 14.sp, color = CardPalette.onCard.copy(alpha = 0.88f)),
+                        style = rateStyle,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         autoSize = TextAutoSize.StepBased(minFontSize = RATE_MIN_SP, maxFontSize = 11.5.sp, stepSize = 0.25.sp),
-                        modifier = Modifier.weight(1f, fill = false),
+                        modifier = m,
                     )
+                }
+                val vsChip: @Composable () -> Unit = {
                     if (vs != null) {
-                        Spacer(Modifier.width(5.dp))
                         Text(
                             text = stringResource(R.string.percent_value, signedPercent(vs)),
                             style = type.caption.copy(fontSize = 10.5.sp, lineHeight = 13.sp, fontWeight = FontWeight.SemiBold),
@@ -228,6 +236,21 @@ internal fun BankCardView(
                                 .background(CardPalette.chipScrim)
                                 .padding(horizontal = 5.dp, vertical = 1.dp),
                         )
+                    }
+                }
+                if (compact) {
+                    rateText(Modifier.fillMaxWidth())
+                    if (vs != null) {
+                        Spacer(Modifier.height(2.dp))
+                        vsChip()
+                    }
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        rateText(Modifier.weight(1f, fill = false))
+                        if (vs != null) {
+                            Spacer(Modifier.width(5.dp))
+                            vsChip()
+                        }
                     }
                 }
             }

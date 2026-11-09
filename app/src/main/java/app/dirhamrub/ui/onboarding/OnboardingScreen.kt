@@ -87,7 +87,24 @@ fun OnboardingScreen(
             .background(colors.bg)
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        Dots(pager.currentPage)
+        // «Пропустить» — сверху справа на шагах 2–4: на первом есть большая кнопка, на последнем — «Без карты».
+        Box(Modifier.fillMaxWidth()) {
+            Dots(pager.currentPage)
+            if (pager.currentPage in 1 until STEPS - 1) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 8.dp)
+                        .heightIn(min = 48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(role = Role.Button) { onFinish(null) }
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(stringResource(R.string.onboarding_skip), style = AppTheme.type.bodyStrong, color = colors.muted)
+                }
+            }
+        }
         // Шаги листаются и свайпом, и кнопками; последний шаг сам рисует кнопки
         // («Готово» зависит от выбранного способа и полей).
         HorizontalPager(

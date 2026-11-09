@@ -27,6 +27,10 @@ data class AppSettings(
     val countryHint: Boolean = true,
     val theme: ThemeMode = ThemeMode.SYSTEM,
     val motion: MotionMode = MotionMode.SYSTEM,
+    /** Цвета из обоев (Material You, Android 12+). */
+    val dynamicColor: Boolean = false,
+    /** Вибрация при нажатии клавиш калькулятора. */
+    val keyHaptics: Boolean = true,
 )
 
 /** Когда скачивать курсы: по настройке [RatesUpdate], поводу и времени прошлой загрузки. */

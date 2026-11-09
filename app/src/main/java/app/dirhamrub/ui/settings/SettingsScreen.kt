@@ -77,6 +77,9 @@ class SettingsActions(
     val onAddTile: (() -> Unit)?,
     val onTheme: (ThemeMode) -> Unit,
     val onMotion: (MotionMode) -> Unit,
+    /** null — цветов из обоев нет (Android до 12). */
+    val onDynamicColor: ((Boolean) -> Unit)?,
+    val onKeyHaptics: (Boolean) -> Unit,
     val onOnboarding: () -> Unit,
 )
 
@@ -298,6 +301,23 @@ private fun LookSection(state: MainUiState, actions: SettingsActions) {
             listOf(stringResource(R.string.settings_as_system), stringResource(R.string.settings_motion_off)),
             motions.indexOf(state.settings.motion),
         ) { actions.onMotion(motions[it]) }
+        val dynamic = actions.onDynamicColor
+        if (dynamic != null) {
+            Divider()
+            SwitchRow(
+                stringResource(R.string.settings_dynamic_color),
+                stringResource(R.string.settings_dynamic_color_sub),
+                state.settings.dynamicColor,
+                dynamic,
+            )
+        }
+        Divider()
+        SwitchRow(
+            stringResource(R.string.settings_key_haptics),
+            stringResource(R.string.settings_key_haptics_sub),
+            state.settings.keyHaptics,
+            actions.onKeyHaptics,
+        )
     }
 }
 

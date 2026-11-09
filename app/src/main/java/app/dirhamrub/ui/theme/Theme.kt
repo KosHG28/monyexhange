@@ -1,13 +1,17 @@
 package app.dirhamrub.ui.theme
 
 import android.app.Activity
+import android.os.Build
 import android.provider.Settings
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -23,6 +27,9 @@ import app.dirhamrub.domain.ThemeMode
 
 /** true, если в системе отключены анимации («уменьшить анимацию»). */
 val LocalReduceMotion = staticCompositionLocalOf { false }
+
+/** Вибрация при нажатии клавиш калькулятора (настройка «Вибрация клавиш»). */
+val LocalKeyHaptics = staticCompositionLocalOf { true }
 
 object AppTheme {
     val colors: AppColors
@@ -41,12 +48,15 @@ fun <T> motion(durationMs: Int = 220): AnimationSpec<T> =
 
 /**
  * Тема приложения: [theme] — как в системе или своя, [motion] — анимации как в системе или выключены.
- * Значки системных панелей подстраиваются под тему приложения, а не системы.
+ * [dynamic] — цвета из обоев (Android 12+): фон, поверхности и акцент берутся из системной палитры,
+ * «хорошо/заметно» остаются своими — у них смысл. Значки системных панелей — под тему приложения.
  */
 @Composable
 fun DirhamTheme(
     theme: ThemeMode = ThemeMode.SYSTEM,
     motion: MotionMode = MotionMode.SYSTEM,
+    dynamic: Boolean = false,
+    keyHaptics: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val systemDark = isSystemInDarkTheme()
@@ -55,8 +65,13 @@ fun DirhamTheme(
         ThemeMode.DARK -> true
         ThemeMode.LIGHT -> false
     }
-    val colors = if (dark) DarkColors else LightColors
     val context = LocalContext.current
+    val base = if (dark) DarkColors else LightColors
+    val colors = if (dynamic && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        remember(context, dark) { dynamicColors(if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context), base) }
+    } else {
+        base
+    }
     val systemReduce = remember(context) {
         Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
     }
@@ -109,7 +124,21 @@ fun DirhamTheme(
         LocalAppColors provides colors,
         LocalAppType provides type,
         LocalReduceMotion provides reduceMotion,
+        LocalKeyHaptics provides keyHaptics,
     ) {
         MaterialTheme(colorScheme = scheme, typography = materialTypography(type), content = content)
     }
 }
+
+/** Свои роли из системной палитры Material You; зелёный и жёлтый — свои: «выгодно» и «заметно» не должны зависеть от обоев. */
+private fun dynamicColors(scheme: ColorScheme, base: AppColors): AppColors = base.copy(
+    bg = scheme.surface,
+    surface = scheme.surfaceContainer,
+    paper = scheme.surfaceContainerHigh,
+    ink = scheme.onSurface,
+    muted = scheme.onSurfaceVariant,
+    line = scheme.outlineVariant,
+    accent = scheme.primary,
+    accentSoft = scheme.primaryContainer,
+    onAccent = scheme.onPrimary,
+)

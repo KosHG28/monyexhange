@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,7 +39,6 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -59,7 +60,8 @@ private class CheatColumn(val title: String, val dot: Color?, val rate: BigDecim
 
 /**
  * Шпаргалка: суммы в валюте трат → итоговая валюта по каждой карте и по курсу ЦБ.
- * Колонки подписаны цветной точкой карты; выбранная — жирным, самая дешёвая — зелёным;
+ * Над таблицей — легенда «● Название карты», в шапке колонок только цветные точки (названия не обрезаются);
+ * выбранная карта — жирным, самая дешёвая — зелёным;
  * текущая сумма с главного экрана — отдельной подсвеченной строкой.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -117,6 +119,8 @@ fun CheatSheet(
             val amounts = MainViewModel.cheat(spend)
             val current = amount.takeIf { it.signum() > 0 }
             val rows = (amounts + listOfNotNull(current?.takeIf { a -> amounts.none { it.compareTo(a) == 0 } })).sorted()
+            Legend(columns.filter { it.dot != null }, Modifier.cascade(cascade, 2))
+            Spacer(Modifier.height(10.dp))
             CheatTable(spend.code, rows, current, columns, cascade)
         }
     }
@@ -139,7 +143,7 @@ private fun CheatTable(first: String, rows: List<BigDecimal>, current: BigDecima
     fun widthOf(text: String): Dp = with(density) { measurer.measure(text, type.monoStrong).size.width.toDp() }
     val firstWidth = widthOf(labels.maxBy { it.length }) + 2.dp
     val valueWidth = widthOf(cells.flatten().maxBy { it.length }) + CELL_GAP
-    val headerHeight = with(density) { type.label.lineHeight.toDp() } * 2 + 16.dp
+    val headerHeight = with(density) { type.label.lineHeight.toDp() } + 16.dp
     val rowHeight = with(density) { type.mono.lineHeight.toDp() } + 14.dp
 
     BoxWithConstraints(
@@ -239,7 +243,7 @@ private fun CheatTable(first: String, rows: List<BigDecimal>, current: BigDecima
     }
 }
 
-/** Название колонки: цветная точка карты в начале, выбранная — жирным. */
+/** Шапка колонки: у карты — только её цветная точка (название — в легенде), у ЦБ — подпись. */
 @Composable
 private fun HeaderCell(c: CheatColumn, width: Dp) {
     val colors = AppTheme.colors
@@ -248,21 +252,42 @@ private fun HeaderCell(c: CheatColumn, width: Dp) {
         Modifier
             .width(width)
             .fillMaxHeight()
-            .padding(start = CELL_GAP, bottom = 8.dp),
+            .padding(start = CELL_GAP, bottom = 8.dp)
+            .clearAndSetSemantics { contentDescription = c.title },
         contentAlignment = Alignment.BottomEnd,
     ) {
-        Text(
-            text = buildAnnotatedString {
-                if (c.dot != null) withStyle(SpanStyle(color = c.dot)) { append("● ") }
-                append(c.title)
-            },
-            style = if (c.selected) type.label.copy(fontWeight = FontWeight.SemiBold) else type.label,
-            color = if (c.selected) colors.ink else colors.muted,
-            textAlign = TextAlign.End,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
+        if (c.dot != null) {
+            Box(
+                Modifier
+                    .padding(bottom = 4.dp)
+                    .size(if (c.selected) 12.dp else 10.dp)
+                    .clip(CircleShape)
+                    .background(c.dot),
+            )
+        } else {
+            Text(c.title, style = type.label, color = colors.muted, textAlign = TextAlign.End, maxLines = 1)
+        }
     }
+}
+
+/** Легенда над таблицей: «● Карта в тенге  ● Карта в юанях», выбранная — жирным. Пункты не разрываются. */
+@Composable
+private fun Legend(cards: List<CheatColumn>, modifier: Modifier = Modifier) {
+    val colors = AppTheme.colors
+    if (cards.isEmpty()) return
+    Text(
+        text = buildAnnotatedString {
+            cards.forEachIndexed { i, c ->
+                if (i > 0) append("   ")
+                withStyle(SpanStyle(color = c.dot ?: colors.muted)) { append("●\u00A0") }
+                withStyle(SpanStyle(color = if (c.selected) colors.ink else colors.muted, fontWeight = if (c.selected) FontWeight.SemiBold else null)) {
+                    append(c.title.replace(' ', '\u00A0'))
+                }
+            }
+        },
+        style = AppTheme.type.label,
+        modifier = modifier.clearAndSetSemantics { },
+    )
 }
 
 /** Поля таблицы по краям. */

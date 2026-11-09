@@ -329,6 +329,8 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
     fun setCountryHint(value: Boolean) = updateSettings { it.copy(countryHint = value) }
     fun setTheme(value: ThemeMode) = updateSettings { it.copy(theme = value) }
     fun setMotion(value: MotionMode) = updateSettings { it.copy(motion = value) }
+    fun setDynamicColor(value: Boolean) = updateSettings { it.copy(dynamicColor = value) }
+    fun setKeyHaptics(value: Boolean) = updateSettings { it.copy(keyHaptics = value) }
 
     /** Порядок карт из настроек. */
     fun reorderCards(ids: List<String>) = _state.update { it.copy(wallet = it.wallet.reorder(ids)) }

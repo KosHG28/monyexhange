@@ -48,6 +48,8 @@ internal class PurchaseDraft(val key: Int, spend: Currency, paid: String, price:
 @Composable
 internal fun PurchaseReceipts(
     purchases: SnapshotStateList<PurchaseDraft>,
+    /** Подсветить незаполненную сумму в чеках, где заполнена только одна из двух. */
+    showErrors: Boolean,
     cardCurrency: Currency,
     spend: Currency,
     pick: String,
@@ -81,10 +83,10 @@ internal fun PurchaseReceipts(
                     .padding(10.dp),
             )
         }
-        ReceiptLine(stringResource(R.string.receipt_paid), d.paid, { d.paid = it }, stringResource(R.string.receipt_paid)) {
+        ReceiptLine(stringResource(R.string.receipt_paid), d.paid, { d.paid = it }, stringResource(R.string.receipt_paid), error = missing(showErrors, d.paid, d.price)) {
             CurrencyMark(cardCurrency.symbol)
         }
-        ReceiptLine(stringResource(R.string.receipt_for), d.price, { d.price = it }, stringResource(R.string.receipt_for)) {
+        ReceiptLine(stringResource(R.string.receipt_for), d.price, { d.price = it }, stringResource(R.string.receipt_for), error = missing(showErrors, d.price, d.paid)) {
             CurrencyMark(d.spend.symbol)
         }
         val paid = Numbers.parse(d.paid)?.takeIf { it.signum() > 0 }
@@ -97,3 +99,14 @@ internal fun PurchaseReceipts(
     TextButton(onClick = onAdd) { Text(stringResource(R.string.receipt_add), style = type.bodyStrong, color = colors.accent) }
     hint?.let { Hint(it) }
 }
+
+/** Сумма в поле есть и она больше нуля. */
+private fun filled(text: String): Boolean = Numbers.parse(text)?.let { it.signum() > 0 } == true
+
+/** В паре сумм чека заполнена ровно одна: такой чек не сохранится. */
+internal fun halfFilled(a: String, b: String): Boolean = filled(a) != filled(b)
+
+/** Пояснение под пустым полем [value], если вторая сумма пары [other] заполнена и пользователь уже нажал «Сохранить». */
+@Composable
+internal fun missing(show: Boolean, value: String, other: String): String? =
+    if (show && !filled(value) && filled(other)) stringResource(R.string.receipt_missing) else null

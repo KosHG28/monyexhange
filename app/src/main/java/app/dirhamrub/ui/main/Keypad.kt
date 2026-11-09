@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.Key
 import app.dirhamrub.ui.theme.AppTheme
+import app.dirhamrub.ui.theme.LocalKeyHaptics
 import app.dirhamrub.ui.theme.LocalReduceMotion
 
 /** Высота клавиш: на коротких экранах ниже, чтобы сумма и подсказки не уходили под прокрутку. */
@@ -125,6 +126,7 @@ private fun RowScope.KeyBase(
     content: @Composable () -> Unit,
 ) {
     val view = LocalView.current
+    val haptics = LocalKeyHaptics.current
     // Клавиша «проседает» при нажатии: даже короткий тап доигрывает нажатие, потом пружинит обратно.
     val source = remember { MutableInteractionSource() }
     val press = remember { Animatable(1f) }
@@ -154,12 +156,12 @@ private fun RowScope.KeyBase(
                 indication = LocalIndication.current,
                 onLongClickLabel = longClickLabel,
                 onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     onClick()
                 },
                 onLongClick = onLongClick?.let { action ->
                     {
-                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        if (haptics) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                         action()
                     }
                 },
@@ -224,16 +226,17 @@ private fun RowScope.BackspaceKey(onKey: (Key) -> Unit) {
 @Composable
 private fun RowScope.CameraKey(onClick: () -> Unit, onPlaced: (Offset) -> Unit) {
     val colors = AppTheme.colors
+    // Тёмная клавиша с красной надписью: заметна, но не спорит с цифрами за внимание.
     KeyBase(
         stringResource(R.string.price_tag_a11y),
-        colors.accent,
+        colors.surface,
         onClick = onClick,
         modifier = Modifier.onGloballyPositioned { onPlaced(it.boundsInRoot().center) },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(painterResource(R.drawable.ic_camera), contentDescription = null, tint = colors.onAccent, modifier = Modifier.size(24.dp))
+            Icon(painterResource(R.drawable.ic_camera), contentDescription = null, tint = colors.accent, modifier = Modifier.size(24.dp))
             Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.price_tag_button), style = AppTheme.type.bodyStrong.copy(fontSize = 18.sp), color = colors.onAccent)
+            Text(stringResource(R.string.price_tag_button), style = AppTheme.type.bodyStrong.copy(fontSize = 18.sp), color = colors.accent)
         }
     }
 }

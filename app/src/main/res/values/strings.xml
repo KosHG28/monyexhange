@@ -367,6 +367,10 @@
     <string name="settings_theme_light">Светлая</string>
     <string name="settings_motion">Анимации</string>
     <string name="settings_motion_off">Без анимаций</string>
+    <string name="settings_dynamic_color">Цвета из обоев</string>
+    <string name="settings_dynamic_color_sub">Фон и акцент — под обои телефона (Material You)</string>
+    <string name="settings_key_haptics">Вибрация клавиш</string>
+    <string name="settings_key_haptics_sub">Лёгкий отклик при нажатии цифр</string>
     <string name="settings_about">О приложении</string>
     <string name="settings_version">Версия</string>
     <string name="settings_onboarding">Знакомство</string>
@@ -379,4 +383,7 @@
     <string name="settings_crash_copy">Скопировать</string>
     <string name="settings_crash_clear">Очистить</string>
     <string name="settings_footer">Сеть — только для курсов ЦБ и UnionPay. Карты и чеки хранятся на телефоне.</string>
+    <string name="receipt_missing">Заполните и эту сумму — без неё чек не учтётся</string>
+    <string name="currency_more_count">Все валюты (%1$d) ›</string>
+    <string name="onboarding_skip">Пропустить</string>
 </resources>

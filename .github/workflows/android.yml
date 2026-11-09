@@ -32,7 +32,7 @@ jobs:
       LANG: C.UTF-8
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # Ключ подписи — из секретов репозитория (KEYSTORE_BASE64 и пароли SIGNING_*); без них — отладочный ключ.
       - name: Ключ подписи из секретов
@@ -51,12 +51,12 @@ jobs:
             echo "::warning::KEYSTORE_BASE64 не открывается как ключ (нужен ключ подписи в base64) — отладочный ключ (выпуск невозможен)"
           fi
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: gradle/actions/setup-gradle@v5
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Android SDK packages
         run: |
@@ -74,7 +74,7 @@ jobs:
 
       # Квота хранилища артефактов общая на аккаунт; если она кончилась, сборка всё равно зелёная,
       # а APK для установки публикуется через GitHub Release по тегу.
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: success()
         continue-on-error: true
         with:
@@ -82,7 +82,7 @@ jobs:
           path: out/*.apk
           retention-days: 14
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: failure()
         continue-on-error: true
         with:
@@ -122,7 +122,7 @@ jobs:
       LC_ALL: C.UTF-8
       LANG: C.UTF-8
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # Ключ подписи — из секретов репозитория (KEYSTORE_BASE64 и пароли SIGNING_*); без них — отладочный ключ.
       - name: Ключ подписи из секретов
@@ -141,12 +141,12 @@ jobs:
             echo "::warning::KEYSTORE_BASE64 не открывается как ключ (нужен ключ подписи в base64) — отладочный ключ (выпуск невозможен)"
           fi
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: gradle/actions/setup-gradle@v5
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Место на диске и KVM
         run: |
@@ -181,7 +181,7 @@ jobs:
       LC_ALL: C.UTF-8
       LANG: C.UTF-8
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # Ключ подписи — из секретов репозитория (KEYSTORE_BASE64 и пароли SIGNING_*); без них — отладочный ключ.
       - name: Ключ подписи из секретов
@@ -200,12 +200,12 @@ jobs:
             echo "::warning::KEYSTORE_BASE64 не открывается как ключ (нужен ключ подписи в base64) — отладочный ключ (выпуск невозможен)"
           fi
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: gradle/actions/setup-gradle@v5
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Место на диске и KVM
         run: |

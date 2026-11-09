@@ -79,19 +79,18 @@ shot 27-onb-5-pay --es screen onboarding --ei step 4
 WAIT=12 shot 28-atm-editor --es spend THB --es screen editor --es card demo-thb-atm
 shot 29-main-thb --es spend THB
 
-# Скриншоты для RuStore: 9:16 (1080×1920), тёмная тема, порядок как в карточке (docs/rustore/README.md).
+# Скриншоты для RuStore (камера эмулятора показывает виртуальную комнату — её снимок делается на телефоне): 9:16 (1080×1920), тёмная тема, порядок как в карточке (docs/rustore/README.md).
 adb shell cmd uimode night yes
 adb shell wm size 1080x1920
 WAIT=10 shot store-1-main
-WAIT=10 shot store-2-camera --es screen camera
-shot store-3-why --es screen onboarding --ei step 0
-shot store-4-how --es screen onboarding --ei step 1
-WAIT=12 shot store-5-editor --es screen editor
-shot store-6-cheat --es screen cheat
+shot store-2-why --es screen onboarding --ei step 0
+shot store-3-how --es screen onboarding --ei step 1
+WAIT=12 shot store-4-editor --es screen editor
+shot store-5-cheat --es screen cheat
 adb shell cmd uimode night no
-shot store-7-main-light
+shot store-6-main-light
 adb shell cmd uimode night yes
-shot store-8-settings --es screen settings
+shot store-7-settings --es screen settings
 adb shell wm size reset
 
 # Первый запуск: данные стёрты — знакомство.

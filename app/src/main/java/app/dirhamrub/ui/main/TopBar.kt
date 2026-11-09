@@ -69,32 +69,35 @@ internal fun TopBar(
     ) {
         val a11y = stringResource(R.string.currency_button_a11y, spend.nameRu, home.nameRu)
         val pairStyle = type.bodyStrong.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium)
-        Row(
-            modifier = Modifier
-                .weight(1f, fill = false)
-                .heightIn(min = 48.dp)
-                .clip(RoundedCornerShape(50))
-                .background(colors.surface)
-                .clickable(role = Role.Button, onClick = onOpenCurrencies)
-                .clearAndSetSemantics {
-                    contentDescription = a11y
-                    role = Role.Button
-                    heading()
-                }
-                .padding(start = 14.dp, end = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Сменили валюту — флаг переворачивается, коды перекатываются: видно, что поменялось.
-            FlipFlag(spend.flag)
-            Spacer(Modifier.width(8.dp))
-            RollingText(spend.code, style = pairStyle, color = colors.ink)
-            Text("  →  ", style = pairStyle.copy(fontWeight = FontWeight.Normal), color = colors.muted, maxLines = 1)
-            // Итоговая валюта — кодом, как и валюта трат: символ «₽» на маленьком экране читался плохо.
-            RollingText(home.code, style = pairStyle, color = colors.ink)
-            Spacer(Modifier.width(6.dp))
-            Text("▾", style = type.caption, color = colors.muted)
+        // Плашка занимает всё место до кнопок (распорка с тем же весом отдавала ей лишь половину —
+        // «AED → RUB ▾» обрезалось до «AED → RU»), но по ширине — по содержимому.
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            Row(
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(colors.surface)
+                    .clickable(role = Role.Button, onClick = onOpenCurrencies)
+                    .clearAndSetSemantics {
+                        contentDescription = a11y
+                        role = Role.Button
+                        heading()
+                    }
+                    .padding(start = 14.dp, end = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Сменили валюту — флаг переворачивается, коды перекатываются: видно, что поменялось.
+                FlipFlag(spend.flag)
+                Spacer(Modifier.width(8.dp))
+                RollingText(spend.code, style = pairStyle, color = colors.ink)
+                Text("  →  ", style = pairStyle.copy(fontWeight = FontWeight.Normal), color = colors.muted, maxLines = 1)
+                // Итоговая валюта — кодом, как и валюта трат: символ «₽» на маленьком экране читался плохо.
+                RollingText(home.code, style = pairStyle, color = colors.ink)
+                Spacer(Modifier.width(6.dp))
+                Text("▾", style = type.caption, color = colors.muted)
+            }
         }
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.width(8.dp))
         RoundIcon(R.drawable.ic_table, stringResource(R.string.cheat_button), onOpenCheat)
         Spacer(Modifier.width(8.dp))
         RoundIcon(R.drawable.ic_settings, stringResource(R.string.settings_button), onOpenSettings)

@@ -90,6 +90,8 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
+    // Только отладочная сборка: проверка Gemini Nano (src/debug/…/nanolab). В релиз не попадает.
+    debugImplementation(libs.mlkit.genai.prompt)
 
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)

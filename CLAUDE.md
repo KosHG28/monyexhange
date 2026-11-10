@@ -48,7 +48,10 @@ app/src/main/java/app/dirhamrub/
     price/PriceTracker                    стабилизация меток между кадрами
   data/              WalletRepository (DataStore + перенос с 0.x), CbrClient и UnionPayClient (сеть)
   ui/theme/          цвета, шрифты, тема, оформления карт
-  ui/main/           главный экран (MainScreen, TopBar, ResultBlock, InputArea) + MainViewModel
+  ui/main/           главный экран — один калькулятор (MainScreen, TopBar, ResultBlock, InputArea),
+                     шторки «Карты» и «Ещё» (MainSheets) + MainViewModel
+  ui/guide/          справочник «Чем платить в стране»
+  ui/exchange/       обменники: сравнение и камера для табло
   ui/onboarding/     знакомство при первом запуске
   ui/cards/          редактор карты и чеков
   ui/currency/       выбор валюты трат и итоговой

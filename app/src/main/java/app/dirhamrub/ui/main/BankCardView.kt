@@ -4,7 +4,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -38,7 +37,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
@@ -256,33 +254,6 @@ internal fun BankCardView(
                     }
                 }
             }
-        }
-    }
-}
-
-/** Узкая плитка «+» в конце ряда: показывает, что карт может быть больше. */
-@Composable
-internal fun AddCardTile(onAdd: () -> Unit, height: Dp) {
-    val colors = AppTheme.colors
-    val label = stringResource(R.string.card_add)
-    Box(Modifier.padding(RING_GAP)) {
-        Box(
-            modifier = Modifier
-                .size(ADD_WIDTH, height)
-                .clip(CARD_SHAPE)
-                .clickable(role = Role.Button, onClickLabel = label, onClick = onAdd)
-                .semantics { contentDescription = label },
-            contentAlignment = Alignment.Center,
-        ) {
-            val line = colors.line
-            Canvas(Modifier.fillMaxSize()) {
-                drawRoundRect(
-                    color = line,
-                    cornerRadius = CornerRadius(18.dp.toPx()),
-                    style = Stroke(width = 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 6.dp.toPx()))),
-                )
-            }
-            Icon(painterResource(R.drawable.ic_add), contentDescription = null, tint = colors.muted, modifier = Modifier.size(26.dp))
         }
     }
 }

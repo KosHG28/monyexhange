@@ -31,7 +31,6 @@
     <string name="country_offer_switch">Да</string>
     <string name="country_offer_yes">Считать цены в %1$s</string>
     <string name="country_offer_close">Не сейчас</string>
-    <string name="cheat_button">Шпаргалка</string>
 
     <!-- Карты -->
     <string name="card_rate_short">%1$s %2$s/%3$s</string>
@@ -306,7 +305,6 @@
     <string name="onboarding_step">Шаг %1$d из %2$d</string>
     <string name="onboarding_next">Дальше →</string>
     <!-- Настройки -->
-    <string name="settings_button">Настройки</string>
     <string name="settings_title">Настройки</string>
     <string name="settings_back">Назад</string>
     <string name="settings_rates">Курсы</string>
@@ -418,8 +416,6 @@
     <string name="guide_report">Нашли неточность? Сообщить ›</string>
     <string name="guide_report_title">Справочник: %1$s</string>
     <string name="guide_report_body">Страна: %1$s (%2$s)\nСведения от: %3$s\n\nЧто изменилось:\n</string>
-    <string name="settings_guide">Чем платить в стране</string>
-    <string name="settings_guide_sub">%1$s %2$s · карты, наличные, обменники</string>
     <string name="editor_network">Платёжная система</string>
     <string name="editor_network_hint">Нужна справочнику: подскажем, примут ли карту в стране</string>
     <string name="network_short_visa_ru">Visa/MC РФ</string>
@@ -455,7 +451,6 @@
     <string name="exchange_today">сегодня %1$s</string>
     <string name="exchange_yesterday">вчера %1$s</string>
     <string name="exchange_spread_short">разница %1$s %%</string>
-    <string name="exchange_open">Сравнить обменники ›</string>
     <string name="camera_mode_back">‹ Назад</string>
     <string name="camera_mode_price">Ценник</string>
     <string name="camera_mode_exchange">Обменник</string>
@@ -470,40 +465,22 @@
     <string name="transfer_history">Прежние пополнения</string>
     <string name="transfer_remove">Удалить пополнение</string>
     <string name="transfer_new">+ Новое пополнение</string>
-    <string name="page_cards">Карты</string>
-    <string name="page_calc">Счёт</string>
-    <string name="page_trip">Поездка</string>
     <string name="picker_vs">%1$s %% к ЦБ</string>
     <string name="picker_open">Все карты</string>
     <string name="cards_page_title">%1$s %2$s — чем платить:</string>
     <string name="cards_page_add">Карта или наличные</string>
     <string name="cards_page_cheat_sub">Ходовые суммы по всем картам и ЦБ</string>
-    <string name="trip_guide">Чем платить</string>
     <string name="trip_guide_sub">UnionPay %1$s · МИР %2$s · обновлено %3$s</string>
-    <string name="trip_guide_none">Для этой страны сведений пока нет</string>
     <string name="trip_exchange">Обменники</string>
     <string name="trip_exchange_best">Лучший: %1$s — 1 %2$s = %3$s %4$s</string>
     <string name="trip_exchange_none">Запишите курсы 2–3 обменников — покажем лучший</string>
-    <string name="trip_board">Снять табло обменника</string>
-    <string name="trip_board_sub">Камера найдёт курс вашей валюты и сравнит с картой</string>
-    <string name="trip_camera">Камера: суммы на ценниках</string>
-    <string name="trip_camera_sub">Наведите на меню или витрину</string>
     <string name="settings_main">Главный экран</string>
-    <string name="settings_main_layout">Вид калькулятора</string>
-    <string name="settings_main_layout_custom">Вид калькулятора — свой набор</string>
-    <string name="settings_main_simple">Просто</string>
-    <string name="settings_main_detailed">Подробно</string>
-    <string name="settings_main_cards">Карты на калькуляторе</string>
-    <string name="settings_main_cards_line">Одной строкой</string>
-    <string name="settings_main_cards_row">Рядом</string>
-    <string name="settings_main_compare">Сравнение с другими картами</string>
-    <string name="settings_main_compare_sub">«Дешевле на 43 ₽ — наличные» под суммой</string>
-    <string name="settings_main_official">Курс ЦБ</string>
-    <string name="settings_main_official_sub">Строка «ЦБ на 10 ноя: 1 AED = 21,97 ₽» (всегда есть на экране «Карты»)</string>
-    <string name="settings_main_debit">«Спишется с карты»</string>
-    <string name="settings_main_debit_sub">Сумма в валюте карты под полем ввода</string>
     <string name="settings_main_chips">Быстрые суммы</string>
     <string name="settings_main_chips_sub">5 · 10 · 50 · 100… над клавиатурой</string>
     <string name="guide_cash_other">%1$s здесь не платят — поменяйте в обменнике</string>
     <string name="guide_cash_exchange">%1$s меняют везде; иногда принимают и напрямую</string>
+    <string name="menu_button">Ещё: страна, обменники, шпаргалка, настройки</string>
+    <string name="menu_guide">Чем платить: %1$s</string>
+    <string name="menu_settings_sub">Курсы, валюты, карты, оформление</string>
+    <string name="cards_sheet_hint">Касание — выбрать, удержание — изменить</string>
 </resources>

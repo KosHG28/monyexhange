@@ -13,12 +13,10 @@ import app.dirhamrub.data.ratesDataStore
 import app.dirhamrub.data.settingsDataStore
 import app.dirhamrub.data.unionPayDataStore
 import app.dirhamrub.domain.AppSettings
-import app.dirhamrub.domain.CardsView
 import app.dirhamrub.domain.Expression
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.MC
-import app.dirhamrub.domain.MainLayout
 import app.dirhamrub.domain.MotionMode
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.RatesPolicy
@@ -95,8 +93,6 @@ data class MainUiState(
     val unionPayFetchedAt: Long = 0L,
     /** Справочник «Чем платить в стране»: встроенный или скачанный, что свежее. */
     val guides: CountryGuides? = null,
-    /** Страны, для которых плашку справочника закрыли. */
-    val guideDismissed: Set<String> = emptySet(),
     /** Записанные курсы обменников. */
     val exchangers: List<Exchanger> = emptyList(),
 ) {
@@ -206,11 +202,10 @@ class MainViewModel(
                 officialSource = stored.officialSource,
                 unionPayFetchedAt = stored.unionPayFetchedAt,
                 guides = loadGuides(stored.guideText),
-                guideDismissed = stored.guideDismissed,
                 exchangers = stored.exchangers,
             )
-            // Вид калькулятора выбран при первом запуске этой версии — запоминаем, чтобы не менялся потом.
-            if (!stored.mainScreenSaved) repository.saveSettings(stored.settings)
+            // Быстрые суммы выбраны при первом запуске этой версии — запоминаем, чтобы настройка не менялась сама.
+            if (!stored.chipsSaved) repository.saveSettings(stored.settings)
             refresh(Trigger.LAUNCH)
             // Карты и чеки пишем сразу: сохранил карту и тут же закрыл приложение — она не пропадёт.
             // Изменения, не касающиеся кошелька (курсы загружаются, настройки), запись не вызывают.
@@ -403,13 +398,6 @@ class MainViewModel(
         viewModelScope.launch { repository.saveExchangers(next) }
     }
 
-    /** Плашку справочника для страны закрыли: на главном больше не показываем (в настройках — есть). */
-    fun dismissGuide(iso: String) {
-        val next = _state.value.guideDismissed + iso
-        _state.update { it.copy(guideDismissed = next) }
-        viewModelScope.launch { repository.saveGuideDismissed(next) }
-    }
-
     /** Курсы UnionPay: тихо, без индикатора — не скачались, так остаются прежние (или ЦБ и чеки). */
     private fun refreshUnionPay() {
         if (unionPayLoading) return
@@ -442,11 +430,6 @@ class MainViewModel(
     fun setMotion(value: MotionMode) = updateSettings { it.copy(motion = value) }
     fun setDynamicColor(value: Boolean) = updateSettings { it.copy(dynamicColor = value) }
     fun setKeyHaptics(value: Boolean) = updateSettings { it.copy(keyHaptics = value) }
-    fun setMainLayout(value: MainLayout) = updateSettings { it.withLayout(value) }
-    fun setCardsView(value: CardsView) = updateSettings { it.copy(cardsView = value) }
-    fun setShowCompare(value: Boolean) = updateSettings { it.copy(showCompare = value) }
-    fun setShowOfficial(value: Boolean) = updateSettings { it.copy(showOfficial = value) }
-    fun setShowDebit(value: Boolean) = updateSettings { it.copy(showDebit = value) }
     fun setShowChips(value: Boolean) = updateSettings { it.copy(showChips = value) }
 
     /** Порядок карт из настроек. */

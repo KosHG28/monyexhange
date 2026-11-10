@@ -75,11 +75,10 @@ shot 24-onb-2-how --es screen onboarding --ei step 1
 shot 25-onb-3-what --es screen onboarding --ei step 2
 shot 26-onb-4-currencies --es screen onboarding --ei step 3
 shot 27-onb-5-pay --es screen onboarding --ei step 4
-# Справочник «Чем платить» (шторка ОАЭ), экраны главного «Карты» и «Поездка».
+# Справочник «Чем платить» (шторка ОАЭ), шторки «Карты» и «Ещё».
 shot 30-guide --es screen guide
-shot 31-page-cards --es screen cards
-shot 34-main-simple --es layout simple
-shot 33-page-trip --es screen trip
+shot 31-cards-sheet --es screen cards
+shot 33-menu-sheet --es screen menu
 WAIT=10 shot 32-exchange --es screen exchange
 # Наличные из банкомата: баты сняты с карты в юанях.
 WAIT=12 shot 28-atm-editor --es spend THB --es screen editor --es card demo-thb-atm
@@ -88,7 +87,7 @@ shot 29-main-thb --es spend THB
 # Скриншоты для RuStore (камера эмулятора показывает виртуальную комнату — её снимок делается на телефоне): 9:16 (1080×1920), тёмная тема, порядок как в карточке (docs/rustore/README.md).
 adb shell cmd uimode night yes
 adb shell wm size 1080x1920
-WAIT=10 shot store-1-main --es layout simple
+WAIT=10 shot store-1-main
 shot store-2-why --es screen onboarding --ei step 0
 shot store-3-how --es screen onboarding --ei step 1
 WAIT=12 shot store-4-editor --es screen editor

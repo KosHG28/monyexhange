@@ -83,13 +83,7 @@ private fun networkName(n: CardNetwork): String = stringResource(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CountryGuideSheet(
-    guide: CountryGuide,
-    cards: List<BankCard>,
-    onDismiss: () -> Unit,
-    /** «Сравнить обменники» под разделом обменников; null — не показывать. */
-    onOpenExchange: (() -> Unit)? = null,
-) {
+fun CountryGuideSheet(guide: CountryGuide, cards: List<BankCard>, onDismiss: () -> Unit) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val context = LocalContext.current
@@ -143,17 +137,6 @@ fun CountryGuideSheet(
             Items(stringResource(R.string.guide_cash), "$", guide.cash)
             Items(stringResource(R.string.guide_atm), "🏧", guide.atm)
             Items(stringResource(R.string.guide_exchange), "!", guide.exchange)
-            if (onOpenExchange != null) {
-                Box(
-                    Modifier
-                        .padding(top = 6.dp)
-                        .heightIn(min = 48.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(role = Role.Button, onClick = onOpenExchange)
-                        .padding(horizontal = 4.dp),
-                    contentAlignment = Alignment.CenterStart,
-                ) { Text(stringResource(R.string.exchange_open), style = type.bodyStrong, color = colors.accent) }
-            }
             Items(stringResource(R.string.guide_tips), "💡", guide.tips)
             Spacer(Modifier.height(12.dp))
             val stale = guide.isStale(LocalDate.now())

@@ -30,7 +30,7 @@ class MainActivity : ComponentActivity() {
         val screen = intent?.getStringExtra(EXTRA_SCREEN)
         if (intent?.getBooleanExtra(EXTRA_DEMO, false) == true && Demo.allowed(this)) {
             // Только отладочная сборка: демо-данные пишутся до чтения состояния, поэтому синхронно.
-            runBlocking { Demo.seed(WalletRepository(settingsDataStore, unionPayDataStore, ratesDataStore), intent.getStringExtra(EXTRA_SPEND), intent.getStringExtra(EXTRA_LAYOUT) == "simple") }
+            runBlocking { Demo.seed(WalletRepository(settingsDataStore, unionPayDataStore, ratesDataStore), intent.getStringExtra(EXTRA_SPEND)) }
         }
         setContent {
             val vm: MainViewModel = viewModel(factory = MainViewModel.Factory)
@@ -68,14 +68,12 @@ class MainActivity : ComponentActivity() {
         const val SCREEN_GUIDE = "guide"
         const val SCREEN_EXCHANGE = "exchange"
         const val SCREEN_CARDS = "cards"
-        const val SCREEN_TRIP = "trip"
+        const val SCREEN_MENU = "menu"
 
         /** Знакомство поверх демо-данных — для снимков CI; [EXTRA_STEP] — с какого шага. */
         const val SCREEN_ONBOARDING = "onboarding"
         const val EXTRA_STEP = "step"
         const val EXTRA_DEMO = "demo"
 
-        /** Вид калькулятора для снимков: «simple» — «Просто», иначе «Подробно». */
-        const val EXTRA_LAYOUT = "layout"
     }
 }

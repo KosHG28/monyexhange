@@ -47,20 +47,15 @@ import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import app.dirhamrub.R
 import app.dirhamrub.diag.CrashLog
-import app.dirhamrub.domain.CardsView
-import app.dirhamrub.domain.MainLayout
 import app.dirhamrub.domain.MotionMode
 import app.dirhamrub.domain.RatesUpdate
 import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.ThemeMode
 import app.dirhamrub.domain.wallet.BankCard
-import app.dirhamrub.domain.wallet.CountryGuide
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.cbrPublishes
 import app.dirhamrub.ui.currency.CurrencyPickerSheet
 import app.dirhamrub.ui.main.MainUiState
-import app.dirhamrub.ui.guide.countryFlag
-import app.dirhamrub.ui.guide.countryName
 import app.dirhamrub.ui.theme.AppTheme
 import java.time.Instant
 import java.time.LocalDate
@@ -85,16 +80,7 @@ class SettingsActions(
     /** null — цветов из обоев нет (Android до 12). */
     val onDynamicColor: ((Boolean) -> Unit)?,
     val onKeyHaptics: (Boolean) -> Unit,
-    /** «Главный экран»: готовый вид и что показывать на калькуляторе. */
-    val onMainLayout: (MainLayout) -> Unit = {},
-    val onCardsView: (CardsView) -> Unit = {},
-    val onShowCompare: (Boolean) -> Unit = {},
-    val onShowOfficial: (Boolean) -> Unit = {},
-    val onShowDebit: (Boolean) -> Unit = {},
-    val onShowChips: (Boolean) -> Unit = {},
-    /** Справочник «Чем платить» для валюты трат, если он есть, и как его открыть. */
-    val guide: CountryGuide? = null,
-    val onOpenGuide: () -> Unit = {},
+    val onShowChips: (Boolean) -> Unit,
     val onOnboarding: () -> Unit,
 )
 
@@ -148,7 +134,6 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
                 LinkRow(stringResource(R.string.settings_card_add), null, null, actions.onAddCard, titleColor = colors.accent)
             }
             CameraSection(state, actions)
-            MainScreenSection(state, actions)
             LookSection(state, actions)
             AboutSection(actions)
         }
@@ -277,16 +262,6 @@ private fun CurrenciesSection(state: MainUiState, actions: SettingsActions, onPi
             state.settings.countryHint,
             actions.onCountryHint,
         )
-        val guide = actions.guide
-        if (guide != null) {
-            Divider()
-            LinkRow(
-                stringResource(R.string.settings_guide),
-                stringResource(R.string.settings_guide_sub, countryFlag(guide.iso), countryName(guide.iso)),
-                "›",
-                actions.onOpenGuide,
-            )
-        }
     }
 }
 
@@ -303,36 +278,6 @@ private fun CameraSection(state: MainUiState, actions: SettingsActions) {
             Divider()
             LinkRow(stringResource(R.string.settings_tile), stringResource(R.string.settings_tile_sub), stringResource(R.string.settings_tile_add), add)
         }
-    }
-}
-
-/** «Главный экран»: «Просто / Подробно» и каждая часть калькулятора отдельно. */
-@Composable
-private fun MainScreenSection(state: MainUiState, actions: SettingsActions) {
-    val settings = state.settings
-    SectionTitle(stringResource(R.string.settings_main))
-    Group {
-        val layouts = listOf(MainLayout.SIMPLE, MainLayout.DETAILED)
-        ChoiceRow(
-            stringResource(if (settings.mainLayout == MainLayout.CUSTOM) R.string.settings_main_layout_custom else R.string.settings_main_layout),
-            listOf(stringResource(R.string.settings_main_simple), stringResource(R.string.settings_main_detailed)),
-            layouts.indexOf(settings.mainLayout),
-        ) { actions.onMainLayout(layouts[it]) }
-        Divider()
-        val views = listOf(CardsView.LINE, CardsView.ROW)
-        ChoiceRow(
-            stringResource(R.string.settings_main_cards),
-            listOf(stringResource(R.string.settings_main_cards_line), stringResource(R.string.settings_main_cards_row)),
-            views.indexOf(settings.cardsView),
-        ) { actions.onCardsView(views[it]) }
-        Divider()
-        SwitchRow(stringResource(R.string.settings_main_compare), stringResource(R.string.settings_main_compare_sub), settings.showCompare, actions.onShowCompare)
-        Divider()
-        SwitchRow(stringResource(R.string.settings_main_official), stringResource(R.string.settings_main_official_sub), settings.showOfficial, actions.onShowOfficial)
-        Divider()
-        SwitchRow(stringResource(R.string.settings_main_debit), stringResource(R.string.settings_main_debit_sub), settings.showDebit, actions.onShowDebit)
-        Divider()
-        SwitchRow(stringResource(R.string.settings_main_chips), stringResource(R.string.settings_main_chips_sub), settings.showChips, actions.onShowChips)
     }
 }
 
@@ -367,6 +312,13 @@ private fun LookSection(state: MainUiState, actions: SettingsActions) {
                 dynamic,
             )
         }
+        Divider()
+        SwitchRow(
+            stringResource(R.string.settings_main_chips),
+            stringResource(R.string.settings_main_chips_sub),
+            state.settings.showChips,
+            actions.onShowChips,
+        )
         Divider()
         SwitchRow(
             stringResource(R.string.settings_key_haptics),

@@ -59,10 +59,10 @@ import app.dirhamrub.ui.exchange.EXCHANGE_GIVE
 import app.dirhamrub.ui.exchange.ExchangeSheet
 import app.dirhamrub.ui.guide.CountryGuideSheet
 import app.dirhamrub.ui.main.CountryOffer
-import app.dirhamrub.ui.main.MainPager
+import app.dirhamrub.ui.main.CardsSheet
 import app.dirhamrub.ui.main.MainScreen
 import app.dirhamrub.ui.main.MainViewModel
-import app.dirhamrub.ui.main.PagerActions
+import app.dirhamrub.ui.main.MenuSheet
 import app.dirhamrub.ui.onboarding.OnboardingScreen
 import app.dirhamrub.ui.settings.SettingsActions
 import app.dirhamrub.ui.settings.SettingsScreen
@@ -108,6 +108,8 @@ fun DirhamApp(
     var exchangeOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_EXCHANGE) }
     // Местная валюта обменников: валюта трат, а из редактора наличных — их валюта.
     var exchangeLocal by rememberSaveable { mutableStateOf<String?>(null) }
+    var cardsOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CARDS) }
+    var menuOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_MENU) }
     var guideOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_GUIDE) }
     var cheatOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CHEAT) }
     var currenciesOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CURRENCIES) }
@@ -182,72 +184,77 @@ fun DirhamApp(
     // Справочник «Чем платить»: по валюте трат и стране сотовой сети.
     val guide = state.guides?.forSpend(state.wallet.spend, country)
     val defaultGive = EXCHANGE_GIVE.firstOrNull { it != state.wallet.spend && it != state.wallet.home } ?: Currency.USD
-    MainPager(
+    MainScreen(
         state = state,
-        guide = guide,
-        startPage = when (startScreen) {
-            MainActivity.SCREEN_CARDS -> 0
-            MainActivity.SCREEN_TRIP -> 2
-            else -> 1
+        countryOffer = offer,
+        tileOffer = tileOffer,
+        onTileOffer = { accept ->
+            if (accept && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) requestCameraTile(context)
+            vm.markTileOffered()
         },
-        actions = PagerActions(
-            onSelectCard = vm::selectCard,
-            onEditCard = { editing = Editing(it, isNew = false) },
-            onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
+        onKey = vm::press,
+        onSelectCard = vm::selectCard,
+        onStepCard = vm::stepCard,
+        onEditCard = { editing = Editing(it, isNew = false) },
+        onAddReceipt = { editing = Editing(it, isNew = false, addPurchase = state.wallet.spend) },
+        onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
+        onSelectLine = vm::setActive,
+        onChip = vm::putAmount,
+        onOpenCurrencies = { currenciesOpen = true },
+        onCountry = { accept -> offer?.let { vm.handleCountry(it.iso, if (accept) it.currency else null) } },
+        onRefreshRates = vm::refreshRates,
+        onOpenMenu = { menuOpen = true },
+        onOpenCards = { cardsOpen = true },
+        onOpenCamera = { cameraOpen = true },
+        onCameraPlaced = { cameraOrigin = it },
+    )
+    // Шторка «Карты» (касание строки карты): выбрать, изменить, добавить; курс ЦБ.
+    if (cardsOpen) {
+        CardsSheet(
+            state = state,
+            onSelect = {
+                vm.selectCard(it)
+                cardsOpen = false
+            },
+            onEdit = {
+                cardsOpen = false
+                editing = Editing(it, isNew = false)
+            },
+            onAdd = {
+                cardsOpen = false
+                editing = Editing(vm.newCard(), isNew = true)
+            },
             onRefreshRates = vm::refreshRates,
-            onOpenCheat = { cheatOpen = true },
-            onOpenGuide = { guideOpen = true },
+            onDismiss = { cardsOpen = false },
+        )
+    }
+    // Шторка «Ещё» (☰): единственный вход в справочник страны, обменники, шпаргалку и настройки.
+    if (menuOpen) {
+        MenuSheet(
+            state = state,
+            guide = guide,
+            onOpenGuide = {
+                menuOpen = false
+                guideOpen = true
+            },
             onOpenExchange = {
+                menuOpen = false
                 exchangeLocal = null
                 exchangeOpen = true
             },
-            onOpenCamera = { cameraOpen = true },
-            onOpenBoard = {
-                exchangeLocal = null
-                boardGive = defaultGive.code
+            onOpenCheat = {
+                menuOpen = false
+                cheatOpen = true
             },
-        ),
-    ) { onOpenCards ->
-        MainScreen(
-            state = state,
-            countryOffer = offer,
-            tileOffer = tileOffer,
-            onTileOffer = { accept ->
-                if (accept && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) requestCameraTile(context)
-                vm.markTileOffered()
+            onOpenSettings = {
+                menuOpen = false
+                settingsOpen = true
             },
-            onKey = vm::press,
-            onSelectCard = vm::selectCard,
-            onStepCard = vm::stepCard,
-            onEditCard = { editing = Editing(it, isNew = false) },
-            onAddReceipt = { editing = Editing(it, isNew = false, addPurchase = state.wallet.spend) },
-            onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
-            onSelectLine = vm::setActive,
-            onChip = vm::putAmount,
-            onOpenCurrencies = { currenciesOpen = true },
-            onCountry = { accept -> offer?.let { vm.handleCountry(it.iso, if (accept) it.currency else null) } },
-            onRefreshRates = vm::refreshRates,
-            onOpenSettings = { settingsOpen = true },
-            onOpenCards = onOpenCards,
-            onOpenCamera = { cameraOpen = true },
-            onCameraPlaced = { cameraOrigin = it },
+            onDismiss = { menuOpen = false },
         )
     }
     if (guideOpen && guide != null) {
-        CountryGuideSheet(
-            guide,
-            state.wallet.cards,
-            onDismiss = { guideOpen = false },
-            onOpenExchange = if (state.wallet.spend != state.wallet.home) {
-                {
-                    guideOpen = false
-                    exchangeLocal = null
-                    exchangeOpen = true
-                }
-            } else {
-                null
-            },
-        )
+        CountryGuideSheet(guide, state.wallet.cards, onDismiss = { guideOpen = false })
     }
     if (exchangeOpen) {
         ExchangeSheet(
@@ -328,14 +335,7 @@ fun DirhamApp(
                 onMotion = vm::setMotion,
                 onDynamicColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) vm::setDynamicColor else null,
                 onKeyHaptics = vm::setKeyHaptics,
-                onMainLayout = vm::setMainLayout,
-                onCardsView = vm::setCardsView,
-                onShowCompare = vm::setShowCompare,
-                onShowOfficial = vm::setShowOfficial,
-                onShowDebit = vm::setShowDebit,
                 onShowChips = vm::setShowChips,
-                guide = guide,
-                onOpenGuide = { guideOpen = true },
                 onOnboarding = {
                     settingsOpen = false
                     onboardingReshown = true
@@ -441,15 +441,6 @@ fun DirhamApp(
             onDismiss = { editing = null },
             addPurchaseFor = e.addPurchase,
             amount = state.totals.spend,
-            onOpenExchange = if (e.card.currency != state.wallet.home) {
-                {
-                    editing = null
-                    exchangeLocal = e.card.currency.code
-                    exchangeOpen = true
-                }
-            } else {
-                null
-            },
         )
     }
 }

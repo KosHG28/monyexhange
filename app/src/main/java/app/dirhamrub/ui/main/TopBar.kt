@@ -49,15 +49,14 @@ import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import java.util.Locale
 
-/** Шапка: «🇦🇪 AED → RUB ▾» (выбор валют), шпаргалка и настройки. */
+/** Шапка: «🇦🇪 AED → RUB ▾» (выбор валют) и одна кнопка ☰ «Ещё». */
 @Composable
 internal fun TopBar(
     spend: Currency,
     home: Currency,
     onOpenCurrencies: () -> Unit,
-    /** null — шпаргалки в шапке нет (она на экране «Карты»). */
-    onOpenCheat: (() -> Unit)?,
-    onOpenSettings: () -> Unit,
+    /** ☰ — шторка «Ещё»: страна, обменники, шпаргалка, настройки. */
+    onOpenMenu: () -> Unit,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
@@ -99,11 +98,7 @@ internal fun TopBar(
             }
         }
         Spacer(Modifier.width(8.dp))
-        if (onOpenCheat != null) {
-            RoundIcon(R.drawable.ic_table, stringResource(R.string.cheat_button), onOpenCheat)
-            Spacer(Modifier.width(8.dp))
-        }
-        RoundIcon(R.drawable.ic_settings, stringResource(R.string.settings_button), onOpenSettings)
+        RoundIcon(R.drawable.ic_menu, stringResource(R.string.menu_button), onOpenMenu)
     }
 }
 

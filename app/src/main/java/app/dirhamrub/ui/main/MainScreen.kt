@@ -6,15 +6,16 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -22,7 +23,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import app.dirhamrub.domain.CardsView
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.wallet.BankCard
@@ -41,10 +41,8 @@ private fun topHeight(state: MainUiState, compact: Boolean, fontScale: Float): D
         basisText(state) != null -> TEXT_ROW
         else -> 0.dp
     }
-    val compare = if (state.settings.showCompare && comparison(state) != null) ROW + 6.dp else 0.dp
-    val cards = if (state.settings.cardsView == CardsView.ROW) CARDS_HEIGHT else PICKER_HEIGHT
-    val official = if (state.settings.showOfficial) ROW else 0.dp
-    return CARDS_TOP + cards * fontScale.coerceIn(1f, 1.3f) + hero + basis + compare + official
+    val compare = if (comparison(state) != null) ROW + 6.dp else 0.dp
+    return CARDS_TOP + PICKER_HEIGHT * fontScale.coerceIn(1f, 1.3f) + hero + basis + compare
 }
 
 @Composable
@@ -64,8 +62,9 @@ fun MainScreen(
     onOpenCurrencies: () -> Unit,
     onCountry: (accept: Boolean) -> Unit,
     onRefreshRates: () -> Unit,
-    onOpenSettings: () -> Unit,
-    /** Касание строки выбранной карты — экран «Карты». */
+    /** ☰ в шапке — шторка «Ещё» (страна, обменники, шпаргалка, настройки). */
+    onOpenMenu: () -> Unit,
+    /** Касание строки выбранной карты — шторка «Карты». */
     onOpenCards: () -> Unit,
     onOpenCamera: () -> Unit,
     /** Центр кнопки «Ценник» на экране — из неё раскрывается камера. */
@@ -81,14 +80,13 @@ fun MainScreen(
         if (state.showCardLine) add(Line.CARD)
     }
     val heroLine = if (state.active == Line.HOME) Line.SPEND else Line.HOME
-    // Свайп по сумме тянет рамку в ряду карт: общее состояние, читается при отрисовке ряда.
-    val swipe = remember { mutableFloatStateOf(0f) }
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.bg),
+            .background(colors.bg)
+            .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        TopBar(wallet.spend, wallet.home, onOpenCurrencies, null, onOpenSettings)
+        TopBar(wallet.spend, wallet.home, onOpenCurrencies, onOpenMenu)
         // Верх экрана на низких телефонах прокручивается, низ (ввод, чипы, клавиатура) всегда на месте.
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             // Крупная сумма мельче, только если иначе группа под картами не помещается без прокрутки.
@@ -106,45 +104,22 @@ fun MainScreen(
                         countryOffer != null -> CountryBanner(countryOffer, onCountry)
                         tileOffer -> TileBanner(onTileOffer)
                     }
-                    // Карты: выбранная одной строкой (все — на экране «Карты») или рядом, как раньше («Подробно»).
-                    if (state.settings.cardsView == CardsView.ROW) {
-                        BankCardsRow(
-                            cards = wallet.usable,
-                            quote = state.quote,
-                            selectedId = wallet.selected?.id,
-                            spend = wallet.spend,
-                            home = wallet.home,
-                            amount = state.totals.spend,
-                            onSelect = onSelectCard,
-                            onEdit = onEditCard,
-                            onAdd = onAddCard,
-                            modifier = Modifier.padding(top = CARDS_TOP),
-                            swipePreview = swipe,
-                        )
-                    } else {
-                        CardPicker(state, onOpenCards, onAddCard, Modifier.padding(top = CARDS_TOP))
-                    }
+                    // Выбранная карта одной строкой; все карты с суммами — в шторке по касанию.
+                    CardPicker(state, onOpenCards, onAddCard, Modifier.padding(top = CARDS_TOP))
                 }
                 if (state.homePerUnit == null) {
                     // Считать не по чему — понятный блок с одной кнопкой вместо «—».
                     EmptyRate(state, onRefreshRates, onAddReceipt, onAddCard)
                 } else {
-                    ResultBlock(state, heroLine, compact, onSelectCard, onStepCard, onAddReceipt, onEditCard, swipe)
+                    ResultBlock(state, heroLine, compact, onSelectCard, onStepCard, onAddReceipt, onEditCard)
                 }
-                if (state.settings.showOfficial) {
-                    OfficialLine(state, onRefreshRates, Modifier.align(Alignment.CenterHorizontally))
-                } else {
-                    Spacer(Modifier.height(4.dp))
-                }
+                Spacer(Modifier.height(4.dp))
             }
         }
         Column(Modifier.padding(horizontal = 16.dp)) {
             InputField(state, lines, onSelectLine)
             for (line in lines) {
-                // «Спишется с карты» можно скрыть в настройках «Главный экран».
-                if (line != state.active && line != heroLine && (line != Line.CARD || state.settings.showDebit)) {
-                    SecondaryLine(state, line, onSelectLine)
-                }
+                if (line != state.active && line != heroLine) SecondaryLine(state, line, onSelectLine)
             }
             // На коротком экране быстрые суммы уступают место сумме и подсказкам.
             if (state.settings.showChips && LocalConfiguration.current.screenHeightDp >= SHORT_SCREEN_DP) {

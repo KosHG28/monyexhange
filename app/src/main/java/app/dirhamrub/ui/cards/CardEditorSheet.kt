@@ -107,8 +107,6 @@ fun CardEditorSheet(
     addPurchaseFor: Currency? = null,
     /** Сумма с главного экрана в валюте трат — для карточки-предпросмотра (нет суммы — за 100 единиц). */
     amount: BigDecimal = BigDecimal.ZERO,
-    /** «Сравнить обменники» у наличных из обменника; null — не показывать. */
-    onOpenExchange: (() -> Unit)? = null,
 ) {
     val previewAmount = amount.takeIf { it.signum() > 0 } ?: PREVIEW_AMOUNT
     val colors = AppTheme.colors
@@ -419,11 +417,6 @@ fun CardEditorSheet(
                         } else {
                             fromCard = null
                             sentCurrency = home
-                        }
-                    }
-                    if (!atm && onOpenExchange != null) {
-                        TextButton(onClick = onOpenExchange) {
-                            Text(stringResource(R.string.exchange_open), style = type.bodyStrong, color = colors.accent)
                         }
                     }
                 }

@@ -228,7 +228,7 @@ internal fun ResultBlock(
             }
         }
         Basis(state, onAddReceipt, onEditCard)
-        comparison(state)?.takeIf { state.settings.showCompare }?.let { c ->
+        comparison(state)?.let { c ->
             Spacer(Modifier.height(6.dp))
             Comparison(state, c, onSelectCard)
         }

@@ -14,8 +14,6 @@ import app.dirhamrub.domain.wallet.cbrPublishes
 /* Общие для частей главного экрана размеры и расчёты. */
 
 internal val CARDS_TOP = 6.dp
-internal val CARDS_HEIGHT = 108.dp
-
 /** Строка выбранной карты на калькуляторе. */
 internal val PICKER_HEIGHT = 60.dp
 internal val ROW = 48.dp

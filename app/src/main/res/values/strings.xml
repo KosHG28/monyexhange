@@ -504,4 +504,6 @@
     <string name="settings_main_debit_sub">Сумма в валюте карты под полем ввода</string>
     <string name="settings_main_chips">Быстрые суммы</string>
     <string name="settings_main_chips_sub">5 · 10 · 50 · 100… над клавиатурой</string>
+    <string name="guide_cash_other">%1$s здесь не платят — поменяйте в обменнике</string>
+    <string name="guide_cash_exchange">%1$s меняют везде; иногда принимают и напрямую</string>
 </resources>

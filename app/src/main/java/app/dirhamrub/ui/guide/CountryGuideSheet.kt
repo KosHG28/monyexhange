@@ -38,6 +38,7 @@ import app.dirhamrub.R
 import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.wallet.Acceptance
 import app.dirhamrub.domain.wallet.BankCard
+import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.CardNetwork
 import app.dirhamrub.domain.wallet.Countries
 import app.dirhamrub.domain.wallet.CountryGuide
@@ -118,6 +119,10 @@ fun CountryGuideSheet(
                         if (i > 0) Divider()
                         val verdict = guide.verdict(card, local)
                         val sub = when {
+                            // Наличные в чужой валюте здесь не платят — их меняют.
+                            card.kind == CardKind.CASH && verdict == null -> stringResource(R.string.guide_cash_other, card.currency.code)
+                            card.kind == CardKind.CASH && verdict == Acceptance.PARTIAL -> stringResource(R.string.guide_cash_exchange, card.currency.code)
+                            card.kind == CardKind.CASH -> ""
                             verdict == null && card.paymentNetwork == null -> stringResource(R.string.guide_card_unknown)
                             verdict == null -> stringResource(R.string.guide_card_no_data)
                             else -> card.paymentNetwork?.let { guide.networks[it]?.text }.orEmpty()

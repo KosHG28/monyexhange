@@ -5,14 +5,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -28,9 +25,7 @@ import androidx.compose.ui.unit.dp
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.wallet.BankCard
-import app.dirhamrub.domain.wallet.CountryGuide
 import app.dirhamrub.domain.wallet.Currency
-import app.dirhamrub.ui.guide.GuideBanner
 import app.dirhamrub.ui.theme.AppTheme
 import java.math.BigDecimal
 
@@ -46,7 +41,7 @@ private fun topHeight(state: MainUiState, compact: Boolean, fontScale: Float): D
         else -> 0.dp
     }
     val compare = if (comparison(state) != null) ROW + 6.dp else 0.dp
-    return CARDS_TOP + CARDS_HEIGHT * fontScale.coerceIn(1f, 1.3f) + hero + basis + compare + ROW
+    return CARDS_TOP + PICKER_HEIGHT * fontScale.coerceIn(1f, 1.3f) + hero + basis + compare
 }
 
 @Composable
@@ -55,10 +50,6 @@ fun MainScreen(
     countryOffer: CountryOffer?,
     tileOffer: Boolean,
     onTileOffer: (accept: Boolean) -> Unit,
-    /** Справочник «Чем платить» для этой страны — плашкой над картами (если её не закрывали). */
-    guideBanner: CountryGuide?,
-    onOpenGuide: () -> Unit,
-    onDismissGuide: (String) -> Unit,
     onKey: (Key) -> Unit,
     onSelectCard: (String) -> Unit,
     onStepCard: (Int) -> Unit,
@@ -70,8 +61,9 @@ fun MainScreen(
     onOpenCurrencies: () -> Unit,
     onCountry: (accept: Boolean) -> Unit,
     onRefreshRates: () -> Unit,
-    onOpenCheat: () -> Unit,
     onOpenSettings: () -> Unit,
+    /** Касание строки выбранной карты — экран «Карты». */
+    onOpenCards: () -> Unit,
     onOpenCamera: () -> Unit,
     /** Центр кнопки «Ценник» на экране — из неё раскрывается камера. */
     onCameraPlaced: (Offset) -> Unit = {},
@@ -91,10 +83,9 @@ fun MainScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.bg)
-            .windowInsetsPadding(WindowInsets.safeDrawing),
+            .background(colors.bg),
     ) {
-        TopBar(wallet.spend, wallet.home, onOpenCurrencies, onOpenCheat, onOpenSettings)
+        TopBar(wallet.spend, wallet.home, onOpenCurrencies, null, onOpenSettings)
         // Верх экрана на низких телефонах прокручивается, низ (ввод, чипы, клавиатура) всегда на месте.
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             // Крупная сумма мельче, только если иначе группа под картами не помещается без прокрутки.
@@ -111,21 +102,9 @@ fun MainScreen(
                     when {
                         countryOffer != null -> CountryBanner(countryOffer, onCountry)
                         tileOffer -> TileBanner(onTileOffer)
-                        guideBanner != null -> GuideBanner(guideBanner, onOpenGuide) { onDismissGuide(guideBanner.iso) }
                     }
-                    BankCardsRow(
-                        cards = wallet.usable,
-                        quote = state.quote,
-                        selectedId = wallet.selected?.id,
-                        spend = wallet.spend,
-                        home = wallet.home,
-                        amount = state.totals.spend,
-                        onSelect = onSelectCard,
-                        onEdit = onEditCard,
-                        onAdd = onAddCard,
-                        modifier = Modifier.padding(top = CARDS_TOP),
-                        swipePreview = swipe,
-                    )
+                    // Все карты — на экране «Карты»; здесь — выбранная одной строкой.
+                    CardPicker(state, onOpenCards, onAddCard, Modifier.padding(top = CARDS_TOP))
                 }
                 if (state.homePerUnit == null) {
                     // Считать не по чему — понятный блок с одной кнопкой вместо «—».
@@ -133,7 +112,7 @@ fun MainScreen(
                 } else {
                     ResultBlock(state, heroLine, compact, onSelectCard, onStepCard, onAddReceipt, onEditCard, swipe)
                 }
-                OfficialLine(state, onRefreshRates, Modifier.align(Alignment.CenterHorizontally))
+                Spacer(Modifier.height(4.dp))
             }
         }
         Column(Modifier.padding(horizontal = 16.dp)) {

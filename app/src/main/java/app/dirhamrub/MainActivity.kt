@@ -67,6 +67,8 @@ class MainActivity : ComponentActivity() {
         const val SCREEN_SETTINGS = "settings"
         const val SCREEN_GUIDE = "guide"
         const val SCREEN_EXCHANGE = "exchange"
+        const val SCREEN_CARDS = "cards"
+        const val SCREEN_TRIP = "trip"
 
         /** Знакомство поверх демо-данных — для снимков CI; [EXTRA_STEP] — с какого шага. */
         const val SCREEN_ONBOARDING = "onboarding"

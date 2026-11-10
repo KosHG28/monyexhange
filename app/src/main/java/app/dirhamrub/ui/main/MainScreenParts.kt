@@ -15,6 +15,9 @@ import app.dirhamrub.domain.wallet.cbrPublishes
 
 internal val CARDS_TOP = 6.dp
 internal val CARDS_HEIGHT = 108.dp
+
+/** Строка выбранной карты на калькуляторе. */
+internal val PICKER_HEIGHT = 60.dp
 internal val ROW = 48.dp
 internal val TEXT_ROW = 20.dp
 internal const val HERO_SP = 60

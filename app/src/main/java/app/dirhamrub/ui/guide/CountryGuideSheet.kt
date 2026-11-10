@@ -11,15 +11,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -29,14 +26,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
@@ -81,60 +75,6 @@ private fun networkName(n: CardNetwork): String = stringResource(
         CardNetwork.VISA_MC_FOREIGN -> R.string.network_visa_foreign
     },
 )
-
-/**
- * Плашка над картами: «🇦🇪 ОАЭ: UnionPay ≈ · МИР ✗ · обновлено 10 ноя — Чем платить ›  ×».
- * Касание — шторка справочника, «×» — больше не показывать для этой страны (в настройках остаётся).
- */
-@Composable
-fun GuideBanner(guide: CountryGuide, onOpen: () -> Unit, onDismiss: () -> Unit) {
-    val colors = AppTheme.colors
-    val type = AppTheme.type
-    val title = stringResource(R.string.guide_banner_a11y, countryName(guide.iso))
-    Row(
-        modifier = Modifier
-            .padding(horizontal = 16.dp)
-            .padding(top = 4.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(colors.surface)
-            .clickable(role = Role.Button, onClickLabel = title, onClick = onOpen)
-            .padding(start = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(countryFlag(guide.iso), fontSize = 18.sp)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
-            val up = guide.networks[CardNetwork.UNIONPAY]?.acceptance
-            val mir = guide.networks[CardNetwork.MIR]?.acceptance
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(countryName(guide.iso) + ": ", style = type.bodyStrong.copy(fontSize = 14.sp), color = colors.ink, maxLines = 1)
-                Text("UnionPay " + acceptanceMark(up), style = type.bodyStrong.copy(fontSize = 14.sp), color = acceptanceColor(up), maxLines = 1)
-                Text(" · ", style = type.body.copy(fontSize = 14.sp), color = colors.muted)
-                Text(stringResource(R.string.network_mir) + " " + acceptanceMark(mir), style = type.bodyStrong.copy(fontSize = 14.sp), color = acceptanceColor(mir), maxLines = 1)
-            }
-            Text(
-                stringResource(R.string.guide_updated_short, RuDates.short(guide.updated)),
-                style = type.caption,
-                color = colors.muted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Text(stringResource(R.string.guide_open), style = type.bodyStrong.copy(fontSize = 14.sp), color = colors.accent, maxLines = 1)
-        val close = stringResource(R.string.guide_close)
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .clickable(role = Role.Button, onClickLabel = close, onClick = onDismiss)
-                .semantics { contentDescription = close },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(R.drawable.ic_close), contentDescription = null, tint = colors.muted, modifier = Modifier.size(18.dp))
-        }
-    }
-}
 
 /**
  * Шторка «Чем платить в стране»: ваши карты здесь, платёжные системы, наличные, банкоматы, обменники,

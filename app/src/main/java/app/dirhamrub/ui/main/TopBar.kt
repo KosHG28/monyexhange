@@ -55,7 +55,8 @@ internal fun TopBar(
     spend: Currency,
     home: Currency,
     onOpenCurrencies: () -> Unit,
-    onOpenCheat: () -> Unit,
+    /** null — шпаргалки в шапке нет (она на экране «Карты»). */
+    onOpenCheat: (() -> Unit)?,
     onOpenSettings: () -> Unit,
 ) {
     val colors = AppTheme.colors
@@ -98,8 +99,10 @@ internal fun TopBar(
             }
         }
         Spacer(Modifier.width(8.dp))
-        RoundIcon(R.drawable.ic_table, stringResource(R.string.cheat_button), onOpenCheat)
-        Spacer(Modifier.width(8.dp))
+        if (onOpenCheat != null) {
+            RoundIcon(R.drawable.ic_table, stringResource(R.string.cheat_button), onOpenCheat)
+            Spacer(Modifier.width(8.dp))
+        }
         RoundIcon(R.drawable.ic_settings, stringResource(R.string.settings_button), onOpenSettings)
     }
 }

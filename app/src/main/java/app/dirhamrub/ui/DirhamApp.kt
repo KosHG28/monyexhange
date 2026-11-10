@@ -59,8 +59,10 @@ import app.dirhamrub.ui.exchange.EXCHANGE_GIVE
 import app.dirhamrub.ui.exchange.ExchangeSheet
 import app.dirhamrub.ui.guide.CountryGuideSheet
 import app.dirhamrub.ui.main.CountryOffer
+import app.dirhamrub.ui.main.MainPager
 import app.dirhamrub.ui.main.MainScreen
 import app.dirhamrub.ui.main.MainViewModel
+import app.dirhamrub.ui.main.PagerActions
 import app.dirhamrub.ui.onboarding.OnboardingScreen
 import app.dirhamrub.ui.settings.SettingsActions
 import app.dirhamrub.ui.settings.SettingsScreen
@@ -179,33 +181,58 @@ fun DirhamApp(
     val tileOffer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && state.cameraUsed && !state.tileOffered
     // Справочник «Чем платить»: по валюте трат и стране сотовой сети.
     val guide = state.guides?.forSpend(state.wallet.spend, country)
-    MainScreen(
+    val defaultGive = EXCHANGE_GIVE.firstOrNull { it != state.wallet.spend && it != state.wallet.home } ?: Currency.USD
+    MainPager(
         state = state,
-        countryOffer = offer,
-        tileOffer = tileOffer,
-        guideBanner = guide?.takeIf { it.iso !in state.guideDismissed },
-        onOpenGuide = { guideOpen = true },
-        onDismissGuide = vm::dismissGuide,
-        onTileOffer = { accept ->
-            if (accept && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) requestCameraTile(context)
-            vm.markTileOffered()
+        guide = guide,
+        startPage = when (startScreen) {
+            MainActivity.SCREEN_CARDS -> 0
+            MainActivity.SCREEN_TRIP -> 2
+            else -> 1
         },
-        onKey = vm::press,
-        onSelectCard = vm::selectCard,
-        onStepCard = vm::stepCard,
-        onEditCard = { editing = Editing(it, isNew = false) },
-        onAddReceipt = { editing = Editing(it, isNew = false, addPurchase = state.wallet.spend) },
-        onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
-        onSelectLine = vm::setActive,
-        onChip = vm::putAmount,
-        onOpenCurrencies = { currenciesOpen = true },
-        onCountry = { accept -> offer?.let { vm.handleCountry(it.iso, if (accept) it.currency else null) } },
-        onRefreshRates = vm::refreshRates,
-        onOpenCheat = { cheatOpen = true },
-        onOpenSettings = { settingsOpen = true },
-        onOpenCamera = { cameraOpen = true },
-        onCameraPlaced = { cameraOrigin = it },
-    )
+        actions = PagerActions(
+            onSelectCard = vm::selectCard,
+            onEditCard = { editing = Editing(it, isNew = false) },
+            onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
+            onRefreshRates = vm::refreshRates,
+            onOpenCheat = { cheatOpen = true },
+            onOpenGuide = { guideOpen = true },
+            onOpenExchange = {
+                exchangeLocal = null
+                exchangeOpen = true
+            },
+            onOpenCamera = { cameraOpen = true },
+            onOpenBoard = {
+                exchangeLocal = null
+                boardGive = defaultGive.code
+            },
+        ),
+    ) { onOpenCards ->
+        MainScreen(
+            state = state,
+            countryOffer = offer,
+            tileOffer = tileOffer,
+            onTileOffer = { accept ->
+                if (accept && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) requestCameraTile(context)
+                vm.markTileOffered()
+            },
+            onKey = vm::press,
+            onSelectCard = vm::selectCard,
+            onStepCard = vm::stepCard,
+            onEditCard = { editing = Editing(it, isNew = false) },
+            onAddReceipt = { editing = Editing(it, isNew = false, addPurchase = state.wallet.spend) },
+            onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
+            onSelectLine = vm::setActive,
+            onChip = vm::putAmount,
+            onOpenCurrencies = { currenciesOpen = true },
+            onCountry = { accept -> offer?.let { vm.handleCountry(it.iso, if (accept) it.currency else null) } },
+            onRefreshRates = vm::refreshRates,
+            onOpenSettings = { settingsOpen = true },
+            onOpenCards = onOpenCards,
+            onOpenCamera = { cameraOpen = true },
+            onCameraPlaced = { cameraOrigin = it },
+        )
+    }
     if (guideOpen && guide != null) {
         CountryGuideSheet(
             guide,
@@ -358,7 +385,7 @@ fun DirhamApp(
                     {
                         cameraOpen = false
                         exchangeLocal = null
-                        boardGive = EXCHANGE_GIVE.first { it != state.wallet.spend && it != state.wallet.home }.code
+                        boardGive = defaultGive.code
                     }
                 } else {
                     null

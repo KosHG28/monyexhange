@@ -403,10 +403,6 @@
     <string name="network_mir">МИР</string>
     <string name="network_visa_ru">Visa/MC российского банка</string>
     <string name="network_visa_foreign">Visa/MC зарубежного банка</string>
-    <string name="guide_banner_a11y">Чем платить: %1$s</string>
-    <string name="guide_updated_short">обновлено %1$s</string>
-    <string name="guide_open">Чем платить ›</string>
-    <string name="guide_close">Скрыть подсказку о стране</string>
     <string name="guide_title">%1$s: чем платить</string>
     <string name="guide_your_cards">Ваши карты здесь</string>
     <string name="guide_card_unknown">Укажите платёжную систему в карте — подскажем, примут ли её</string>
@@ -474,4 +470,22 @@
     <string name="transfer_history">Прежние пополнения</string>
     <string name="transfer_remove">Удалить пополнение</string>
     <string name="transfer_new">+ Новое пополнение</string>
+    <string name="page_cards">Карты</string>
+    <string name="page_calc">Счёт</string>
+    <string name="page_trip">Поездка</string>
+    <string name="picker_vs">%1$s %% к ЦБ</string>
+    <string name="picker_open">Все карты</string>
+    <string name="cards_page_title">%1$s %2$s — чем платить:</string>
+    <string name="cards_page_add">Карта или наличные</string>
+    <string name="cards_page_cheat_sub">Ходовые суммы по всем картам и ЦБ</string>
+    <string name="trip_guide">Чем платить</string>
+    <string name="trip_guide_sub">UnionPay %1$s · МИР %2$s · обновлено %3$s</string>
+    <string name="trip_guide_none">Для этой страны сведений пока нет</string>
+    <string name="trip_exchange">Обменники</string>
+    <string name="trip_exchange_best">Лучший: %1$s — 1 %2$s = %3$s %4$s</string>
+    <string name="trip_exchange_none">Запишите курсы 2–3 обменников — покажем лучший</string>
+    <string name="trip_board">Снять табло обменника</string>
+    <string name="trip_board_sub">Камера найдёт курс вашей валюты и сравнит с картой</string>
+    <string name="trip_camera">Камера: суммы на ценниках</string>
+    <string name="trip_camera_sub">Наведите на меню или витрину</string>
 </resources>

@@ -180,10 +180,12 @@ fun CameraScreen(
     onSelectCard: (String) -> Unit,
     onToCalculator: (List<BigDecimal>) -> Unit,
     onBack: () -> Unit,
+    /** Переключиться на режим «Обменник» (табло); null — переключателя нет. */
+    onExchangeMode: (() -> Unit)? = null,
 ) {
     LightSystemBars()
     CameraPermissionGate(onBack = onBack) {
-        CameraContent(wallet, quote, embedded, onEmbeddedChange, onSelectCard, onToCalculator, onBack)
+        CameraContent(wallet, quote, embedded, onEmbeddedChange, onSelectCard, onToCalculator, onBack, onExchangeMode)
     }
 }
 
@@ -214,6 +216,7 @@ private fun CameraContent(
     onSelectCard: (String) -> Unit,
     onToCalculator: (List<BigDecimal>) -> Unit,
     onBack: () -> Unit,
+    onExchangeMode: (() -> Unit)?,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -512,6 +515,8 @@ private fun CameraContent(
                     modeToastKey++
                 },
             )
+            // Режим камеры: ценники или табло обменника.
+            if (onExchangeMode != null) ModeSwitch(onExchangeMode)
             // Короткие подсказки — под кнопками, а не над карточкой: низ экрана не прыгает.
             TopToast(
                 text = when {

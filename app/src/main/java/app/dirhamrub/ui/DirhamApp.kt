@@ -49,10 +49,13 @@ import app.dirhamrub.MainActivity
 import app.dirhamrub.R
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.Exchanger
 import app.dirhamrub.ui.camera.CameraScreen
 import app.dirhamrub.ui.cards.CardEditorSheet
 import app.dirhamrub.ui.cheat.CheatSheet
 import app.dirhamrub.ui.currency.CurrencySheet
+import app.dirhamrub.ui.exchange.BoardCamera
+import app.dirhamrub.ui.exchange.EXCHANGE_GIVE
 import app.dirhamrub.ui.exchange.ExchangeSheet
 import app.dirhamrub.ui.guide.CountryGuideSheet
 import app.dirhamrub.ui.main.CountryOffer
@@ -97,6 +100,9 @@ fun DirhamApp(
     vm: MainViewModel = viewModel(factory = MainViewModel.Factory),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    // Камера «Обменник»: какую валюту несёте (null — закрыта) и что она распознала (для формы проверки).
+    var boardGive by rememberSaveable { mutableStateOf<String?>(null) }
+    var exchangePrefill by remember { mutableStateOf<Exchanger?>(null) }
     var exchangeOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_EXCHANGE) }
     // Местная валюта обменников: валюта трат, а из редактора наличных — их валюта.
     var exchangeLocal by rememberSaveable { mutableStateOf<String?>(null) }
@@ -231,7 +237,16 @@ fun DirhamApp(
                 editing = Editing(card, isNew = state.wallet.cards.none { it.id == card.id })
             },
             newCard = vm::newCard,
-            onDismiss = { exchangeOpen = false },
+            onDismiss = {
+                exchangeOpen = false
+                exchangePrefill = null
+            },
+            onScan = { give ->
+                exchangeOpen = false
+                exchangePrefill = null
+                boardGive = give.code
+            },
+            prefill = exchangePrefill,
         )
     }
     if (cheatOpen) {
@@ -339,8 +354,39 @@ fun DirhamApp(
                     cameraOpen = false
                 },
                 onBack = { cameraOpen = false },
+                onExchangeMode = if (state.wallet.spend != state.wallet.home) {
+                    {
+                        cameraOpen = false
+                        exchangeLocal = null
+                        boardGive = EXCHANGE_GIVE.first { it != state.wallet.spend && it != state.wallet.home }.code
+                    }
+                } else {
+                    null
+                },
             )
         }
+    }
+    boardGive?.let { code ->
+        BackHandler { boardGive = null }
+        val local = Currency.byCode(exchangeLocal) ?: state.wallet.spend
+        BoardCamera(
+            give = Currency.byCode(code) ?: Currency.USD,
+            local = local,
+            home = state.wallet.home,
+            cards = state.wallet.cards,
+            quote = state.quote,
+            official = state.reference,
+            onRecognized = { ex ->
+                boardGive = null
+                exchangePrefill = ex
+                exchangeOpen = true
+            },
+            onPriceMode = {
+                boardGive = null
+                cameraOpen = true
+            },
+            onBack = { boardGive = null },
+        )
     }
     editing?.let { e ->
         CardEditorSheet(

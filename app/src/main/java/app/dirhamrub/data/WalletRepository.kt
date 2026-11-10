@@ -11,8 +11,10 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import app.dirhamrub.domain.AppSettings
+import app.dirhamrub.domain.CardsView
 import app.dirhamrub.domain.Expression
 import app.dirhamrub.domain.Line
+import app.dirhamrub.domain.MainLayout
 import app.dirhamrub.domain.MotionMode
 import app.dirhamrub.domain.RatesUpdate
 import app.dirhamrub.domain.ThemeMode
@@ -74,6 +76,8 @@ data class StoredState(
     val guideDismissed: Set<String>,
     /** Записанные курсы обменников. */
     val exchangers: List<Exchanger>,
+    /** Настройки «Главный экран» уже сохранены (иначе вид выбран сейчас — его надо записать, чтобы не менялся). */
+    val mainScreenSaved: Boolean,
     val settings: AppSettings,
 )
 
@@ -124,15 +128,34 @@ class WalletRepository(
             guideText = r[GUIDE],
             guideDismissed = p[GUIDE_DISMISSED].orEmpty(),
             exchangers = ExchangerCodec.decode(p[EXCHANGERS]),
-            settings = AppSettings(
+            mainScreenSaved = p[SET_CARDS_VIEW] != null,
+            settings = mainScreen(
+                p,
+                AppSettings(
                 unionPay = p[SET_UNIONPAY] ?: true,
                 ratesUpdate = RatesUpdate.entries.firstOrNull { it.name == p[SET_RATES_UPDATE] } ?: RatesUpdate.EVERY_6H,
                 countryHint = p[SET_COUNTRY_HINT] ?: true,
                 theme = ThemeMode.entries.firstOrNull { it.name == p[SET_THEME] } ?: ThemeMode.SYSTEM,
                 motion = MotionMode.entries.firstOrNull { it.name == p[SET_MOTION] } ?: MotionMode.SYSTEM,
-                dynamicColor = p[SET_DYNAMIC_COLOR] ?: false,
-                keyHaptics = p[SET_KEY_HAPTICS] ?: true,
+                    dynamicColor = p[SET_DYNAMIC_COLOR] ?: false,
+                    keyHaptics = p[SET_KEY_HAPTICS] ?: true,
+                ),
+                // Обновились с версии без этих настроек и уже пользуетесь — «Подробно», привычное не исчезает.
+                existing = WalletCodec.decode(p[WALLET])?.cards?.isNotEmpty() == true || p[ONBOARDING_DONE] == true,
             ),
+        )
+    }
+
+    /** Настройки «Главный экран»: сохранённые, а если их ещё нет — «Подробно» для давних пользователей, «Просто» для новых. */
+    private fun mainScreen(p: Preferences, base: AppSettings, existing: Boolean): AppSettings {
+        val view = p[SET_CARDS_VIEW]?.let { v -> CardsView.entries.firstOrNull { it.name == v } }
+            ?: return base.withLayout(if (existing) MainLayout.DETAILED else MainLayout.SIMPLE)
+        return base.copy(
+            cardsView = view,
+            showCompare = p[SET_SHOW_COMPARE] ?: true,
+            showOfficial = p[SET_SHOW_OFFICIAL] ?: false,
+            showDebit = p[SET_SHOW_DEBIT] ?: true,
+            showChips = p[SET_SHOW_CHIPS] ?: false,
         )
     }
 
@@ -145,6 +168,11 @@ class WalletRepository(
             p[SET_MOTION] = settings.motion.name
             p[SET_DYNAMIC_COLOR] = settings.dynamicColor
             p[SET_KEY_HAPTICS] = settings.keyHaptics
+            p[SET_CARDS_VIEW] = settings.cardsView.name
+            p[SET_SHOW_COMPARE] = settings.showCompare
+            p[SET_SHOW_OFFICIAL] = settings.showOfficial
+            p[SET_SHOW_DEBIT] = settings.showDebit
+            p[SET_SHOW_CHIPS] = settings.showChips
         }
     }
 
@@ -330,6 +358,11 @@ class WalletRepository(
         val SET_MOTION = stringPreferencesKey("settings_motion")
         val SET_DYNAMIC_COLOR = booleanPreferencesKey("settings_dynamic_color")
         val SET_KEY_HAPTICS = booleanPreferencesKey("settings_key_haptics")
+        val SET_CARDS_VIEW = stringPreferencesKey("settings_cards_view")
+        val SET_SHOW_COMPARE = booleanPreferencesKey("settings_show_compare")
+        val SET_SHOW_OFFICIAL = booleanPreferencesKey("settings_show_official")
+        val SET_SHOW_DEBIT = booleanPreferencesKey("settings_show_debit")
+        val SET_SHOW_CHIPS = booleanPreferencesKey("settings_show_chips")
         val UNIONPAY = stringPreferencesKey("unionpay_rates")
         val UNIONPAY_AT = longPreferencesKey("unionpay_fetched_at")
     }

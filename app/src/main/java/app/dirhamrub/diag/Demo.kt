@@ -3,7 +3,9 @@ package app.dirhamrub.diag
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import app.dirhamrub.data.WalletRepository
+import app.dirhamrub.domain.AppSettings
 import app.dirhamrub.domain.Expression
+import app.dirhamrub.domain.MainLayout
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardNetwork
@@ -29,7 +31,7 @@ import java.time.LocalDate
 object Demo {
     fun allowed(context: Context): Boolean = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
-    suspend fun seed(repository: WalletRepository, spendCode: String? = null) {
+    suspend fun seed(repository: WalletRepository, spendCode: String? = null, simple: Boolean = false) {
         val spend = Currency.byCode(spendCode) ?: Currency.AED
         val today = LocalDate.now()
         val day = today.minusDays(3)
@@ -104,6 +106,8 @@ object Demo {
                 },
             ),
         )
+        // Вид калькулятора: по умолчанию «Подробно» (как у давних пользователей), extra layout=simple — «Просто».
+        repository.saveSettings(AppSettings().withLayout(if (simple) MainLayout.SIMPLE else MainLayout.DETAILED))
         // Обменники для снимка «Сравнить обменники»: доллары → дирхамы.
         val t = System.currentTimeMillis()
         repository.saveExchangers(

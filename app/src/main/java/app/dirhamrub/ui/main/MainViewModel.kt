@@ -13,10 +13,12 @@ import app.dirhamrub.data.ratesDataStore
 import app.dirhamrub.data.settingsDataStore
 import app.dirhamrub.data.unionPayDataStore
 import app.dirhamrub.domain.AppSettings
+import app.dirhamrub.domain.CardsView
 import app.dirhamrub.domain.Expression
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.MC
+import app.dirhamrub.domain.MainLayout
 import app.dirhamrub.domain.MotionMode
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.RatesPolicy
@@ -207,6 +209,8 @@ class MainViewModel(
                 guideDismissed = stored.guideDismissed,
                 exchangers = stored.exchangers,
             )
+            // Вид калькулятора выбран при первом запуске этой версии — запоминаем, чтобы не менялся потом.
+            if (!stored.mainScreenSaved) repository.saveSettings(stored.settings)
             refresh(Trigger.LAUNCH)
             // Карты и чеки пишем сразу: сохранил карту и тут же закрыл приложение — она не пропадёт.
             // Изменения, не касающиеся кошелька (курсы загружаются, настройки), запись не вызывают.
@@ -438,6 +442,12 @@ class MainViewModel(
     fun setMotion(value: MotionMode) = updateSettings { it.copy(motion = value) }
     fun setDynamicColor(value: Boolean) = updateSettings { it.copy(dynamicColor = value) }
     fun setKeyHaptics(value: Boolean) = updateSettings { it.copy(keyHaptics = value) }
+    fun setMainLayout(value: MainLayout) = updateSettings { it.withLayout(value) }
+    fun setCardsView(value: CardsView) = updateSettings { it.copy(cardsView = value) }
+    fun setShowCompare(value: Boolean) = updateSettings { it.copy(showCompare = value) }
+    fun setShowOfficial(value: Boolean) = updateSettings { it.copy(showOfficial = value) }
+    fun setShowDebit(value: Boolean) = updateSettings { it.copy(showDebit = value) }
+    fun setShowChips(value: Boolean) = updateSettings { it.copy(showChips = value) }
 
     /** Порядок карт из настроек. */
     fun reorderCards(ids: List<String>) = _state.update { it.copy(wallet = it.wallet.reorder(ids)) }

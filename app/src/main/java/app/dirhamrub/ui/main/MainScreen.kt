@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.dirhamrub.domain.CardsView
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.wallet.BankCard
@@ -40,8 +41,10 @@ private fun topHeight(state: MainUiState, compact: Boolean, fontScale: Float): D
         basisText(state) != null -> TEXT_ROW
         else -> 0.dp
     }
-    val compare = if (comparison(state) != null) ROW + 6.dp else 0.dp
-    return CARDS_TOP + PICKER_HEIGHT * fontScale.coerceIn(1f, 1.3f) + hero + basis + compare
+    val compare = if (state.settings.showCompare && comparison(state) != null) ROW + 6.dp else 0.dp
+    val cards = if (state.settings.cardsView == CardsView.ROW) CARDS_HEIGHT else PICKER_HEIGHT
+    val official = if (state.settings.showOfficial) ROW else 0.dp
+    return CARDS_TOP + cards * fontScale.coerceIn(1f, 1.3f) + hero + basis + compare + official
 }
 
 @Composable
@@ -103,8 +106,24 @@ fun MainScreen(
                         countryOffer != null -> CountryBanner(countryOffer, onCountry)
                         tileOffer -> TileBanner(onTileOffer)
                     }
-                    // Все карты — на экране «Карты»; здесь — выбранная одной строкой.
-                    CardPicker(state, onOpenCards, onAddCard, Modifier.padding(top = CARDS_TOP))
+                    // Карты: выбранная одной строкой (все — на экране «Карты») или рядом, как раньше («Подробно»).
+                    if (state.settings.cardsView == CardsView.ROW) {
+                        BankCardsRow(
+                            cards = wallet.usable,
+                            quote = state.quote,
+                            selectedId = wallet.selected?.id,
+                            spend = wallet.spend,
+                            home = wallet.home,
+                            amount = state.totals.spend,
+                            onSelect = onSelectCard,
+                            onEdit = onEditCard,
+                            onAdd = onAddCard,
+                            modifier = Modifier.padding(top = CARDS_TOP),
+                            swipePreview = swipe,
+                        )
+                    } else {
+                        CardPicker(state, onOpenCards, onAddCard, Modifier.padding(top = CARDS_TOP))
+                    }
                 }
                 if (state.homePerUnit == null) {
                     // Считать не по чему — понятный блок с одной кнопкой вместо «—».
@@ -112,16 +131,23 @@ fun MainScreen(
                 } else {
                     ResultBlock(state, heroLine, compact, onSelectCard, onStepCard, onAddReceipt, onEditCard, swipe)
                 }
-                Spacer(Modifier.height(4.dp))
+                if (state.settings.showOfficial) {
+                    OfficialLine(state, onRefreshRates, Modifier.align(Alignment.CenterHorizontally))
+                } else {
+                    Spacer(Modifier.height(4.dp))
+                }
             }
         }
         Column(Modifier.padding(horizontal = 16.dp)) {
             InputField(state, lines, onSelectLine)
             for (line in lines) {
-                if (line != state.active && line != heroLine) SecondaryLine(state, line, onSelectLine)
+                // «Спишется с карты» можно скрыть в настройках «Главный экран».
+                if (line != state.active && line != heroLine && (line != Line.CARD || state.settings.showDebit)) {
+                    SecondaryLine(state, line, onSelectLine)
+                }
             }
             // На коротком экране быстрые суммы уступают место сумме и подсказкам.
-            if (LocalConfiguration.current.screenHeightDp >= SHORT_SCREEN_DP) {
+            if (state.settings.showChips && LocalConfiguration.current.screenHeightDp >= SHORT_SCREEN_DP) {
                 Spacer(Modifier.height(8.dp))
                 Chips(wallet.spend, onChip)
             }

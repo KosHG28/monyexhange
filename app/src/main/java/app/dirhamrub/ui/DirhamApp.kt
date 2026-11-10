@@ -328,6 +328,12 @@ fun DirhamApp(
                 onMotion = vm::setMotion,
                 onDynamicColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) vm::setDynamicColor else null,
                 onKeyHaptics = vm::setKeyHaptics,
+                onMainLayout = vm::setMainLayout,
+                onCardsView = vm::setCardsView,
+                onShowCompare = vm::setShowCompare,
+                onShowOfficial = vm::setShowOfficial,
+                onShowDebit = vm::setShowDebit,
+                onShowChips = vm::setShowChips,
                 guide = guide,
                 onOpenGuide = { guideOpen = true },
                 onOnboarding = {

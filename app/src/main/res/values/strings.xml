@@ -488,4 +488,20 @@
     <string name="trip_board_sub">Камера найдёт курс вашей валюты и сравнит с картой</string>
     <string name="trip_camera">Камера: суммы на ценниках</string>
     <string name="trip_camera_sub">Наведите на меню или витрину</string>
+    <string name="settings_main">Главный экран</string>
+    <string name="settings_main_layout">Вид калькулятора</string>
+    <string name="settings_main_layout_custom">Вид калькулятора — свой набор</string>
+    <string name="settings_main_simple">Просто</string>
+    <string name="settings_main_detailed">Подробно</string>
+    <string name="settings_main_cards">Карты на калькуляторе</string>
+    <string name="settings_main_cards_line">Одной строкой</string>
+    <string name="settings_main_cards_row">Рядом</string>
+    <string name="settings_main_compare">Сравнение с другими картами</string>
+    <string name="settings_main_compare_sub">«Дешевле на 43 ₽ — наличные» под суммой</string>
+    <string name="settings_main_official">Курс ЦБ</string>
+    <string name="settings_main_official_sub">Строка «ЦБ на 10 ноя: 1 AED = 21,97 ₽» (всегда есть на экране «Карты»)</string>
+    <string name="settings_main_debit">«Спишется с карты»</string>
+    <string name="settings_main_debit_sub">Сумма в валюте карты под полем ввода</string>
+    <string name="settings_main_chips">Быстрые суммы</string>
+    <string name="settings_main_chips_sub">5 · 10 · 50 · 100… над клавиатурой</string>
 </resources>

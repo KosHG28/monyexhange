@@ -48,6 +48,18 @@ data class ManualRate(
     val date: LocalDate,
 )
 
+/** Платёжная система карты — для справочника «чем платить в стране». */
+enum class CardNetwork {
+    UNIONPAY,
+    MIR,
+
+    /** Visa или Mastercard российского банка. */
+    VISA_MC_RU,
+
+    /** Visa или Mastercard зарубежного банка (Казахстан, Киргизия, Армения…). */
+    VISA_MC_FOREIGN,
+}
+
 /** Чем платят: картой или наличными из обменника. */
 enum class CardKind {
     CARD,
@@ -73,7 +85,12 @@ data class BankCard(
     val unionPay: Boolean = false,
     /** Валюта расчёта UnionPay, если пользователь её выбрал; иначе — [UnionPayRates.defaultSettlement]. */
     val settlement: Currency? = null,
+    /** Платёжная система, если пользователь её указал (у UnionPay-карты — UnionPay и без этого). */
+    val network: CardNetwork? = null,
 ) {
+    /** Платёжная система для справочника: указанная, а у карты UnionPay — UnionPay. */
+    val paymentNetwork: CardNetwork? get() = network ?: CardNetwork.UNIONPAY.takeIf { unionPay }
+
     /** В какую валюту UnionPay пересчитывает покупки по этой карте. */
     val settlementCurrency: Currency get() = settlement ?: UnionPayRates.defaultSettlement(currency)
 

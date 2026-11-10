@@ -6,6 +6,7 @@ import app.dirhamrub.data.WalletRepository
 import app.dirhamrub.domain.Expression
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.wallet.BankCard
+import app.dirhamrub.domain.wallet.CardNetwork
 import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.OfficialRates
@@ -36,6 +37,7 @@ object Demo {
             id = "demo-kzt", name = "Карта в тенге", currency = Currency.KZT, style = 0,
             transfer = TransferReceipt(bd("15000"), Currency.RUB, bd("80900"), day),
             purchases = listOf(PurchaseReceipt(Currency.AED, bd("2757.48"), bd("22"), day)),
+            network = CardNetwork.VISA_MC_FOREIGN,
         )
         val yuan = BankCard(
             id = "demo-cny", name = "Карта в юанях", currency = Currency.CNY, style = 1,

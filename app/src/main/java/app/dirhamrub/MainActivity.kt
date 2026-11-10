@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
         const val SCREEN_CURRENCIES = "currencies"
         const val SCREEN_EDITOR = "editor"
         const val SCREEN_SETTINGS = "settings"
+        const val SCREEN_GUIDE = "guide"
 
         /** Знакомство поверх демо-данных — для снимков CI; [EXTRA_STEP] — с какого шага. */
         const val SCREEN_ONBOARDING = "onboarding"

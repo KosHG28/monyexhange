@@ -28,7 +28,9 @@ import androidx.compose.ui.unit.dp
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.wallet.BankCard
+import app.dirhamrub.domain.wallet.CountryGuide
 import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.ui.guide.GuideBanner
 import app.dirhamrub.ui.theme.AppTheme
 import java.math.BigDecimal
 
@@ -53,6 +55,10 @@ fun MainScreen(
     countryOffer: CountryOffer?,
     tileOffer: Boolean,
     onTileOffer: (accept: Boolean) -> Unit,
+    /** Справочник «Чем платить» для этой страны — плашкой над картами (если её не закрывали). */
+    guideBanner: CountryGuide?,
+    onOpenGuide: () -> Unit,
+    onDismissGuide: (String) -> Unit,
     onKey: (Key) -> Unit,
     onSelectCard: (String) -> Unit,
     onStepCard: (Int) -> Unit,
@@ -105,6 +111,7 @@ fun MainScreen(
                     when {
                         countryOffer != null -> CountryBanner(countryOffer, onCountry)
                         tileOffer -> TileBanner(onTileOffer)
+                        guideBanner != null -> GuideBanner(guideBanner, onOpenGuide) { onDismissGuide(guideBanner.iso) }
                     }
                     BankCardsRow(
                         cards = wallet.usable,

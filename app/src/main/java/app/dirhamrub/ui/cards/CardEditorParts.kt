@@ -2,6 +2,7 @@ package app.dirhamrub.ui.cards
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -46,6 +47,7 @@ import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
+import app.dirhamrub.domain.wallet.CardNetwork
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.ScannedReceipt
 import app.dirhamrub.domain.wallet.TransferReceipt
@@ -92,6 +94,49 @@ internal fun KindSwitch(kind: CardKind, onChange: (CardKind) -> Unit) {
                     style = type.bodyStrong,
                     color = if (selected) colors.accent else colors.muted,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Платёжная система карты: 2×2 чипа, повторное касание снимает выбор. Нужна справочнику «Чем платить»
+ * (примут ли карту в стране); UnionPay включает и пересчёт покупок по курсу UnionPay.
+ */
+@Composable
+internal fun NetworkChips(network: CardNetwork?, onChange: (CardNetwork?) -> Unit, modifier: Modifier = Modifier) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (row in CardNetwork.entries.chunked(2)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (option in row) {
+                    val selected = option == network
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 44.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(if (selected) colors.accent else colors.surface)
+                            .selectable(selected = selected, role = Role.RadioButton) { onChange(if (selected) null else option) }
+                            .padding(horizontal = 10.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            stringResource(
+                                when (option) {
+                                    CardNetwork.UNIONPAY -> R.string.network_unionpay
+                                    CardNetwork.MIR -> R.string.network_mir
+                                    CardNetwork.VISA_MC_RU -> R.string.network_short_visa_ru
+                                    CardNetwork.VISA_MC_FOREIGN -> R.string.network_short_visa_foreign
+                                },
+                            ),
+                            style = type.bodyStrong.copy(fontSize = 13.5.sp),
+                            color = if (selected) colors.onAccent else colors.ink,
+                            maxLines = 1,
+                        )
+                    }
+                }
             }
         }
     }

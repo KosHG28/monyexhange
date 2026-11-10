@@ -53,6 +53,7 @@ import app.dirhamrub.ui.camera.CameraScreen
 import app.dirhamrub.ui.cards.CardEditorSheet
 import app.dirhamrub.ui.cheat.CheatSheet
 import app.dirhamrub.ui.currency.CurrencySheet
+import app.dirhamrub.ui.guide.CountryGuideSheet
 import app.dirhamrub.ui.main.CountryOffer
 import app.dirhamrub.ui.main.MainScreen
 import app.dirhamrub.ui.main.MainViewModel
@@ -95,6 +96,7 @@ fun DirhamApp(
     vm: MainViewModel = viewModel(factory = MainViewModel.Factory),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    var guideOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_GUIDE) }
     var cheatOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CHEAT) }
     var currenciesOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CURRENCIES) }
     var cameraOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CAMERA) }
@@ -165,10 +167,15 @@ fun DirhamApp(
 
     // Плитка «Ценник» в шторке: предлагаем один раз, после первого знакомства с камерой (Android 13+).
     val tileOffer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && state.cameraUsed && !state.tileOffered
+    // Справочник «Чем платить»: по валюте трат и стране сотовой сети.
+    val guide = state.guides?.forSpend(state.wallet.spend, country)
     MainScreen(
         state = state,
         countryOffer = offer,
         tileOffer = tileOffer,
+        guideBanner = guide?.takeIf { it.iso !in state.guideDismissed },
+        onOpenGuide = { guideOpen = true },
+        onDismissGuide = vm::dismissGuide,
         onTileOffer = { accept ->
             if (accept && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) requestCameraTile(context)
             vm.markTileOffered()
@@ -189,6 +196,9 @@ fun DirhamApp(
         onOpenCamera = { cameraOpen = true },
         onCameraPlaced = { cameraOrigin = it },
     )
+    if (guideOpen && guide != null) {
+        CountryGuideSheet(guide, state.wallet.cards, onDismiss = { guideOpen = false })
+    }
     if (cheatOpen) {
         CheatSheet(
             quote = state.quote,
@@ -241,6 +251,8 @@ fun DirhamApp(
                 onMotion = vm::setMotion,
                 onDynamicColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) vm::setDynamicColor else null,
                 onKeyHaptics = vm::setKeyHaptics,
+                guide = guide,
+                onOpenGuide = { guideOpen = true },
                 onOnboarding = {
                     settingsOpen = false
                     onboardingReshown = true

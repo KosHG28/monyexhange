@@ -96,4 +96,13 @@ class WalletCodecTest {
         assertNotEquals(table110, WalletCodec.RATES_TABLE)
         assertFalse(WalletCodec.isCurrentTable("table=$table110\n$old"))
     }
+
+    @Test
+    fun `платёжная система карты сохраняется`() {
+        val card = BankCard(id = "k", name = "Карта в тенге", currency = Currency.KZT, style = 0, network = CardNetwork.VISA_MC_FOREIGN)
+        val back = WalletCodec.decode(WalletCodec.encode(Wallet(cards = listOf(card))))!!.cards.single()
+        assertEquals(CardNetwork.VISA_MC_FOREIGN, back.network)
+        val old = WalletCodec.decode(WalletCodec.encode(Wallet(cards = listOf(card.copy(network = null)))))!!.cards.single()
+        assertEquals(null, old.network)
+    }
 }

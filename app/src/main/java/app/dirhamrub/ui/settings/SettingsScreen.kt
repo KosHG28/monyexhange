@@ -52,10 +52,13 @@ import app.dirhamrub.domain.RatesUpdate
 import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.ThemeMode
 import app.dirhamrub.domain.wallet.BankCard
+import app.dirhamrub.domain.wallet.CountryGuide
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.cbrPublishes
 import app.dirhamrub.ui.currency.CurrencyPickerSheet
 import app.dirhamrub.ui.main.MainUiState
+import app.dirhamrub.ui.guide.countryFlag
+import app.dirhamrub.ui.guide.countryName
 import app.dirhamrub.ui.theme.AppTheme
 import java.time.Instant
 import java.time.LocalDate
@@ -80,6 +83,9 @@ class SettingsActions(
     /** null — цветов из обоев нет (Android до 12). */
     val onDynamicColor: ((Boolean) -> Unit)?,
     val onKeyHaptics: (Boolean) -> Unit,
+    /** Справочник «Чем платить» для валюты трат, если он есть, и как его открыть. */
+    val guide: CountryGuide? = null,
+    val onOpenGuide: () -> Unit = {},
     val onOnboarding: () -> Unit,
 )
 
@@ -261,6 +267,16 @@ private fun CurrenciesSection(state: MainUiState, actions: SettingsActions, onPi
             state.settings.countryHint,
             actions.onCountryHint,
         )
+        val guide = actions.guide
+        if (guide != null) {
+            Divider()
+            LinkRow(
+                stringResource(R.string.settings_guide),
+                stringResource(R.string.settings_guide_sub, countryFlag(guide.iso), countryName(guide.iso)),
+                "›",
+                actions.onOpenGuide,
+            )
+        }
     }
 }
 

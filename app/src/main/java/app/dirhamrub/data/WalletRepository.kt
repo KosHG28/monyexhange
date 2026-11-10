@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import app.dirhamrub.domain.AppSettings
 import app.dirhamrub.domain.Expression
@@ -65,6 +66,10 @@ data class StoredState(
     val unionPayFetchedAt: Long,
     /** Откуда в последний раз пришли курсы ЦБ: «cbr.ru» или зеркало. */
     val officialSource: String?,
+    /** Скачанный справочник «Чем платить» (текст файла), если он свежее встроенного. */
+    val guideText: String?,
+    /** Страны, для которых плашку справочника на главном закрыли. */
+    val guideDismissed: Set<String>,
     val settings: AppSettings,
 )
 
@@ -112,6 +117,8 @@ class WalletRepository(
             unionPay = WalletCodec.decodeUnionPay(u[UNIONPAY]),
             unionPayFetchedAt = if (WalletCodec.isCurrentTable(u[UNIONPAY])) u[UNIONPAY_AT] ?: 0L else 0L,
             officialSource = r[OFFICIAL_SOURCE],
+            guideText = r[GUIDE],
+            guideDismissed = p[GUIDE_DISMISSED].orEmpty(),
             settings = AppSettings(
                 unionPay = p[SET_UNIONPAY] ?: true,
                 ratesUpdate = RatesUpdate.entries.firstOrNull { it.name == p[SET_RATES_UPDATE] } ?: RatesUpdate.EVERY_6H,
@@ -145,6 +152,14 @@ class WalletRepository(
 
     suspend fun saveOfficialWeekAgo(rates: OfficialRates) {
         ratesStore.edit { p -> p[OFFICIAL_WEEK] = WalletCodec.encodeRates(rates) }
+    }
+
+    suspend fun saveGuide(text: String) {
+        ratesStore.edit { r -> r[GUIDE] = text }
+    }
+
+    suspend fun saveGuideDismissed(isos: Set<String>) {
+        store.edit { p -> p[GUIDE_DISMISSED] = isos }
     }
 
     suspend fun saveCameraUsed() {
@@ -230,6 +245,8 @@ class WalletRepository(
             // как и предложение плитки «Ценник».
             p[COUNTRY_HANDLED] = "US"
             p[TILE_OFFERED] = true
+            // Плашка справочника ОАЭ скрыта: главные снимки — без неё (она есть на снимке с батами).
+            p[GUIDE_DISMISSED] = setOf("AE")
         }
     }
 
@@ -291,6 +308,8 @@ class WalletRepository(
         val CAMERA_USED = booleanPreferencesKey("camera_used")
         val TILE_OFFERED = booleanPreferencesKey("tile_offered")
         val OFFICIAL_SOURCE = stringPreferencesKey("official_source")
+        val GUIDE = stringPreferencesKey("country_guide")
+        val GUIDE_DISMISSED = stringSetPreferencesKey("guide_dismissed")
 
         /** Ключи курсов ЦБ: живут в своём файле (до 1.20 — в общем с кошельком). */
         val RATE_KEYS: List<Preferences.Key<*>> = listOf(OFFICIAL, OFFICIAL_AT, OFFICIAL_SOURCE, OFFICIAL_WEEK, RATES_HISTORY)

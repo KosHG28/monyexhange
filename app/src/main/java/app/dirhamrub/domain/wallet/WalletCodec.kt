@@ -42,6 +42,7 @@ object WalletCodec {
             p[k + "kind"] = c.kind.name
             if (c.unionPay) p[k + "unionpay"] = "1"
             c.settlement?.let { p[k + "settlement"] = it.code }
+            c.network?.let { p[k + "network"] = it.name }
             c.transfer?.let { t ->
                 p[k + "transfer.sent"] = t.sent.toPlainString()
                 p[k + "transfer.sentCurrency"] = t.sentCurrency.code
@@ -152,6 +153,7 @@ object WalletCodec {
             kind = CardKind.entries.firstOrNull { it.name == p.getProperty(k + "kind") } ?: CardKind.CARD,
             unionPay = p.getProperty(k + "unionpay") == "1",
             settlement = Currency.byCode(p.getProperty(k + "settlement"))?.takeIf { it in UnionPayRates.BASES },
+            network = CardNetwork.entries.firstOrNull { it.name == p.getProperty(k + "network") },
         )
     }
 

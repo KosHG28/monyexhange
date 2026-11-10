@@ -55,6 +55,7 @@ import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
+import app.dirhamrub.domain.wallet.CardNetwork
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.ManualRate
 import app.dirhamrub.domain.wallet.OfficialRates
@@ -120,6 +121,7 @@ fun CardEditorSheet(
     var currency by remember(card.id) { mutableStateOf(card.currency) }
     var kind by remember(card.id) { mutableStateOf(card.kind) }
     var unionPayCard by remember(card.id) { mutableStateOf(card.unionPay) }
+    var network by remember(card.id) { mutableStateOf(card.paymentNetwork) }
     var settlement by remember(card.id) { mutableStateOf(card.settlement) }
     var settlementPicker by remember(card.id) { mutableStateOf(false) }
     val cash = kind == CardKind.CASH
@@ -234,6 +236,7 @@ fun CardEditorSheet(
             currency = currency,
             kind = kind,
             unionPay = unionPayCard && kind == CardKind.CARD,
+            network = network?.takeIf { kind == CardKind.CARD && it != CardNetwork.UNIONPAY },
             settlement = settlement,
             transfer = transfer,
             purchases = receipts,
@@ -347,11 +350,25 @@ fun CardEditorSheet(
             )
             if (!cash) {
                 Spacer(Modifier.height(12.dp))
+                ReceiptSection(stringResource(R.string.editor_network), Modifier.cascade(cascade, 3))
+                NetworkChips(
+                    network = network,
+                    onChange = {
+                        network = it
+                        unionPayCard = it == CardNetwork.UNIONPAY
+                    },
+                    modifier = Modifier.cascade(cascade, 3),
+                )
+                if (network == null) Hint(stringResource(R.string.editor_network_hint))
+                Spacer(Modifier.height(12.dp))
                 UnionPaySection(
                     enabled = unionPayCard,
                     settlement = settlement ?: UnionPayRates.defaultSettlement(currency),
                     cardCurrency = currency,
-                    onEnabled = { unionPayCard = it },
+                    onEnabled = {
+                        unionPayCard = it
+                        network = if (it) CardNetwork.UNIONPAY else network?.takeIf { n -> n != CardNetwork.UNIONPAY }
+                    },
                     onSettlement = { settlement = it },
                     onMoreSettlements = { settlementPicker = true },
                     modifier = Modifier.cascade(cascade, 3),

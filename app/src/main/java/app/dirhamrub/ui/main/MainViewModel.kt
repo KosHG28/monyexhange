@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import app.dirhamrub.data.CbrClient
+import app.dirhamrub.data.GuideClient
 import app.dirhamrub.data.UnionPayClient
 import app.dirhamrub.data.WalletRepository
 import app.dirhamrub.data.ratesDataStore
@@ -24,29 +25,33 @@ import app.dirhamrub.domain.RatesUpdate
 import app.dirhamrub.domain.ThemeMode
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardQuote
+import app.dirhamrub.domain.wallet.CountryGuideParser
+import app.dirhamrub.domain.wallet.CountryGuides
 import app.dirhamrub.domain.wallet.Currency
-import app.dirhamrub.domain.wallet.QuickSums
 import app.dirhamrub.domain.wallet.OfficialRates
+import app.dirhamrub.domain.wallet.QuickSums
 import app.dirhamrub.domain.wallet.RateEngine
 import app.dirhamrub.domain.wallet.ReceiptAge
 import app.dirhamrub.domain.wallet.StaleReceipt
 import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.domain.wallet.Wallet
 import app.dirhamrub.domain.wallet.WalletQuote
-import kotlinx.coroutines.delay
+import java.math.BigDecimal
+import java.time.LocalDate
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.math.BigDecimal
-import java.time.LocalDate
-import java.util.UUID
+import kotlinx.coroutines.withContext
 
 /** Одна сумма в трёх валютах: трат, итоговой и выбранной карты (null — курса нет). */
 data class Totals(val spend: BigDecimal, val home: BigDecimal?, val card: BigDecimal?) {
@@ -84,6 +89,10 @@ data class MainUiState(
     val officialFetchedAt: Long = 0L,
     val officialSource: String? = null,
     val unionPayFetchedAt: Long = 0L,
+    /** Справочник «Чем платить в стране»: встроенный или скачанный, что свежее. */
+    val guides: CountryGuides? = null,
+    /** Страны, для которых плашку справочника закрыли. */
+    val guideDismissed: Set<String> = emptySet(),
 ) {
     /** Курсы UnionPay, если они включены в настройках. */
     val activeUnionPay: UnionPayRates? get() = unionPay.takeIf { settings.unionPay }
@@ -159,7 +168,11 @@ private object QuoteCache {
     }
 }
 
-class MainViewModel(private val repository: WalletRepository) : ViewModel() {
+class MainViewModel(
+    private val repository: WalletRepository,
+    /** Встроенный справочник стран (`assets/countries.txt`). */
+    private val bundledGuide: () -> String? = { null },
+) : ViewModel() {
     private val _state = MutableStateFlow(MainUiState())
     val state: StateFlow<MainUiState> = _state.asStateFlow()
     private var unionPayLoading = false
@@ -186,6 +199,8 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
                 officialFetchedAt = stored.officialFetchedAt,
                 officialSource = stored.officialSource,
                 unionPayFetchedAt = stored.unionPayFetchedAt,
+                guides = loadGuides(stored.guideText),
+                guideDismissed = stored.guideDismissed,
             )
             refresh(Trigger.LAUNCH)
             // Карты и чеки пишем сразу: сохранил карту и тут же закрыл приложение — она не пропадёт.
@@ -322,6 +337,7 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
             return
         }
         _state.update { it.copy(ratesLoading = true, ratesFailed = false) }
+        refreshGuide()
         viewModelScope.launch {
             val fetched = CbrClient.fetch()
             val at = System.currentTimeMillis()
@@ -338,6 +354,37 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
             refreshWeekAgo(allow)
             refreshReceiptRates(allow)
         }
+    }
+
+    /** Встроенный справочник и сохранённый скачанный — что свежее (разбор — не на главном потоке). */
+    private suspend fun loadGuides(saved: String?): CountryGuides? = withContext(Dispatchers.Default) {
+        val bundled = runCatching { bundledGuide() }.getOrNull()?.let(CountryGuideParser::parse)
+        val downloaded = saved?.let(CountryGuideParser::parse)
+        bundled?.newer(downloaded) ?: downloaded
+    }
+
+    private var guideLoading = false
+
+    /** Справочник из репозитория: сохраняем, только если он свежее того, что уже есть. */
+    private fun refreshGuide() {
+        if (guideLoading) return
+        guideLoading = true
+        viewModelScope.launch {
+            val fetched = GuideClient.fetch()
+            val have = _state.value.guides
+            if (fetched != null && (have == null || fetched.second.version.isAfter(have.version))) {
+                repository.saveGuide(fetched.first)
+                _state.update { it.copy(guides = fetched.second) }
+            }
+            guideLoading = false
+        }
+    }
+
+    /** Плашку справочника для страны закрыли: на главном больше не показываем (в настройках — есть). */
+    fun dismissGuide(iso: String) {
+        val next = _state.value.guideDismissed + iso
+        _state.update { it.copy(guideDismissed = next) }
+        viewModelScope.launch { repository.saveGuideDismissed(next) }
     }
 
     /** Курсы UnionPay: тихо, без индикатора — не скачались, так остаются прежние (или ЦБ и чеки). */
@@ -457,6 +504,7 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
 
     companion object {
         private const val SAVE_DELAY_MS = 300L
+        private const val GUIDE_ASSET = "countries.txt"
         private const val WEEK_DAYS = 7L
         private const val WEEK_SLACK_DAYS = 3L
         private const val HISTORY_BATCH = 5
@@ -465,7 +513,10 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]!!
-                MainViewModel(WalletRepository(app.settingsDataStore, app.unionPayDataStore, app.ratesDataStore))
+                MainViewModel(
+                    WalletRepository(app.settingsDataStore, app.unionPayDataStore, app.ratesDataStore),
+                    bundledGuide = { app.assets.open(GUIDE_ASSET).use { String(it.readBytes(), Charsets.UTF_8) } },
+                )
             }
         }
 

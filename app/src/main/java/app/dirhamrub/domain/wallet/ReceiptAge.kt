@@ -23,7 +23,7 @@ object ReceiptAge {
         if (card.manualFor(spend, home) != null) return emptyList()
         return listOfNotNull(
             card.purchaseFor(spend)?.takeIf { card.currency != spend }?.let { Use(it.date, spend, card.currency) },
-            card.transfer?.takeIf { it.isValid && card.currency != home }?.let { Use(it.date, card.currency, it.sentCurrency) },
+            card.effectiveTransfer?.takeIf { it.isValid && card.currency != home }?.let { Use(it.date, card.currency, it.sentCurrency) },
         )
     }
 

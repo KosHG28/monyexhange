@@ -53,6 +53,8 @@ class ExchangerTest {
         val rub = ExchangeMath.cashAfter(ex("r", "0.041", give = Currency.RUB), d("10000"), d("1"), Currency.RUB, day, cash, template)
         assertEquals(cash.id, rub.id)
         assertNull(rub.transfer!!.bought)
+        // Прежний обмен — в истории.
+        assertEquals(listOf(cash.transfer), rub.history)
     }
 
     @Test

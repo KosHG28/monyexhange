@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -24,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +39,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -45,11 +48,13 @@ import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
+import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.CardNetwork
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.ScannedReceipt
+import app.dirhamrub.domain.wallet.TransferMode
 import app.dirhamrub.domain.wallet.TransferReceipt
 import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.ui.components.CurrencyChips
@@ -139,6 +144,91 @@ internal fun NetworkChips(network: CardNetwork?, onChange: (CardNetwork?) -> Uni
                 }
             }
         }
+    }
+}
+
+/**
+ * Прежние пополнения: «по последнему / в среднем» (если пополнений больше одного), список с датами и курсами
+ * (удалить — «×»), средний курс и «+ Новое пополнение» — заполненное уходит в историю, поля очищаются.
+ */
+@Composable
+internal fun TransferHistory(
+    history: List<TransferReceipt>,
+    mode: TransferMode,
+    cardSymbol: String,
+    average: TransferReceipt?,
+    canAddNew: Boolean,
+    onMode: (TransferMode) -> Unit,
+    onRemove: (TransferReceipt) -> Unit,
+    onNew: () -> Unit,
+) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    if (history.isNotEmpty()) {
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(colors.surface)
+                .padding(3.dp)
+                .selectableGroup(),
+        ) {
+            for (option in TransferMode.entries) {
+                val selected = option == mode
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 44.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (selected) colors.accentSoft else colors.surface)
+                        .selectable(selected = selected, role = Role.RadioButton) { onMode(option) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        stringResource(if (option == TransferMode.LAST) R.string.transfer_mode_last else R.string.transfer_mode_average),
+                        style = type.bodyStrong.copy(fontSize = 13.5.sp),
+                        color = if (selected) colors.accent else colors.muted,
+                    )
+                }
+            }
+        }
+        if (average != null) {
+            ReceiptRate(
+                stringResource(
+                    R.string.transfer_average,
+                    Numbers.transferRate(average.got.divide(average.sent, MC), cardSymbol, average.sentCurrency.symbol),
+                    history.size + 1,
+                ),
+                whole = true,
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(stringResource(R.string.transfer_history), style = type.label, color = colors.muted)
+        for (t in history) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    RuDates.short(t.date) + " · " + Numbers.money(t.sent) + " " + t.sentCurrency.symbol + " → " +
+                        Numbers.money(t.got) + " " + cardSymbol + " · " +
+                        Numbers.transferRate(t.got.divide(t.sent, MC), cardSymbol, t.sentCurrency.symbol),
+                    style = type.caption,
+                    color = colors.ink,
+                    modifier = Modifier.weight(1f),
+                )
+                val remove = stringResource(R.string.transfer_remove)
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .clickable(role = Role.Button, onClickLabel = remove) { onRemove(t) }
+                        .semantics { contentDescription = remove },
+                    contentAlignment = Alignment.Center,
+                ) { Text("×", style = type.bodyStrong, color = colors.muted) }
+            }
+        }
+    }
+    if (canAddNew) {
+        TextButton(onClick = onNew) { Text(stringResource(R.string.transfer_new), style = type.bodyStrong, color = colors.accent) }
     }
 }
 

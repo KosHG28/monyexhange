@@ -45,6 +45,8 @@ object Demo {
             transfer = TransferReceipt(bd("30000"), Currency.RUB, bd("2439.02"), day),
             purchases = listOf(PurchaseReceipt(Currency.AED, bd("691.65"), bd("379"), day)),
             unionPay = true,
+            // Прежнее пополнение — для снимка редактора с историей (курс — по последнему, как раньше).
+            history = listOf(TransferReceipt(bd("20000"), Currency.RUB, bd("1660"), today.minusDays(20))),
         )
         // Наличные дирхамы из обменника — выменяны на доллары, купленные по 81,50 ₽: в ряду карт —
         // только когда тратите AED.

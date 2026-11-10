@@ -468,4 +468,10 @@
     <string name="board_card_better">карта выгоднее на %1$s %%</string>
     <string name="board_exchange_better">обменник выгоднее карты на %1$s %%</string>
     <string name="board_save">Проверить и сохранить</string>
+    <string name="transfer_mode_last">По последнему</string>
+    <string name="transfer_mode_average">В среднем</string>
+    <string name="transfer_average">✓ В среднем по %2$d пополнениям: %1$s</string>
+    <string name="transfer_history">Прежние пополнения</string>
+    <string name="transfer_remove">Удалить пополнение</string>
+    <string name="transfer_new">+ Новое пополнение</string>
 </resources>

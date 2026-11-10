@@ -43,17 +43,12 @@ object WalletCodec {
             if (c.unionPay) p[k + "unionpay"] = "1"
             c.settlement?.let { p[k + "settlement"] = it.code }
             c.network?.let { p[k + "network"] = it.name }
-            c.transfer?.let { t ->
-                p[k + "transfer.sent"] = t.sent.toPlainString()
-                p[k + "transfer.sentCurrency"] = t.sentCurrency.code
-                p[k + "transfer.got"] = t.got.toPlainString()
-                p[k + "transfer.date"] = t.date.toString()
-                t.fromCard?.let { p[k + "transfer.fromCard"] = it }
-                t.bought?.let { (rate, inCurrency) ->
-                    p[k + "transfer.boughtAt"] = rate.toPlainString()
-                    p[k + "transfer.boughtIn"] = inCurrency.code
-                }
+            c.transfer?.let { t -> putTransfer(p, k + "transfer.", t) }
+            if (c.history.isNotEmpty()) {
+                p[k + "history"] = c.history.size.toString()
+                c.history.forEachIndexed { j, t -> putTransfer(p, k + "history.$j.", t) }
             }
+            if (c.transferMode != TransferMode.LAST) p[k + "transferMode"] = c.transferMode.name
             p[k + "purchases"] = c.purchases.size.toString()
             c.purchases.forEachIndexed { j, r ->
                 val pk = k + "purchase.$j."
@@ -111,19 +106,8 @@ object WalletCodec {
     private fun card(p: Properties, k: String): BankCard? {
         val id = p.getProperty(k + "id") ?: return null
         val currency = Currency.byCode(p.getProperty(k + "currency")) ?: return null
-        val transfer = run {
-            val sent = p.decimal(k + "transfer.sent") ?: return@run null
-            val got = p.decimal(k + "transfer.got") ?: return@run null
-            TransferReceipt(
-                sent = sent,
-                sentCurrency = Currency.byCode(p.getProperty(k + "transfer.sentCurrency")) ?: Currency.RUB,
-                got = got,
-                date = p.date(k + "transfer.date") ?: LocalDate.now(),
-                boughtAt = p.decimal(k + "transfer.boughtAt"),
-                boughtIn = Currency.byCode(p.getProperty(k + "transfer.boughtIn")),
-                fromCard = p.getProperty(k + "transfer.fromCard")?.takeIf { it.isNotBlank() },
-            )
-        }
+        val transfer = transfer(p, k + "transfer.")
+        val history = (0 until (p.int(k + "history") ?: 0)).mapNotNull { j -> transfer(p, k + "history.$j.") }
         val purchases = (0 until (p.int(k + "purchases") ?: 0)).mapNotNull { j ->
             val pk = k + "purchase.$j."
             PurchaseReceipt(
@@ -154,7 +138,35 @@ object WalletCodec {
             unionPay = p.getProperty(k + "unionpay") == "1",
             settlement = Currency.byCode(p.getProperty(k + "settlement"))?.takeIf { it in UnionPayRates.BASES },
             network = CardNetwork.entries.firstOrNull { it.name == p.getProperty(k + "network") },
+            history = history,
+            transferMode = TransferMode.entries.firstOrNull { it.name == p.getProperty(k + "transferMode") } ?: TransferMode.LAST,
         )
+    }
+
+    private fun transfer(p: Properties, k: String): TransferReceipt? {
+        val sent = p.decimal(k + "sent") ?: return null
+        val got = p.decimal(k + "got") ?: return null
+        return TransferReceipt(
+            sent = sent,
+            sentCurrency = Currency.byCode(p.getProperty(k + "sentCurrency")) ?: Currency.RUB,
+            got = got,
+            date = p.date(k + "date") ?: LocalDate.now(),
+            boughtAt = p.decimal(k + "boughtAt"),
+            boughtIn = Currency.byCode(p.getProperty(k + "boughtIn")),
+            fromCard = p.getProperty(k + "fromCard")?.takeIf { it.isNotBlank() },
+        )
+    }
+
+    private fun putTransfer(p: Properties, k: String, t: TransferReceipt) {
+        p[k + "sent"] = t.sent.toPlainString()
+        p[k + "sentCurrency"] = t.sentCurrency.code
+        p[k + "got"] = t.got.toPlainString()
+        p[k + "date"] = t.date.toString()
+        t.fromCard?.let { p[k + "fromCard"] = it }
+        t.bought?.let { (rate, inCurrency) ->
+            p[k + "boughtAt"] = rate.toPlainString()
+            p[k + "boughtIn"] = inCurrency.code
+        }
     }
 
     /** Курсы UnionPay: «CNY.LKR=0.02015521» — сколько валюты расчёта за 1 единицу валюты покупки. */

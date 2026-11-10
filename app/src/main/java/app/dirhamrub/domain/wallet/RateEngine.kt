@@ -175,7 +175,7 @@ object RateEngine {
         cards: List<BankCard> = emptyList(),
     ): Pair<BigDecimal, RateBasis>? {
         if (card.currency == home) return BigDecimal.ONE to RateBasis.RECEIPTS
-        val t = card.transfer?.takeIf { it.isValid }
+        val t = card.effectiveTransfer?.takeIf { it.isValid }
         if (t != null) {
             val sentPerCard = t.sent.divide(t.got, MC)
             // Наличные из банкомата: списали с карты — дальше по курсу этой карты (без цепочек глубже).

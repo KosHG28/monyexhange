@@ -71,8 +71,9 @@ object ExchangeMath {
     ): BankCard {
         val bought = homePerGive?.takeIf { ex.give != home && it.signum() > 0 }
         val transfer = TransferReceipt(amount, ex.give, amount.multiply(ex.buy, MC), date, bought, bought?.let { home })
+        // Уже были наличные — прежний обмен уходит в историю (курс можно считать в среднем).
         val card = base ?: template.copy(kind = CardKind.CASH, currency = ex.local)
-        return card.copy(kind = CardKind.CASH, currency = ex.local, transfer = transfer)
+        return card.copy(kind = CardKind.CASH, currency = ex.local).withNewTransfer(transfer)
     }
 }
 

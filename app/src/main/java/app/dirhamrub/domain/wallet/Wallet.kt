@@ -60,6 +60,15 @@ enum class CardNetwork {
     VISA_MC_FOREIGN,
 }
 
+/** Какой курс пополнения считать, если пополнений несколько. */
+enum class TransferMode {
+    /** По последнему пополнению — ближе всего к тому, что банк берёт сейчас. */
+    LAST,
+
+    /** В среднем по пополнениям: все отправленные / все пришедшие — во что обошлись деньги на карте. */
+    AVERAGE,
+}
+
 /** Чем платят: картой или наличными из обменника. */
 enum class CardKind {
     CARD,
@@ -87,7 +96,40 @@ data class BankCard(
     val settlement: Currency? = null,
     /** Платёжная система, если пользователь её указал (у UnionPay-карты — UnionPay и без этого). */
     val network: CardNetwork? = null,
+    /** Прежние пополнения (без последнего — он в [transfer]), новые — первыми. */
+    val history: List<TransferReceipt> = emptyList(),
+    /** Курс по последнему пополнению или в среднем по всем. */
+    val transferMode: TransferMode = TransferMode.LAST,
 ) {
+    /**
+     * Пополнение, по которому считается курс: последнее, а в режиме «в среднем» — сводное по всем
+     * пополнениям из той же валюты (и с той же карты у банкомата): суммы складываются, «почём купили» —
+     * среднее, взвешенное по отправленному (если известно у всех). Дата — последнего.
+     */
+    val effectiveTransfer: TransferReceipt?
+        get() {
+            val last = transfer?.takeIf { it.isValid } ?: return transfer
+            if (transferMode != TransferMode.AVERAGE) return last
+            val same = listOf(last) + history.filter {
+                it.isValid && it.sentCurrency == last.sentCurrency && it.fromCard == last.fromCard
+            }
+            if (same.size < 2) return last
+            val sent = same.fold(java.math.BigDecimal.ZERO) { acc, t -> acc.add(t.sent) }
+            val got = same.fold(java.math.BigDecimal.ZERO) { acc, t -> acc.add(t.got) }
+            val boughtIn = last.bought?.second
+            val bought = if (boughtIn != null && same.all { it.bought?.second == boughtIn }) {
+                same.fold(java.math.BigDecimal.ZERO) { acc, t -> acc.add(t.sent.multiply(t.bought!!.first)) }
+                    .divide(sent, app.dirhamrub.domain.MC)
+            } else {
+                null
+            }
+            return last.copy(sent = sent, got = got, boughtAt = bought, boughtIn = bought?.let { boughtIn })
+        }
+
+    /** Записать новое пополнение: прежнее уходит в историю (не больше [HISTORY_MAX]). */
+    fun withNewTransfer(next: TransferReceipt): BankCard =
+        copy(transfer = next, history = (listOfNotNull(transfer) + history).take(HISTORY_MAX))
+
     /** Платёжная система для справочника: указанная, а у карты UnionPay — UnionPay. */
     val paymentNetwork: CardNetwork? get() = network ?: CardNetwork.UNIONPAY.takeIf { unionPay }
 
@@ -104,6 +146,9 @@ data class BankCard(
     fun manualFor(spend: Currency, home: Currency): ManualRate? =
         manual.firstOrNull { it.spend == spend && it.home == home && it.homePerUnit.signum() > 0 }
 }
+
+/** Сколько прежних пополнений храним. */
+const val HISTORY_MAX = 20
 
 /**
  * Всё, что пользователь настроил: карты, итоговая валюта, валюта трат, выбранная карта

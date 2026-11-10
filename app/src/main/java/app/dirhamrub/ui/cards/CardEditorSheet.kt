@@ -57,6 +57,7 @@ import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.CardNetwork
 import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.HISTORY_MAX
 import app.dirhamrub.domain.wallet.ManualRate
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.PurchaseReceipt
@@ -64,6 +65,7 @@ import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.RateEngine
 import app.dirhamrub.domain.wallet.ReceiptScanner
 import app.dirhamrub.domain.wallet.ScannedReceipt
+import app.dirhamrub.domain.wallet.TransferMode
 import app.dirhamrub.domain.wallet.TransferReceipt
 import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.ui.components.CurrencyChips
@@ -75,8 +77,8 @@ import app.dirhamrub.ui.components.ReceiptShape
 import app.dirhamrub.ui.components.cascade
 import app.dirhamrub.ui.components.rememberCascade
 import app.dirhamrub.ui.currency.CurrencyPickerSheet
-import app.dirhamrub.ui.main.basisLabel
 import app.dirhamrub.ui.main.BankCardView
+import app.dirhamrub.ui.main.basisLabel
 import app.dirhamrub.ui.theme.AppTheme
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -124,6 +126,9 @@ fun CardEditorSheet(
     var kind by remember(card.id) { mutableStateOf(card.kind) }
     var unionPayCard by remember(card.id) { mutableStateOf(card.unionPay) }
     var network by remember(card.id) { mutableStateOf(card.paymentNetwork) }
+    // Прежние пополнения и какой курс считать: по последнему или в среднем.
+    val history = remember(card.id) { mutableStateListOf<TransferReceipt>().apply { addAll(card.history) } }
+    var transferMode by remember(card.id) { mutableStateOf(card.transferMode) }
     var settlement by remember(card.id) { mutableStateOf(card.settlement) }
     var settlementPicker by remember(card.id) { mutableStateOf(false) }
     val cash = kind == CardKind.CASH
@@ -239,6 +244,8 @@ fun CardEditorSheet(
             kind = kind,
             unionPay = unionPayCard && kind == CardKind.CARD,
             network = network?.takeIf { kind == CardKind.CARD && it != CardNetwork.UNIONPAY },
+            history = history.toList(),
+            transferMode = if (history.isEmpty()) TransferMode.LAST else transferMode,
             settlement = settlement,
             transfer = transfer,
             purchases = receipts,
@@ -487,6 +494,23 @@ fun CardEditorSheet(
                     } else {
                         Hint(stringResource(if (cash) R.string.receipt_exchange_hint else R.string.receipt_transfer_hint))
                     }
+                    // Прежние пополнения: «+ Новое пополнение» уносит заполненное в историю и очищает поля.
+                    TransferHistory(
+                        history = history,
+                        mode = transferMode,
+                        cardSymbol = currency.symbol,
+                        average = draft.effectiveTransfer?.takeIf { history.isNotEmpty() && transferMode == TransferMode.AVERAGE },
+                        canAddNew = transfer != null,
+                        onMode = { transferMode = it },
+                        onRemove = { history.remove(it) },
+                        onNew = {
+                            transfer?.let { history.add(0, it) }
+                            while (history.size > HISTORY_MAX) history.removeAt(history.lastIndex)
+                            sent = ""
+                            got = ""
+                            boughtAt = ""
+                        },
+                    )
                     if (sentCurrency != home) {
                         BoughtPlate(
                             sentCurrency = sentCurrency,

@@ -225,7 +225,8 @@ class MainViewModel(
     fun flush() {
         val s = _state.value
         if (!s.loaded) return
-        viewModelScope.launch(NonCancellable) { repository.saveSession(s.wallet, s.active, s.expression) }
+        // Запись не отменяется, даже если экран закрывают в этот момент.
+        viewModelScope.launch { withContext(NonCancellable) { repository.saveSession(s.wallet, s.active, s.expression) } }
     }
 
     fun press(key: Key) = _state.update { it.copy(expression = it.expression.press(key)) }

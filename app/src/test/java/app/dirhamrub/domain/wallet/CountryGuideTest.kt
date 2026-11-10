@@ -88,7 +88,8 @@ class CountryGuideTest {
 
     @Test
     fun `встроенный файл разбирается целиком`() {
-        val file = listOf("app/src/main/assets/countries.txt", "../../app/src/main/assets/countries.txt").map(::File).first { it.exists() }
+        // Из сборки Android тесты идут в папке app/, из tools/domain-check — в корне репозитория или в tools/domain-check.
+        val file = listOf("src/main/assets/countries.txt", "app/src/main/assets/countries.txt", "../../app/src/main/assets/countries.txt").map(::File).first { it.exists() }
         val g = CountryGuideParser.parse(file.readText())
         assertNotNull(g)
         val sections = file.readLines().count { it.trim().startsWith("[") }

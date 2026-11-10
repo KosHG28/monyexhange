@@ -120,7 +120,12 @@ fun MainScreen(
                         swipePreview = swipe,
                     )
                 }
-                ResultBlock(state, heroLine, compact, onSelectCard, onStepCard, onAddReceipt, onEditCard, swipe)
+                if (state.homePerUnit == null) {
+                    // Считать не по чему — понятный блок с одной кнопкой вместо «—».
+                    EmptyRate(state, onRefreshRates, onAddReceipt, onAddCard)
+                } else {
+                    ResultBlock(state, heroLine, compact, onSelectCard, onStepCard, onAddReceipt, onEditCard, swipe)
+                }
                 OfficialLine(state, onRefreshRates, Modifier.align(Alignment.CenterHorizontally))
             }
         }

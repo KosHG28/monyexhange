@@ -22,12 +22,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.dirhamrub.R
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.OfficialRates
+import app.dirhamrub.domain.wallet.ReceiptCheck
+import app.dirhamrub.ui.main.signedPercent
+import java.math.BigDecimal
 import app.dirhamrub.ui.components.CurrencyDropdown
 import app.dirhamrub.ui.components.ReceiptLine
 import app.dirhamrub.ui.components.ReceiptSection
@@ -50,6 +58,8 @@ internal fun PurchaseReceipts(
     purchases: SnapshotStateList<PurchaseDraft>,
     /** Подсветить незаполненную сумму в чеках, где заполнена только одна из двух. */
     showErrors: Boolean,
+    /** Курсы ЦБ — заметить опечатку в суммах чека. */
+    official: OfficialRates?,
     cardCurrency: Currency,
     spend: Currency,
     pick: String,
@@ -93,6 +103,7 @@ internal fun PurchaseReceipts(
         val price = Numbers.parse(d.price)?.takeIf { it.signum() > 0 }
         if (paid != null && price != null) {
             ReceiptRate(Numbers.transferRate(paid.divide(price, MC), cardCurrency.symbol, d.spend.symbol))
+            ReceiptTypo(paid, price, official?.cross(d.spend, cardCurrency))
         }
         Spacer(Modifier.height(6.dp))
     }
@@ -110,3 +121,20 @@ internal fun halfFilled(a: String, b: String): Boolean = filled(a) != filled(b)
 @Composable
 internal fun missing(show: Boolean, value: String, other: String): String? =
     if (show && !filled(value) && filled(other)) stringResource(R.string.receipt_missing) else null
+
+/**
+ * «⚠ Курс по чеку на +900 % от ЦБ — проверьте суммы»: [paid] за [got] при курсе ЦБ [officialPaidPerGot].
+ * Сохранять не мешает — чек может быть и правдой (комиссия за мелкую сумму), но чаще это лишний ноль.
+ */
+@Composable
+internal fun ReceiptTypo(paid: BigDecimal, got: BigDecimal, officialPaidPerGot: BigDecimal?) {
+    val deviation = ReceiptCheck.suspicious(paid, got, officialPaidPerGot) ?: return
+    Text(
+        stringResource(if (deviation.signum() > 0) R.string.receipt_typo_high else R.string.receipt_typo_low, signedPercent(deviation)),
+        style = AppTheme.type.caption.copy(fontWeight = FontWeight.Medium),
+        color = AppTheme.colors.warn,
+        modifier = Modifier
+            .padding(top = 2.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+    )
+}

@@ -386,4 +386,17 @@
     <string name="receipt_missing">Заполните и эту сумму — без неё чек не учтётся</string>
     <string name="currency_more_count">Все валюты (%1$d) ›</string>
     <string name="onboarding_skip">Пропустить</string>
+    <string name="receipt_typo_high">⚠ Курс по чеку на %1$s %% от ЦБ — проверьте суммы: нет ли лишнего нуля?</string>
+    <string name="receipt_typo_low">⚠ Курс по чеку на %1$s %% от ЦБ — проверьте суммы: не потерялся ли ноль, те ли поля и валюта?</string>
+    <string name="empty_loading_title">Скачиваем курсы…</string>
+    <string name="empty_loading_text">Курсы ЦБ РФ нужны один раз — дальше приложение работает и без сети.</string>
+    <string name="empty_rates_title">Курсы ещё не скачаны</string>
+    <string name="empty_rates_text">Без курса ЦБ и без ваших чеков считать не по чему.</string>
+    <string name="empty_offline_title">Нет связи</string>
+    <string name="empty_offline_text">Курсы ЦБ не скачались. Подключитесь к сети и обновите — или добавьте карту с чеком.</string>
+    <string name="empty_rates_button">Обновить курсы</string>
+    <string name="empty_currency_title">Нет курса %1$s</string>
+    <string name="empty_currency_text_card">У ЦБ его нет. Добавьте чек покупки в %1$s — посчитаем по нему.</string>
+    <string name="empty_currency_text_no_card">У ЦБ его нет. Добавьте карту и чек покупки в %1$s — посчитаем по нему.</string>
+    <string name="empty_add_receipt">Добавить чек</string>
 </resources>

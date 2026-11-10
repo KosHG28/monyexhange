@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import app.dirhamrub.data.CbrClient
 import app.dirhamrub.data.UnionPayClient
 import app.dirhamrub.data.WalletRepository
+import app.dirhamrub.data.ratesDataStore
 import app.dirhamrub.data.settingsDataStore
 import app.dirhamrub.data.unionPayDataStore
 import app.dirhamrub.domain.AppSettings
@@ -33,10 +34,14 @@ import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.domain.wallet.Wallet
 import app.dirhamrub.domain.wallet.WalletQuote
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
@@ -84,7 +89,7 @@ data class MainUiState(
     val activeUnionPay: UnionPayRates? get() = unionPay.takeIf { settings.unionPay }
 
     /** Справочные курсы: ЦБ, а валюты без ЦБ — по UnionPay к доллару и ЦБ доллара (они в [OfficialRates.derived]). */
-    val reference: OfficialRates? by lazy { official?.withUnionPay(activeUnionPay) }
+    val reference: OfficialRates? by lazy { QuoteCache.reference(official, activeUnionPay) }
 
     /** Устаревший чек выбранной карты: давно, а ЦБ с тех пор заметно сдвинулся. */
     val staleReceipt: StaleReceipt?
@@ -93,7 +98,7 @@ data class MainUiState(
     /** Изменение курса ЦБ валюты трат к итоговой за неделю, в процентах. */
     val weekTrend: BigDecimal? get() = official?.trendPercent(officialWeekAgo, wallet.spend, wallet.home)
 
-    val quote: WalletQuote by lazy { RateEngine.quoteAll(wallet, reference, activeUnionPay) }
+    val quote: WalletQuote by lazy { QuoteCache.quote(wallet, reference, activeUnionPay) }
     val selectedCard: BankCard? get() = wallet.selected
     val selectedQuote: CardQuote? get() = quote.of(selectedCard?.id)
 
@@ -130,6 +135,30 @@ data class MainUiState(
         }
 }
 
+/**
+ * Последний расчёт справочных курсов и курсов карт. Они зависят только от кошелька и курсов, а состояние
+ * пересоздаётся на каждое нажатие клавиши — без памяти ~150 валют и все карты считались бы заново на каждую цифру.
+ * Сравнение — по ссылке (те же объекты), записи неизменяемые: гонка потоков даёт лишний расчёт, а не ошибку.
+ */
+private object QuoteCache {
+    private class Ref(val official: OfficialRates?, val unionPay: UnionPayRates?, val result: OfficialRates?)
+    private class Quote(val wallet: Wallet, val reference: OfficialRates?, val unionPay: UnionPayRates?, val result: WalletQuote)
+
+    @Volatile private var ref: Ref? = null
+
+    @Volatile private var quote: Quote? = null
+
+    fun reference(official: OfficialRates?, unionPay: UnionPayRates?): OfficialRates? {
+        ref?.let { if (it.official === official && it.unionPay === unionPay) return it.result }
+        return official?.withUnionPay(unionPay).also { ref = Ref(official, unionPay, it) }
+    }
+
+    fun quote(wallet: Wallet, reference: OfficialRates?, unionPay: UnionPayRates?): WalletQuote {
+        quote?.let { if (it.wallet === wallet && it.reference === reference && it.unionPay === unionPay) return it.result }
+        return RateEngine.quoteAll(wallet, reference, unionPay).also { quote = Quote(wallet, reference, unionPay, it) }
+    }
+}
+
 class MainViewModel(private val repository: WalletRepository) : ViewModel() {
     private val _state = MutableStateFlow(MainUiState())
     val state: StateFlow<MainUiState> = _state.asStateFlow()
@@ -159,12 +188,24 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
                 unionPayFetchedAt = stored.unionPayFetchedAt,
             )
             refresh(Trigger.LAUNCH)
-            // Сохраняем не чаще раза в 300 мс: collectLatest отменяет отложенную запись при новом нажатии.
-            _state.collectLatest { s ->
+            // Карты и чеки пишем сразу: сохранил карту и тут же закрыл приложение — она не пропадёт.
+            // Изменения, не касающиеся кошелька (курсы загружаются, настройки), запись не вызывают.
+            launch {
+                _state.map { it.wallet }.distinctUntilChanged().drop(1).collect { repository.saveWallet(it) }
+            }
+            // Набираемую сумму — не чаще раза в 300 мс: collectLatest отменяет отложенную запись при новом нажатии.
+            _state.map { it.active to it.expression }.distinctUntilChanged().drop(1).collectLatest { (active, expression) ->
                 delay(SAVE_DELAY_MS)
-                repository.saveSession(s.wallet, s.active, s.expression)
+                repository.saveInput(active, expression)
             }
         }
+    }
+
+    /** Приложение ушло с экрана: дописываем то, что ждало своей задержки (последние нажатия). */
+    fun flush() {
+        val s = _state.value
+        if (!s.loaded) return
+        viewModelScope.launch(NonCancellable) { repository.saveSession(s.wallet, s.active, s.expression) }
     }
 
     fun press(key: Key) = _state.update { it.copy(expression = it.expression.press(key)) }
@@ -424,7 +465,7 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]!!
-                MainViewModel(WalletRepository(app.settingsDataStore, app.unionPayDataStore))
+                MainViewModel(WalletRepository(app.settingsDataStore, app.unionPayDataStore, app.ratesDataStore))
             }
         }
 

@@ -26,7 +26,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,7 +56,8 @@ private const val STEPS = 5
  * Знакомство при первом запуске (и из настроек): зачем → как считаем → что учитываем → откуда и куда
  * считаем (валюта трат и итога) → чем будете платить (мастер первой карты или наличных).
  * Шаги листаются свайпом. Без привязки к конкретным картам: способы оплаты — карта в итоговой валюте, в другой валюте,
- * наличные или пока ничего. [suggested] — валюта страны сотовой сети: выбирается сразу.
+ * наличные или пока ничего. [suggested] — валюта страны сотовой сети: выбирается сразу, один раз
+ * (null — знакомство открыли повторно из настроек: валюту трат не трогаем).
  * [onFinish] — карта из мастера (или null — без неё / «пропустить»), [onOpenEditor] — та же карта
  * в полном редакторе («заполнить из скриншота»).
  */
@@ -79,7 +84,15 @@ fun OnboardingScreen(
         scope.launch { if (reduceMotion) pager.scrollToPage(page) else pager.animateScrollToPage(page) }
     }
     BackHandler(enabled = pager.currentPage > 0) { go(pager.currentPage - 1) }
-    LaunchedEffect(suggested) { if (suggested != null) onSpend(suggested) }
+    // Валюту страны подставляем один раз: поворот экрана или возврат в приложение не должны
+    // затирать то, что человек уже выбрал сам на шаге «Откуда и куда».
+    var suggestionApplied by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(suggested) {
+        if (suggested != null && !suggestionApplied) {
+            suggestionApplied = true
+            onSpend(suggested)
+        }
+    }
 
     Column(
         modifier = Modifier

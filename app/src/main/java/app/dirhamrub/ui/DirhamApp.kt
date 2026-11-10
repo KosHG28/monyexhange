@@ -101,6 +101,8 @@ fun DirhamApp(
     var settingsOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_SETTINGS) }
     // Снимки CI: знакомство поверх демо-данных, с нужного шага.
     var onboardingForced by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_ONBOARDING) }
+    // Знакомство открыли повторно из настроек: валюту трат по стране сети уже не подставляем.
+    var onboardingReshown by rememberSaveable { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Editing?>(null) }
     var cameraOrigin by remember { mutableStateOf<Offset?>(null) }
     // Скриншоты CI: сразу редактор выбранной карты.
@@ -116,7 +118,8 @@ fun DirhamApp(
     LifecycleResumeEffect(Unit) {
         country = networkCountry(context)
         vm.onResume()
-        onPauseOrDispose { }
+        // Уходим с экрана — дописываем последние нажатия, не дожидаясь задержки.
+        onPauseOrDispose { vm.flush() }
     }
 
     if (!state.loaded) {
@@ -142,7 +145,7 @@ fun DirhamApp(
             startStep = startStep,
             spend = state.wallet.spend,
             home = state.wallet.home,
-            suggested = country?.let { Currency.forCountry(it) },
+            suggested = country?.takeIf { !onboardingReshown && !onboardingForced }?.let { Currency.forCountry(it) },
             official = state.reference,
             unionPay = state.activeUnionPay,
             onSpend = vm::setSpend,
@@ -240,6 +243,7 @@ fun DirhamApp(
                 onKeyHaptics = vm::setKeyHaptics,
                 onOnboarding = {
                     settingsOpen = false
+                    onboardingReshown = true
                     vm.restartOnboarding()
                 },
             ),
@@ -310,6 +314,7 @@ fun DirhamApp(
             },
             onDismiss = { editing = null },
             addPurchaseFor = e.addPurchase,
+            amount = state.totals.spend,
         )
     }
 }

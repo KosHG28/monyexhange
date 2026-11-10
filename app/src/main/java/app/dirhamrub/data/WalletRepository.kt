@@ -34,6 +34,9 @@ val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(na
 /** Курсы UnionPay (~2400 пар) — отдельно от настроек: те переписываются при каждом нажатии клавиши. */
 val Context.unionPayDataStore: DataStore<Preferences> by preferencesDataStore(name = "unionpay")
 
+/** Курсы ЦБ (сегодня, неделю назад, на даты чеков) — отдельно: сохранение карты не переписывает их, и наоборот. */
+val Context.ratesDataStore: DataStore<Preferences> by preferencesDataStore(name = "rates")
+
 /** Всё, что переживает перезапуск приложения. */
 data class StoredState(
     val wallet: Wallet,
@@ -72,10 +75,16 @@ data class StoredState(
 class WalletRepository(
     private val store: DataStore<Preferences>,
     private val unionPayStore: DataStore<Preferences>,
+    private val ratesStore: DataStore<Preferences>,
 ) {
 
     suspend fun load(): StoredState {
         val p = store.data
+            .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+            .first()
+        // Курсы ЦБ до 1.20 лежали вместе с кошельком: при первом запуске переносим их в свой файл.
+        if (RATE_KEYS.any { it in p }) migrateRates(p)
+        val r = ratesStore.data
             .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
             .first()
         val u = unionPayStore.data
@@ -85,9 +94,9 @@ class WalletRepository(
             wallet = WalletCodec.decode(p[WALLET]) ?: legacyWallet(p) ?: Wallet(),
             // Курсы, сохранённые со старым справочником валют, неполные (в 1.10 — только 14 валют):
             // показываем их, пока не скачаны свежие, но срок годности не учитываем — скачиваем сразу.
-            official = WalletCodec.decodeRates(p[OFFICIAL]),
-            officialFetchedAt = if (WalletCodec.isCurrentTable(p[OFFICIAL])) p[OFFICIAL_AT] ?: 0L else 0L,
-            officialWeekAgo = p[OFFICIAL_WEEK]?.takeIf(WalletCodec::isCurrentTable)?.let(WalletCodec::decodeRates),
+            official = WalletCodec.decodeRates(r[OFFICIAL]),
+            officialFetchedAt = if (WalletCodec.isCurrentTable(r[OFFICIAL])) r[OFFICIAL_AT] ?: 0L else 0L,
+            officialWeekAgo = r[OFFICIAL_WEEK]?.takeIf(WalletCodec::isCurrentTable)?.let(WalletCodec::decodeRates),
             active = when (p[ACTIVE]) {
                 "RUB", "HOME" -> Line.HOME
                 "CARD" -> Line.CARD
@@ -97,12 +106,12 @@ class WalletRepository(
             countryHandled = p[COUNTRY_HANDLED],
             onboardingDone = p[ONBOARDING_DONE] ?: false,
             cameraEmbedded = p[CAMERA_EMBEDDED] ?: true,
-            ratesHistory = p[RATES_HISTORY]?.takeIf(WalletCodec::isCurrentTable)?.let(WalletCodec::decodeHistory).orEmpty(),
+            ratesHistory = r[RATES_HISTORY]?.takeIf(WalletCodec::isCurrentTable)?.let(WalletCodec::decodeHistory).orEmpty(),
             cameraUsed = p[CAMERA_USED] ?: false,
             tileOffered = p[TILE_OFFERED] ?: false,
             unionPay = WalletCodec.decodeUnionPay(u[UNIONPAY]),
             unionPayFetchedAt = if (WalletCodec.isCurrentTable(u[UNIONPAY])) u[UNIONPAY_AT] ?: 0L else 0L,
-            officialSource = p[OFFICIAL_SOURCE],
+            officialSource = r[OFFICIAL_SOURCE],
             settings = AppSettings(
                 unionPay = p[SET_UNIONPAY] ?: true,
                 ratesUpdate = RatesUpdate.entries.firstOrNull { it.name == p[SET_RATES_UPDATE] } ?: RatesUpdate.EVERY_6H,
@@ -135,7 +144,7 @@ class WalletRepository(
     }
 
     suspend fun saveOfficialWeekAgo(rates: OfficialRates) {
-        store.edit { p -> p[OFFICIAL_WEEK] = WalletCodec.encodeRates(rates) }
+        ratesStore.edit { p -> p[OFFICIAL_WEEK] = WalletCodec.encodeRates(rates) }
     }
 
     suspend fun saveCameraUsed() {
@@ -147,7 +156,7 @@ class WalletRepository(
     }
 
     suspend fun saveRatesHistory(history: Map<LocalDate, OfficialRates>) {
-        store.edit { p -> p[RATES_HISTORY] = WalletCodec.encodeHistory(history) }
+        ratesStore.edit { p -> p[RATES_HISTORY] = WalletCodec.encodeHistory(history) }
     }
 
     suspend fun saveCameraEmbedded(value: Boolean) {
@@ -162,12 +171,37 @@ class WalletRepository(
         store.edit { p -> p[COUNTRY_HANDLED] = iso }
     }
 
+    /** Карты, чеки и валюты: пишутся сразу при изменении — закрытое следом приложение их не теряет. */
+    suspend fun saveWallet(wallet: Wallet) {
+        store.edit { p -> p[WALLET] = WalletCodec.encode(wallet) }
+    }
+
+    /** Набираемая сумма и активная строка (меняются на каждом нажатии — пишутся с задержкой). */
+    suspend fun saveInput(active: Line, expression: Expression) {
+        store.edit { p ->
+            p[ACTIVE] = active.name
+            p[EXPRESSION] = expression.serialize()
+        }
+    }
+
+    /** Всё сразу — когда приложение уходит с экрана. */
     suspend fun saveSession(wallet: Wallet, active: Line, expression: Expression) {
         store.edit { p ->
             p[WALLET] = WalletCodec.encode(wallet)
             p[ACTIVE] = active.name
             p[EXPRESSION] = expression.serialize()
         }
+    }
+
+    private suspend fun migrateRates(p: Preferences) {
+        ratesStore.edit { r ->
+            p[OFFICIAL]?.let { r[OFFICIAL] = it }
+            p[OFFICIAL_AT]?.let { r[OFFICIAL_AT] = it }
+            p[OFFICIAL_SOURCE]?.let { r[OFFICIAL_SOURCE] = it }
+            p[OFFICIAL_WEEK]?.let { r[OFFICIAL_WEEK] = it }
+            p[RATES_HISTORY]?.let { r[RATES_HISTORY] = it }
+        }
+        store.edit { e -> RATE_KEYS.forEach { e.remove(it) } }
     }
 
     /** Демо-состояние для скриншотов CI ([app.dirhamrub.diag.Demo]): всё сразу, курсы «только что скачаны». */
@@ -179,15 +213,18 @@ class WalletRepository(
         expression: Expression,
     ) {
         saveUnionPay(unionPay, System.currentTimeMillis())
+        ratesStore.edit { r ->
+            r.clear()
+            r[OFFICIAL] = WalletCodec.encodeRates(official)
+            r[OFFICIAL_AT] = System.currentTimeMillis()
+            r[OFFICIAL_SOURCE] = CbrClient.SOURCE_CBR
+            r[OFFICIAL_WEEK] = WalletCodec.encodeRates(weekAgo)
+        }
         store.edit { p ->
             p.clear()
             p[WALLET] = WalletCodec.encode(wallet)
             p[ACTIVE] = Line.SPEND.name
             p[EXPRESSION] = expression.serialize()
-            p[OFFICIAL] = WalletCodec.encodeRates(official)
-            p[OFFICIAL_AT] = System.currentTimeMillis()
-            p[OFFICIAL_SOURCE] = CbrClient.SOURCE_CBR
-            p[OFFICIAL_WEEK] = WalletCodec.encodeRates(weekAgo)
             p[ONBOARDING_DONE] = true
             // Эмулятор CI «находится» в США — плашку «считать в USD?» на скриншотах не показываем,
             // как и предложение плитки «Ценник».
@@ -197,7 +234,7 @@ class WalletRepository(
     }
 
     suspend fun saveOfficial(rates: OfficialRates, fetchedAt: Long, source: String) {
-        store.edit { p ->
+        ratesStore.edit { p ->
             p[OFFICIAL] = WalletCodec.encodeRates(rates)
             p[OFFICIAL_AT] = fetchedAt
             p[OFFICIAL_SOURCE] = source
@@ -254,6 +291,9 @@ class WalletRepository(
         val CAMERA_USED = booleanPreferencesKey("camera_used")
         val TILE_OFFERED = booleanPreferencesKey("tile_offered")
         val OFFICIAL_SOURCE = stringPreferencesKey("official_source")
+
+        /** Ключи курсов ЦБ: живут в своём файле (до 1.20 — в общем с кошельком). */
+        val RATE_KEYS: List<Preferences.Key<*>> = listOf(OFFICIAL, OFFICIAL_AT, OFFICIAL_SOURCE, OFFICIAL_WEEK, RATES_HISTORY)
         val SET_UNIONPAY = booleanPreferencesKey("settings_unionpay")
         val SET_RATES_UPDATE = stringPreferencesKey("settings_rates_update")
         val SET_COUNTRY_HINT = booleanPreferencesKey("settings_country_hint")

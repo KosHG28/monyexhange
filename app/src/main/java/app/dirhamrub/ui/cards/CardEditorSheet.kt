@@ -44,6 +44,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -74,6 +75,7 @@ import app.dirhamrub.ui.components.cascade
 import app.dirhamrub.ui.components.rememberCascade
 import app.dirhamrub.ui.currency.CurrencyPickerSheet
 import app.dirhamrub.ui.main.basisLabel
+import app.dirhamrub.ui.main.BankCardView
 import app.dirhamrub.ui.theme.AppTheme
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -100,7 +102,10 @@ fun CardEditorSheet(
     cards: List<BankCard> = emptyList(),
     /** Добавить пустой чек покупки в этой валюте (если его ещё нет). */
     addPurchaseFor: Currency? = null,
+    /** Сумма с главного экрана в валюте трат — для карточки-предпросмотра (нет суммы — за 100 единиц). */
+    amount: BigDecimal = BigDecimal.ZERO,
 ) {
+    val previewAmount = amount.takeIf { it.signum() > 0 } ?: PREVIEW_AMOUNT
     val colors = AppTheme.colors
     val type = AppTheme.type
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -278,6 +283,34 @@ fun CardEditorSheet(
                 }
             }
             Spacer(Modifier.height(6.dp))
+            // Черновик из полей и его курс — для предпросмотра сверху и для чека ниже.
+            val draft = build()
+            val q = RateEngine.quote(draft, spend, home, official, unionPay, cards)
+            // Живая карточка: как карта будет выглядеть на главном экране с тем, что уже введено.
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .cascade(cascade, 1)
+                    .clearAndSetSemantics { },
+                contentAlignment = Alignment.Center,
+            ) {
+                BankCardView(
+                    card = draft,
+                    quote = q,
+                    spend = spend,
+                    home = home,
+                    sum = q?.let { Numbers.moneyWhole(previewAmount.multiply(it.homePerUnit, MC)) },
+                    selected = true,
+                    best = null,
+                    onClick = {},
+                    onLongClick = {},
+                    width = PREVIEW_WIDTH,
+                    height = PREVIEW_HEIGHT,
+                    needsReceipt = official?.cross(spend, home) == null,
+                    flipOnChange = false,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
             // Карта или наличные из обменника: у наличных вместо пополнения — обмен, покупок по чекам нет.
             Box(Modifier.cascade(cascade, 1)) { KindSwitch(kind) { kind = it } }
             Spacer(Modifier.height(12.dp))
@@ -338,8 +371,6 @@ fun CardEditorSheet(
                 Spacer(Modifier.height(12.dp))
             }
             // Итог на лету: тот же расчёт, что на главном экране.
-            val draft = build()
-            val q = RateEngine.quote(draft, spend, home, official, unionPay, cards)
             // Бумажный чек: пополнение и покупки.
             Column(
                 modifier = Modifier
@@ -387,6 +418,7 @@ fun CardEditorSheet(
                         val transfer = draft.transfer
                         if (transfer != null) {
                             ReceiptRate(Numbers.transferRate(transfer.got.divide(transfer.sent, MC), currency.symbol, transfer.sentCurrency.symbol))
+                            ReceiptTypo(transfer.sent, transfer.got, official?.cross(currency, transfer.sentCurrency))
                             // Итог в итоговой валюте — по курсу карты, с которой сняли.
                             RateEngine.cardToHome(draft, home, official, cards)?.first?.let { perCash ->
                                 val u = Numbers.unitFor(perCash)
@@ -427,6 +459,7 @@ fun CardEditorSheet(
                     val transfer = draft.transfer
                     if (transfer != null) {
                         ReceiptRate(Numbers.transferRate(transfer.got.divide(transfer.sent, MC), currency.symbol, transfer.sentCurrency.symbol))
+                        ReceiptTypo(transfer.sent, transfer.got, official?.cross(currency, transfer.sentCurrency))
                     } else {
                         Hint(stringResource(if (cash) R.string.receipt_exchange_hint else R.string.receipt_transfer_hint))
                     }
@@ -449,6 +482,7 @@ fun CardEditorSheet(
                     PurchaseReceipts(
                         purchases = purchases,
                         showErrors = showErrors,
+                        official = official,
                         cardCurrency = currency,
                         spend = spend,
                         pick = pick,
@@ -599,3 +633,8 @@ private val EXCHANGE_FROM = listOf(Currency.RUB, Currency.USD, Currency.EUR, Cur
 
 /** Сколько валют показывать чипами в редакторе карты. */
 private const val EDITOR_CHIPS = 4
+
+/** Карточка-предпросмотр в редакторе. */
+private val PREVIEW_WIDTH = 190.dp
+private val PREVIEW_HEIGHT = 100.dp
+private val PREVIEW_AMOUNT = BigDecimal(100)

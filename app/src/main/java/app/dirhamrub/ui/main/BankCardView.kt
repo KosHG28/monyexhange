@@ -85,6 +85,8 @@ internal fun BankCardView(
     height: Dp,
     /** У валюты трат нет курса ЦБ: без чека покупки в ней курса нет — «нужен чек». */
     needsReceipt: Boolean = false,
+    /** Переворот и свечение при смене чеков; в предпросмотре редактора чек меняется на каждой цифре — там без них. */
+    flipOnChange: Boolean = true,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
@@ -101,7 +103,7 @@ internal fun BankCardView(
     LaunchedEffect(receipts) {
         if (receipts == seenReceipts) return@LaunchedEffect
         seenReceipts = receipts
-        if (reduceMotion) return@LaunchedEffect
+        if (reduceMotion || !flipOnChange) return@LaunchedEffect
         turn.animateTo(90f, tween(150))
         turn.snapTo(-90f)
         turn.animateTo(0f, tween(240, easing = FastOutSlowInEasing))

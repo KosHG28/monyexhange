@@ -9,6 +9,7 @@ import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardNetwork
 import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.Exchanger
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.PurchaseReceipt
 import app.dirhamrub.domain.wallet.QuickSums
@@ -99,6 +100,15 @@ object Demo {
                     Currency.LKR -> bd("2500")
                     else -> QuickSums.chips(spend)[4]
                 },
+            ),
+        )
+        // Обменники для снимка «Сравнить обменники»: доллары → дирхамы.
+        val t = System.currentTimeMillis()
+        repository.saveExchangers(
+            listOf(
+                Exchanger("demo-ex-1", "У метро", Currency.USD, Currency.AED, bd("3.65"), bd("3.67"), t - 3_600_000),
+                Exchanger("demo-ex-2", "В торговом центре", Currency.USD, Currency.AED, bd("3.61"), bd("3.66"), t - 7_200_000),
+                Exchanger("demo-ex-3", "Аэропорт", Currency.USD, Currency.AED, bd("3.40"), bd("3.85"), t - 86_400_000),
             ),
         )
     }

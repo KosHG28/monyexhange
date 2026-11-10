@@ -18,6 +18,8 @@ import app.dirhamrub.domain.RatesUpdate
 import app.dirhamrub.domain.ThemeMode
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.Exchanger
+import app.dirhamrub.domain.wallet.ExchangerCodec
 import app.dirhamrub.domain.wallet.ManualRate
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.PurchaseReceipt
@@ -70,6 +72,8 @@ data class StoredState(
     val guideText: String?,
     /** Страны, для которых плашку справочника на главном закрыли. */
     val guideDismissed: Set<String>,
+    /** Записанные курсы обменников. */
+    val exchangers: List<Exchanger>,
     val settings: AppSettings,
 )
 
@@ -119,6 +123,7 @@ class WalletRepository(
             officialSource = r[OFFICIAL_SOURCE],
             guideText = r[GUIDE],
             guideDismissed = p[GUIDE_DISMISSED].orEmpty(),
+            exchangers = ExchangerCodec.decode(p[EXCHANGERS]),
             settings = AppSettings(
                 unionPay = p[SET_UNIONPAY] ?: true,
                 ratesUpdate = RatesUpdate.entries.firstOrNull { it.name == p[SET_RATES_UPDATE] } ?: RatesUpdate.EVERY_6H,
@@ -160,6 +165,10 @@ class WalletRepository(
 
     suspend fun saveGuideDismissed(isos: Set<String>) {
         store.edit { p -> p[GUIDE_DISMISSED] = isos }
+    }
+
+    suspend fun saveExchangers(list: List<Exchanger>) {
+        store.edit { p -> p[EXCHANGERS] = ExchangerCodec.encode(list) }
     }
 
     suspend fun saveCameraUsed() {
@@ -310,6 +319,7 @@ class WalletRepository(
         val OFFICIAL_SOURCE = stringPreferencesKey("official_source")
         val GUIDE = stringPreferencesKey("country_guide")
         val GUIDE_DISMISSED = stringSetPreferencesKey("guide_dismissed")
+        val EXCHANGERS = stringPreferencesKey("exchangers")
 
         /** Ключи курсов ЦБ: живут в своём файле (до 1.20 — в общем с кошельком). */
         val RATE_KEYS: List<Preferences.Key<*>> = listOf(OFFICIAL, OFFICIAL_AT, OFFICIAL_SOURCE, OFFICIAL_WEEK, RATES_HISTORY)

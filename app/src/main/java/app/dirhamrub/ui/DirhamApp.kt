@@ -53,6 +53,7 @@ import app.dirhamrub.ui.camera.CameraScreen
 import app.dirhamrub.ui.cards.CardEditorSheet
 import app.dirhamrub.ui.cheat.CheatSheet
 import app.dirhamrub.ui.currency.CurrencySheet
+import app.dirhamrub.ui.exchange.ExchangeSheet
 import app.dirhamrub.ui.guide.CountryGuideSheet
 import app.dirhamrub.ui.main.CountryOffer
 import app.dirhamrub.ui.main.MainScreen
@@ -96,6 +97,9 @@ fun DirhamApp(
     vm: MainViewModel = viewModel(factory = MainViewModel.Factory),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    var exchangeOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_EXCHANGE) }
+    // Местная валюта обменников: валюта трат, а из редактора наличных — их валюта.
+    var exchangeLocal by rememberSaveable { mutableStateOf<String?>(null) }
     var guideOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_GUIDE) }
     var cheatOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CHEAT) }
     var currenciesOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CURRENCIES) }
@@ -197,7 +201,38 @@ fun DirhamApp(
         onCameraPlaced = { cameraOrigin = it },
     )
     if (guideOpen && guide != null) {
-        CountryGuideSheet(guide, state.wallet.cards, onDismiss = { guideOpen = false })
+        CountryGuideSheet(
+            guide,
+            state.wallet.cards,
+            onDismiss = { guideOpen = false },
+            onOpenExchange = if (state.wallet.spend != state.wallet.home) {
+                {
+                    guideOpen = false
+                    exchangeLocal = null
+                    exchangeOpen = true
+                }
+            } else {
+                null
+            },
+        )
+    }
+    if (exchangeOpen) {
+        ExchangeSheet(
+            local = Currency.byCode(exchangeLocal) ?: state.wallet.spend,
+            home = state.wallet.home,
+            cards = state.wallet.cards,
+            quote = state.quote,
+            official = state.reference,
+            exchangers = state.exchangers,
+            onSave = vm::saveExchanger,
+            onDelete = vm::deleteExchanger,
+            onExchanged = { card ->
+                exchangeOpen = false
+                editing = Editing(card, isNew = state.wallet.cards.none { it.id == card.id })
+            },
+            newCard = vm::newCard,
+            onDismiss = { exchangeOpen = false },
+        )
     }
     if (cheatOpen) {
         CheatSheet(
@@ -327,6 +362,15 @@ fun DirhamApp(
             onDismiss = { editing = null },
             addPurchaseFor = e.addPurchase,
             amount = state.totals.spend,
+            onOpenExchange = if (e.card.currency != state.wallet.home) {
+                {
+                    editing = null
+                    exchangeLocal = e.card.currency.code
+                    exchangeOpen = true
+                }
+            } else {
+                null
+            },
         )
     }
 }

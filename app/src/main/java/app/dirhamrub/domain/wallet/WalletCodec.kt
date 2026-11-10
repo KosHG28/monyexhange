@@ -212,9 +212,9 @@ object WalletCodec {
         return out
     }
 
-    private fun store(p: Properties): String = StringWriter().also { p.store(it, null) }.toString()
+    internal fun store(p: Properties): String = StringWriter().also { p.store(it, null) }.toString()
 
-    private fun load(text: String): Properties? =
+    internal fun load(text: String): Properties? =
         runCatching { Properties().apply { load(StringReader(text)) } }.getOrNull()
 
     private fun Properties.int(key: String): Int? = getProperty(key)?.toIntOrNull()

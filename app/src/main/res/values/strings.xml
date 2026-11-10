@@ -428,4 +428,36 @@
     <string name="editor_network_hint">Нужна справочнику: подскажем, примут ли карту в стране</string>
     <string name="network_short_visa_ru">Visa/MC РФ</string>
     <string name="network_short_visa_foreign">Visa/MC зарубежная</string>
+    <string name="exchange_title">Обменники · %1$s → %2$s</string>
+    <string name="exchange_bought">Почём купили %1$s, %2$s</string>
+    <string name="exchange_amount">Меняете, %1$s</string>
+    <string name="exchange_cbr">По ЦБ: 1 %1$s = %2$s %3$s</string>
+    <string name="exchange_empty">Запишите курсы 2–3 обменников — покажем, где выгоднее и сравним с картой.</string>
+    <string name="exchange_unnamed">Обменник</string>
+    <string name="exchange_expensive">невыгодно</string>
+    <string name="exchange_vs_card">%1$s %% к карте</string>
+    <string name="exchange_better_card">выгоднее карты</string>
+    <string name="exchange_per_give">за 1 %1$s — %2$s %3$s</string>
+    <string name="exchange_done_here">💵 Я обменял здесь</string>
+    <string name="exchange_delete">Удалить</string>
+    <string name="exchange_extra">«%1$s» вместо «%2$s» на %3$s %4$s:</string>
+    <string name="exchange_add">✎ Ввести курс</string>
+    <string name="exchange_scan">📷 Снять табло</string>
+    <string name="exchange_tip">Спросите итог до обмена: иногда сверху берут «комиссию», и курс на табло — не весь.</string>
+    <string name="exchange_new">Новый обменник</string>
+    <string name="exchange_recognized">Распознали — проверьте</string>
+    <string name="exchange_name">Название</string>
+    <string name="exchange_name_hint">Например, у метро</string>
+    <string name="exchange_buy">Покупают 1 %1$s за, %2$s</string>
+    <string name="exchange_sell">Продают (необязательно)</string>
+    <string name="exchange_typo">Курс на %1$s %% от ЦБ (%2$s) — проверьте: не та строка, колонка или «за 100»?</string>
+    <string name="exchange_swapped">Продажа ниже покупки — похоже, колонки перепутаны</string>
+    <string name="exchange_spread_bad">Разница покупки и продажи %1$s %% — дорогой обменник</string>
+    <string name="exchange_spread_ok">Разница покупки и продажи %1$s %% — честный курс</string>
+    <string name="exchange_cancel">Отмена</string>
+    <string name="exchange_save">Сохранить</string>
+    <string name="exchange_today">сегодня %1$s</string>
+    <string name="exchange_yesterday">вчера %1$s</string>
+    <string name="exchange_spread_short">разница %1$s %%</string>
+    <string name="exchange_open">Сравнить обменники ›</string>
 </resources>

@@ -28,6 +28,8 @@ import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.CountryGuideParser
 import app.dirhamrub.domain.wallet.CountryGuides
 import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.Exchanger
+import app.dirhamrub.domain.wallet.ExchangerCodec
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.QuickSums
 import app.dirhamrub.domain.wallet.RateEngine
@@ -93,6 +95,8 @@ data class MainUiState(
     val guides: CountryGuides? = null,
     /** Страны, для которых плашку справочника закрыли. */
     val guideDismissed: Set<String> = emptySet(),
+    /** Записанные курсы обменников. */
+    val exchangers: List<Exchanger> = emptyList(),
 ) {
     /** Курсы UnionPay, если они включены в настройках. */
     val activeUnionPay: UnionPayRates? get() = unionPay.takeIf { settings.unionPay }
@@ -201,6 +205,7 @@ class MainViewModel(
                 unionPayFetchedAt = stored.unionPayFetchedAt,
                 guides = loadGuides(stored.guideText),
                 guideDismissed = stored.guideDismissed,
+                exchangers = stored.exchangers,
             )
             refresh(Trigger.LAUNCH)
             // Карты и чеки пишем сразу: сохранил карту и тут же закрыл приложение — она не пропадёт.
@@ -378,6 +383,19 @@ class MainViewModel(
             }
             guideLoading = false
         }
+    }
+
+    /** Записали курс обменника (новый — в начало; не больше [ExchangerCodec.MAX], старые вытесняются). */
+    fun saveExchanger(ex: Exchanger) {
+        val next = (listOf(ex) + _state.value.exchangers.filterNot { it.id == ex.id }).take(ExchangerCodec.MAX)
+        _state.update { it.copy(exchangers = next) }
+        viewModelScope.launch { repository.saveExchangers(next) }
+    }
+
+    fun deleteExchanger(id: String) {
+        val next = _state.value.exchangers.filterNot { it.id == id }
+        _state.update { it.copy(exchangers = next) }
+        viewModelScope.launch { repository.saveExchangers(next) }
     }
 
     /** Плашку справочника для страны закрыли: на главном больше не показываем (в настройках — есть). */

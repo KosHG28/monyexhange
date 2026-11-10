@@ -305,7 +305,7 @@ private fun CardsPage(state: MainUiState, actions: PagerActions, onPick: (String
         Tile("＋", stringResource(R.string.cards_page_add), null, onClick = actions.onAddCard)
         Spacer(Modifier.height(14.dp))
         OfficialLine(state, actions.onRefreshRates, Modifier.align(Alignment.CenterHorizontally))
-        Tile("▦", stringResource(R.string.cheat_title), stringResource(R.string.cards_page_cheat_sub), onClick = actions.onOpenCheat)
+        Tile("🧾", stringResource(R.string.cheat_title), stringResource(R.string.cards_page_cheat_sub), onClick = actions.onOpenCheat)
     }
 }
 
@@ -360,10 +360,10 @@ private fun TripPage(state: MainUiState, guide: CountryGuide?, actions: PagerAct
                 stringResource(R.string.trip_exchange_best, ex.name.ifBlank { stringResource(R.string.exchange_unnamed) }, spend.code, Numbers.rateShort(cost), home.symbol)
             } ?: stringResource(R.string.trip_exchange_none)
             Tile("💱", stringResource(R.string.trip_exchange), sub, onClick = actions.onOpenExchange)
-            Tile("🪧", stringResource(R.string.trip_board), stringResource(R.string.trip_board_sub), onClick = actions.onOpenBoard)
+            Tile("🔍", stringResource(R.string.trip_board), stringResource(R.string.trip_board_sub), onClick = actions.onOpenBoard)
         }
         Tile("📷", stringResource(R.string.trip_camera), stringResource(R.string.trip_camera_sub), onClick = actions.onOpenCamera)
-        Tile("▦", stringResource(R.string.cheat_title), stringResource(R.string.cards_page_cheat_sub), onClick = actions.onOpenCheat)
+        Tile("🧾", stringResource(R.string.cheat_title), stringResource(R.string.cards_page_cheat_sub), onClick = actions.onOpenCheat)
     }
 }
 

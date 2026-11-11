@@ -37,6 +37,7 @@ class MainActivity : ComponentActivity() {
                     // На пересчёте карта из extra — выбранная вручную (в редакторе — открытая).
                     selected = intent.getStringExtra(EXTRA_CARD).takeIf { screen == null },
                     noCards = intent.getBooleanExtra(EXTRA_NO_CARDS, false),
+                    noAmount = intent.getBooleanExtra(EXTRA_NO_AMOUNT, false),
                 )
             }
         }
@@ -76,6 +77,7 @@ class MainActivity : ComponentActivity() {
         const val SCREEN_GUIDE = "guide"
         const val SCREEN_EXCHANGE = "exchange"
         const val SCREEN_MONEY = "money"
+        const val SCREEN_PLACE = "place"
 
         /** Знакомство поверх демо-данных — для снимков CI; [EXTRA_STEP] — с какого шага. */
         const val SCREEN_ONBOARDING = "onboarding"
@@ -84,6 +86,9 @@ class MainActivity : ComponentActivity() {
 
         /** Только для снимков CI: демо-данные без карт. */
         const val EXTRA_NO_CARDS = "nocards"
+
+        /** Только для снимков CI: ничего не набрано (пустой экран). */
+        const val EXTRA_NO_AMOUNT = "noamount"
 
     }
 }

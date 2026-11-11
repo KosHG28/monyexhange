@@ -276,7 +276,7 @@ private fun Verdict(
                 )
             }
         }
-        if (ex.expensive) Text(stringResource(R.string.exchange_spread_bad, Numbers.percent(ex.spreadPercent!!)), style = type.caption, color = colors.accent)
+        if (ex.expensive) Text(stringResource(R.string.exchange_spread_bad, Numbers.percent(ex.spreadPercent!!)), style = type.caption, color = colors.danger)
         Box(
             Modifier
                 .padding(top = 10.dp)

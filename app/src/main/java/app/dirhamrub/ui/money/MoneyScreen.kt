@@ -51,7 +51,7 @@ import app.dirhamrub.ui.exchange.homePerGive
 import app.dirhamrub.ui.guide.countryFlag
 import app.dirhamrub.ui.guide.countryName
 import app.dirhamrub.ui.main.MainUiState
-import app.dirhamrub.ui.main.OfficialLine
+import app.dirhamrub.ui.main.PayIcon
 import app.dirhamrub.ui.settings.Divider
 import app.dirhamrub.ui.settings.Group
 import app.dirhamrub.ui.settings.LinkRow
@@ -60,25 +60,19 @@ import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.CardPalette
 import java.math.BigDecimal
 
-/** Что можно сделать с экрана «Мои деньги». */
+/** Что можно сделать с экрана «Карты и наличные». */
 class MoneyActions(
     val onBack: () -> Unit,
     val onEditCard: (BankCard) -> Unit,
     val onAddCard: () -> Unit,
-    val onOpenGuide: () -> Unit,
-    val onOpenExchange: () -> Unit,
-    val onOpenCheat: () -> Unit,
-    val onOpenSettings: () -> Unit,
-    val onRefreshRates: () -> Unit,
 )
 
 /**
- * «Мои деньги» — второй и последний экран: чем плачу (все карты и наличные, точно или примерно),
- * разделы страны (какие карты принимают, где менять деньги, шпаргалка), настройки и курс ЦБ.
- * Открывается только ссылкой «Мои деньги ›» с пересчёта, закрывается стрелкой или системным «назад».
+ * «Карты и наличные» (из настроек): все способы оплаты, в том числе наличные в других валютах, которых нет
+ * на главном; курс каждого, дата пополнения; касание — изменить, ниже — добавить.
  */
 @Composable
-fun MoneyScreen(state: MainUiState, guide: CountryGuide?, actions: MoneyActions) {
+fun MoneyScreen(state: MainUiState, actions: MoneyActions) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val wallet = state.wallet
@@ -107,7 +101,7 @@ fun MoneyScreen(state: MainUiState, guide: CountryGuide?, actions: MoneyActions)
             }
             Spacer(Modifier.width(6.dp))
             Text(
-                stringResource(R.string.money_title),
+                stringResource(R.string.cards_title),
                 style = type.title.copy(fontSize = 21.sp),
                 color = colors.ink,
                 modifier = Modifier.semantics { heading() },
@@ -120,10 +114,10 @@ fun MoneyScreen(state: MainUiState, guide: CountryGuide?, actions: MoneyActions)
                 .padding(horizontal = 14.dp)
                 .padding(bottom = 24.dp),
         ) {
-            SectionTitle(stringResource(R.string.money_pay))
-            // От дешёвого к дорогому, как плитки на пересчёте; без курса — в конце.
+            // От дешёвого к дорогому, как на главном; без курса — в конце.
             val cards = wallet.cards.sortedBy { state.quote.of(it.id)?.homePerUnit ?: BigDecimal(Long.MAX_VALUE) }
             if (cards.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
                 Group {
                     cards.forEachIndexed { i, card ->
                         if (i > 0) Divider()
@@ -132,52 +126,6 @@ fun MoneyScreen(state: MainUiState, guide: CountryGuide?, actions: MoneyActions)
                 }
             }
             AddRow(actions.onAddCard)
-
-            // Страна — по справочнику (валюта трат и страна сети); без справочника — по названию валюты.
-            val title = guide?.let { countryName(it.iso) } ?: wallet.spend.nameRu
-            val flag = guide?.let { countryFlag(it.iso) }?.takeIf { it.isNotEmpty() } ?: wallet.spend.flag
-            SectionTitle("$flag $title")
-            Group {
-                var first = true
-                if (guide != null) {
-                    val up = guide.networks[CardNetwork.UNIONPAY]?.acceptance
-                    val mir = guide.networks[CardNetwork.MIR]?.acceptance
-                    LinkRow(
-                        title = stringResource(R.string.money_guide),
-                        subtitle = stringResource(R.string.trip_guide_sub, mark(up), mark(mir), RuDates.short(guide.updated)),
-                        value = "›",
-                        onClick = actions.onOpenGuide,
-                    )
-                    first = false
-                }
-                if (wallet.spend != wallet.home) {
-                    if (!first) Divider()
-                    // Лучший из записанных обменников — по тому, во что вам обошлась валюта, которую несёте.
-                    val best = state.exchangers.filter { it.local == wallet.spend }.mapNotNull { ex ->
-                        homePerGive(ex.give, wallet.home, wallet.cards, state.reference)?.let(ex::homePerLocal)?.let { ex to it }
-                    }.minByOrNull { it.second }
-                    val sub = best?.let { (ex, cost) ->
-                        stringResource(
-                            R.string.trip_exchange_best,
-                            ex.name.ifBlank { stringResource(R.string.exchange_unnamed) },
-                            wallet.spend.code,
-                            Numbers.rateShort(cost),
-                            wallet.home.symbol,
-                        )
-                    } ?: stringResource(R.string.trip_exchange_none)
-                    LinkRow(stringResource(R.string.money_exchange), sub, "›", onClick = actions.onOpenExchange)
-                    first = false
-                }
-                if (!first) Divider()
-                LinkRow(stringResource(R.string.money_cheat), stringResource(R.string.cards_page_cheat_sub), "›", onClick = actions.onOpenCheat)
-            }
-
-            SectionTitle(stringResource(R.string.money_app))
-            Group {
-                LinkRow(stringResource(R.string.settings_title), stringResource(R.string.menu_settings_sub), "›", onClick = actions.onOpenSettings)
-            }
-            Spacer(Modifier.height(12.dp))
-            OfficialLine(state, actions.onRefreshRates, Modifier.align(Alignment.CenterHorizontally))
         }
     }
 }
@@ -198,15 +146,15 @@ private fun CardRow(state: MainUiState, card: BankCard, q: CardQuote?, onClick: 
     val accuracy = when {
         q == null && !card.canPay(wallet.spend) -> stringResource(R.string.money_only_in, card.currency.code)
         q == null -> stringResource(R.string.money_no_rate, wallet.spend.code)
-        exact -> stringResource(R.string.money_exact)
-        else -> stringResource(R.string.money_approx)
+        exact -> ""
+        else -> stringResource(R.string.money_refine)
     }
     val rate = q?.let {
         val unit = Numbers.unitFor(it.homePerUnit)
         stringResource(
             R.string.money_rate,
             "${Numbers.moneyWhole(unit)} ${wallet.spend.code}",
-            "${Numbers.rateShort(it.homePerUnit.multiply(unit, MC))} ${wallet.home.symbol}",
+            (if (exact) "" else "≈ ") + "${Numbers.rateShort(it.homePerUnit.multiply(unit, MC))} ${wallet.home.symbol}",
         )
     }
     Row(
@@ -217,28 +165,18 @@ private fun CardRow(state: MainUiState, card: BankCard, q: CardQuote?, onClick: 
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val style = CardPalette.style(card)
-        Box(
-            Modifier
-                .size(width = 36.dp, height = 24.dp)
-                .clip(RoundedCornerShape(5.dp))
-                .background(Brush.linearGradient(listOf(style.start, style.end))),
-        )
+        PayIcon(card, best = false)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(card.name, style = type.bodyStrong, color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // Точный курс — только дата; примерный — «уточнить ›» (≈ стоит у курса справа).
             Row {
-                Text(
-                    accuracy,
-                    style = type.caption,
-                    color = when {
-                        q == null -> colors.muted
-                        exact -> colors.good
-                        else -> colors.accent
-                    },
-                    maxLines = 1,
-                )
-                if (date != null) Text(" · $date", style = type.caption, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (accuracy.isNotEmpty()) {
+                    Text(accuracy, style = type.caption, color = if (q == null) colors.muted else colors.accent, maxLines = 1)
+                }
+                if (date != null) {
+                    Text((if (accuracy.isNotEmpty()) " · " else "") + date, style = type.caption, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
         if (rate != null) {
@@ -263,11 +201,4 @@ private fun AddRow(onAdd: () -> Unit) {
     ) {
         Text(stringResource(R.string.money_add), style = AppTheme.type.bodyStrong, color = colors.accent)
     }
-}
-
-private fun mark(a: Acceptance?): String = when (a) {
-    Acceptance.YES -> "✓"
-    Acceptance.PARTIAL -> "≈"
-    Acceptance.NO -> "✗"
-    null -> "?"
 }

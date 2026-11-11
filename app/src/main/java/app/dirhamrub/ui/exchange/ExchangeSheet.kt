@@ -315,7 +315,7 @@ private fun AddForm(give: Currency, local: Currency, cbrBuy: BigDecimal?, prefil
             when {
                 typo != null -> Note("⚠ " + stringResource(R.string.exchange_typo, signedPercent(typo), Numbers.rateShort(cbrBuy)), colors.warn)
                 sell != null && sell < buy -> Note("⚠ " + stringResource(R.string.exchange_swapped), colors.warn)
-                spread != null && spread > Exchanger.EXPENSIVE_SPREAD -> Note(stringResource(R.string.exchange_spread_bad, Numbers.percent(spread)), colors.accent)
+                spread != null && spread > Exchanger.EXPENSIVE_SPREAD -> Note(stringResource(R.string.exchange_spread_bad, Numbers.percent(spread)), colors.danger)
                 spread != null -> Note("✓ " + stringResource(R.string.exchange_spread_ok, Numbers.percent(spread)), colors.good)
             }
         }

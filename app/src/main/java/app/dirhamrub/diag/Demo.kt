@@ -25,13 +25,13 @@ import java.time.LocalDate
  * на сегодня и неделю назад, сумма 167 AED. Только в отладочной сборке — в release недоступно.
  * [spendCode] — другая валюта трат для снимков: «IDR» (курс ЦБ есть, у карт — оценка),
  * «LKR» (у ЦБ курса нет: карта в юанях — UnionPay, курс по UnionPay; у карты в тенге — справочный курс
- * UnionPay × ЦБ с наценкой карты). [selected] — способ, выбранный вручную, [noCards] — кошелёк без карт.
+ * UnionPay × ЦБ с наценкой карты). [selected] — способ, выбранный вручную, [noCards] — кошелёк без карт, [noAmount] — ничего не набрано.
  * Курсы UnionPay — настоящие на 06.11.2026 (к доллару), к юаню — через ЦБ.
  */
 object Demo {
     fun allowed(context: Context): Boolean = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
-    suspend fun seed(repository: WalletRepository, spendCode: String? = null, selected: String? = null, noCards: Boolean = false) {
+    suspend fun seed(repository: WalletRepository, spendCode: String? = null, selected: String? = null, noCards: Boolean = false, noAmount: Boolean = false) {
         val spend = Currency.byCode(spendCode) ?: Currency.AED
         val today = LocalDate.now()
         val day = today.minusDays(3)
@@ -101,7 +101,7 @@ object Demo {
             official = now,
             weekAgo = weekAgo,
             unionPay = unionPay(now, today),
-            expression = Expression.of(
+            expression = if (noAmount) Expression() else Expression.of(
                 when (spend) {
                     Currency.AED -> bd("167")
                     Currency.LKR -> bd("2500")

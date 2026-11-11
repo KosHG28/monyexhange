@@ -19,6 +19,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -101,7 +102,7 @@ fun DirhamTheme(
             surfaceContainer = colors.surface, surfaceContainerHigh = colors.surface,
             surfaceContainerHighest = colors.surface,
             outline = colors.muted, outlineVariant = colors.line,
-            error = colors.accent, onError = colors.onAccent,
+            error = colors.danger, onError = Color.White,
         )
     } else {
         lightColorScheme(
@@ -117,7 +118,7 @@ fun DirhamTheme(
             surfaceContainer = colors.surface, surfaceContainerHigh = colors.surface,
             surfaceContainerHighest = colors.surface,
             outline = colors.muted, outlineVariant = colors.line,
-            error = colors.accent, onError = colors.onAccent,
+            error = colors.danger, onError = Color.White,
         )
     }
     CompositionLocalProvider(
@@ -134,6 +135,7 @@ fun DirhamTheme(
 private fun dynamicColors(scheme: ColorScheme, base: AppColors): AppColors = base.copy(
     bg = scheme.surface,
     surface = scheme.surfaceContainer,
+    surface2 = scheme.surfaceContainerHighest,
     paper = scheme.surfaceContainerHigh,
     ink = scheme.onSurface,
     muted = scheme.onSurfaceVariant,

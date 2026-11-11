@@ -15,6 +15,7 @@ class CalculatorTest {
             ',' -> Key.Comma
             '+' -> Key.Plus
             '*' -> Key.Times
+            '-' -> Key.Minus
             '=' -> Key.Equals
             else -> Key.Digit(it - '0')
         }
@@ -26,6 +27,19 @@ class CalculatorTest {
         assertEquals("22 + 15,5 + 8", e.display())
         assertEquals(0, BigDecimal("45.5").compareTo(e.value))
         assertTrue(e.isCompound)
+    }
+
+    @Test
+    fun `вычитание после умножения`() {
+        val e = type(*digits("100-30*2+5"))
+        assertEquals("100 − 30 × 2 + 5", e.display())
+        assertEquals(0, BigDecimal("45").compareTo(e.value))
+        assertEquals(0, BigDecimal("-20").compareTo(type(*digits("10-30")).value))
+        // Хранение: «−» — дефисом, читается обратно.
+        assertEquals("100-30*2+5", e.serialize())
+        assertEquals(0, BigDecimal("45").compareTo(Expression.parse(e.serialize()).value))
+        // Знак после знака заменяется.
+        assertEquals("5 − ", type(*digits("5+-")).display())
     }
 
     @Test

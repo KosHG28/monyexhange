@@ -77,11 +77,13 @@ class SettingsActions(
     val onDynamicColor: ((Boolean) -> Unit)?,
     val onKeyHaptics: (Boolean) -> Unit,
     val onOnboarding: () -> Unit,
+    /** «Карты и наличные» — все способы оплаты (на главном — только те, что подходят к валюте трат). */
+    val onCards: () -> Unit,
 )
 
 /**
- * Настройки (из «Мои деньги»): когда и откуда скачаны курсы, обновление, UnionPay, итоговая валюта,
- * подсказка о стране, камера, тема, анимации, знакомство и журнал ошибок. Карты — в «Мои деньги».
+ * Настройки (значок в шапке главного): все карты и наличные, когда и откуда скачаны курсы, обновление,
+ * UnionPay, итоговая валюта, подсказка о стране, камера, тема, анимации, знакомство и журнал ошибок.
  */
 @Composable
 fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
@@ -120,6 +122,15 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
                 .padding(horizontal = 14.dp)
                 .padding(bottom = 24.dp),
         ) {
+            Spacer(Modifier.height(4.dp))
+            Group {
+                LinkRow(
+                    stringResource(R.string.settings_cards_link),
+                    stringResource(R.string.settings_cards_link_sub),
+                    state.wallet.cards.size.takeIf { it > 0 }?.toString()?.plus(" ›") ?: "›",
+                    onClick = actions.onCards,
+                )
+            }
             RatesSection(state, actions)
             CurrenciesSection(state, actions) { homePicker = true }
             CameraSection(state, actions)

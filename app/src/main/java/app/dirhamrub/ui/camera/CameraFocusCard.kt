@@ -91,7 +91,7 @@ internal fun FocusCard(
                 val tint = when (markupOf(vs)) {
                     Markup.GOOD -> colors.good
                     Markup.WARN -> colors.warn
-                    Markup.BAD -> colors.accent
+                    Markup.BAD -> colors.danger
                 }
                 withStyle(SpanStyle(color = tint, fontWeight = FontWeight.Medium)) {
                     append(stringResource(if (viaUnionPay) R.string.card_vs_unionpay else R.string.card_vs_official, signedPercent(vs)))

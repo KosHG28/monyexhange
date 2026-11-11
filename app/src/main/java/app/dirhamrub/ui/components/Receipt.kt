@@ -99,7 +99,7 @@ fun ReceiptLine(
                 .heightIn(min = 48.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(label, style = type.mono, color = if (error != null) colors.accent else colors.ink)
+            Text(label, style = type.mono, color = if (error != null) colors.danger else colors.ink)
             val dotColor = colors.muted
             Canvas(
                 Modifier

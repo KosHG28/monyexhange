@@ -77,7 +77,7 @@ fun PriceOverlay(
                 typeface = metrics.subTypeface
                 color = android.graphics.Color.WHITE
             },
-            accent = METRO_RED,
+            accent = BRAND_BLUE,
             old = OLD_PRICE,
             unsure = UNSURE_PRICE,
             boxRadius = 6f * density,
@@ -241,7 +241,7 @@ private const val REVEAL_MS = 380L
  * Поверх камеры цвета не зависят от темы: красный метро (светлый акцент) даёт белому тексту
  * нужный контраст, серый — для старых цен.
  */
-private const val METRO_RED = 0xFFC8272D.toInt()
+private const val BRAND_BLUE = 0xFF2F6BFF.toInt()
 
 private const val OLD_PRICE = 0xFF5D6975.toInt()
 

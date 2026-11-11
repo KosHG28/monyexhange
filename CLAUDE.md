@@ -48,16 +48,16 @@ app/src/main/java/app/dirhamrub/
     price/PriceTracker                    стабилизация меток между кадрами
   data/              WalletRepository (DataStore + перенос с 0.x), CbrClient и UnionPayClient (сеть)
   ui/theme/          цвета, шрифты, тема, оформления карт
-  ui/main/           «Пересчёт» — единственный главный экран (MainScreen: два поля, строка курса,
-                     плитки «Плачу», Keypad; Banners, Hints, EmptyRate) + MainViewModel
-  ui/money/          «Мои деньги»: карты и наличные, раздел страны, вход в настройки
+  ui/main/           единственный главный экран (MainScreen: итог, поле цены, карточки способов, курс ЦБ;
+                     Keypad 4 × 5; PlaceSheet — шторка страны; Banners, EmptyRate) + MainViewModel
+  ui/money/          «Карты и наличные» (из настроек): все способы оплаты
   ui/guide/          справочник «Чем платить в стране»
   ui/exchange/       обменники: сравнение и камера для табло
   ui/onboarding/     знакомство при первом запуске
   ui/cards/          редактор карты и чеков
   ui/currency/       выбор валюты трат и итоговой
   ui/cheat/          шпаргалка
-  ui/settings/       настройки: курсы (когда и откуда), обновление, UnionPay, камера, тема
+  ui/settings/       настройки: карты и наличные, курсы (когда и откуда), обновление, UnionPay, камера, тема
   ui/components/     бумажный чек, поля, выбор валюты
   ui/camera/         AR-камера: CameraX + ML Kit, оверлей на Canvas
 ```
@@ -75,6 +75,7 @@ app/src/main/java/app/dirhamrub/
 - Любое изменение математики, форматирования или `PriceParser` — с unit-тестом.
 - Весь интерфейс на русском; строки — в `res/values/strings.xml` (названия валют — в `Currency`).
 - Цвета только из `ui/theme` (`AppColors`), не хардкодить в экранах (исключение — «банковские» градиенты карт).
+  Синий `accent` — ввод и действия, `good` — выгода, `danger` — только ошибки и удаление.
 - Цифры — tabular figures (`fontFeatureSettings = "tnum"`), один шрифт — Inter Tight (`ui/theme/Type.kt`), суммы тонким начертанием.
 - Нажимаемые элементы ≥ 48 dp и с `contentDescription`/семантикой для TalkBack.
 - Анимации через `LocalReduceMotion`: при отключённых системных анимациях — без них.

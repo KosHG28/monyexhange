@@ -650,7 +650,7 @@ fun CardEditorSheet(
                 TextButton(onClick = {
                     confirmDelete = false
                     close(onDelete)
-                }) { Text(stringResource(R.string.delete), style = type.bodyStrong, color = colors.accent) }
+                }) { Text(stringResource(R.string.delete), style = type.bodyStrong, color = colors.danger) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.cancel), style = type.bodyStrong, color = colors.muted) }

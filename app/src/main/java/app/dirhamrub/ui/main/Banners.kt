@@ -69,7 +69,6 @@ private fun OfferBanner(lead: String, text: String, action: String, actionA11y: 
     val type = AppTheme.type
     Row(
         modifier = Modifier
-            .padding(horizontal = 16.dp)
             .padding(top = 4.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))

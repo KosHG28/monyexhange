@@ -6,11 +6,16 @@ import androidx.compose.ui.graphics.Color
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
 
-/** Палитра из SPEC: прохладный фон, красный дубайского метро. */
+/**
+ * Палитра: прохладный фон, синий акцент — ввод и действия, зелёный — выгода,
+ * красный ([danger]) — только ошибки и удаление.
+ */
 @Immutable
 data class AppColors(
     val bg: Color,
     val surface: Color,
+    /** Вторая поверхность: клавиши действий, подложки значков. */
+    val surface2: Color,
     val paper: Color,
     val ink: Color,
     val muted: Color,
@@ -22,38 +27,44 @@ data class AppColors(
     val goodSoft: Color,
     /** Заметная, но не критичная наценка к ЦБ. */
     val warn: Color,
+    /** Ошибка, удаление, большая наценка. */
+    val danger: Color,
     val isDark: Boolean,
 )
 
 val LightColors = AppColors(
     bg = Color(0xFFEDF0F3),
     surface = Color(0xFFFFFFFF),
+    surface2 = Color(0xFFE6EAEF),
     paper = Color(0xFFFFFFFF),
     ink = Color(0xFF15202A),
-    muted = Color(0xFF5D6975),
+    muted = Color(0xFF56616C),
     line = Color(0xFFD5DCE3),
-    accent = Color(0xFFC8272D),
-    accentSoft = Color(0xFFFBEAE9),
+    accent = Color(0xFF1F5FE0),
+    accentSoft = Color(0xFFE3ECFD),
     onAccent = Color(0xFFFFFFFF),
     good = Color(0xFF1D6E43),
     goodSoft = Color(0xFFE3F2EA),
     warn = Color(0xFF9A6400),
+    danger = Color(0xFFC8272D),
     isDark = false,
 )
 
 val DarkColors = AppColors(
     bg = Color(0xFF0D1217),
     surface = Color(0xFF151D25),
+    surface2 = Color(0xFF212B35),
     paper = Color(0xFF1B2530),
     ink = Color(0xFFE7ECF1),
-    muted = Color(0xFF93A0AC),
+    muted = Color(0xFFB8C3CE),
     line = Color(0xFF27323D),
-    accent = Color(0xFFFF5C5C),
-    accentSoft = Color(0xFF351C20),
-    onAccent = Color(0xFF1A0A0B),
+    accent = Color(0xFF4C8DFF),
+    accentSoft = Color(0xFF172B4D),
+    onAccent = Color(0xFFFFFFFF),
     good = Color(0xFF5CCB92),
     goodSoft = Color(0xFF15301F),
     warn = Color(0xFFE9B949),
+    danger = Color(0xFFFF6B6B),
     isDark = true,
 )
 

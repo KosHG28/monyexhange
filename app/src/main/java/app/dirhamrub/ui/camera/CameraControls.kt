@@ -21,6 +21,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -248,47 +250,60 @@ internal fun RoundButton(icon: Int, description: String, onClick: () -> Unit, hi
     }
 }
 
-/** Карта для меток: показывает валюту и название выбранной, тап — следующая карта. Без карт — «ЦБ» (или «UnionPay»). */
+/**
+ * Каким способом считать метки: название выбранного; касание — список всех способов, выбрать любой
+ * (лучший — снова автовыбор). Без карт — «ЦБ» (или «UnionPay»).
+ */
 @Composable
 internal fun CardSwitch(wallet: Wallet, viaUnionPay: Boolean, onSelect: (String) -> Unit) {
     val colors = AppTheme.colors
     val card = wallet.pick(null)
     val title = card?.name ?: stringResource(if (viaUnionPay) R.string.camera_unionpay else R.string.camera_official)
     val desc = stringResource(R.string.camera_card_switch, title)
-    Row(
-        modifier = Modifier
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(50))
-            .background(Scrim)
-            .clickable(role = Role.Button, enabled = wallet.usable.size > 1) {
-                val cards = wallet.usable
-                val i = cards.indexOfFirst { it.id == card?.id }
-                onSelect(cards[(i + 1) % cards.size].id)
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            modifier = Modifier
+                .heightIn(min = 48.dp)
+                .clip(RoundedCornerShape(50))
+                .background(Scrim)
+                .clickable(role = Role.Button, enabled = wallet.usable.size > 1) { open = true }
+                .semantics { contentDescription = desc }
+                .padding(start = 16.dp, end = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                title,
+                style = AppTheme.type.bodyStrong,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            if (wallet.usable.size > 1) {
+                Spacer(Modifier.width(6.dp))
+                Icon(painterResource(R.drawable.ic_chevron_down), contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
             }
-            .semantics { contentDescription = desc }
-            .padding(start = if (card != null) 8.dp else 14.dp, end = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (card != null) {
-            Box(
-                Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(colors.accent),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(card.currency.symbol.take(2), style = AppTheme.type.bodyStrong, color = Color.White)
-            }
-            Spacer(Modifier.width(8.dp))
         }
-        Text(
-            title,
-            style = AppTheme.type.bodyStrong,
-            color = Color.White,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
-        )
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = colors.surface) {
+            for (c in wallet.usable) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            c.name + if (c.id == card?.id) "  ✓" else "",
+                            style = AppTheme.type.body,
+                            color = if (c.id == card?.id) colors.accent else colors.ink,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    onClick = {
+                        open = false
+                        onSelect(c.id)
+                    },
+                )
+            }
+        }
     }
 }
 

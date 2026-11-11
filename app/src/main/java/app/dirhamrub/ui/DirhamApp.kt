@@ -61,6 +61,8 @@ import app.dirhamrub.ui.guide.CountryGuideSheet
 import app.dirhamrub.ui.main.CountryOffer
 import app.dirhamrub.ui.main.MainScreen
 import app.dirhamrub.ui.main.MainViewModel
+import app.dirhamrub.ui.main.PlaceSheet
+import app.dirhamrub.ui.main.placeOf
 import app.dirhamrub.ui.money.MoneyActions
 import app.dirhamrub.ui.money.MoneyScreen
 import app.dirhamrub.ui.onboarding.OnboardingScreen
@@ -108,13 +110,15 @@ fun DirhamApp(
     var exchangeOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_EXCHANGE) }
     // Местная валюта обменников: валюта трат, а из редактора наличных — их валюта.
     var exchangeLocal by rememberSaveable { mutableStateOf<String?>(null) }
-    // «Мои деньги» — второй экран поверх пересчёта.
+    // «Карты и наличные» — экран из настроек.
     var moneyOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_MONEY) }
+    // Шторка страны (касание страны в шапке).
+    var placeOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_PLACE) }
     var guideOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_GUIDE) }
     var cheatOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CHEAT) }
     var currenciesOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CURRENCIES) }
-    // Выбор валюты открыли с нижнего поля — сразу на итоговой.
-    var currenciesHome by rememberSaveable { mutableStateOf(false) }
+    // Камеру закрыли переходом на табло: закрыть сразу, без анимации, иначе её отключение выключало бы табло.
+    var cameraSnapClose by remember { mutableStateOf(false) }
     var cameraOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CAMERA) }
     var settingsOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_SETTINGS) }
     // Снимки CI: знакомство поверх демо-данных, с нужного шага.
@@ -186,8 +190,10 @@ fun DirhamApp(
     // Справочник «Чем платить»: по валюте трат и стране сотовой сети.
     val guide = state.guides?.forSpend(state.wallet.spend, country)
     val defaultGive = EXCHANGE_GIVE.firstOrNull { it != state.wallet.spend && it != state.wallet.home } ?: Currency.USD
+    val place = placeOf(state.wallet.spend, country)
     MainScreen(
         state = state,
+        place = place,
         countryOffer = offer,
         tileOffer = tileOffer,
         onTileOffer = { accept ->
@@ -200,40 +206,37 @@ fun DirhamApp(
         onAddReceipt = { editing = Editing(it, isNew = false, addPurchase = state.wallet.spend) },
         onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
         onSelectLine = vm::setActive,
-        onOpenCurrencies = { home ->
-            currenciesHome = home
-            currenciesOpen = true
-        },
+        onOpenPlace = { placeOpen = true },
+        onOpenSettings = { settingsOpen = true },
         onCountry = { accept -> offer?.let { vm.handleCountry(it.iso, if (accept) it.currency else null) } },
         onRefreshRates = vm::refreshRates,
-        onOpenMoney = { moneyOpen = true },
         onOpenCamera = { cameraOpen = true },
         onCameraPlaced = { cameraOrigin = it },
     )
     val reduceMotion = LocalReduceMotion.current
-    // «Мои деньги» — экран поверх пересчёта, въезжает справа; единственный вход в карты, страну и настройки.
-    AnimatedVisibility(
-        visible = moneyOpen,
-        enter = if (reduceMotion) EnterTransition.None else slideInHorizontally(tween(260)) { it / 3 } + fadeIn(tween(200)),
-        exit = if (reduceMotion) ExitTransition.None else slideOutHorizontally(tween(220)) { it / 3 } + fadeOut(tween(180)),
-    ) {
-        BackHandler { moneyOpen = false }
-        MoneyScreen(
+    if (placeOpen) {
+        PlaceSheet(
             state = state,
+            place = place,
             guide = guide,
-            actions = MoneyActions(
-                onBack = { moneyOpen = false },
-                onEditCard = { editing = Editing(it, isNew = false) },
-                onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
-                onOpenGuide = { guideOpen = true },
-                onOpenExchange = {
-                    exchangeLocal = null
-                    exchangeOpen = true
-                },
-                onOpenCheat = { cheatOpen = true },
-                onOpenSettings = { settingsOpen = true },
-                onRefreshRates = vm::refreshRates,
-            ),
+            onChange = {
+                placeOpen = false
+                currenciesOpen = true
+            },
+            onGuide = {
+                placeOpen = false
+                guideOpen = true
+            },
+            onExchange = {
+                placeOpen = false
+                exchangeLocal = null
+                exchangeOpen = true
+            },
+            onCheat = {
+                placeOpen = false
+                cheatOpen = true
+            },
+            onDismiss = { placeOpen = false },
         )
     }
     if (guideOpen && guide != null) {
@@ -286,7 +289,6 @@ fun DirhamApp(
             recent = state.wallet.recent,
             country = country,
             official = state.reference,
-            startOnHome = currenciesHome,
         )
     }
     // Настройки — экран поверх главного, въезжает справа.
@@ -320,6 +322,23 @@ fun DirhamApp(
                     onboardingReshown = true
                     vm.restartOnboarding()
                 },
+                onCards = { moneyOpen = true },
+            ),
+        )
+    }
+    // «Карты и наличные» — поверх настроек, въезжает справа.
+    AnimatedVisibility(
+        visible = moneyOpen,
+        enter = if (reduceMotion) EnterTransition.None else slideInHorizontally(tween(260)) { it / 3 } + fadeIn(tween(200)),
+        exit = if (reduceMotion) ExitTransition.None else slideOutHorizontally(tween(220)) { it / 3 } + fadeOut(tween(180)),
+    ) {
+        BackHandler { moneyOpen = false }
+        MoneyScreen(
+            state = state,
+            actions = MoneyActions(
+                onBack = { moneyOpen = false },
+                onEditCard = { editing = Editing(it, isNew = false) },
+                onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
             ),
         )
     }
@@ -327,7 +346,12 @@ fun DirhamApp(
     val reveal = remember { Animatable(if (cameraOpen) 1f else 0f) }
     LaunchedEffect(cameraOpen) {
         val target = if (cameraOpen) 1f else 0f
-        if (reduceMotion) reveal.snapTo(target) else reveal.animateTo(target, tween(if (cameraOpen) 420 else 340, easing = FastOutSlowInEasing))
+        if (reduceMotion || (!cameraOpen && cameraSnapClose)) {
+            cameraSnapClose = false
+            reveal.snapTo(target)
+        } else {
+            reveal.animateTo(target, tween(if (cameraOpen) 420 else 340, easing = FastOutSlowInEasing))
+        }
     }
     val cameraShown by remember { derivedStateOf { cameraOpen || reveal.value > 0f } }
     if (cameraShown) {
@@ -369,6 +393,7 @@ fun DirhamApp(
                 onBack = { cameraOpen = false },
                 onExchangeMode = if (state.wallet.spend != state.wallet.home) {
                     {
+                        cameraSnapClose = true
                         cameraOpen = false
                         exchangeLocal = null
                         boardGive = defaultGive.code
@@ -379,7 +404,9 @@ fun DirhamApp(
             )
         }
     }
-    boardGive?.let { code ->
+    // Табло — только когда камера ценников закрыта совсем: у CameraX одна камера на всех, и закрывающаяся
+    // камера ценников, отключаясь, выключала только что открытое табло (оставался чёрный экран).
+    boardGive?.takeIf { !cameraShown }?.let { code ->
         BackHandler { boardGive = null }
         val local = Currency.byCode(exchangeLocal) ?: state.wallet.spend
         BoardCamera(

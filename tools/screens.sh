@@ -38,7 +38,7 @@ WAIT=10 shot 05-camera --es screen camera
 
 adb shell cmd uimode night no
 shot 06-main-light
-shot 06b-money-light --es screen money
+shot 06b-empty-light --ez noamount true
 WAIT=12 shot 07-editor-light --es screen editor
 
 adb shell cmd uimode night yes
@@ -76,12 +76,14 @@ shot 24-onb-2-how --es screen onboarding --ei step 1
 shot 25-onb-3-what --es screen onboarding --ei step 2
 shot 26-onb-4-currencies --es screen onboarding --ei step 3
 shot 27-onb-5-pay --es screen onboarding --ei step 4
-# Справочник «Чем платить» (шторка ОАЭ) и экран «Мои деньги».
+# Справочник «Чем платить» (шторка ОАЭ), шторка страны и «Карты и наличные» (из настроек).
 shot 30-guide --es screen guide
-shot 31-money --es screen money
+shot 31-cards --es screen money
+shot 35-place --es screen place
 # Пересчёт: выбран не лучший способ (карта в юанях), ввод в рублях, кошелёк без карт.
 shot 33-main-other --es card demo-cny
 shot 34-main-nocards --ez nocards true
+shot 36-main-empty --ez noamount true
 WAIT=10 shot 32-exchange --es screen exchange
 # Наличные из банкомата: баты сняты с карты в юанях.
 WAIT=12 shot 28-atm-editor --es spend THB --es screen editor --es card demo-thb-atm

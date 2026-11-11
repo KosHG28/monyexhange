@@ -31,6 +31,7 @@ object WalletCodec {
         p["home"] = wallet.home.code
         p["spend"] = wallet.spend.code
         if (wallet.recent.isNotEmpty()) p["recent"] = wallet.recent.joinToString(",") { it.code }
+        wallet.place?.let { p["place"] = it }
         wallet.selectedId?.let { p["selected"] = it }
         p["cards"] = wallet.cards.size.toString()
         wallet.cards.forEachIndexed { i, c ->
@@ -73,12 +74,14 @@ object WalletCodec {
         if (text.isNullOrBlank()) return null
         val p = load(text) ?: return null
         val cards = (0 until (p.int("cards") ?: 0)).mapNotNull { i -> card(p, "card.$i.") }
+        val spend = Currency.byCode(p.getProperty("spend")) ?: Currency.AED
         return Wallet(
             cards = cards,
             home = Currency.byCode(p.getProperty("home")) ?: Currency.RUB,
-            spend = Currency.byCode(p.getProperty("spend")) ?: Currency.AED,
+            spend = spend,
             selectedId = p.getProperty("selected")?.takeIf { id -> cards.any { it.id == id } },
             recent = p.getProperty("recent").orEmpty().split(',').mapNotNull { Currency.byCode(it.trim()) }.distinct().take(Wallet.RECENT),
+            place = p.getProperty("place")?.takeIf { Countries.byIso(it)?.currency == spend },
         )
     }
 

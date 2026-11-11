@@ -35,6 +35,7 @@ import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.ui.components.AppSheet
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.RuDates
+import app.dirhamrub.domain.wallet.sign
 import app.dirhamrub.domain.wallet.Acceptance
 import app.dirhamrub.domain.wallet.CardNetwork
 import app.dirhamrub.domain.wallet.CountryGuide
@@ -77,10 +78,10 @@ fun PlaceSheet(
             // Валюта страны: название, код и знак — по нему узнают цены на ценниках («Армянский драм (AMD · ֏)»).
             val c = wallet.spend
             Text(
-                if (c.symbol == c.code) {
+                if (c.sign == c.code) {
                     stringResource(R.string.place_currency_code, c.nameRu, c.code)
                 } else {
-                    stringResource(R.string.place_currency, c.nameRu, c.code, c.symbol)
+                    stringResource(R.string.place_currency, c.nameRu, c.code, c.sign)
                 },
                 style = AppTheme.type.body.copy(fontSize = 13.5.sp),
                 color = colors.muted,

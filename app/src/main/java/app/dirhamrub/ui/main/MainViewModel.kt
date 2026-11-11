@@ -244,12 +244,15 @@ class MainViewModel(
         if (next == s.wallet) s else s.copy(wallet = next)
     }
 
-    /** Другая валюта трат: сохраняем сумму в итоговой валюте и пересчитываем в новую валюту. */
-    fun setSpend(currency: Currency) {
+    /**
+     * Другая валюта трат: сохраняем сумму в итоговой валюте и пересчитываем в новую валюту. [place] — страна,
+     * если её выбрали в списке стран (та же валюта, другая страна — меняется только шапка).
+     */
+    fun setSpend(currency: Currency, place: String? = null) {
         _state.update { s ->
-            if (s.wallet.spend == currency) return@update s
+            if (s.wallet.spend == currency) return@update s.copy(wallet = s.wallet.withSpend(currency, place))
             val home = s.totals.home
-            val next = s.copy(wallet = s.wallet.withSpend(currency), active = Line.SPEND)
+            val next = s.copy(wallet = s.wallet.withSpend(currency, place), active = Line.SPEND)
             val rate = next.homePerUnit
             val amount = if (home != null && rate != null) divideOrZero(home, rate) else BigDecimal.ZERO
             next.copy(expression = Expression.of(amount))
@@ -284,7 +287,7 @@ class MainViewModel(
 
     /** Подсказка «вы в другой стране»: [accept] — переключить валюту трат; больше для этой страны не показываем. */
     fun handleCountry(iso: String, accept: Currency?) {
-        if (accept != null) setSpend(accept)
+        if (accept != null) setSpend(accept, iso)
         _state.update { it.copy(countryHandled = iso) }
         viewModelScope.launch { repository.saveCountryHandled(iso) }
     }

@@ -166,4 +166,44 @@ class CurrencyTest {
         assertEquals("֏", Currency.AMD.symbol)
         for (c in Currency.entries) assertTrue(c.mark == c.symbol || c.mark == c.code)
     }
+
+    @Test
+    fun `страна в шапке по валюте трат`() {
+        // Дирхамом платят в Марокко и Западной Сахаре — главная страна по флагу валюты.
+        assertEquals("MA", Countries.placeFor(Currency.MAD, null, null)?.iso)
+        assertEquals("US", Countries.placeFor(Currency.USD, null, null)?.iso)
+        assertEquals("CH", Countries.placeFor(Currency.CHF, null, null)?.iso)
+        assertEquals("AM", Countries.placeFor(Currency.AMD, null, null)?.iso)
+        // Евро — у многих стран поровну: без выбора — никакой, с выбором или по сети — та страна.
+        assertNull(Countries.placeFor(Currency.EUR, null, null))
+        assertEquals("AT", Countries.placeFor(Currency.EUR, "AT", null)?.iso)
+        assertEquals("ES", Countries.placeFor(Currency.EUR, null, "es")?.iso)
+        // Выбранная страна с другой валютой не подходит.
+        assertEquals("MA", Countries.placeFor(Currency.MAD, "AT", null)?.iso)
+        // У всех валют, кроме валют многих стран, есть страна.
+        val unions = setOf(Currency.EUR)
+        for (c in Currency.entries) {
+            if (c in unions || Countries.all.none { it.currency == c }) continue
+            assertTrue(c.code, Countries.placeFor(c, null, null) != null)
+        }
+    }
+
+    @Test
+    fun `выбор страны меняет страну и при той же валюте`() {
+        val w = Wallet(spend = Currency.EUR).withSpend(Currency.EUR, "FR")
+        assertEquals("FR", w.place)
+        assertEquals("FR", w.withSpend(Currency.EUR).place)
+        assertNull(w.withSpend(Currency.USD).place)
+        assertEquals("FR", WalletCodec.decode(WalletCodec.encode(w))?.place)
+        // Сохранённая страна с другой валютой не читается.
+        assertNull(WalletCodec.decode(WalletCodec.encode(w.copy(spend = Currency.USD)))?.place)
+    }
+
+    @Test
+    fun `местный знак — только для показа`() {
+        assertEquals("د.م.", Currency.MAD.sign)
+        assertEquals("MAD", Currency.MAD.symbol)
+        assertEquals("֏", Currency.AMD.sign)
+        assertEquals("AED", Currency.AED.sign)
+    }
 }

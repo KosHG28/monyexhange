@@ -183,7 +183,7 @@ fun DirhamApp(
     val tileOffer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && state.cameraUsed && !state.tileOffered
     // Справочник «Чем платить»: по валюте трат и стране сотовой сети.
     val guide = state.guides?.forSpend(state.wallet.spend, country)
-    val place = placeOf(state.wallet.spend, country)
+    val place = placeOf(state.wallet.spend, state.wallet.place, country)
     MainScreen(
         state = state,
         place = place,

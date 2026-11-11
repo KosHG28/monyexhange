@@ -160,10 +160,16 @@ data class Wallet(
     val spend: Currency = Currency.AED,
     val selectedId: String? = null,
     val recent: List<Currency> = emptyList(),
+    /** Страна, выбранная в списке стран (ISO), — для шапки, если валютой платят в нескольких странах (евро). */
+    val place: String? = null,
 ) {
-    /** Новая валюта трат; прежняя и она сама — в начале недавних (не больше [RECENT]). */
-    fun withSpend(currency: Currency): Wallet =
-        copy(spend = currency, recent = (listOf(currency, spend) + recent).distinct().take(RECENT))
+    /**
+     * Новая валюта трат; прежняя и она сама — в начале недавних (не больше [RECENT]). [place] — страна, если её
+     * выбрали в списке стран (та же валюта, другая страна — только она и меняется).
+     */
+    fun withSpend(currency: Currency, place: String? = null): Wallet =
+        if (currency == spend) copy(place = place ?: this.place)
+        else copy(spend = currency, place = place, recent = (listOf(currency, spend) + recent).distinct().take(RECENT))
 
     /** Чем можно заплатить в валюте трат: карты и наличные в этой валюте — в порядке пользователя. */
     val usable: List<BankCard> get() = cards.filter { it.canPay(spend) }

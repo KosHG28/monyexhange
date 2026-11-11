@@ -76,6 +76,7 @@ import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.Rounding
 import app.dirhamrub.domain.RuDates
+import app.dirhamrub.domain.wallet.sign
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.CardNetwork
@@ -95,10 +96,9 @@ import java.time.ZoneId
 /** Подсказка «вы в другой стране»: [iso] — страна сотовой сети, [currency] — её валюта трат. */
 data class CountryOffer(val iso: String, val currency: Currency)
 
-/** Где тратим: флаг и название страны валюты трат (страна сети, если её валюта; иначе единственная страна валюты). */
-fun placeOf(spend: Currency, networkIso: String?): Pair<String, String> {
-    val country = networkIso?.uppercase()?.let(Countries::byIso)?.takeIf { it.currency == spend }
-        ?: Countries.all.filter { it.currency == spend }.singleOrNull()
+/** Где тратим: флаг и название страны ([Countries.placeFor]); валюта многих стран без выбранной — название валюты («Евро»). */
+fun placeOf(spend: Currency, chosen: String?, networkIso: String?): Pair<String, String> {
+    val country = Countries.placeFor(spend, chosen, networkIso)
     return if (country != null) country.flag to country.nameRu else spend.flag to spend.shortRu
 }
 
@@ -287,7 +287,7 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
     val number = if (empty) "0" else big(value!!, state.settings.rounding)
     // Самая крупная строка — единственное место, где валюта знаком у любой валюты, у которой он есть («800 ֏»):
     // крупно знак смотрится лучше кода. Везде ещё — код ([Currency.mark]); TalkBack читает код.
-    val sign = currency.symbol
+    val sign = currency.sign
     val text = buildAnnotatedString {
         if (approx) withStyle(SpanStyle(color = colors.muted, fontSize = 0.6.em)) { append("≈ ") }
         append(number)

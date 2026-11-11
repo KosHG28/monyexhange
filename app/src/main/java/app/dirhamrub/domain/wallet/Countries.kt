@@ -269,4 +269,16 @@ object Countries {
     private val byIso = all.associateBy { it.iso }
 
     fun byIso(iso: String): Country? = byIso[iso]
+
+    /**
+     * Страна для шапки по валюте трат: выбранная в списке стран [chosen], страна сотовой сети [network] (если там
+     * эта валюта), главная страна валюты (её флаг у валюты: дирхам — Марокко, а не Западная Сахара) или единственная.
+     * null — валютой платят во многих странах поровну (евро) и ни одна не выбрана.
+     */
+    fun placeFor(spend: Currency, chosen: String?, network: String?): Country? {
+        fun of(iso: String?) = iso?.uppercase()?.let(::byIso)?.takeIf { it.currency == spend }
+        return of(chosen) ?: of(network) ?: all.filter { it.currency == spend }.let { list ->
+            list.firstOrNull { it.flag == spend.flag } ?: list.singleOrNull()
+        }
+    }
 }

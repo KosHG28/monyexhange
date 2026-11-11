@@ -28,6 +28,21 @@ shot() {
   echo "снимок: $name"
 }
 
+# scrolled <имя> [extra...]: то же, что shot, но шторка прокручена вниз двумя жестами.
+scrolled() {
+  local name=$1
+  shift
+  adb shell am force-stop "$PKG"
+  adb shell am start -W -n "$PKG/$ACT" --ez demo true "$@" > /dev/null
+  sleep 12
+  adb shell input swipe 540 1700 540 500 400
+  sleep 1
+  adb shell input swipe 540 1700 540 500 400
+  sleep 2
+  adb exec-out screencap -p > "$OUT/$name.png"
+  echo "снимок: $name"
+}
+
 adb shell cmd uimode night yes
 adb shell settings put system font_scale 1.0
 WAIT=15 shot 01-main
@@ -72,9 +87,12 @@ shot 19-cheat-lkr --es spend LKR --es screen cheat
 shot 20-currencies-lkr --es spend LKR --es screen currencies
 shot 21-settings --es screen settings
 WAIT=12 shot 22-cash-editor --es screen editor --es card demo-aed-cash
-# Редактор карты: карта в юанях (UnionPay, пополнение и чек) и новая карта (пустые блоки).
+# Редактор карты: карта в юанях (UnionPay, пополнение и чек) и новая карта (пустые блоки);
+# «-low» — та же шторка, прокрученная вниз: поля чеков, итог, «Задать курс вручную».
 WAIT=12 shot 37-card-editor --es screen editor --es card demo-cny
+scrolled 37-card-editor-low --es screen editor --es card demo-cny
 WAIT=12 shot 38-card-editor-new --es screen editor --es card new
+scrolled 38-card-editor-new-low --es screen editor --es card new
 # Знакомство по шагам: зачем, как считаем, что учитываем, откуда и куда, чем платите.
 shot 23-onb-1-why --es screen onboarding --ei step 0
 shot 24-onb-2-how --es screen onboarding --ei step 1

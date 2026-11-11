@@ -66,6 +66,7 @@ import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.ui.components.AppSheet
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
+import app.dirhamrub.domain.Rounding
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.CardNetwork
@@ -116,6 +117,8 @@ fun CardEditorSheet(
     addPurchaseFor: Currency? = null,
     /** Сумма с главного экрана в валюте трат — для карточки-предпросмотра (нет суммы — за 100 единиц). */
     amount: BigDecimal = BigDecimal.ZERO,
+    /** Округление итогов из настроек — сумма на карточке-предпросмотре такая же, как на главном. */
+    rounding: Rounding = Rounding.WHOLE,
 ) {
     val previewAmount = amount.takeIf { it.signum() > 0 } ?: PREVIEW_AMOUNT
     val colors = AppTheme.colors
@@ -329,7 +332,7 @@ fun CardEditorSheet(
                     quote = q,
                     spend = spend,
                     home = home,
-                    sum = q?.let { Numbers.moneyWhole(previewAmount.multiply(it.homePerUnit, MC)) },
+                    sum = q?.let { Numbers.total(previewAmount.multiply(it.homePerUnit, MC), rounding) },
                     selected = true,
                     best = null,
                     onClick = {},

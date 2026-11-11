@@ -136,4 +136,21 @@ class NumbersTest {
         assertEquals("12,34", Numbers.cleanInput("12,3,4"))
         assertEquals("150000", Numbers.cleanInput("150 000 ₽"))
     }
+
+    @Test
+    fun `округлённая сумма совпадает с показанной`() {
+        assertEquals(0, BigDecimal("3706").compareTo(Numbers.rounded(BigDecimal("3705.6"), Rounding.WHOLE)))
+        assertEquals(0, BigDecimal("3710").compareTo(Numbers.rounded(BigDecimal("3705.6"), Rounding.TENS)))
+        assertEquals(0, BigDecimal("3705.60").compareTo(Numbers.rounded(BigDecimal("3705.6"), Rounding.NONE)))
+        assertEquals(0, BigDecimal("5.40").compareTo(Numbers.rounded(BigDecimal("5.4"), Rounding.TENS)))
+        // Разница показанных сумм: 3 749 − 3 706 = 43, а не округлённые 43,8 → 44.
+        val diff = Numbers.rounded(BigDecimal("3749.4"), Rounding.WHOLE).subtract(Numbers.rounded(BigDecimal("3705.6"), Rounding.WHOLE))
+        assertEquals("43", Numbers.saving(diff))
+        for (v in listOf("3705.6", "0.5", "12345.678", "-150.4")) {
+            for (r in Rounding.entries) {
+                val x = BigDecimal(v)
+                assertEquals(Numbers.total(x, r), if (r == Rounding.NONE || x.abs() < BigDecimal.TEN) Numbers.money(Numbers.rounded(x, r)) else Numbers.moneyWhole(Numbers.rounded(x, r)))
+            }
+        }
+    }
 }

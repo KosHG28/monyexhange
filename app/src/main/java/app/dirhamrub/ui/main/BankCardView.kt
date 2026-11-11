@@ -119,8 +119,8 @@ internal fun BankCardView(
         )
     } ?: stringResource(if (needsReceipt) R.string.card_need_receipt else R.string.card_no_rate)
     val vs = quote?.takeIf { it.basis != RateBasis.OFFICIAL }?.vsOfficial
-    // Оценочный курс (нет чека покупки в валюте трат) — сумма со знаком «≈».
-    val approx = if (quote?.basis?.approximate == true) "≈ " else ""
+    // Оценочный курс (нет чека или чистый ЦБ) — сумма со знаком «≈», как на главном.
+    val approx = if (quote?.basis?.let { it.approximate || it == RateBasis.OFFICIAL } == true) "≈ " else ""
     val sumText = sum?.let { "$approx$it ${home.symbol}" } ?: "—"
     val a11y = buildString {
         append(stringResource(R.string.card_a11y, card.name, sumText, rate))

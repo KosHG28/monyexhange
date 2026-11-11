@@ -206,6 +206,7 @@ fun DirhamApp(
         onRefreshRates = vm::refreshRates,
         onOpenCamera = { cameraOpen = true },
         onCameraPlaced = { cameraOrigin = it },
+        covered = settingsOpen || moneyOpen || currenciesOpen || cameraOpen,
     )
     val reduceMotion = LocalReduceMotion.current
     if (placeOpen) {
@@ -377,6 +378,7 @@ fun DirhamApp(
             onDismiss = { editing = null },
             addPurchaseFor = e.addPurchase,
             amount = state.totals.spend,
+            rounding = state.settings.rounding,
         )
     }
 }

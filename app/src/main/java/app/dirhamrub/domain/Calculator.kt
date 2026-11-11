@@ -61,7 +61,7 @@ data class Expression(
             return if (minus) sum.subtract(product, MC) else sum.add(product, MC)
         }
 
-    private fun number(i: Int): BigDecimal = Numbers.parse(terms[i]) ?: BigDecimal.ZERO
+    private fun number(i: Int): BigDecimal = signed(terms[i]) ?: BigDecimal.ZERO
 
     /** «3 × 22 + 15,5», при наборе следующего числа — «3 × 22 + ». */
     fun display(): String = buildString {
@@ -172,8 +172,16 @@ data class Expression(
                 }
             }
             val texts = terms.map { it.toString() }
+            // «-150» — отрицательный итог после «=», а не «0 − 150».
+            if (texts.size == 2 && texts[0].isEmpty() && ops.first() == Op.MINUS && texts[1].isNotEmpty()) {
+                return Expression(listOf("-" + texts[1]), fresh = true)
+            }
             val valid = texts.all { it.isEmpty() || Numbers.parse(it) != null }
             return if (valid) Expression(texts, ops = ops) else Expression()
         }
+
+        /** Число набора со знаком: минус бывает только у итога после «=» («-150»). */
+        private fun signed(text: String): BigDecimal? =
+            if (text.startsWith('-')) Numbers.parse(text.substring(1))?.negate() else Numbers.parse(text)
     }
 }

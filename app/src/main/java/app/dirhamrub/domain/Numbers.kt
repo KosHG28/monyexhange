@@ -50,11 +50,17 @@ object Numbers {
      * Итог по настройке округления: без округления — с копейками («3 706,06»); до целых — целыми,
      * а меньше 10 — с копейками («3 706», «5,40»); до десятков — до ближайших 10 («3 710»), меньше 10 — как до целых.
      */
-    fun total(value: BigDecimal, rounding: Rounding): String = when {
-        rounding == Rounding.NONE -> money(value)
-        value.abs() < TEN -> money(value)
-        rounding == Rounding.TENS -> moneyWhole(value.divide(TEN).setScale(0, RoundingMode.HALF_UP).multiply(TEN))
-        else -> moneyWhole(value)
+    fun total(value: BigDecimal, rounding: Rounding): String =
+        if (rounding == Rounding.NONE || value.abs() < TEN) money(value) else moneyWhole(rounded(value, rounding))
+
+    /**
+     * Сумма так, как её показывает [total], — числом: разницу между картами считаем из показанных сумм,
+     * чтобы «на 43 ₽ дороже» сходилось с «3 749» и «3 706» на экране.
+     */
+    fun rounded(value: BigDecimal, rounding: Rounding): BigDecimal = when {
+        rounding == Rounding.NONE || value.abs() < TEN -> value.setScale(2, RoundingMode.HALF_UP)
+        rounding == Rounding.TENS -> value.divide(TEN).setScale(0, RoundingMode.HALF_UP).multiply(TEN)
+        else -> value.setScale(0, RoundingMode.HALF_UP)
     }
 
     /** Деньги, округлённые до целых: «8 507». */
@@ -130,6 +136,8 @@ object Numbers {
 
     /** Ввод в процессе набора: «15000,5» → «15 000,5», хвостовая запятая сохраняется. */
     fun groupInput(raw: String): String {
+        // Отрицательный итог после «=» («100 − 250 =»): знак отдельно, разряды — у цифр.
+        if (raw.startsWith('-')) return "−" + groupInput(raw.substring(1))
         val comma = raw.indexOf(',')
         val intPart = if (comma >= 0) raw.substring(0, comma) else raw
         val rest = if (comma >= 0) raw.substring(comma) else ""

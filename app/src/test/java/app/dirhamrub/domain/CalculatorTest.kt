@@ -165,4 +165,18 @@ class CalculatorTest {
         assertEquals("8507,31", Expression.of(BigDecimal("8507.3125")).display().replace(NBSP.toString(), ""))
         assertTrue(Expression.of(BigDecimal.ZERO).isEmpty)
     }
+
+    @Test
+    fun `отрицательный итог после равно остаётся отрицательным`() {
+        val e = type(*digits("100-250")).press(Key.Equals)
+        assertEquals(0, BigDecimal("-150").compareTo(e.value))
+        assertEquals("−150", e.currentTerm())
+        // Сохранение и чтение после перезапуска — то же число, а не «0 − 150».
+        val back = Expression.parse(e.serialize())
+        assertEquals(0, BigDecimal("-150").compareTo(back.value))
+        assertEquals("−150", back.display())
+        // Дальше считается как обычно.
+        assertEquals(0, BigDecimal("-100").compareTo(e.press(Key.Plus).press(Key.Digit(5)).press(Key.Digit(0)).value))
+        assertEquals("−1${NBSP}500", type(*digits("1000-2500")).press(Key.Equals).currentTerm())
+    }
 }

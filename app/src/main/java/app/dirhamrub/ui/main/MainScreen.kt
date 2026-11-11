@@ -132,6 +132,8 @@ fun MainScreen(
     onOpenCamera: () -> Unit,
     /** Центр клавиши камеры на экране — из неё раскрывается камера. */
     onCameraPlaced: (Offset) -> Unit = {},
+    /** Главный закрыт другим экраном (настройки, страны, камера): курсор не мигает впустую. */
+    covered: Boolean = false,
 ) {
     val colors = AppTheme.colors
     val wallet = state.wallet
@@ -152,7 +154,7 @@ fun MainScreen(
                 tileOffer -> TileBanner(onTileOffer)
             }
             Hero(state, short, onSelectLine)
-            PriceField(state)
+            PriceField(state, covered)
         }
         Column(
             modifier = Modifier
@@ -364,7 +366,7 @@ private fun FitSize(text: AnnotatedString, style: TextStyle, maxSp: Float, minSp
  * и код валюты; выражение «1 200 + 300 =» — мелко под суммой. При вводе в рублях — «Сколько у вас».
  */
 @Composable
-private fun PriceField(state: MainUiState) {
+private fun PriceField(state: MainUiState, covered: Boolean) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val homeInput = state.active == Line.HOME
@@ -390,7 +392,7 @@ private fun PriceField(state: MainUiState) {
         }
         Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
             Text(value, style = type.number.copy(fontSize = size, lineHeight = size * 1.2f), color = colors.ink, maxLines = 1, softWrap = false)
-            Caret(size.value)
+            Caret(size.value, paused = covered)
             Spacer(Modifier.width(6.dp))
             Text(currency.code, style = type.bodyStrong.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium), color = colors.muted, maxLines = 1)
         }
@@ -413,8 +415,8 @@ private fun PriceField(state: MainUiState) {
  * шторкой каждый кадр заново размывало бы весь экран). Прозрачность меняется в слое — без рекомпозиций.
  */
 @Composable
-private fun Caret(fontSp: Float) {
-    val still = LocalReduceMotion.current || underSheet()
+private fun Caret(fontSp: Float, paused: Boolean) {
+    val still = paused || LocalReduceMotion.current || underSheet()
     val blink = if (still) {
         null
     } else {
@@ -474,7 +476,9 @@ private fun PayRow(
     val isBest = best != null && best.card.id == card.id
     val homeInput = state.active == Line.HOME
     val amount = state.totals.spend
-    val hasAmount = !state.expression.isEmpty && amount.signum() != 0
+    // Отрицательный итог («100 − 250») картам не сумма: показываем их курсы.
+    val hasAmount = !state.expression.isEmpty && amount.signum() > 0
+    val rounding = state.settings.rounding
     val approx = q != null && (q.basis.approximate || q.basis == RateBasis.OFFICIAL)
     val network = networkName(card.paymentNetwork)
     val sub: String
@@ -490,7 +494,9 @@ private fun PayRow(
             val home = state.totals.home ?: BigDecimal.ZERO
             val spend = if (q.homePerUnit.signum() == 0) BigDecimal.ZERO else home.divide(q.homePerUnit, MC)
             val bestSpend = best?.homePerUnit?.takeIf { it.signum() != 0 }?.let { home.divide(it, MC) }
-            val less = bestSpend?.subtract(spend)?.takeIf { !isBest && Numbers.saving(it) != "0" }
+            // Разница — из показанных сумм, чтобы сходилась с ними на экране.
+            val less = bestSpend?.let { Numbers.rounded(it, rounding).subtract(Numbers.rounded(spend, rounding)) }
+                ?.takeIf { !isBest && it.signum() > 0 }
             sub = when {
                 isBest -> stringResource(R.string.pay_best_most)
                 less != null -> join(network, stringResource(R.string.pay_less, Numbers.saving(less) + " " + wallet.spend.code)) ?: ""
@@ -499,8 +505,9 @@ private fun PayRow(
             right = (if (approx) "≈ " else "") + big(spend, state.settings.rounding) + " " + wallet.spend.code
         }
         hasAmount -> {
-            val dearer = best?.let { q.homePerUnit.subtract(it.homePerUnit).multiply(amount, MC) }
-                ?.takeIf { !isBest && Numbers.saving(it) != "0" }
+            val dearer = best?.let {
+                Numbers.rounded(amount.multiply(q.homePerUnit, MC), rounding).subtract(Numbers.rounded(amount.multiply(it.homePerUnit, MC), rounding))
+            }?.takeIf { !isBest && it.signum() > 0 }
             sub = when {
                 isBest -> stringResource(R.string.pay_best)
                 dearer != null -> join(network, stringResource(R.string.pay_dearer, Numbers.saving(dearer) + " " + wallet.home.symbol)) ?: ""

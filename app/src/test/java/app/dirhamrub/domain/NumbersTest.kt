@@ -115,4 +115,17 @@ class NumbersTest {
         assertEquals(BigDecimal.ONE, Numbers.unitFor(bd("2.5")))
         assertEquals(BigDecimal(1_000_000), Numbers.unitFor(BigDecimal.ZERO))
     }
+
+    @Test
+    fun `округление итога`() {
+        val v = BigDecimal("3706.06")
+        assertEquals("3\u00A0706,06".replace("\u00A0", Numbers.money(BigDecimal(1000)).substring(1, 2)), Numbers.total(v, Rounding.NONE))
+        assertEquals(Numbers.moneyWhole(BigDecimal(3706)), Numbers.total(v, Rounding.WHOLE))
+        assertEquals(Numbers.moneyWhole(BigDecimal(3710)), Numbers.total(v, Rounding.TENS))
+        assertEquals(Numbers.moneyWhole(BigDecimal(3700)), Numbers.total(BigDecimal("3704.99"), Rounding.TENS))
+        assertEquals(Numbers.moneyWhole(BigDecimal(3710)), Numbers.total(BigDecimal("3705"), Rounding.TENS))
+        // Меньше 10 — с копейками при любом округлении, иначе «0 ₽» ничего не скажет.
+        assertEquals("5,40", Numbers.total(BigDecimal("5.4"), Rounding.TENS))
+        assertEquals("67", Numbers.total(BigDecimal("67"), Rounding.NONE))
+    }
 }

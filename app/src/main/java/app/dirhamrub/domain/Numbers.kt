@@ -46,6 +46,17 @@ object Numbers {
         }
     }
 
+    /**
+     * Итог по настройке округления: без округления — с копейками («3 706,06»); до целых — целыми,
+     * а меньше 10 — с копейками («3 706», «5,40»); до десятков — до ближайших 10 («3 710»), меньше 10 — как до целых.
+     */
+    fun total(value: BigDecimal, rounding: Rounding): String = when {
+        rounding == Rounding.NONE -> money(value)
+        value.abs() < TEN -> money(value)
+        rounding == Rounding.TENS -> moneyWhole(value.divide(TEN).setScale(0, RoundingMode.HALF_UP).multiply(TEN))
+        else -> moneyWhole(value)
+    }
+
     /** Деньги, округлённые до целых: «8 507». */
     fun moneyWhole(value: BigDecimal): String = format(value.setScale(0, RoundingMode.HALF_UP))
 

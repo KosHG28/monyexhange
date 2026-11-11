@@ -48,9 +48,8 @@ class MainActivity : ComponentActivity() {
             // Тема и анимации — из настроек; корень перерисовывается только при их смене.
             val theme by remember { derivedStateOf { state.value.settings.theme } }
             val motion by remember { derivedStateOf { state.value.settings.motion } }
-            val dynamic by remember { derivedStateOf { state.value.settings.dynamicColor } }
             val keyHaptics by remember { derivedStateOf { state.value.settings.keyHaptics } }
-            DirhamTheme(theme = theme, motion = motion, dynamic = dynamic, keyHaptics = keyHaptics) {
+            DirhamTheme(theme = theme, motion = motion, keyHaptics = keyHaptics) {
                 // Под открытой шторкой экран размыт и затемнён.
                 SheetBlurHost {
                     DirhamApp(

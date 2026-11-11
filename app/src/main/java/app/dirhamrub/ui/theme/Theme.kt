@@ -10,8 +10,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -49,14 +47,12 @@ fun <T> motion(durationMs: Int = 220): AnimationSpec<T> =
 
 /**
  * Тема приложения: [theme] — как в системе или своя, [motion] — анимации как в системе или выключены.
- * [dynamic] — цвета из обоев (Android 12+): фон, поверхности и акцент берутся из системной палитры,
- * «хорошо/заметно» остаются своими — у них смысл. Значки системных панелей — под тему приложения.
+ * Значки системных панелей — под тему приложения.
  */
 @Composable
 fun DirhamTheme(
     theme: ThemeMode = ThemeMode.SYSTEM,
     motion: MotionMode = MotionMode.SYSTEM,
-    dynamic: Boolean = false,
     keyHaptics: Boolean = true,
     content: @Composable () -> Unit,
 ) {
@@ -68,11 +64,7 @@ fun DirhamTheme(
     }
     val context = LocalContext.current
     val base = if (dark) DarkColors else LightColors
-    val colors = if (dynamic && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        remember(context, dark) { dynamicColors(if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context), base) }
-    } else {
-        base
-    }
+    val colors = base
     val systemReduce = remember(context) {
         Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
     }
@@ -131,16 +123,3 @@ fun DirhamTheme(
     }
 }
 
-/** Свои роли из системной палитры Material You; зелёный и жёлтый — свои: «выгодно» и «заметно» не должны зависеть от обоев. */
-private fun dynamicColors(scheme: ColorScheme, base: AppColors): AppColors = base.copy(
-    bg = scheme.surface,
-    surface = scheme.surfaceContainer,
-    surface2 = scheme.surfaceContainerHighest,
-    paper = scheme.surfaceContainerHigh,
-    ink = scheme.onSurface,
-    muted = scheme.onSurfaceVariant,
-    line = scheme.outlineVariant,
-    accent = scheme.primary,
-    accentSoft = scheme.primaryContainer,
-    onAccent = scheme.onPrimary,
-)

@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Только для курсов ЦБ РФ; всё остальное работает офлайн. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- «Только по Wi-Fi»: узнать, платная ли сейчас сеть. Ничего не передаёт. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:allowBackup="true"

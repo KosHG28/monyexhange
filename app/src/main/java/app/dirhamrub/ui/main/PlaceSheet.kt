@@ -71,18 +71,18 @@ fun PlaceSheet(
                     LinkRow(
                         stringResource(R.string.money_guide),
                         stringResource(R.string.trip_guide_sub, mark(up), mark(mir), RuDates.short(guide.updated)),
-                        "›",
+                        null,
                         onClick = onGuide,
                     )
                     first = false
                 }
                 if (wallet.spend != wallet.home) {
                     if (!first) Divider()
-                    LinkRow(stringResource(R.string.place_exchange), stringResource(R.string.place_exchange_sub), "›", onClick = onExchange)
+                    LinkRow(stringResource(R.string.place_exchange), stringResource(R.string.place_exchange_sub), null, onClick = onExchange)
                     first = false
                 }
                 if (!first) Divider()
-                LinkRow(stringResource(R.string.money_cheat), stringResource(R.string.cards_page_cheat_sub), "›", onClick = onCheat)
+                LinkRow(stringResource(R.string.money_cheat), stringResource(R.string.cards_page_cheat_sub), null, onClick = onCheat)
             }
         }
     }

@@ -18,6 +18,9 @@ enum class ThemeMode { SYSTEM, DARK, LIGHT }
 /** Анимации: как в системе («убрать анимацию») или выключены в приложении. */
 enum class MotionMode { SYSTEM, OFF }
 
+/** Округление итога и сумм в карточках: без округления (с копейками), до целых, до десятков. */
+enum class Rounding { NONE, WHOLE, TENS }
+
 /** Настройки приложения (экран «Настройки»). */
 data class AppSettings(
     /** Курсы UnionPay: карты UnionPay и справочный курс валют, которых нет у ЦБ. */
@@ -27,10 +30,11 @@ data class AppSettings(
     val countryHint: Boolean = true,
     val theme: ThemeMode = ThemeMode.SYSTEM,
     val motion: MotionMode = MotionMode.SYSTEM,
-    /** Цвета из обоев (Material You, Android 12+). */
-    val dynamicColor: Boolean = false,
     /** Вибрация при нажатии клавиш калькулятора. */
     val keyHaptics: Boolean = true,
+    /** Сами (без кнопки «Обновить») курсы скачиваются только по Wi-Fi и другим безлимитным сетям — роуминг дорогой. */
+    val wifiOnly: Boolean = false,
+    val rounding: Rounding = Rounding.WHOLE,
 )
 
 /** Когда скачивать курсы: по настройке [RatesUpdate], поводу и времени прошлой загрузки. */
@@ -50,4 +54,11 @@ object RatesPolicy {
 
     /** Без кнопки ходить в сеть можно (курсы неделю назад, на даты чеков) — если обновление не ручное. */
     fun auto(update: RatesUpdate): Boolean = update != RatesUpdate.MANUAL
+
+    /**
+     * Можно ли сейчас в сеть: кнопкой — всегда; сами — только если не «только по Wi-Fi»
+     * или сеть безлимитная ([unmetered]: Wi-Fi, Ethernet).
+     */
+    fun network(trigger: Trigger, wifiOnly: Boolean, unmetered: Boolean): Boolean =
+        trigger == Trigger.BUTTON || !wifiOnly || unmetered
 }

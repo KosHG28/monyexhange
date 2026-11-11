@@ -14,6 +14,7 @@ import app.dirhamrub.domain.Expression
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.MotionMode
 import app.dirhamrub.domain.RatesUpdate
+import app.dirhamrub.domain.Rounding
 import app.dirhamrub.domain.ThemeMode
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
@@ -129,8 +130,9 @@ class WalletRepository(
                 countryHint = p[SET_COUNTRY_HINT] ?: true,
                 theme = ThemeMode.entries.firstOrNull { it.name == p[SET_THEME] } ?: ThemeMode.SYSTEM,
                 motion = MotionMode.entries.firstOrNull { it.name == p[SET_MOTION] } ?: MotionMode.SYSTEM,
-                dynamicColor = p[SET_DYNAMIC_COLOR] ?: false,
                 keyHaptics = p[SET_KEY_HAPTICS] ?: true,
+                wifiOnly = p[SET_WIFI_ONLY] ?: false,
+                rounding = Rounding.entries.firstOrNull { it.name == p[SET_ROUNDING] } ?: Rounding.WHOLE,
             ),
         )
     }
@@ -142,8 +144,9 @@ class WalletRepository(
             p[SET_COUNTRY_HINT] = settings.countryHint
             p[SET_THEME] = settings.theme.name
             p[SET_MOTION] = settings.motion.name
-            p[SET_DYNAMIC_COLOR] = settings.dynamicColor
             p[SET_KEY_HAPTICS] = settings.keyHaptics
+            p[SET_WIFI_ONLY] = settings.wifiOnly
+            p[SET_ROUNDING] = settings.rounding.name
         }
     }
 
@@ -329,7 +332,8 @@ class WalletRepository(
         val SET_COUNTRY_HINT = booleanPreferencesKey("settings_country_hint")
         val SET_THEME = stringPreferencesKey("settings_theme")
         val SET_MOTION = stringPreferencesKey("settings_motion")
-        val SET_DYNAMIC_COLOR = booleanPreferencesKey("settings_dynamic_color")
+        val SET_WIFI_ONLY = booleanPreferencesKey("settings_wifi_only")
+        val SET_ROUNDING = stringPreferencesKey("settings_rounding")
         val SET_KEY_HAPTICS = booleanPreferencesKey("settings_key_haptics")
         val SELECTION_AUTO = booleanPreferencesKey("selection_auto")
         val UNIONPAY = stringPreferencesKey("unionpay_rates")

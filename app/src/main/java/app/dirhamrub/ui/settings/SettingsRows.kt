@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
@@ -97,17 +98,7 @@ internal fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onCha
     ) {
         RowText(title, subtitle, Modifier.weight(1f))
         Spacer(Modifier.width(10.dp))
-        Switch(
-            checked = checked,
-            onCheckedChange = null,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = colors.onAccent,
-                checkedTrackColor = colors.accent,
-                uncheckedThumbColor = colors.muted,
-                uncheckedTrackColor = colors.bg,
-                uncheckedBorderColor = colors.line,
-            ),
-        )
+        AppSwitch(checked)
     }
 }
 
@@ -142,7 +133,8 @@ internal fun ChoiceRow(title: String, options: List<String>, selected: Int, onSe
                 ) {
                     Text(
                         label,
-                        style = type.caption.copy(fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                        // Выбранный — жирнее соседей: читается сразу.
+                        style = type.caption.copy(fontSize = 13.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal),
                         color = if (on) colors.accent else colors.muted,
                         textAlign = TextAlign.Center,
                         maxLines = 2,
@@ -154,7 +146,10 @@ internal fun ChoiceRow(title: String, options: List<String>, selected: Int, onSe
     }
 }
 
-/** Строка-ссылка: справа значение («Рубль ›»); без [onClick] — просто сведения. */
+/**
+ * Строка-ссылка: справа значение («🇷🇺 RUB») и системный шеврон «›», если строка открывает что-то;
+ * без [onClick] — просто сведения (значение без шеврона).
+ */
 @Composable
 internal fun LinkRow(
     title: String,
@@ -177,48 +172,75 @@ internal fun LinkRow(
             Spacer(Modifier.width(10.dp))
             Text(value, style = AppTheme.type.body.copy(fontSize = 14.sp), color = colors.muted, maxLines = 1)
         }
+        if (onClick != null) {
+            Spacer(Modifier.width(6.dp))
+            Text("›", style = AppTheme.type.title.copy(fontWeight = FontWeight.Normal), color = colors.muted)
+        }
     }
 }
 
 /**
- * Источник курсов: значок, название, состояние справа (✓ сегодня 19:41) и что в нём.
- * Состояние зелёное, если всё есть, жёлтое при [warn] (нет связи, нет курсов), иначе серое («—»).
+ * Источник курсов: текстовый значок («ЦБ», «7д»), название, справа — когда скачан («✓ сегодня 19:41», зелёным;
+ * жёлтым при [warn]) или [trailing] (переключатель UnionPay). Данных нет — строка полупрозрачная ([enabled]),
+ * без «—»: это состояние, а не выбор.
  */
 @Composable
-internal fun SourceRow(badge: String, title: String, status: String, ok: Boolean, subtitle: String, warn: Boolean = false) {
+internal fun SourceRow(
+    badge: String,
+    title: String,
+    status: String?,
+    subtitle: String,
+    warn: Boolean = false,
+    enabled: Boolean = true,
+    trailing: (@Composable () -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.42f)
             .padding(horizontal = 14.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             Modifier
                 .size(34.dp)
                 .clip(RoundedCornerShape(11.dp))
-                .background(colors.paper),
+                .background(colors.surface2),
             contentAlignment = Alignment.Center,
         ) {
             Text(badge, style = type.caption.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold), color = colors.ink)
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink, modifier = Modifier.weight(1f))
-                Text(
-                    status,
-                    style = type.caption.copy(fontSize = 13.sp),
-                    color = when {
-                        ok -> colors.good
-                        warn -> colors.warn
-                        else -> colors.muted
-                    },
-                    maxLines = 1,
-                )
-            }
+            Text(title, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink)
             Text(subtitle, style = type.caption, color = colors.muted)
         }
+        if (trailing != null) {
+            Spacer(Modifier.width(10.dp))
+            trailing()
+        } else if (status != null) {
+            Spacer(Modifier.width(10.dp))
+            Text(status, style = type.caption.copy(fontSize = 13.sp), color = if (warn) colors.warn else colors.good, maxLines = 1)
+        }
     }
+}
+
+/** Переключатель в цветах приложения; нажимается вся строка ([toggleable] у неё). */
+@Composable
+internal fun AppSwitch(checked: Boolean) {
+    val colors = AppTheme.colors
+    Switch(
+        checked = checked,
+        onCheckedChange = null,
+        colors = SwitchDefaults.colors(
+            checkedThumbColor = colors.onAccent,
+            checkedTrackColor = colors.accent,
+            uncheckedThumbColor = colors.muted,
+            uncheckedTrackColor = colors.bg,
+            uncheckedBorderColor = colors.line,
+        ),
+    )
 }

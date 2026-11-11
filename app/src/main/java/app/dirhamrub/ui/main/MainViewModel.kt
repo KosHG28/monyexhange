@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import app.dirhamrub.data.CbrClient
 import app.dirhamrub.data.GuideClient
+import app.dirhamrub.data.NetworkState
 import app.dirhamrub.data.UnionPayClient
 import app.dirhamrub.data.WalletRepository
 import app.dirhamrub.data.ratesDataStore
@@ -22,6 +23,7 @@ import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.RatesPolicy
 import app.dirhamrub.domain.RatesPolicy.Trigger
 import app.dirhamrub.domain.RatesUpdate
+import app.dirhamrub.domain.Rounding
 import app.dirhamrub.domain.ThemeMode
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardQuote
@@ -175,6 +177,8 @@ class MainViewModel(
     private val repository: WalletRepository,
     /** Встроенный справочник стран (`assets/countries.txt`). */
     private val bundledGuide: () -> String? = { null },
+    /** Сеть сейчас безлимитная (Wi-Fi, Ethernet) — для «только по Wi-Fi». */
+    private val unmetered: () -> Boolean = { true },
 ) : ViewModel() {
     private val _state = MutableStateFlow(MainUiState())
     val state: StateFlow<MainUiState> = _state.asStateFlow()
@@ -317,6 +321,8 @@ class MainViewModel(
     /** Курсы ЦБ и UnionPay — по настройке «Обновлять курсы» ([RatesPolicy]). */
     private fun refresh(trigger: Trigger) {
         val s = _state.value
+        // «Только по Wi-Fi»: по мобильной сети сами не ходим, кнопкой — всегда.
+        if (!RatesPolicy.network(trigger, s.settings.wifiOnly, unmetered())) return
         val now = System.currentTimeMillis()
         val update = s.settings.ratesUpdate
         val upAt = if (s.unionPay == null) 0L else s.unionPayFetchedAt
@@ -408,7 +414,7 @@ class MainViewModel(
         if (next == before) return
         _state.update { it.copy(settings = next) }
         viewModelScope.launch { repository.saveSettings(next) }
-        if (next.unionPay && !before.unionPay && _state.value.unionPay == null && RatesPolicy.auto(next.ratesUpdate)) refreshUnionPay()
+        if (next.unionPay && !before.unionPay && _state.value.unionPay == null && autoNetwork()) refreshUnionPay()
     }
 
     fun setUnionPayEnabled(value: Boolean) = updateSettings { it.copy(unionPay = value) }
@@ -416,7 +422,14 @@ class MainViewModel(
     fun setCountryHint(value: Boolean) = updateSettings { it.copy(countryHint = value) }
     fun setTheme(value: ThemeMode) = updateSettings { it.copy(theme = value) }
     fun setMotion(value: MotionMode) = updateSettings { it.copy(motion = value) }
-    fun setDynamicColor(value: Boolean) = updateSettings { it.copy(dynamicColor = value) }
+    /** Сами (не кнопкой) в сеть можно: обновление не ручное и не мешает «только по Wi-Fi». */
+    private fun autoNetwork(): Boolean {
+        val settings = _state.value.settings
+        return RatesPolicy.auto(settings.ratesUpdate) && RatesPolicy.network(Trigger.RESUME, settings.wifiOnly, unmetered())
+    }
+
+    fun setWifiOnly(value: Boolean) = updateSettings { it.copy(wifiOnly = value) }
+    fun setRounding(value: Rounding) = updateSettings { it.copy(rounding = value) }
     fun setKeyHaptics(value: Boolean) = updateSettings { it.copy(keyHaptics = value) }
 
     /** «Показать знакомство снова». */
@@ -431,7 +444,7 @@ class MainViewModel(
      * Курсы ЦБ на даты старых чеков (для «чек устарел»): качаем недостающие, не больше нескольких за раз.
      * При обновлении «вручную» — только по кнопке ([allow]).
      */
-    private fun refreshReceiptRates(allow: Boolean = RatesPolicy.auto(_state.value.settings.ratesUpdate)) {
+    private fun refreshReceiptRates(allow: Boolean = autoNetwork()) {
         val s = _state.value
         if (s.official == null || !allow) return
         val today = LocalDate.now()
@@ -512,6 +525,7 @@ class MainViewModel(
                 MainViewModel(
                     WalletRepository(app.settingsDataStore, app.unionPayDataStore, app.ratesDataStore),
                     bundledGuide = { app.assets.open(GUIDE_ASSET).use { String(it.readBytes(), Charsets.UTF_8) } },
+                    unmetered = { NetworkState.unmetered(app) },
                 )
             }
         }

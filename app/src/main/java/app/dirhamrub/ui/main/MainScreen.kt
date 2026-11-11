@@ -59,6 +59,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -70,6 +71,7 @@ import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
+import app.dirhamrub.domain.Rounding
 import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
@@ -193,7 +195,7 @@ private fun Header(place: Pair<String, String>, onCountries: () -> Unit, onPlace
         Modifier
             .fillMaxWidth()
             .height(56.dp)
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val placeA11y = stringResource(R.string.place_a11y, place.second)
@@ -210,11 +212,9 @@ private fun Header(place: Pair<String, String>, onCountries: () -> Unit, onPlace
                     },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // Без подложки: страна, ⓘ и настройки лежат прямо на фоне, зоны касания — 48 dp.
                 Row(
-                    Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(colors.surface)
-                        .padding(start = 12.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+                    Modifier.padding(start = 6.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(place.first, fontSize = 17.sp)
@@ -240,15 +240,7 @@ private fun Header(place: Pair<String, String>, onCountries: () -> Unit, onPlace
                     .semantics { contentDescription = tools },
                 contentAlignment = Alignment.Center,
             ) {
-                Box(
-                    Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(colors.surface),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(painterResource(R.drawable.ic_info), contentDescription = null, tint = colors.ink, modifier = Modifier.size(21.dp))
-                }
+                Icon(painterResource(R.drawable.ic_info), contentDescription = null, tint = colors.ink, modifier = Modifier.size(23.dp))
             }
         }
         val settings = stringResource(R.string.settings_title)
@@ -265,8 +257,8 @@ private fun Header(place: Pair<String, String>, onCountries: () -> Unit, onPlace
     }
 }
 
-/** Сумма для показа: до 10 — с копейками, дальше целыми («67», «388 750»). */
-private fun big(value: BigDecimal): String = if (value.abs() < BigDecimal.TEN) Numbers.money(value) else Numbers.moneyWhole(value)
+/** Сумма для показа по настройке округления: «3 706», «3 710», «3 706,06»; меньше 10 — с копейками. */
+private fun big(value: BigDecimal, rounding: Rounding): String = Numbers.total(value, rounding)
 
 /** Приблизительный ли курс выбранного способа (оценка, UnionPay, ЦБ или карт нет вовсе). */
 private fun approxNow(state: MainUiState): Boolean =
@@ -284,7 +276,7 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
     val value = if (homeInput) state.totals.spend else state.totals.home
     val empty = state.expression.isEmpty || value == null
     val approx = !empty && approxNow(state)
-    val number = if (empty) "0" else big(value!!)
+    val number = if (empty) "0" else big(value!!, state.settings.rounding)
     val text = buildAnnotatedString {
         if (approx) withStyle(SpanStyle(color = colors.muted, fontSize = 0.6.em)) { append("≈ ") }
         append(number)
@@ -312,14 +304,44 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
             fontWeight = if (empty) FontWeight.Medium else FontWeight.Light,
             textAlign = TextAlign.Center,
         )
-        FitText(text, style, maxSize, 40f, Modifier.alpha(if (empty) 0.25f else 1f))
+        FitSize(text, style, maxSize, 40f) { size ->
+            // «≈» и «₽» — по центру высоты цифр, а не по базовой линии: строки обрезаны до высоты шрифта
+            // и выровнены по центру ряда.
+            Row(Modifier.alpha(if (empty) 0.25f else 1f), verticalAlignment = Alignment.CenterVertically) {
+                if (approx) {
+                    HeroPart("≈", style, size * SIGN_SCALE, colors.muted)
+                    Spacer(Modifier.width((size * 0.12f).dp))
+                }
+                HeroPart(number, style, size, colors.ink)
+                Spacer(Modifier.width((size * 0.12f).dp))
+                HeroPart(currency.symbol, style, size * SIGN_SCALE, if (empty) colors.ink else colors.muted)
+            }
+        }
     }
 }
 
-/** Текст в одну строку: шрифт уменьшается от [maxSp] до [minSp], пока строка не поместится по ширине. */
+/** Знаки «≈» и «₽» — мельче цифр. */
+private const val SIGN_SCALE = 0.6f
+
 @Composable
-private fun FitText(text: AnnotatedString, style: TextStyle, maxSp: Float, minSp: Float, modifier: Modifier = Modifier) {
-    BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+private fun HeroPart(text: String, style: TextStyle, sizeSp: Float, color: androidx.compose.ui.graphics.Color) {
+    Text(
+        text,
+        style = style.copy(
+            fontSize = sizeSp.sp,
+            lineHeight = sizeSp.sp,
+            lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
+        ),
+        color = color,
+        maxLines = 1,
+        softWrap = false,
+    )
+}
+
+/** Размер шрифта, при котором [text] помещается в одну строку по ширине: от [maxSp] вниз до [minSp]. */
+@Composable
+private fun FitSize(text: AnnotatedString, style: TextStyle, maxSp: Float, minSp: Float, content: @Composable (Float) -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         val measurer = rememberTextMeasurer()
         val limit = constraints.maxWidth
         val size = remember(text, limit, style, maxSp) {
@@ -327,7 +349,7 @@ private fun FitText(text: AnnotatedString, style: TextStyle, maxSp: Float, minSp
             while (s > minSp && measurer.measure(text, style.copy(fontSize = s.sp), maxLines = 1, softWrap = false).size.width > limit) s -= 2f
             s
         }
-        Text(text, style = style.copy(fontSize = size.sp, lineHeight = (size * 1.12f).sp), maxLines = 1, softWrap = false)
+        content(size)
     }
 }
 
@@ -466,7 +488,7 @@ private fun PayRow(
                 less != null -> join(network, stringResource(R.string.pay_less, Numbers.saving(less) + " " + wallet.spend.code)) ?: ""
                 else -> network ?: ""
             }
-            right = (if (approx) "≈ " else "") + big(spend) + " " + wallet.spend.code
+            right = (if (approx) "≈ " else "") + big(spend, state.settings.rounding) + " " + wallet.spend.code
         }
         hasAmount -> {
             val dearer = best?.let { q.homePerUnit.subtract(it.homePerUnit).multiply(amount, MC) }
@@ -476,7 +498,7 @@ private fun PayRow(
                 dearer != null -> join(network, stringResource(R.string.pay_dearer, Numbers.saving(dearer) + " " + wallet.home.symbol)) ?: ""
                 else -> network ?: ""
             }
-            right = (if (approx) "≈ " else "") + big(amount.multiply(q.homePerUnit, MC)) + " " + wallet.home.symbol
+            right = (if (approx) "≈ " else "") + big(amount.multiply(q.homePerUnit, MC), state.settings.rounding) + " " + wallet.home.symbol
         }
         else -> {
             // Ничего не набрано: курс способа и когда пополняли.

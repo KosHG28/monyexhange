@@ -279,14 +279,11 @@
     <string name="settings_receipts_none">Чеков старше двух недель нет</string>
     <string name="settings_badge_unionpay">UP</string>
     <string name="settings_unionpay">UnionPay</string>
-    <string name="settings_unionpay_sub">Курсы на %1$s · валют: %2$d · валют расчёта: %3$d</string>
-    <string name="settings_unionpay_empty">Ещё не скачаны</string>
     <string name="settings_refresh">Обновить сейчас</string>
     <string name="settings_loading_button">Обновляем…</string>
     <string name="settings_fetched_today">✓ сегодня %1$s</string>
     <string name="settings_fetched_yesterday">✓ вчера %1$s</string>
     <string name="settings_fetched_on">✓ %1$s %2$s</string>
-    <string name="settings_unionpay_switch">Курсы UnionPay</string>
     <string name="settings_unionpay_switch_sub">Карты UnionPay и валюты, которых нет у ЦБ</string>
     <string name="settings_update">Обновлять курсы</string>
     <string name="settings_update_launch">При запуске</string>
@@ -303,7 +300,6 @@
     <string name="settings_camera_bubbles">Плашками</string>
     <string name="settings_tile">Плитка «Ценник» в шторке</string>
     <string name="settings_tile_sub">Камера одним касанием из шторки уведомлений</string>
-    <string name="settings_tile_add">Добавить ›</string>
     <string name="settings_look">Оформление</string>
     <string name="settings_theme">Тема</string>
     <string name="settings_as_system">Как в системе</string>
@@ -311,16 +307,12 @@
     <string name="settings_theme_light">Светлая</string>
     <string name="settings_motion">Анимации</string>
     <string name="settings_motion_off">Без анимаций</string>
-    <string name="settings_dynamic_color">Цвета из обоев</string>
-    <string name="settings_dynamic_color_sub">Фон и акцент — под обои телефона (Material You)</string>
     <string name="settings_key_haptics">Вибрация клавиш</string>
     <string name="settings_key_haptics_sub">Лёгкий отклик при нажатии цифр</string>
     <string name="settings_about">О приложении</string>
     <string name="settings_version">Версия</string>
     <string name="settings_onboarding">Знакомство</string>
-    <string name="settings_onboarding_show">Показать снова ›</string>
-    <string name="settings_privacy">Конфиденциальность</string>
-    <string name="settings_privacy_open">Политика ›</string>
+    <string name="settings_privacy">Политика конфиденциальности</string>
     <string name="settings_crash">Журнал ошибок</string>
     <string name="settings_crash_none">Ошибок не было</string>
     <string name="settings_crash_last">Последняя: %1$s</string>
@@ -413,8 +405,6 @@
     <string name="transfer_new">+ Новое пополнение</string>
     <string name="cards_page_cheat_sub">Ходовые суммы по всем картам и ЦБ</string>
     <string name="trip_guide_sub">UnionPay %1$s · МИР %2$s · обновлено %3$s</string>
-    <string name="trip_exchange_best">Лучший: %1$s — 1 %2$s = %3$s %4$s</string>
-    <string name="trip_exchange_none">Запишите курсы 2–3 обменников — покажем лучший</string>
     <string name="guide_cash_other">%1$s здесь не платят — поменяйте в обменнике</string>
     <string name="guide_cash_exchange">%1$s меняют везде; иногда принимают и напрямую</string>
     <!-- Пересчёт (главный экран) -->
@@ -427,7 +417,6 @@
     <string name="money_exchanged">обмен %1$s</string>
     <string name="money_add">＋ Добавить карту или наличные</string>
     <string name="money_guide">Какие карты здесь принимают</string>
-    <string name="money_exchange">Где менять деньги</string>
     <string name="money_cheat">Шпаргалка цен</string>
     <!-- Главный экран (вариант Б) -->
     <string name="place_a11y">Где тратите: %1$s. Сменить страну</string>
@@ -464,4 +453,14 @@
     <string name="place_exchange">Сравнение обменников</string>
     <string name="place_exchange_sub">Сравните уличные курсы и найдите лучший</string>
     <string name="country_title">Где вы тратите?</string>
+    <string name="settings_section_main">Основные</string>
+    <string name="settings_wifi_only">Только по Wi-Fi</string>
+    <string name="settings_wifi_only_sub">В роуминге не тратить мобильный трафик: сами курсы скачиваются только по Wi-Fi</string>
+    <string name="settings_rounding">Округление итога</string>
+    <string name="rounding_none">Без округления</string>
+    <string name="rounding_whole">До целых</string>
+    <string name="rounding_tens">До десятков</string>
+    <string name="settings_onboarding_sub">Пять экранов о том, как считаем</string>
+    <string name="settings_unionpay_on">Карты UnionPay и валюты без ЦБ · %1$s</string>
+    <string name="crash_hint">Журнал хранится только на телефоне. Отправьте его разработчику, если что-то сломалось.</string>
 </resources>

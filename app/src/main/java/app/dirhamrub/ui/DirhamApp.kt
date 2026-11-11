@@ -319,8 +319,9 @@ fun DirhamApp(
                 },
                 onTheme = vm::setTheme,
                 onMotion = vm::setMotion,
-                onDynamicColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) vm::setDynamicColor else null,
                 onKeyHaptics = vm::setKeyHaptics,
+                onWifiOnly = vm::setWifiOnly,
+                onRounding = vm::setRounding,
                 onOnboarding = {
                     settingsOpen = false
                     onboardingReshown = true

@@ -37,4 +37,13 @@ class SettingsTest {
         assertTrue(RatesPolicy.due(u, Trigger.BUTTON, now, now))
         assertFalse(RatesPolicy.auto(u))
     }
+
+    @Test
+    fun `только по Wi-Fi — сами не ходим по мобильной сети, кнопкой можно`() {
+        assertTrue(RatesPolicy.network(Trigger.RESUME, wifiOnly = false, unmetered = false))
+        assertFalse(RatesPolicy.network(Trigger.LAUNCH, wifiOnly = true, unmetered = false))
+        assertFalse(RatesPolicy.network(Trigger.RESUME, wifiOnly = true, unmetered = false))
+        assertTrue(RatesPolicy.network(Trigger.RESUME, wifiOnly = true, unmetered = true))
+        assertTrue(RatesPolicy.network(Trigger.BUTTON, wifiOnly = true, unmetered = false))
+    }
 }

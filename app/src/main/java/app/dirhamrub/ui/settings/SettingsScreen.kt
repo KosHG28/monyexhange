@@ -4,6 +4,19 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.font.FontFamily
+import app.dirhamrub.domain.Numbers
+import app.dirhamrub.domain.Rounding
+import app.dirhamrub.ui.components.AppSheet
+import java.math.BigDecimal
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -73,23 +86,31 @@ class SettingsActions(
     val onAddTile: (() -> Unit)?,
     val onTheme: (ThemeMode) -> Unit,
     val onMotion: (MotionMode) -> Unit,
-    /** null — цветов из обоев нет (Android до 12). */
-    val onDynamicColor: ((Boolean) -> Unit)?,
     val onKeyHaptics: (Boolean) -> Unit,
+    val onWifiOnly: (Boolean) -> Unit,
+    val onRounding: (Rounding) -> Unit,
     val onOnboarding: () -> Unit,
     /** «Карты и наличные» — все способы оплаты (на главном — только те, что подходят к валюте трат). */
     val onCards: () -> Unit,
 )
 
 /**
- * Настройки (значок в шапке главного): все карты и наличные, когда и откуда скачаны курсы, обновление,
- * UnionPay, итоговая валюта, подсказка о стране, камера, тема, анимации, знакомство и журнал ошибок.
+ * Настройки (значок в шапке главного). Основные (карты и наличные); курсы — одна карточка: источники,
+ * UnionPay в своей строке, частота, «только по Wi-Fi», ниже — «Обновить сейчас»; валюты (итог, округление,
+ * подсказка о стране); камера; оформление (тема, анимации, вибрация); о приложении (журнал ошибок — отдельным экраном).
  */
 @Composable
 fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     var homePicker by remember { mutableStateOf(false) }
+    var roundingPicker by remember { mutableStateOf(false) }
+    var crashOpen by remember { mutableStateOf(false) }
+    if (crashOpen) {
+        BackHandler { crashOpen = false }
+        CrashLogScreen(onBack = { crashOpen = false })
+        return
+    }
     Column(
         Modifier
             .fillMaxSize()
@@ -122,21 +143,27 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
                 .padding(horizontal = 14.dp)
                 .padding(bottom = 24.dp),
         ) {
-            Spacer(Modifier.height(4.dp))
+            SectionTitle(stringResource(R.string.settings_section_main))
             Group {
                 LinkRow(
                     stringResource(R.string.settings_cards_link),
                     stringResource(R.string.settings_cards_link_sub),
-                    state.wallet.cards.size.takeIf { it > 0 }?.toString()?.plus(" ›") ?: "›",
+                    state.wallet.cards.size.takeIf { it > 0 }?.toString(),
                     onClick = actions.onCards,
                 )
             }
             RatesSection(state, actions)
-            CurrenciesSection(state, actions) { homePicker = true }
+            CurrenciesSection(state, actions, onPickHome = { homePicker = true }, onPickRounding = { roundingPicker = true })
             CameraSection(state, actions)
             LookSection(state, actions)
-            AboutSection(actions)
+            AboutSection(onOnboarding = actions.onOnboarding, onCrash = { crashOpen = true })
         }
+    }
+    if (roundingPicker) {
+        RoundingSheet(state.settings.rounding, onPick = {
+            actions.onRounding(it)
+            roundingPicker = false
+        }, onDismiss = { roundingPicker = false })
     }
     if (homePicker) {
         CurrencyPickerSheet(
@@ -152,7 +179,6 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
 
 @Composable
 private fun RatesSection(state: MainUiState, actions: SettingsActions) {
-    val colors = AppTheme.colors
     val today = LocalDate.now()
     SectionTitle(stringResource(R.string.settings_rates))
     Group {
@@ -167,7 +193,6 @@ private fun RatesSection(state: MainUiState, actions: SettingsActions) {
             badge = stringResource(R.string.settings_badge_cbr),
             title = stringResource(R.string.settings_cbr),
             status = cbrStatus,
-            ok = official != null && !state.ratesFailed && !state.ratesLoading,
             warn = official == null || state.ratesFailed,
             subtitle = official?.let {
                 stringResource(R.string.settings_cbr_sub, RuDates.short(it.date), it.rubPerUnit.size, state.officialSource ?: "—")
@@ -178,8 +203,8 @@ private fun RatesSection(state: MainUiState, actions: SettingsActions) {
         SourceRow(
             badge = stringResource(R.string.settings_badge_week),
             title = stringResource(R.string.settings_week),
-            status = if (week != null) "✓" else "—",
-            ok = week != null,
+            status = "✓".takeIf { week != null },
+            enabled = week != null,
             subtitle = stringResource(R.string.settings_week_sub, week?.let { RuDates.short(it.date) } ?: "—"),
         )
         Divider()
@@ -187,53 +212,28 @@ private fun RatesSection(state: MainUiState, actions: SettingsActions) {
         SourceRow(
             badge = stringResource(R.string.settings_badge_receipts),
             title = stringResource(R.string.settings_receipts),
-            status = if (days.isEmpty()) "—" else "✓ ${days.size}",
-            ok = days.isNotEmpty(),
+            status = "✓ ${days.size}".takeIf { days.isNotEmpty() },
+            enabled = days.isNotEmpty(),
             subtitle = if (days.isEmpty()) {
                 stringResource(R.string.settings_receipts_none)
             } else {
                 stringResource(R.string.settings_receipts_sub, days.take(3).joinToString(", ") { RuDates.short(it) } + if (days.size > 3) "…" else "")
             },
         )
-        if (state.settings.unionPay) {
-            Divider()
-            val up = state.unionPay
-            SourceRow(
-                badge = stringResource(R.string.settings_badge_unionpay),
-                title = stringResource(R.string.settings_unionpay),
-                status = if (up == null) "—" else fetchedText(state.unionPayFetchedAt, today),
-                ok = up != null,
-                subtitle = up?.let {
-                    stringResource(
-                        R.string.settings_unionpay_sub,
-                        RuDates.short(it.date),
-                        it.rates.values.flatMap { row -> row.keys }.toSet().size,
-                        it.rates.size,
-                    )
-                } ?: stringResource(R.string.settings_unionpay_empty),
-            )
-        }
-        val label = stringResource(if (state.ratesLoading) R.string.settings_loading_button else R.string.settings_refresh)
-        Box(
-            Modifier
-                .padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 12.dp)
-                .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .border(1.5.dp, colors.accent, RoundedCornerShape(24.dp))
-                .clickable(role = Role.Button, enabled = !state.ratesLoading, onClick = actions.onRefresh),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("↻  $label", style = AppTheme.type.bodyStrong, color = colors.accent)
-        }
-    }
-    Spacer(Modifier.height(10.dp))
-    Group {
-        SwitchRow(
-            stringResource(R.string.settings_unionpay_switch),
-            stringResource(R.string.settings_unionpay_switch_sub),
-            state.settings.unionPay,
-            actions.onUnionPay,
+        Divider()
+        // UnionPay включается прямо в своей строке — отдельного переключателя нет.
+        val up = state.unionPay?.takeIf { state.settings.unionPay }
+        SourceRow(
+            badge = stringResource(R.string.settings_badge_unionpay),
+            title = stringResource(R.string.settings_unionpay),
+            status = null,
+            subtitle = if (up != null) {
+                stringResource(R.string.settings_unionpay_on, fetchedText(state.unionPayFetchedAt, today).removePrefix("✓ "))
+            } else {
+                stringResource(R.string.settings_unionpay_switch_sub)
+            },
+            trailing = { AppSwitch(state.settings.unionPay) },
+            modifier = Modifier.toggleable(value = state.settings.unionPay, role = Role.Switch, onValueChange = actions.onUnionPay),
         )
         Divider()
         val updates = RatesUpdate.entries
@@ -246,15 +246,51 @@ private fun RatesSection(state: MainUiState, actions: SettingsActions) {
             ),
             updates.indexOf(state.settings.ratesUpdate),
         ) { actions.onRatesUpdate(updates[it]) }
+        Divider()
+        SwitchRow(
+            stringResource(R.string.settings_wifi_only),
+            stringResource(R.string.settings_wifi_only_sub),
+            state.settings.wifiOnly,
+            actions.onWifiOnly,
+        )
+    }
+    // «Обновить сейчас» — отдельная тональная кнопка под карточкой курсов.
+    val colors = AppTheme.colors
+    val label = stringResource(if (state.ratesLoading) R.string.settings_loading_button else R.string.settings_refresh)
+    Box(
+        Modifier
+            .padding(top = 10.dp)
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(colors.accentSoft)
+            .clickable(role = Role.Button, enabled = !state.ratesLoading, onClick = actions.onRefresh),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("↻  $label", style = AppTheme.type.bodyStrong, color = colors.accent)
     }
 }
 
 @Composable
-private fun CurrenciesSection(state: MainUiState, actions: SettingsActions, onPickHome: () -> Unit) {
+private fun CurrenciesSection(state: MainUiState, actions: SettingsActions, onPickHome: () -> Unit, onPickRounding: () -> Unit) {
     SectionTitle(stringResource(R.string.settings_currencies))
     Group {
         val home = state.wallet.home
-        LinkRow(stringResource(R.string.settings_home), stringResource(R.string.settings_home_sub), "${home.flag} ${home.code} ›", onPickHome)
+        LinkRow(stringResource(R.string.settings_home), stringResource(R.string.settings_home_sub), "${home.flag} ${home.code}", onPickHome)
+        Divider()
+        val roundings = Rounding.entries
+        val labels = listOf(
+            stringResource(R.string.rounding_none),
+            stringResource(R.string.rounding_whole),
+            stringResource(R.string.rounding_tens),
+        )
+        val current = roundings.indexOf(state.settings.rounding)
+        // Узкий экран: три варианта в одну линию не помещаются — строка «До целых ›» и шторка с выбором.
+        if (LocalConfiguration.current.screenWidthDp >= WIDE_DP) {
+            ChoiceRow(stringResource(R.string.settings_rounding), labels, current) { actions.onRounding(roundings[it]) }
+        } else {
+            LinkRow(stringResource(R.string.settings_rounding), null, labels[current], onPickRounding)
+        }
         Divider()
         SwitchRow(
             stringResource(R.string.settings_country_hint),
@@ -262,6 +298,55 @@ private fun CurrenciesSection(state: MainUiState, actions: SettingsActions, onPi
             state.settings.countryHint,
             actions.onCountryHint,
         )
+    }
+}
+
+/** Ширина экрана, с которой три варианта округления помещаются в одну линию. */
+private const val WIDE_DP = 380
+
+/** Шторка выбора округления (узкий экран): три пункта-кружка с примером. */
+@Composable
+private fun RoundingSheet(current: Rounding, onPick: (Rounding) -> Unit, onDismiss: () -> Unit) {
+    val colors = AppTheme.colors
+    val sample = BigDecimal("3706.06")
+    AppSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp),
+        ) {
+            Text(
+                stringResource(R.string.settings_rounding),
+                style = AppTheme.type.title.copy(fontSize = 19.sp),
+                color = colors.ink,
+                modifier = Modifier
+                    .padding(start = 4.dp, bottom = 12.dp)
+                    .semantics { heading() },
+            )
+            Group(Modifier.selectableGroup()) {
+                val labels = listOf(R.string.rounding_none, R.string.rounding_whole, R.string.rounding_tens)
+                Rounding.entries.forEachIndexed { i, r ->
+                    if (i > 0) Divider()
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp)
+                            .selectable(selected = r == current, role = Role.RadioButton) { onPick(r) }
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = r == current,
+                            onClick = null,
+                            colors = RadioButtonDefaults.colors(selectedColor = colors.accent, unselectedColor = colors.muted),
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        RowText(stringResource(labels[i]), Numbers.total(sample, r) + " " + Currency.RUB.symbol, Modifier.weight(1f))
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -276,7 +361,7 @@ private fun CameraSection(state: MainUiState, actions: SettingsActions) {
         ) { actions.onCameraEmbedded(it == 0) }
         actions.onAddTile?.let { add ->
             Divider()
-            LinkRow(stringResource(R.string.settings_tile), stringResource(R.string.settings_tile_sub), stringResource(R.string.settings_tile_add), add)
+            LinkRow(stringResource(R.string.settings_tile), stringResource(R.string.settings_tile_sub), null, add)
         }
     }
 }
@@ -302,16 +387,6 @@ private fun LookSection(state: MainUiState, actions: SettingsActions) {
             listOf(stringResource(R.string.settings_as_system), stringResource(R.string.settings_motion_off)),
             motions.indexOf(state.settings.motion),
         ) { actions.onMotion(motions[it]) }
-        val dynamic = actions.onDynamicColor
-        if (dynamic != null) {
-            Divider()
-            SwitchRow(
-                stringResource(R.string.settings_dynamic_color),
-                stringResource(R.string.settings_dynamic_color_sub),
-                state.settings.dynamicColor,
-                dynamic,
-            )
-        }
         Divider()
         SwitchRow(
             stringResource(R.string.settings_key_haptics),
@@ -325,7 +400,7 @@ private fun LookSection(state: MainUiState, actions: SettingsActions) {
 private const val PRIVACY_URL = "https://github.com/KosHG28/monyexhange/blob/main/docs/privacy.md"
 
 @Composable
-private fun AboutSection(actions: SettingsActions) {
+private fun AboutSection(onOnboarding: () -> Unit, onCrash: () -> Unit) {
     val context = LocalContext.current
     val colors = AppTheme.colors
     SectionTitle(stringResource(R.string.settings_about))
@@ -335,28 +410,18 @@ private fun AboutSection(actions: SettingsActions) {
         }
         LinkRow(stringResource(R.string.settings_version), null, version, null)
         Divider()
-        LinkRow(stringResource(R.string.settings_onboarding), null, stringResource(R.string.settings_onboarding_show), actions.onOnboarding)
+        LinkRow(stringResource(R.string.settings_onboarding), stringResource(R.string.settings_onboarding_sub), null, onOnboarding)
         Divider()
         // Политика — в репозитории; ссылку на неё требует и карточка RuStore.
-        LinkRow(stringResource(R.string.settings_privacy), null, stringResource(R.string.settings_privacy_open), onClick = {
+        LinkRow(stringResource(R.string.settings_privacy), null, null, onClick = {
             runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, PRIVACY_URL.toUri())) }
         })
         Divider()
-        var crash by remember(context) { mutableStateOf(CrashLog.last(context)) }
-        val report = crash
-        if (report == null) {
-            LinkRow(stringResource(R.string.settings_crash), stringResource(R.string.settings_crash_none), null, null)
-        } else {
-            val first = report.lineSequence().firstOrNull().orEmpty().removePrefix("Время: ").take(16).replace('T', ' ')
-            LinkRow(stringResource(R.string.settings_crash), stringResource(R.string.settings_crash_last, first), null, null)
-            Row(Modifier.padding(start = 6.dp, end = 6.dp, bottom = 6.dp)) {
-                TextAction(stringResource(R.string.settings_crash_copy)) { copy(context, report) }
-                TextAction(stringResource(R.string.settings_crash_clear)) {
-                    CrashLog.forget(context)
-                    crash = null
-                }
-            }
-        }
+        val report = remember(context) { CrashLog.last(context) }
+        val sub = report?.let {
+            stringResource(R.string.settings_crash_last, it.lineSequence().firstOrNull().orEmpty().removePrefix("Время: ").take(16).replace('T', ' '))
+        } ?: stringResource(R.string.settings_crash_none)
+        LinkRow(stringResource(R.string.settings_crash), sub, null, onCrash)
     }
     Spacer(Modifier.height(4.dp))
     Text(
@@ -367,17 +432,83 @@ private fun AboutSection(actions: SettingsActions) {
     )
 }
 
+/**
+ * Журнал ошибок — отдельный экран из настроек: последняя ошибка целиком, «Скопировать» (основная) и
+ * «Очистить» (красная текстовая): действия не в списке настроек, случайно не нажать.
+ */
 @Composable
-private fun TextAction(text: String, onClick: () -> Unit) {
-    Box(
+private fun CrashLogScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    var report by remember(context) { mutableStateOf(CrashLog.last(context)) }
+    Column(
         Modifier
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 10.dp),
-        contentAlignment = Alignment.Center,
+            .fillMaxSize()
+            .background(colors.bg)
+            .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        Text(text, style = AppTheme.type.body.copy(fontWeight = FontWeight.Medium), color = AppTheme.colors.accent)
+        Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            val back = stringResource(R.string.settings_back)
+            Box(
+                Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .clickable(role = Role.Button, onClickLabel = back, onClick = onBack),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = back, tint = colors.ink, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(R.string.settings_crash), style = type.title.copy(fontSize = 21.sp), color = colors.ink, modifier = Modifier.semantics { heading() })
+        }
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp),
+        ) {
+            Text(stringResource(R.string.crash_hint), style = type.caption.copy(fontSize = 13.sp), color = colors.muted, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
+            val text = report
+            if (text == null) {
+                Group { LinkRow(stringResource(R.string.settings_crash_none), null, null, null) }
+                return@Column
+            }
+            Text(
+                text,
+                style = type.caption.copy(fontFamily = FontFamily.Monospace, fontSize = 11.5.sp, lineHeight = 16.sp),
+                color = colors.muted,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(colors.surface)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(colors.accentSoft)
+                        .clickable(role = Role.Button) { copy(context, text) },
+                    contentAlignment = Alignment.Center,
+                ) { Text(stringResource(R.string.settings_crash_copy), style = type.bodyStrong, color = colors.accent) }
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .clickable(role = Role.Button) {
+                            CrashLog.forget(context)
+                            report = null
+                        },
+                    contentAlignment = Alignment.Center,
+                ) { Text(stringResource(R.string.settings_crash_clear), style = type.bodyStrong, color = colors.danger) }
+            }
+        }
     }
 }
 

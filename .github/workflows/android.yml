@@ -25,6 +25,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Хранилище артефактов Actions — 0,5 ГБ на аккаунт: удаляем артефакты прошлых сборок старше суток
+  # (APK для установки — в GitHub Release, они в эту квоту не входят).
+  cleanup-artifacts:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
+              owner: context.repo.owner, repo: context.repo.repo, per_page: 100,
+            });
+            let removed = 0, bytes = 0;
+            for (const a of artifacts) {
+              if (a.expired || a.workflow_run?.id === context.runId) continue;
+              if (new Date(a.created_at).getTime() > dayAgo) continue;
+              await github.rest.actions.deleteArtifact({ owner: context.repo.owner, repo: context.repo.repo, artifact_id: a.id });
+              removed++; bytes += a.size_in_bytes;
+            }
+            core.info(`Удалено артефактов: ${removed}, ${(bytes / 1e6).toFixed(0)} МБ`);
+
   build:
     runs-on: ubuntu-latest
     env:
@@ -72,21 +95,21 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk out/dirhamrub-debug.apk
           cp app/build/outputs/apk/release/app-release.apk out/dirhamrub-release.apk
 
-      # Квота хранилища артефактов общая на аккаунт; если она кончилась, сборка всё равно зелёная,
-      # а APK для установки публикуется через GitHub Release по тегу.
+      # Квота хранилища артефактов общая на аккаунт (0,5 ГБ): APK сборки хранятся сутки — для установки
+      # есть GitHub Release. Если квота кончилась, сборка всё равно зелёная.
       - uses: actions/upload-artifact@v5
         if: success()
         continue-on-error: true
         with:
           name: dirhamrub-apk
           path: out/*.apk
-          retention-days: 14
+          retention-days: 1
 
       - uses: actions/upload-artifact@v5
         if: failure()
         continue-on-error: true
         with:
-          retention-days: 7
+          retention-days: 3
           name: reports
           path: |
             app/build/reports/

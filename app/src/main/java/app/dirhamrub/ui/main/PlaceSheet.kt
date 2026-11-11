@@ -120,7 +120,7 @@ private fun GuideRow(guide: CountryGuide, onClick: () -> Unit) {
             Text(title, style = type.body, color = colors.ink)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val sub = type.caption.copy(color = colors.muted)
-                Text(stringResource(R.string.network_unionpay) + " ", style = sub, maxLines = 1)
+                Text(stringResource(R.string.network_short_unionpay_ru) + " ", style = sub, maxLines = 1)
                 Mark(up)
                 Text(" · " + stringResource(R.string.network_mir) + " ", style = sub, maxLines = 1)
                 Mark(mir)

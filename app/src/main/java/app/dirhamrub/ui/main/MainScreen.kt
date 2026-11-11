@@ -617,7 +617,7 @@ internal fun PayIcon(card: BankCard, best: Boolean) {
 
 @Composable
 private fun networkName(n: CardNetwork?): String? = when (n) {
-    CardNetwork.UNIONPAY -> stringResource(R.string.network_unionpay)
+    CardNetwork.UNIONPAY, CardNetwork.UNIONPAY_FOREIGN -> stringResource(R.string.network_unionpay)
     CardNetwork.MIR -> stringResource(R.string.network_mir)
     CardNetwork.VISA_MC_RU, CardNetwork.VISA_MC_FOREIGN -> stringResource(R.string.network_visa_mc)
     null -> null
@@ -625,7 +625,7 @@ private fun networkName(n: CardNetwork?): String? = when (n) {
 
 @Composable
 private fun networkMark(n: CardNetwork?): String? = when (n) {
-    CardNetwork.UNIONPAY -> stringResource(R.string.network_unionpay_short)
+    CardNetwork.UNIONPAY, CardNetwork.UNIONPAY_FOREIGN -> stringResource(R.string.network_unionpay_short)
     CardNetwork.MIR -> stringResource(R.string.network_mir_short)
     CardNetwork.VISA_MC_RU, CardNetwork.VISA_MC_FOREIGN -> stringResource(R.string.network_visa_mc_short)
     null -> null

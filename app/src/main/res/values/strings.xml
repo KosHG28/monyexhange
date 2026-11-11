@@ -330,6 +330,10 @@
     <string name="empty_add_receipt">Добавить чек</string>
     <string name="network_unionpay">UnionPay</string>
     <string name="network_mir">МИР</string>
+    <string name="network_unionpay_ru">UnionPay из РФ</string>
+    <string name="network_unionpay_foreign">Зарубежная UnionPay</string>
+    <string name="guide_net_unionpay_ru">UnionPay РФ</string>
+    <string name="guide_net_unionpay_foreign">Зарубежная UnionPay</string>
     <string name="network_visa_ru">Visa и Mastercard из РФ</string>
     <string name="network_visa_foreign">Зарубежные Visa и Mastercard</string>
     <string name="guide_net_visa_ru">Visa/MC из РФ</string>
@@ -350,6 +354,8 @@
     <string name="guide_report_body">Страна: %1$s (%2$s)\nСведения от: %3$s\n\nЧто изменилось:\n</string>
     <string name="editor_network">Платёжная система</string>
     <string name="editor_network_hint">Нужна справочнику: подскажем, примут ли карту в стране</string>
+    <string name="network_short_unionpay_ru">UnionPay РФ</string>
+    <string name="network_short_unionpay_foreign">UnionPay зарубежная</string>
     <string name="network_short_visa_ru">Visa/MC РФ</string>
     <string name="network_short_visa_foreign">Visa/MC зарубежная</string>
     <string name="transfer_mode_last">По последнему</string>

@@ -83,7 +83,8 @@ private fun lower(text: String): String = text.replaceFirstChar { it.lowercase()
 @Composable
 private fun networkName(n: CardNetwork): String = stringResource(
     when (n) {
-        CardNetwork.UNIONPAY -> R.string.network_unionpay
+        CardNetwork.UNIONPAY -> R.string.network_unionpay_ru
+        CardNetwork.UNIONPAY_FOREIGN -> R.string.network_unionpay_foreign
         CardNetwork.MIR -> R.string.network_mir
         CardNetwork.VISA_MC_RU -> R.string.network_visa_ru
         CardNetwork.VISA_MC_FOREIGN -> R.string.network_visa_foreign
@@ -94,7 +95,8 @@ private fun networkName(n: CardNetwork): String = stringResource(
 @Composable
 private fun networkShort(n: CardNetwork): String = stringResource(
     when (n) {
-        CardNetwork.UNIONPAY -> R.string.network_unionpay
+        CardNetwork.UNIONPAY -> R.string.guide_net_unionpay_ru
+        CardNetwork.UNIONPAY_FOREIGN -> R.string.guide_net_unionpay_foreign
         CardNetwork.MIR -> R.string.network_mir
         CardNetwork.VISA_MC_RU -> R.string.guide_net_visa_ru
         CardNetwork.VISA_MC_FOREIGN -> R.string.guide_net_visa_foreign

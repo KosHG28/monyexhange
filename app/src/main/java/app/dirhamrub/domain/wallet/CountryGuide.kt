@@ -130,7 +130,7 @@ object CountryGuideParser {
         fun put(key: String, value: String) {
             when (key) {
                 "updated" -> updated = date(value)
-                "unionpay", "mir", "visa_ru", "visa" -> {
+                "unionpay", "unionpay_foreign", "mir", "visa_ru", "visa" -> {
                     val (status, text) = pair(value) ?: return
                     val acceptance = when (status.lowercase()) {
                         "yes" -> Acceptance.YES
@@ -140,6 +140,7 @@ object CountryGuideParser {
                     }
                     val network = when (key) {
                         "unionpay" -> CardNetwork.UNIONPAY
+                        "unionpay_foreign" -> CardNetwork.UNIONPAY_FOREIGN
                         "mir" -> CardNetwork.MIR
                         "visa_ru" -> CardNetwork.VISA_MC_RU
                         else -> CardNetwork.VISA_MC_FOREIGN

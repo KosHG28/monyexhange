@@ -50,7 +50,11 @@ data class ManualRate(
 
 /** Платёжная система карты — для справочника «чем платить в стране». */
 enum class CardNetwork {
+    /** UnionPay российского банка (АТБ, Россельхозбанк…): за границей её отклоняют чаще. */
     UNIONPAY,
+
+    /** UnionPay зарубежного банка (Казахстан, Киргизия, Китай…). */
+    UNIONPAY_FOREIGN,
     MIR,
 
     /** Visa или Mastercard российского банка. */
@@ -130,7 +134,7 @@ data class BankCard(
     fun withNewTransfer(next: TransferReceipt): BankCard =
         copy(transfer = next, history = (listOfNotNull(transfer) + history).take(HISTORY_MAX))
 
-    /** Платёжная система для справочника: указанная, а у карты UnionPay — UnionPay. */
+    /** Платёжная система для справочника: указанная, а у карты UnionPay без указанной — UnionPay российского банка. */
     val paymentNetwork: CardNetwork? get() = network ?: CardNetwork.UNIONPAY.takeIf { unionPay }
 
     /** В какую валюту UnionPay пересчитывает покупки по этой карте. */

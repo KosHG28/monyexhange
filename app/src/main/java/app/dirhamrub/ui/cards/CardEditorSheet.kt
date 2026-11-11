@@ -257,7 +257,9 @@ fun CardEditorSheet(
             name = name.trim().ifEmpty { defaultName },
             currency = currency,
             kind = kind,
-            unionPay = network == CardNetwork.UNIONPAY && kind == CardKind.CARD,
+            // UnionPay (российская и зарубежная) — ещё и пересчёт по курсу UnionPay; российская хранится как раньше,
+            // без отдельной платёжной системы.
+            unionPay = network.isUnionPay() && kind == CardKind.CARD,
             network = network?.takeIf { kind == CardKind.CARD && it != CardNetwork.UNIONPAY },
             history = history.toList(),
             transferMode = if (history.isEmpty()) TransferMode.LAST else transferMode,
@@ -400,7 +402,7 @@ fun CardEditorSheet(
             }
 
             // Блок 2. UnionPay — только если выбрана эта система.
-            if (!cash && network == CardNetwork.UNIONPAY) {
+            if (!cash && network.isUnionPay()) {
                 Spacer(Modifier.height(10.dp))
                 EditorBlock(stringResource(R.string.network_unionpay), Modifier.cascade(cascade, 3)) {
                     UnionPaySection(
@@ -744,3 +746,5 @@ private const val EDITOR_CHIPS = 4
 private val PREVIEW_WIDTH = 190.dp
 private val PREVIEW_HEIGHT = 100.dp
 private val PREVIEW_AMOUNT = BigDecimal(100)
+
+private fun CardNetwork?.isUnionPay(): Boolean = this == CardNetwork.UNIONPAY || this == CardNetwork.UNIONPAY_FOREIGN

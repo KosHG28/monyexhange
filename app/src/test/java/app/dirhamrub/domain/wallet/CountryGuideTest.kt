@@ -94,6 +94,23 @@ class CountryGuideTest {
         assertNotNull(g)
         val sections = file.readLines().count { it.trim().startsWith("[") }
         assertEquals(sections, g!!.countries.size)
-        for (c in g.countries.values) assertEquals(c.iso, 4, c.networks.size)
+        // У каждой страны — все пять платёжных систем: UnionPay РФ и зарубежная, МИР, Visa/MC РФ и зарубежная.
+        for (c in g.countries.values) assertEquals(c.iso, CardNetwork.entries.size, c.networks.size)
+    }
+
+    @Test
+    fun `UnionPay российского и зарубежного банка — отдельно`() {
+        val g = CountryGuideParser.parse("version=2026-11-11\n[DE]\nupdated=2026-11-11\nunionpay=no|Не проходят\nunionpay_foreign=partial|Не везде")!!
+        val de = g.countries.getValue("DE")
+        val ru = BankCard("r", "r", Currency.CNY, 0, unionPay = true)
+        val foreign = BankCard("f", "f", Currency.CNY, 0, unionPay = true, network = CardNetwork.UNIONPAY_FOREIGN)
+        assertEquals(CardNetwork.UNIONPAY, ru.paymentNetwork)
+        assertEquals(CardNetwork.UNIONPAY_FOREIGN, foreign.paymentNetwork)
+        assertEquals(Acceptance.NO, de.verdict(ru, Currency.EUR))
+        assertEquals(Acceptance.PARTIAL, de.verdict(foreign, Currency.EUR))
+        // Зарубежная UnionPay сохраняется как зарубежная и считается по курсу UnionPay.
+        val back = WalletCodec.decode(WalletCodec.encode(Wallet(cards = listOf(foreign))))!!.cards.single()
+        assertEquals(CardNetwork.UNIONPAY_FOREIGN, back.network)
+        assertTrue(back.unionPay)
     }
 }

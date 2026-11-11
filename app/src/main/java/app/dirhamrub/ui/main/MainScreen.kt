@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.MC
@@ -141,20 +142,23 @@ fun MainScreen(
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
         Header(place, onOpenCountries, onOpenPlace, onOpenSettings)
-        // Верх на низких телефонах и при крупном шрифте прокручивается, клавиатура всегда на месте.
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-        ) {
+        // Итог и поле цены всегда на месте; прокручивается только то, что ниже (карточки, курс ЦБ),
+        // с мягким затуханием у краёв. Клавиатура тоже всегда на месте.
+        Column(Modifier.padding(horizontal = 16.dp)) {
             when {
                 countryOffer != null -> CountryBanner(countryOffer, onCountry)
                 tileOffer -> TileBanner(onTileOffer)
             }
             Hero(state, short, onSelectLine)
             PriceField(state)
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .fadingScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+        ) {
             if (state.homePerUnit == null) {
                 // Считать не по чему — понятный блок с одной кнопкой вместо «—».
                 Spacer(Modifier.height(8.dp))

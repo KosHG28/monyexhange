@@ -62,6 +62,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.ui.components.AppSheet
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
@@ -278,7 +279,7 @@ fun CardEditorSheet(
                 .weight(1f, fill = false)
                 .fillMaxWidth()
                 .pointerInput(Unit) { detectTapGestures(onTap = { focus.clearFocus() }) }
-                .verticalScroll(rememberScrollState())
+                .fadingScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 12.dp),
         ) {
@@ -548,6 +549,7 @@ fun CardEditorSheet(
                             cardSymbol = currency.symbol,
                             average = draft.effectiveTransfer?.takeIf { history.isNotEmpty() && transferMode == TransferMode.AVERAGE },
                             canAddNew = transfer != null,
+                            newLabel = stringResource(if (cash) R.string.exchange_new else R.string.transfer_new),
                             onMode = { transferMode = it },
                             onRemove = { history.remove(it) },
                             onNew = {
@@ -611,7 +613,13 @@ fun CardEditorSheet(
                                 Numbers.rateShort(auto.homePerUnit.multiply(unit, MC)),
                                 home.symbol,
                             ),
-                            sub = basisLabel(auto).takeIf { !exact },
+                            // Почему примерно — словами: чаще всего не указано, почём купили отданную валюту.
+                            sub = when {
+                                exact -> null
+                                sentCurrency != home && boughtAt.isBlank() && draft.transfer != null && !(cash && atm) ->
+                                    stringResource(R.string.editor_result_why_bought, sentCurrency.symbol)
+                                else -> basisLabel(auto)
+                            },
                             exact = exact,
                         )
                     } else {

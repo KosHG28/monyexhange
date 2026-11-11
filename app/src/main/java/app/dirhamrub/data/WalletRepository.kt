@@ -18,8 +18,6 @@ import app.dirhamrub.domain.Rounding
 import app.dirhamrub.domain.ThemeMode
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
-import app.dirhamrub.domain.wallet.Exchanger
-import app.dirhamrub.domain.wallet.ExchangerCodec
 import app.dirhamrub.domain.wallet.ManualRate
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.PurchaseReceipt
@@ -71,7 +69,6 @@ data class StoredState(
     /** Скачанный справочник «Чем платить» (текст файла), если он свежее встроенного. */
     val guideText: String?,
     /** Записанные курсы обменников. */
-    val exchangers: List<Exchanger>,
     /** Выбор способа оплаты уже переведён на «автовыбор лучшего» (переделка «конвертер»). */
     val selectionAuto: Boolean,
     val settings: AppSettings,
@@ -122,7 +119,6 @@ class WalletRepository(
             unionPayFetchedAt = if (WalletCodec.isCurrentTable(u[UNIONPAY])) u[UNIONPAY_AT] ?: 0L else 0L,
             officialSource = r[OFFICIAL_SOURCE],
             guideText = r[GUIDE],
-            exchangers = ExchangerCodec.decode(p[EXCHANGERS]),
             selectionAuto = p[SELECTION_AUTO] == true,
             settings = AppSettings(
                 unionPay = p[SET_UNIONPAY] ?: true,
@@ -165,8 +161,9 @@ class WalletRepository(
         ratesStore.edit { r -> r[GUIDE] = text }
     }
 
-    suspend fun saveExchangers(list: List<Exchanger>) {
-        store.edit { p -> p[EXCHANGERS] = ExchangerCodec.encode(list) }
+    /** Курсы обменников из версий до 1.28 (сравнение обменников убрано) — стереть. */
+    suspend fun dropLegacy() {
+        store.edit { p -> p.remove(LEGACY_EXCHANGERS) }
     }
 
     /** Один раз при переходе на автовыбор: кошелёк без ручного выбора и отметка, что переход сделан. */
@@ -323,7 +320,7 @@ class WalletRepository(
         val TILE_OFFERED = booleanPreferencesKey("tile_offered")
         val OFFICIAL_SOURCE = stringPreferencesKey("official_source")
         val GUIDE = stringPreferencesKey("country_guide")
-        val EXCHANGERS = stringPreferencesKey("exchangers")
+        val LEGACY_EXCHANGERS = stringPreferencesKey("exchangers")
 
         /** Ключи курсов ЦБ: живут в своём файле (до 1.20 — в общем с кошельком). */
         val RATE_KEYS: List<Preferences.Key<*>> = listOf(OFFICIAL, OFFICIAL_AT, OFFICIAL_SOURCE, OFFICIAL_WEEK, RATES_HISTORY)

@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,6 +45,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.fadingEdges
 import app.dirhamrub.ui.components.AppSheet
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
@@ -121,10 +123,13 @@ fun CurrencySheet(
                 unionPay = stringResource(R.string.currency_unionpay),
                 homeHint = stringResource(R.string.currency_sheet_home_hint) + ". " + stringResource(R.string.currency_home_only_cbr),
             )
+            val listState = rememberLazyListState()
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .fadingEdges(listState),
                 contentPadding = PaddingValues(bottom = 24.dp),
             ) {
                 if (homeTab && onHome != null) {
@@ -198,10 +203,13 @@ fun CountryScreen(
             unionPay = stringResource(R.string.currency_unionpay),
             homeHint = "",
         )
+        val listState = rememberLazyListState()
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .fadingEdges(listState),
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {
             spendItems(query, spend, home, recent, country, official, cascade, texts) {
@@ -238,10 +246,13 @@ fun CurrencyPickerSheet(
             SearchField(query, { query = it }, stringResource(R.string.currency_search_currency))
             val nothing = stringResource(R.string.currency_nothing)
             val found = CurrencySearch.currencies(query, options)
+            val listState = rememberLazyListState()
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .fadingEdges(listState),
                 contentPadding = PaddingValues(top = 6.dp, bottom = 24.dp),
             ) {
                 if (found.isEmpty()) item { Note(nothing) }

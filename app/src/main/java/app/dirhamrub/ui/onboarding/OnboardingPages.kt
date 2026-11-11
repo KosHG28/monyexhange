@@ -174,7 +174,7 @@ internal fun HowPage(home: Currency) {
     )
     val colors = AppTheme.colors
     Text(
-        stringResource(R.string.onboarding_how_none),
+        rich(stringResource(R.string.onboarding_how_none)),
         style = AppTheme.type.body.copy(fontSize = 13.sp, lineHeight = 18.sp),
         color = colors.ink,
         modifier = Modifier
@@ -218,7 +218,7 @@ private fun WayCard(icon: String, title: String, sub: String, nodes: List<String
             }
         }
         Pipe(nodes, Modifier.padding(top = 9.dp))
-        Text(text, style = type.caption.copy(fontSize = 12.5.sp, lineHeight = 17.sp), color = colors.muted, modifier = Modifier.padding(top = 7.dp))
+        Text(rich(text), style = type.caption.copy(fontSize = 12.5.sp, lineHeight = 17.sp), color = colors.muted, modifier = Modifier.padding(top = 7.dp))
     }
 }
 
@@ -312,7 +312,7 @@ private fun WhatItem(mark: String, color: Color, back: Color, title: Int, sub: I
         Spacer(Modifier.width(12.dp))
         Column {
             Text(stringResource(title), style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink)
-            Text(stringResource(sub), style = type.caption.copy(fontSize = 12.5.sp, lineHeight = 17.sp), color = colors.muted)
+            Text(rich(stringResource(sub)), style = type.caption.copy(fontSize = 12.5.sp, lineHeight = 17.sp), color = colors.muted)
         }
     }
 }
@@ -362,7 +362,7 @@ internal fun CurrenciesPage(
     ) {
         CurrencyChips(options = (Currency.FREQUENT + home).distinct(), selected = home, onSelect = onHome)
         Text(
-            stringResource(R.string.onboarding_cur_home_hint),
+            rich(stringResource(R.string.onboarding_cur_home_hint)),
             style = type.caption.copy(fontSize = 13.sp, lineHeight = 18.sp),
             color = colors.muted,
             modifier = Modifier.padding(top = 10.dp),

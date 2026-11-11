@@ -81,7 +81,6 @@ class MainActivity : ComponentActivity() {
         const val SCREEN_EDITOR = "editor"
         const val SCREEN_SETTINGS = "settings"
         const val SCREEN_GUIDE = "guide"
-        const val SCREEN_EXCHANGE = "exchange"
         const val SCREEN_MONEY = "money"
         const val SCREEN_PLACE = "place"
 

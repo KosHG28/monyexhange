@@ -198,42 +198,6 @@ internal fun TopControls(
     }
 }
 
-/** «Ценник | Обменник» под кнопками: здесь — ценники; «Обменник» переключает на табло. */
-@Composable
-internal fun ModeSwitch(onExchange: () -> Unit) {
-    val colors = AppTheme.colors
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(bottom = 4.dp),
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Row(
-            Modifier
-                .clip(RoundedCornerShape(50))
-                .background(Scrim)
-                .padding(3.dp),
-        ) {
-            Box(
-                Modifier
-                    .heightIn(min = 40.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(colors.accent)
-                    .padding(horizontal = 16.dp),
-                contentAlignment = Alignment.Center,
-            ) { Text(stringResource(R.string.camera_mode_price), style = AppTheme.type.bodyStrong.copy(fontSize = 14.sp), color = colors.onAccent) }
-            Box(
-                Modifier
-                    .heightIn(min = 40.dp)
-                    .clip(RoundedCornerShape(50))
-                    .clickable(role = Role.Button, onClick = onExchange)
-                    .padding(horizontal = 16.dp),
-                contentAlignment = Alignment.Center,
-            ) { Text(stringResource(R.string.camera_mode_exchange), style = AppTheme.type.bodyStrong.copy(fontSize = 14.sp), color = Color.White) }
-        }
-    }
-}
-
 @Composable
 internal fun RoundButton(icon: Int, description: String, onClick: () -> Unit, highlighted: Boolean = false) {
     val colors = AppTheme.colors

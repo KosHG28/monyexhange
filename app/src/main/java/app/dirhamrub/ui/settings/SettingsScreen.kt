@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.diag.CrashLog
 import app.dirhamrub.domain.MotionMode
 import app.dirhamrub.domain.RatesUpdate
@@ -140,7 +141,7 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .fadingScroll(rememberScrollState())
                 .padding(horizontal = 14.dp)
                 .padding(bottom = 24.dp),
         ) {
@@ -467,7 +468,7 @@ private fun CrashLogScreen(onBack: () -> Unit) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .fadingScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 24.dp),
         ) {

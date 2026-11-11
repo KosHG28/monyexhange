@@ -30,8 +30,6 @@ import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.CountryGuideParser
 import app.dirhamrub.domain.wallet.CountryGuides
 import app.dirhamrub.domain.wallet.Currency
-import app.dirhamrub.domain.wallet.Exchanger
-import app.dirhamrub.domain.wallet.ExchangerCodec
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.QuickSums
 import app.dirhamrub.domain.wallet.RateEngine
@@ -95,8 +93,6 @@ data class MainUiState(
     val unionPayFetchedAt: Long = 0L,
     /** Справочник «Чем платить в стране»: встроенный или скачанный, что свежее. */
     val guides: CountryGuides? = null,
-    /** Записанные курсы обменников. */
-    val exchangers: List<Exchanger> = emptyList(),
 ) {
     /** Курсы UnionPay, если они включены в настройках. */
     val activeUnionPay: UnionPayRates? get() = unionPay.takeIf { settings.unionPay }
@@ -209,9 +205,9 @@ class MainViewModel(
                 officialSource = stored.officialSource,
                 unionPayFetchedAt = stored.unionPayFetchedAt,
                 guides = loadGuides(stored.guideText),
-                exchangers = stored.exchangers,
             )
             if (!stored.selectionAuto) repository.markSelectionAuto(_state.value.wallet)
+            repository.dropLegacy()
             refresh(Trigger.LAUNCH)
             // Карты и чеки пишем сразу: сохранил карту и тут же закрыл приложение — она не пропадёт.
             // Изменения, не касающиеся кошелька (курсы загружаются, настройки), запись не вызывают.
@@ -377,19 +373,6 @@ class MainViewModel(
             }
             guideLoading = false
         }
-    }
-
-    /** Записали курс обменника (новый — в начало; не больше [ExchangerCodec.MAX], старые вытесняются). */
-    fun saveExchanger(ex: Exchanger) {
-        val next = (listOf(ex) + _state.value.exchangers.filterNot { it.id == ex.id }).take(ExchangerCodec.MAX)
-        _state.update { it.copy(exchangers = next) }
-        viewModelScope.launch { repository.saveExchangers(next) }
-    }
-
-    fun deleteExchanger(id: String) {
-        val next = _state.value.exchangers.filterNot { it.id == id }
-        _state.update { it.copy(exchangers = next) }
-        viewModelScope.launch { repository.saveExchangers(next) }
     }
 
     /** Курсы UnionPay: тихо, без индикатора — не скачались, так остаются прежние (или ЦБ и чеки). */

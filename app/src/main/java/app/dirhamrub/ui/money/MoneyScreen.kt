@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.RuDates
@@ -47,7 +48,6 @@ import app.dirhamrub.domain.wallet.CardNetwork
 import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.CountryGuide
 import app.dirhamrub.domain.wallet.RateBasis
-import app.dirhamrub.ui.exchange.homePerGive
 import app.dirhamrub.ui.guide.countryFlag
 import app.dirhamrub.ui.guide.countryName
 import app.dirhamrub.ui.main.MainUiState
@@ -110,7 +110,7 @@ fun MoneyScreen(state: MainUiState, actions: MoneyActions) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .fadingScroll(rememberScrollState())
                 .padding(horizontal = 14.dp)
                 .padding(bottom = 24.dp),
         ) {

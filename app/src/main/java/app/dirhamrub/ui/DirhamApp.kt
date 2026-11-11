@@ -51,14 +51,10 @@ import app.dirhamrub.MainActivity
 import app.dirhamrub.R
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
-import app.dirhamrub.domain.wallet.Exchanger
 import app.dirhamrub.ui.camera.CameraScreen
 import app.dirhamrub.ui.cards.CardEditorSheet
 import app.dirhamrub.ui.cheat.CheatSheet
 import app.dirhamrub.ui.currency.CountryScreen
-import app.dirhamrub.ui.exchange.BoardCamera
-import app.dirhamrub.ui.exchange.EXCHANGE_GIVE
-import app.dirhamrub.ui.exchange.ExchangeSheet
 import app.dirhamrub.ui.guide.CountryGuideSheet
 import app.dirhamrub.ui.main.CountryOffer
 import app.dirhamrub.ui.main.MainScreen
@@ -106,12 +102,6 @@ fun DirhamApp(
     vm: MainViewModel = viewModel(factory = MainViewModel.Factory),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
-    // Камера «Обменник»: какую валюту несёте (null — закрыта) и что она распознала (для формы проверки).
-    var boardGive by rememberSaveable { mutableStateOf<String?>(null) }
-    var exchangePrefill by remember { mutableStateOf<Exchanger?>(null) }
-    var exchangeOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_EXCHANGE) }
-    // Местная валюта обменников: валюта трат, а из редактора наличных — их валюта.
-    var exchangeLocal by rememberSaveable { mutableStateOf<String?>(null) }
     // «Карты и наличные» — экран из настроек.
     var moneyOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_MONEY) }
     // Шторка страны (касание страны в шапке).
@@ -119,8 +109,6 @@ fun DirhamApp(
     var guideOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_GUIDE) }
     var cheatOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CHEAT) }
     var currenciesOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CURRENCIES) }
-    // Камеру закрыли переходом на табло: закрыть сразу, без анимации, иначе её отключение выключало бы табло.
-    var cameraSnapClose by remember { mutableStateOf(false) }
     var cameraOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CAMERA) }
     var settingsOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_SETTINGS) }
     // Снимки CI: знакомство поверх демо-данных, с нужного шага.
@@ -195,7 +183,6 @@ fun DirhamApp(
     val tileOffer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && state.cameraUsed && !state.tileOffered
     // Справочник «Чем платить»: по валюте трат и стране сотовой сети.
     val guide = state.guides?.forSpend(state.wallet.spend, country)
-    val defaultGive = EXCHANGE_GIVE.firstOrNull { it != state.wallet.spend && it != state.wallet.home } ?: Currency.USD
     val place = placeOf(state.wallet.spend, country)
     MainScreen(
         state = state,
@@ -230,11 +217,6 @@ fun DirhamApp(
                 placeOpen = false
                 guideOpen = true
             },
-            onExchange = {
-                placeOpen = false
-                exchangeLocal = null
-                exchangeOpen = true
-            },
             onCheat = {
                 placeOpen = false
                 cheatOpen = true
@@ -244,33 +226,6 @@ fun DirhamApp(
     }
     if (guideOpen && guide != null) {
         CountryGuideSheet(guide, state.wallet.cards, onDismiss = { guideOpen = false })
-    }
-    if (exchangeOpen) {
-        ExchangeSheet(
-            local = Currency.byCode(exchangeLocal) ?: state.wallet.spend,
-            home = state.wallet.home,
-            cards = state.wallet.cards,
-            quote = state.quote,
-            official = state.reference,
-            exchangers = state.exchangers,
-            onSave = vm::saveExchanger,
-            onDelete = vm::deleteExchanger,
-            onExchanged = { card ->
-                exchangeOpen = false
-                editing = Editing(card, isNew = state.wallet.cards.none { it.id == card.id })
-            },
-            newCard = vm::newCard,
-            onDismiss = {
-                exchangeOpen = false
-                exchangePrefill = null
-            },
-            onScan = { give ->
-                exchangeOpen = false
-                exchangePrefill = null
-                boardGive = give.code
-            },
-            prefill = exchangePrefill,
-        )
     }
     if (cheatOpen) {
         CheatSheet(
@@ -355,8 +310,7 @@ fun DirhamApp(
     val reveal = remember { Animatable(if (cameraOpen) 1f else 0f) }
     LaunchedEffect(cameraOpen) {
         val target = if (cameraOpen) 1f else 0f
-        if (reduceMotion || (!cameraOpen && cameraSnapClose)) {
-            cameraSnapClose = false
+        if (reduceMotion) {
             reveal.snapTo(target)
         } else {
             reveal.animateTo(target, tween(if (cameraOpen) 420 else 340, easing = FastOutSlowInEasing))
@@ -400,42 +354,8 @@ fun DirhamApp(
                     cameraOpen = false
                 },
                 onBack = { cameraOpen = false },
-                onExchangeMode = if (state.wallet.spend != state.wallet.home) {
-                    {
-                        cameraSnapClose = true
-                        cameraOpen = false
-                        exchangeLocal = null
-                        boardGive = defaultGive.code
-                    }
-                } else {
-                    null
-                },
             )
         }
-    }
-    // Табло — только когда камера ценников закрыта совсем: у CameraX одна камера на всех, и закрывающаяся
-    // камера ценников, отключаясь, выключала только что открытое табло (оставался чёрный экран).
-    boardGive?.takeIf { !cameraShown }?.let { code ->
-        BackHandler { boardGive = null }
-        val local = Currency.byCode(exchangeLocal) ?: state.wallet.spend
-        BoardCamera(
-            give = Currency.byCode(code) ?: Currency.USD,
-            local = local,
-            home = state.wallet.home,
-            cards = state.wallet.cards,
-            quote = state.quote,
-            official = state.reference,
-            onRecognized = { ex ->
-                boardGive = null
-                exchangePrefill = ex
-                exchangeOpen = true
-            },
-            onPriceMode = {
-                boardGive = null
-                cameraOpen = true
-            },
-            onBack = { boardGive = null },
-        )
     }
     editing?.let { e ->
         CardEditorSheet(

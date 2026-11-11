@@ -158,6 +158,8 @@ internal fun TransferHistory(
     cardSymbol: String,
     average: TransferReceipt?,
     canAddNew: Boolean,
+    /** «+ Новое пополнение» у карты, «+ Новый обмен» у наличных. */
+    newLabel: String,
     onMode: (TransferMode) -> Unit,
     onRemove: (TransferReceipt) -> Unit,
     onNew: () -> Unit,
@@ -227,7 +229,7 @@ internal fun TransferHistory(
             }
         }
     }
-    if (canAddNew) AddAction(stringResource(R.string.transfer_new), onNew)
+    if (canAddNew) AddAction(newLabel, onNew)
 }
 
 /** «Заполнить из скриншота банка» и что получилось. */
@@ -446,19 +448,7 @@ internal fun BoughtPlate(
         placeholder = official?.let { Numbers.rate(it.multiply(unit, MC)) },
         trailing = { FieldSuffix(home.symbol) },
     )
-    val bought = Numbers.parse(value)?.takeIf { it.signum() > 0 }?.divide(unit, MC) ?: official
-    if (transfer != null && bought != null) {
-        val homePerCard = transfer.sent.divide(transfer.got, MC).multiply(bought, MC)
-        val u = Numbers.unitFor(homePerCard)
-        ReceiptRate(
-            stringResource(
-                R.string.receipt_bought_total,
-                "${Numbers.moneyWhole(u)} ${card.symbol}",
-                "${Numbers.rate(homePerCard.multiply(u, MC))} ${home.symbol}",
-            ),
-            whole = true,
-        )
-    }
+    // Итог здесь не повторяем — он один, в плашке ниже.
     Hint(stringResource(if (value.isBlank()) R.string.receipt_bought_hint_empty else R.string.receipt_bought_hint))
 }
 

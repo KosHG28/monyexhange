@@ -107,7 +107,6 @@ shot 35-place --es screen place
 shot 33-main-other --es card demo-cny
 shot 34-main-nocards --ez nocards true
 shot 36-main-empty --ez noamount true
-WAIT=10 shot 32-exchange --es screen exchange
 # Наличные из банкомата: баты сняты с карты в юанях.
 WAIT=12 shot 28-atm-editor --es spend THB --es screen editor --es card demo-thb-atm
 shot 29-main-thb --es spend THB

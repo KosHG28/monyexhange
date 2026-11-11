@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.ui.components.AppSheet
 import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.wallet.Acceptance
@@ -93,7 +94,7 @@ fun CountryGuideSheet(guide: CountryGuide, cards: List<BankCard>, onDismiss: () 
         Column(
             Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .fadingScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 20.dp),
         ) {

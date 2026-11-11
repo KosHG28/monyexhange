@@ -52,7 +52,6 @@ app/src/main/java/app/dirhamrub/
                      Keypad 4 × 5; PlaceSheet — шторка страны; Banners, EmptyRate) + MainViewModel
   ui/money/          «Карты и наличные» (из настроек): все способы оплаты
   ui/guide/          справочник «Чем платить в стране»
-  ui/exchange/       обменники: сравнение и камера для табло
   ui/onboarding/     знакомство при первом запуске
   ui/cards/          редактор карты и чеков
   ui/currency/       выбор валюты трат и итоговой

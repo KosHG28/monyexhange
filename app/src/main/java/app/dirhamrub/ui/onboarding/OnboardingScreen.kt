@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -39,9 +40,15 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.OfficialRates
@@ -100,10 +107,15 @@ fun OnboardingScreen(
             .background(colors.bg)
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        // «Пропустить» — сверху справа на шагах 2–4: на первом есть большая кнопка, на последнем — «Без карты».
-        Box(Modifier.fillMaxWidth()) {
+        // Шапка одинаковая на всех шагах: точки по центру, «Пропустить» справа на одной линии с ними
+        // (на последнем шаге его место пустое — там есть «Пока ничего»). Ничего не прыгает при листании.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp, bottom = 4.dp),
+        ) {
             Dots(pager.currentPage)
-            if (pager.currentPage in 1 until STEPS - 1) {
+            if (pager.currentPage < STEPS - 1) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
@@ -134,7 +146,7 @@ fun OnboardingScreen(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
+                        .fadingScroll(rememberScrollState()),
                 ) {
                     when (step) {
                         0 -> WhyPage()
@@ -151,12 +163,7 @@ fun OnboardingScreen(
                     else -> R.string.onboarding_next
                 }
                 PrimaryButton(stringResource(label)) { go(step + 1) }
-                if (step == 0) {
-                    SecondaryButton(stringResource(R.string.onboarding_skip_intro), muted = true) { onFinish(null) }
-                } else {
-                    Spacer(Modifier.height(48.dp))
-                }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(16.dp))
             }
         }
     }
@@ -199,10 +206,26 @@ internal fun Title(text: String) {
     )
 }
 
+/**
+ * Текст с полужирными местами: «По **чекам банка** — …» → «чекам банка» жирнее и темнее остального,
+ * чтобы при беглом просмотре глаз цеплялся за главное.
+ */
+@Composable
+internal fun rich(text: String): AnnotatedString {
+    val strong = AppTheme.colors.ink
+    return remember(text, strong) {
+        buildAnnotatedString {
+            text.split("**").forEachIndexed { i, part ->
+                if (i % 2 == 1) withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = strong)) { append(part) } else append(part)
+            }
+        }
+    }
+}
+
 @Composable
 internal fun Lead(text: String, modifier: Modifier = Modifier) {
     Text(
-        text,
+        rich(text),
         style = AppTheme.type.body.copy(fontSize = 15.sp, lineHeight = 21.sp),
         color = AppTheme.colors.muted,
         modifier = modifier.padding(top = 8.dp, bottom = 14.dp),

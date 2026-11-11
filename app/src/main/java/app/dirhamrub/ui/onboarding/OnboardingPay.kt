@@ -34,6 +34,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.fadingScroll
+import app.dirhamrub.ui.cards.ScreenshotButton
+import app.dirhamrub.ui.cards.FieldSuffix
+import app.dirhamrub.ui.cards.FieldPair
+import app.dirhamrub.ui.cards.AmountField
+import androidx.compose.ui.text.input.ImeAction
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.BankCard
@@ -49,7 +55,6 @@ import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.domain.wallet.approximate
 import app.dirhamrub.ui.components.CurrencyChips
 import app.dirhamrub.ui.components.CurrencyDropdown
-import app.dirhamrub.ui.components.ReceiptLine
 import app.dirhamrub.ui.currency.CurrencyPickerSheet
 import app.dirhamrub.ui.main.signedPercent
 import app.dirhamrub.ui.theme.AppTheme
@@ -100,7 +105,7 @@ internal fun PayStep(
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
+                .fadingScroll(rememberScrollState()),
         ) {
             Title(stringResource(R.string.onboarding_pay_title))
             Lead(stringResource(R.string.onboarding_pay_lead))
@@ -118,10 +123,17 @@ internal fun PayStep(
                     Note(stringResource(R.string.onboarding_pay_same))
                 } else {
                     Fields(stringResource(R.string.onboarding_pay_home_receipt)) {
+                        // Главный быстрый путь — скриншот уведомления: сверху, заметной кнопкой.
+                        draft?.let { d ->
+                            ScreenshotButton(null, home) { onOpenEditor(d) }
+                            Spacer(Modifier.height(12.dp))
+                        }
                         val price = stringResource(R.string.onboarding_pay_price)
                         val paid = stringResource(R.string.onboarding_pay_paid)
-                        ReceiptLine(price, first, { first = it }, price) { Mark(spend.symbol) }
-                        ReceiptLine(paid, second, { second = it }, paid, last = true) { Mark(home.symbol) }
+                        FieldPair(
+                            first = { m -> AmountField(price, first, { first = it }, price, m, imeAction = ImeAction.Next, trailing = { FieldSuffix(spend.symbol) }) },
+                            second = { m -> AmountField(paid, second, { second = it }, paid, m, trailing = { FieldSuffix(home.symbol) }) },
+                        )
                         Live(rate(second, first), spend, home, official?.cross(spend, home))
                     }
                 }
@@ -139,10 +151,16 @@ internal fun PayStep(
                     )
                     Spacer(Modifier.height(12.dp))
                     Fields(stringResource(R.string.onboarding_pay_topup)) {
+                        draft?.let { d ->
+                            ScreenshotButton(null, cardCurrency) { onOpenEditor(d) }
+                            Spacer(Modifier.height(12.dp))
+                        }
                         val sent = stringResource(R.string.onboarding_pay_sent)
                         val got = stringResource(R.string.onboarding_pay_got)
-                        ReceiptLine(sent, first, { first = it }, sent) { Mark(home.symbol) }
-                        ReceiptLine(got, second, { second = it }, got, last = true) { Mark(cardCurrency.symbol) }
+                        FieldPair(
+                            first = { m -> AmountField(sent, first, { first = it }, sent, m, imeAction = ImeAction.Next, trailing = { FieldSuffix(home.symbol) }) },
+                            second = { m -> AmountField(got, second, { second = it }, got, m, trailing = { FieldSuffix(cardCurrency.symbol) }) },
+                        )
                         Live(rate(first, second), cardCurrency, home, official?.cross(cardCurrency, home))
                     }
                 }
@@ -150,24 +168,41 @@ internal fun PayStep(
                     val gave = stringResource(R.string.onboarding_pay_gave)
                     val received = stringResource(R.string.onboarding_pay_received)
                     val pick = stringResource(R.string.editor_pick_currency)
-                    ReceiptLine(gave, first, { first = it }, gave) {
-                        CurrencyDropdown(
-                            sentCurrency,
-                            (listOf(home) + EXCHANGE_FROM).filter { it != spend }.distinct(),
-                            {
-                                if (it != sentCurrency) bought = ""
-                                sentCurrency = it
-                            },
-                            pick,
-                        )
-                    }
-                    ReceiptLine(received, second, { second = it }, received, last = sentCurrency == home) { Mark(spend.symbol) }
+                    FieldPair(
+                        first = { m ->
+                            AmountField(
+                                gave, first, { first = it }, gave, m,
+                                imeAction = ImeAction.Next,
+                                trailing = {
+                                    CurrencyDropdown(
+                                        sentCurrency,
+                                        (listOf(home) + EXCHANGE_FROM).filter { it != spend }.distinct(),
+                                        {
+                                            if (it != sentCurrency) bought = ""
+                                            sentCurrency = it
+                                        },
+                                        pick,
+                                    )
+                                },
+                                selectable = true,
+                            )
+                        },
+                        second = { m ->
+                            AmountField(
+                                received, second, { second = it }, received, m,
+                                imeAction = if (sentCurrency == home) ImeAction.Done else ImeAction.Next,
+                                trailing = { FieldSuffix(spend.symbol) },
+                            )
+                        },
+                    )
                     if (sentCurrency != home) {
                         val label = stringResource(R.string.receipt_bought, "1 ${sentCurrency.symbol}")
-                        ReceiptLine(
-                            label, bought, { bought = it }, label, last = true,
+                        Spacer(Modifier.height(8.dp))
+                        AmountField(
+                            label, bought, { bought = it }, label,
                             placeholder = official?.cross(sentCurrency, home)?.let(Numbers::rate),
-                        ) { Mark(home.symbol) }
+                            trailing = { FieldSuffix(home.symbol) },
+                        )
                     }
                     // Курс наличных в итоговой валюте: отданное за полученное × почём купили отданное.
                     val perLocal = rate(first, second)?.let { r ->
@@ -206,13 +241,7 @@ internal fun PayStep(
         }
         Spacer(Modifier.height(12.dp))
         PrimaryButton(stringResource(R.string.onboarding_pay_done)) { onFinish(draft) }
-        // Скриншот уведомления — в полном редакторе карты; у наличных обмена в банке не видно.
-        if (draft != null && draft.kind != CardKind.CASH) {
-            SecondaryButton(stringResource(R.string.onboarding_pay_screenshot)) { onOpenEditor(draft) }
-        } else {
-            Spacer(Modifier.height(48.dp))
-        }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(16.dp))
     }
     if (picker) {
         CurrencyPickerSheet(
@@ -283,10 +312,10 @@ private fun Fields(title: String, content: @Composable () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(colors.paper)
-            .padding(start = 14.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
+            .background(colors.surface)
+            .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 14.dp),
     ) {
-        Text(title, style = AppTheme.type.caption.copy(fontSize = 12.5.sp), color = colors.muted)
+        Text(title, style = AppTheme.type.caption.copy(fontSize = 12.5.sp), color = colors.muted, modifier = Modifier.padding(bottom = 8.dp))
         content()
     }
 }
@@ -326,7 +355,3 @@ private fun Note(text: String) {
     )
 }
 
-@Composable
-private fun Mark(symbol: String) {
-    Text(symbol, style = AppTheme.type.mono, color = AppTheme.colors.muted, modifier = Modifier.padding(start = 8.dp))
-}

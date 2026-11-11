@@ -17,21 +17,20 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.ui.components.AppSheet
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.wallet.Acceptance
 import app.dirhamrub.domain.wallet.CardNetwork
 import app.dirhamrub.domain.wallet.CountryGuide
-import app.dirhamrub.ui.exchange.homePerGive
 import app.dirhamrub.ui.settings.Divider
 import app.dirhamrub.ui.settings.Group
 import app.dirhamrub.ui.settings.LinkRow
 import app.dirhamrub.ui.theme.AppTheme
 
 /**
- * Шторка страны (ⓘ рядом со страной в шапке): какие карты здесь принимают, сравнение обменников,
- * шпаргалка цен. Единственный вход в эти разделы.
+ * Шторка страны (ⓘ рядом со страной в шапке): какие карты здесь принимают и шпаргалка цен. Единственный вход в эти разделы.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,7 +39,6 @@ fun PlaceSheet(
     place: Pair<String, String>,
     guide: CountryGuide?,
     onGuide: () -> Unit,
-    onExchange: () -> Unit,
     onCheat: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -50,7 +48,7 @@ fun PlaceSheet(
         Column(
             Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .fadingScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 24.dp),
         ) {
@@ -74,11 +72,6 @@ fun PlaceSheet(
                         null,
                         onClick = onGuide,
                     )
-                    first = false
-                }
-                if (wallet.spend != wallet.home) {
-                    if (!first) Divider()
-                    LinkRow(stringResource(R.string.place_exchange), stringResource(R.string.place_exchange_sub), null, onClick = onExchange)
                     first = false
                 }
                 if (!first) Divider()

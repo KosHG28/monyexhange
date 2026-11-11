@@ -38,6 +38,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -305,6 +306,7 @@ private fun CurrenciesSection(state: MainUiState, actions: SettingsActions, onPi
 private const val WIDE_DP = 380
 
 /** Шторка выбора округления (узкий экран): три пункта-кружка с примером. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RoundingSheet(current: Rounding, onPick: (Rounding) -> Unit, onDismiss: () -> Unit) {
     val colors = AppTheme.colors

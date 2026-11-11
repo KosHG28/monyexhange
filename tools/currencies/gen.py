@@ -263,6 +263,12 @@ enum class Currency(
     f.write("""
     val code: String get() = name
 
+    /**
+     * Как валюта стоит рядом с суммой: знаком — только рубль, доллар, евро и юань (их знают все),
+     * остальные — кодом («10 000 AMD»). [symbol] остаётся для поиска и распознавания ценников.
+     */
+    val mark: String get() = if (this == RUB || this == USD || this == EUR || this == CNY) symbol else code
+
     companion object {
         private val byCode = entries.associateBy { it.name }
 

@@ -114,14 +114,14 @@ internal fun BankCardView(
         stringResource(
             R.string.card_rate_short,
             Numbers.rateShort(it.homePerUnit.multiply(unit, MC)),
-            home.symbol,
-            if (unit.compareTo(BigDecimal.ONE) == 0) spend.symbol else "${Numbers.moneyWhole(unit)} ${spend.symbol}",
+            home.mark,
+            if (unit.compareTo(BigDecimal.ONE) == 0) spend.mark else "${Numbers.moneyWhole(unit)} ${spend.mark}",
         )
     } ?: stringResource(if (needsReceipt) R.string.card_need_receipt else R.string.card_no_rate)
     val vs = quote?.takeIf { it.basis != RateBasis.OFFICIAL }?.vsOfficial
     // Оценочный курс (нет чека или чистый ЦБ) — сумма со знаком «≈», как на главном.
     val approx = if (quote?.basis?.let { it.approximate || it == RateBasis.OFFICIAL } == true) "≈ " else ""
-    val sumText = sum?.let { "$approx$it ${home.symbol}" } ?: "—"
+    val sumText = sum?.let { "$approx$it ${home.mark}" } ?: "—"
     val a11y = buildString {
         append(stringResource(R.string.card_a11y, card.name, sumText, rate))
         if (quote != null) append(", ").append(basisLabel(quote))
@@ -168,7 +168,7 @@ internal fun BankCardView(
                 },
         ) {
             // Водяной знак валюты карты.
-            val mark = card.currency.symbol
+            val mark = card.currency.mark
             Text(
                 text = mark,
                 style = type.hero.copy(fontSize = if (mark.length > 2) 40.sp else 88.sp, lineHeight = 92.sp, letterSpacing = 0.sp),
@@ -202,7 +202,7 @@ internal fun BankCardView(
                     if (sum != null) {
                         if (approx.isNotEmpty()) Text(approx, style = sumStyle, color = CardPalette.onCard, maxLines = 1, softWrap = false)
                         RollingText(sum, style = sumStyle, color = CardPalette.onCard)
-                        Text(" " + home.symbol, style = sumStyle, color = CardPalette.onCard, maxLines = 1, softWrap = false)
+                        Text(" " + home.mark, style = sumStyle, color = CardPalette.onCard, maxLines = 1, softWrap = false)
                     } else {
                         Text(sumText, style = sumStyle, color = CardPalette.onCard, maxLines = 1, softWrap = false)
                     }

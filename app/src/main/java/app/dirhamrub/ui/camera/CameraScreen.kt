@@ -470,7 +470,7 @@ private fun CameraContent(
                     Numbers.money(l.value),
                     wallet.spend.code,
                     l.homeAmount?.let(Numbers::moneyWhole) ?: "—",
-                    wallet.home.symbol,
+                    wallet.home.mark,
                 )
                 with(density) {
                     Box(

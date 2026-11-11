@@ -329,7 +329,7 @@ internal fun CurrencyTile(c: Currency, selected: Boolean, wide: Boolean, modifie
     val colors = AppTheme.colors
     val type = AppTheme.type
     val shape = RoundedCornerShape(14.dp)
-    val label = if (c.symbol == c.code) c.code else "${c.code} · ${c.symbol}"
+    val label = if (c.mark == c.code) c.code else "${c.code} · ${c.mark}"
     Box(modifier) {
         Row(
             modifier = Modifier

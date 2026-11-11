@@ -152,4 +152,18 @@ class CurrencyTest {
         assertEquals(w.recent, back.recent)
         assertEquals(w.spend, back.spend)
     }
+
+    @Test
+    fun `знак у сумм только у рубля, доллара, евро и юаня`() {
+        assertEquals("₽", Currency.RUB.mark)
+        assertEquals("\$", Currency.USD.mark)
+        assertEquals("€", Currency.EUR.mark)
+        assertEquals("¥", Currency.CNY.mark)
+        assertEquals("AMD", Currency.AMD.mark)
+        assertEquals("THB", Currency.THB.mark)
+        assertEquals("JPY", Currency.JPY.mark)
+        // Знак остаётся для поиска и ценников.
+        assertEquals("֏", Currency.AMD.symbol)
+        for (c in Currency.entries) assertTrue(c.mark == c.symbol || c.mark == c.code)
+    }
 }

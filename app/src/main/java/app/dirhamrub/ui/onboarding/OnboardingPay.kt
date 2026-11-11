@@ -131,8 +131,8 @@ internal fun PayStep(
                         val price = stringResource(R.string.onboarding_pay_price)
                         val paid = stringResource(R.string.onboarding_pay_paid)
                         FieldPair(
-                            first = { m -> AmountField(price, first, { first = it }, price, m, imeAction = ImeAction.Next, trailing = { FieldSuffix(spend.symbol) }) },
-                            second = { m -> AmountField(paid, second, { second = it }, paid, m, trailing = { FieldSuffix(home.symbol) }) },
+                            first = { m -> AmountField(price, first, { first = it }, price, m, imeAction = ImeAction.Next, trailing = { FieldSuffix(spend.mark) }) },
+                            second = { m -> AmountField(paid, second, { second = it }, paid, m, trailing = { FieldSuffix(home.mark) }) },
                         )
                         Live(rate(second, first), spend, home, official?.cross(spend, home))
                     }
@@ -158,8 +158,8 @@ internal fun PayStep(
                         val sent = stringResource(R.string.onboarding_pay_sent)
                         val got = stringResource(R.string.onboarding_pay_got)
                         FieldPair(
-                            first = { m -> AmountField(sent, first, { first = it }, sent, m, imeAction = ImeAction.Next, trailing = { FieldSuffix(home.symbol) }) },
-                            second = { m -> AmountField(got, second, { second = it }, got, m, trailing = { FieldSuffix(cardCurrency.symbol) }) },
+                            first = { m -> AmountField(sent, first, { first = it }, sent, m, imeAction = ImeAction.Next, trailing = { FieldSuffix(home.mark) }) },
+                            second = { m -> AmountField(got, second, { second = it }, got, m, trailing = { FieldSuffix(cardCurrency.mark) }) },
                         )
                         Live(rate(first, second), cardCurrency, home, official?.cross(cardCurrency, home))
                     }
@@ -191,17 +191,17 @@ internal fun PayStep(
                             AmountField(
                                 received, second, { second = it }, received, m,
                                 imeAction = if (sentCurrency == home) ImeAction.Done else ImeAction.Next,
-                                trailing = { FieldSuffix(spend.symbol) },
+                                trailing = { FieldSuffix(spend.mark) },
                             )
                         },
                     )
                     if (sentCurrency != home) {
-                        val label = stringResource(R.string.receipt_bought, "1 ${sentCurrency.symbol}")
+                        val label = stringResource(R.string.receipt_bought, "1 ${sentCurrency.mark}")
                         Spacer(Modifier.height(8.dp))
                         AmountField(
                             label, bought, { bought = it }, label,
                             placeholder = official?.cross(sentCurrency, home)?.let(Numbers::rate),
-                            trailing = { FieldSuffix(home.symbol) },
+                            trailing = { FieldSuffix(home.mark) },
                         )
                     }
                     // Курс наличных в итоговой валюте: отданное за полученное × почём купили отданное.
@@ -221,9 +221,9 @@ internal fun PayStep(
                 Text(
                     stringResource(
                         R.string.onboarding_pay_now,
-                        "${Numbers.moneyWhole(amount)} ${spend.symbol}",
+                        "${Numbers.moneyWhole(amount)} ${spend.mark}",
                         if (approx) "≈" else "=",
-                        "${Numbers.moneyWhole(amount.multiply(perUnit, MC))} ${home.symbol}",
+                        "${Numbers.moneyWhole(amount.multiply(perUnit, MC))} ${home.mark}",
                     ),
                     style = type.body.copy(fontSize = 14.sp, lineHeight = 19.sp),
                     color = colors.ink,
@@ -325,10 +325,10 @@ private fun Fields(title: String, content: @Composable () -> Unit) {
 private fun Live(homePerUnit: BigDecimal?, unit: Currency, home: Currency, cbr: BigDecimal?) {
     homePerUnit ?: return
     val u = Numbers.unitFor(homePerUnit)
-    val mine = "${Numbers.moneyWhole(u)} ${unit.symbol} = ${Numbers.rate(homePerUnit.multiply(u, MC))} ${home.symbol}"
+    val mine = "${Numbers.moneyWhole(u)} ${unit.mark} = ${Numbers.rate(homePerUnit.multiply(u, MC))} ${home.mark}"
     val text = if (cbr != null && cbr.signum() > 0) {
         val pct = homePerUnit.divide(cbr, MC).subtract(BigDecimal.ONE).multiply(BigDecimal(100))
-        stringResource(R.string.onboarding_pay_live_cbr, mine, "${Numbers.rate(cbr.multiply(u, MC))} ${home.symbol}", signedPercent(pct))
+        stringResource(R.string.onboarding_pay_live_cbr, mine, "${Numbers.rate(cbr.multiply(u, MC))} ${home.mark}", signedPercent(pct))
     } else {
         stringResource(R.string.onboarding_pay_live, mine)
     }

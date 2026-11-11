@@ -288,9 +288,9 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
     val text = buildAnnotatedString {
         if (approx) withStyle(SpanStyle(color = colors.muted, fontSize = 0.6.em)) { append("≈ ") }
         append(number)
-        withStyle(SpanStyle(color = if (empty) colors.ink else colors.muted, fontSize = 0.62.em)) { append(" " + currency.symbol) }
+        withStyle(SpanStyle(color = if (empty) colors.ink else colors.muted, fontSize = 0.62.em)) { append(" " + currency.mark) }
     }
-    val a11y = stringResource(R.string.hero_a11y, (if (approx) "≈ " else "") + number, currency.symbol)
+    val a11y = stringResource(R.string.hero_a11y, (if (approx) "≈ " else "") + number, currency.mark)
     val switchLabel = stringResource(if (homeInput) R.string.hero_switch_spend else R.string.hero_switch_home, state.wallet.spend.code)
     val maxSize = if (short) 72f else 92f
     Box(
@@ -322,7 +322,7 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
                 }
                 HeroPart(number, style, size, colors.ink)
                 Spacer(Modifier.width((size * 0.12f).dp))
-                HeroPart(currency.symbol, style, size * SIGN_SCALE, if (empty) colors.ink else colors.muted)
+                HeroPart(currency.mark, style, size * SIGN_SCALE, if (empty) colors.ink else colors.muted)
             }
         }
     }
@@ -510,16 +510,16 @@ private fun PayRow(
             }?.takeIf { !isBest && it.signum() > 0 }
             sub = when {
                 isBest -> stringResource(R.string.pay_best)
-                dearer != null -> join(network, stringResource(R.string.pay_dearer, Numbers.saving(dearer) + " " + wallet.home.symbol)) ?: ""
+                dearer != null -> join(network, stringResource(R.string.pay_dearer, Numbers.saving(dearer) + " " + wallet.home.mark)) ?: ""
                 else -> network ?: ""
             }
-            right = (if (approx) "≈ " else "") + big(amount.multiply(q.homePerUnit, MC), state.settings.rounding) + " " + wallet.home.symbol
+            right = (if (approx) "≈ " else "") + big(amount.multiply(q.homePerUnit, MC), state.settings.rounding) + " " + wallet.home.mark
         }
         else -> {
             // Ничего не набрано: курс способа и когда пополняли.
             sub = join(network, lastTopUp(card)) ?: ""
             val unit = Numbers.unitFor(q.homePerUnit)
-            right = (if (approx) "≈ " else "") + Numbers.rateShort(q.homePerUnit.multiply(unit, MC)) + " " + wallet.home.symbol
+            right = (if (approx) "≈ " else "") + Numbers.rateShort(q.homePerUnit.multiply(unit, MC)) + " " + wallet.home.mark
             rightSub = Numbers.moneyWhole(unit) + " " + wallet.spend.code
         }
     }
@@ -690,7 +690,7 @@ private fun fetchedAt(at: Long): String? {
 /** «1 AMD» и «22,19 ₽»; у дешёвых валют — «100 AMD», «1 000 VND». */
 internal fun rateSides(homePerUnit: BigDecimal, spend: Currency, home: Currency): Pair<String, String> {
     val unit = Numbers.unitFor(homePerUnit)
-    return "${Numbers.moneyWhole(unit)} ${spend.code}" to "${Numbers.rateShort(homePerUnit.multiply(unit, MC))} ${home.symbol}"
+    return "${Numbers.moneyWhole(unit)} ${spend.code}" to "${Numbers.rateShort(homePerUnit.multiply(unit, MC))} ${home.mark}"
 }
 
 /** Призрачная кнопка «＋ Добавить карту или наличные» — без рамки и подложки. */

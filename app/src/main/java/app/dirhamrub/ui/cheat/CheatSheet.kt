@@ -97,7 +97,7 @@ fun CheatSheet(
                     .semantics { heading() },
             )
             Text(
-                stringResource(if (quote.viaUnionPay) R.string.cheat_subtitle_unionpay else R.string.cheat_subtitle, spend.code, home.symbol),
+                stringResource(if (quote.viaUnionPay) R.string.cheat_subtitle_unionpay else R.string.cheat_subtitle, spend.code, home.mark),
                 style = type.body,
                 color = colors.muted,
                 modifier = Modifier.cascade(cascade, 1),

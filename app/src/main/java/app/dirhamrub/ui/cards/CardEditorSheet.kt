@@ -454,7 +454,7 @@ fun CardEditorSheet(
                                         gotAtm, got, { got = it }, gotAtm, m,
                                         imeAction = ImeAction.Next,
                                         error = amountError(showErrors, got, sent),
-                                        trailing = { FieldSuffix(currency.symbol) },
+                                        trailing = { FieldSuffix(currency.mark) },
                                     )
                                 },
                                 second = { m ->
@@ -478,7 +478,7 @@ fun CardEditorSheet(
                             )
                             val transfer = draft.transfer
                             if (transfer != null) {
-                                ReceiptRate(Numbers.transferRate(transfer.got.divide(transfer.sent, MC), currency.symbol, transfer.sentCurrency.symbol))
+                                ReceiptRate(Numbers.transferRate(transfer.got.divide(transfer.sent, MC), currency.mark, transfer.sentCurrency.mark))
                                 ReceiptTypo(transfer.sent, transfer.got, official?.cross(currency, transfer.sentCurrency))
                                 // Итог в итоговой валюте — по курсу карты, с которой сняли.
                                 RateEngine.cardToHome(draft, home, official, cards)?.first?.let { perCash ->
@@ -486,8 +486,8 @@ fun CardEditorSheet(
                                     ReceiptRate(
                                         stringResource(
                                             R.string.receipt_bought_total,
-                                            "${Numbers.moneyWhole(u)} ${currency.symbol}",
-                                            "${Numbers.rate(perCash.multiply(u, MC))} ${home.symbol}",
+                                            "${Numbers.moneyWhole(u)} ${currency.mark}",
+                                            "${Numbers.rate(perCash.multiply(u, MC))} ${home.mark}",
                                         ),
                                         whole = true,
                                     )
@@ -533,14 +533,14 @@ fun CardEditorSheet(
                                 AmountField(
                                     gotLabel, got, { got = it }, gotLabel, m,
                                     error = amountError(showErrors, got, sent),
-                                    trailing = { FieldSuffix(currency.symbol) },
+                                    trailing = { FieldSuffix(currency.mark) },
                                 )
                             },
                         )
                         // Чек заполнен — курс по нему; пустой — что будет без него.
                         val transfer = draft.transfer
                         if (transfer != null) {
-                            ReceiptRate(Numbers.transferRate(transfer.got.divide(transfer.sent, MC), currency.symbol, transfer.sentCurrency.symbol))
+                            ReceiptRate(Numbers.transferRate(transfer.got.divide(transfer.sent, MC), currency.mark, transfer.sentCurrency.mark))
                             ReceiptTypo(transfer.sent, transfer.got, official?.cross(currency, transfer.sentCurrency))
                         } else {
                             Hint(stringResource(if (cash) R.string.receipt_exchange_hint else R.string.receipt_transfer_hint))
@@ -549,7 +549,7 @@ fun CardEditorSheet(
                         TransferHistory(
                             history = history,
                             mode = transferMode,
-                            cardSymbol = currency.symbol,
+                            cardSymbol = currency.mark,
                             average = draft.effectiveTransfer?.takeIf { history.isNotEmpty() && transferMode == TransferMode.AVERAGE },
                             canAddNew = transfer != null,
                             newLabel = stringResource(if (cash) R.string.exchange_new else R.string.transfer_new),
@@ -589,10 +589,10 @@ fun CardEditorSheet(
                             hint = when {
                                 draft.purchases.isEmpty() -> null
                                 q?.basis == RateBasis.UNIONPAY ->
-                                    stringResource(R.string.receipt_unionpay_hint, spend.symbol, draft.settlementCurrency.code)
+                                    stringResource(R.string.receipt_unionpay_hint, spend.mark, draft.settlementCurrency.code)
                                 q != null && q.basis == RateBasis.ESTIMATE && q.viaUnionPay ->
-                                    stringResource(R.string.receipt_estimate_hint_unionpay, spend.symbol)
-                                q?.basis == RateBasis.ESTIMATE -> stringResource(R.string.receipt_estimate_hint, spend.symbol)
+                                    stringResource(R.string.receipt_estimate_hint_unionpay, spend.mark)
+                                q?.basis == RateBasis.ESTIMATE -> stringResource(R.string.receipt_estimate_hint, spend.mark)
                                 else -> null
                             },
                             onAdd = {
@@ -612,15 +612,15 @@ fun CardEditorSheet(
                             title = stringResource(if (exact) R.string.editor_result_title else R.string.editor_result_estimate),
                             value = stringResource(
                                 if (exact) R.string.editor_result else R.string.editor_result_approx,
-                                "${Numbers.moneyWhole(unit)} ${spend.symbol}",
+                                "${Numbers.moneyWhole(unit)} ${spend.mark}",
                                 Numbers.rateShort(auto.homePerUnit.multiply(unit, MC)),
-                                home.symbol,
+                                home.mark,
                             ),
                             // Почему примерно — словами: чаще всего не указано, почём купили отданную валюту.
                             sub = when {
                                 exact -> null
                                 sentCurrency != home && boughtAt.isBlank() && draft.transfer != null && !(cash && atm) ->
-                                    stringResource(R.string.editor_result_why_bought, sentCurrency.symbol)
+                                    stringResource(R.string.editor_result_why_bought, sentCurrency.mark)
                                 else -> basisLabel(auto)
                             },
                             exact = exact,

@@ -200,10 +200,10 @@
     <string name="onboarding_how_home_text">**Один чек покупки:** 379 AED → 8 509 ₽, курс **22,45 ₽**</string>
     <string name="onboarding_how_currency">Карта в другой валюте</string>
     <string name="onboarding_how_currency_sub">доллары, евро, юани, тенге — любая</string>
-    <string name="onboarding_how_currency_text">**Два чека:** пополнение карты и покупка</string>
+    <string name="onboarding_how_currency_text">**Два чека:** пополнение и покупка, курс **22,45 ₽**</string>
     <string name="onboarding_how_cash">Наличные из обменника</string>
     <string name="onboarding_how_cash_sub">отдали рубли или доллары</string>
-    <string name="onboarding_how_cash_text">**Чек обмена;** меняли доллары — и **почём их купили**</string>
+    <string name="onboarding_how_cash_text">**Чек обмена,** а если меняли доллары — **почём их купили**. Курс **22,70 ₽**</string>
     <string name="onboarding_how_none">≈ Нет чека — считаем **по курсу ЦБ** и помечаем «≈»</string>
     <string name="onboarding_how_next">Что ещё учитываем →</string>
     <string name="onboarding_pipe_price">ценник</string>
@@ -330,8 +330,10 @@
     <string name="empty_add_receipt">Добавить чек</string>
     <string name="network_unionpay">UnionPay</string>
     <string name="network_mir">МИР</string>
-    <string name="network_visa_ru">Visa/MC российского банка</string>
-    <string name="network_visa_foreign">Visa/MC зарубежного банка</string>
+    <string name="network_visa_ru">Visa и Mastercard из РФ</string>
+    <string name="network_visa_foreign">Зарубежные Visa и Mastercard</string>
+    <string name="guide_net_visa_ru">Visa/MC из РФ</string>
+    <string name="guide_net_visa_foreign">Зарубежная Visa/MC</string>
     <string name="guide_title">%1$s: чем платить</string>
     <string name="guide_your_cards">Ваши карты здесь</string>
     <string name="guide_card_unknown">Укажите платёжную систему в карте — подскажем, примут ли её</string>
@@ -339,7 +341,6 @@
     <string name="guide_networks">Карты</string>
     <string name="guide_cash">Наличные</string>
     <string name="guide_atm">Банкоматы</string>
-    <string name="guide_exchange">Обменники</string>
     <string name="guide_tips">Советы</string>
     <string name="guide_updated">Обновлено: %1$s</string>
     <string name="guide_updated_stale">Обновлено: %1$s — давно, сведения могли устареть</string>
@@ -358,9 +359,16 @@
     <string name="transfer_remove">Удалить пополнение</string>
     <string name="transfer_new">+ Новое пополнение</string>
     <string name="cards_page_cheat_sub">Ходовые суммы по всем картам и ЦБ</string>
-    <string name="trip_guide_sub">UnionPay %1$s · МИР %2$s · обновлено %3$s</string>
-    <string name="guide_cash_other">%1$s здесь не платят — поменяйте в обменнике</string>
-    <string name="guide_cash_exchange">%1$s меняют везде; иногда принимают и напрямую</string>
+    <string name="guide_mark_yes">принимают</string>
+    <string name="guide_mark_partial">принимают не везде</string>
+    <string name="guide_mark_no">не принимают</string>
+    <string name="guide_mark_unknown">нет сведений</string>
+    <string name="trip_guide_updated">обновлено %1$s</string>
+    <string name="place_currency">%1$s (%2$s · %3$s)</string>
+    <string name="place_currency_code">%1$s (%2$s)</string>
+    <string name="guide_cash_other">Здесь не платят — поменяйте в обменнике</string>
+    <string name="guide_cash_local">Принимают везде</string>
+    <string name="guide_cash_exchange">Меняют везде; иногда принимают и напрямую</string>
     <!-- Пересчёт (главный экран) -->
 
     <!-- Карты и наличные -->

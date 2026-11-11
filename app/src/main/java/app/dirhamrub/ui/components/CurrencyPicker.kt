@@ -141,7 +141,7 @@ fun CurrencyDropdown(
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 )
             } else {
-                Text("${selected.symbol} ▾", style = type.mono, color = colors.accent, maxLines = 1, softWrap = false)
+                Text("${selected.mark} ▾", style = type.mono, color = colors.accent, maxLines = 1, softWrap = false)
             }
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {

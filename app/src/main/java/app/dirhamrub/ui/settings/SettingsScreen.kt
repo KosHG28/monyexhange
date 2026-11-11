@@ -345,7 +345,7 @@ private fun RoundingSheet(current: Rounding, onPick: (Rounding) -> Unit, onDismi
                             colors = RadioButtonDefaults.colors(selectedColor = colors.accent, unselectedColor = colors.muted),
                         )
                         Spacer(Modifier.width(12.dp))
-                        RowText(stringResource(labels[i]), Numbers.total(sample, r) + " " + Currency.RUB.symbol, Modifier.weight(1f))
+                        RowText(stringResource(labels[i]), Numbers.total(sample, r) + " " + Currency.RUB.mark, Modifier.weight(1f))
                     }
                 }
             }

@@ -199,7 +199,7 @@ internal fun TransferHistory(
             ReceiptRate(
                 stringResource(
                     R.string.transfer_average,
-                    Numbers.transferRate(average.got.divide(average.sent, MC), cardSymbol, average.sentCurrency.symbol),
+                    Numbers.transferRate(average.got.divide(average.sent, MC), cardSymbol, average.sentCurrency.mark),
                     history.size + 1,
                 ),
                 whole = true,
@@ -210,9 +210,9 @@ internal fun TransferHistory(
         for (t in history) {
             Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    RuDates.short(t.date) + " · " + Numbers.money(t.sent) + " " + t.sentCurrency.symbol + " → " +
+                    RuDates.short(t.date) + " · " + Numbers.money(t.sent) + " " + t.sentCurrency.mark + " → " +
                         Numbers.money(t.got) + " " + cardSymbol + " · " +
-                        Numbers.transferRate(t.got.divide(t.sent, MC), cardSymbol, t.sentCurrency.symbol),
+                        Numbers.transferRate(t.got.divide(t.sent, MC), cardSymbol, t.sentCurrency.mark),
                     style = type.caption,
                     color = colors.ink,
                     modifier = Modifier.weight(1f),
@@ -266,17 +266,17 @@ internal fun ScreenshotButton(result: ScanResult?, card: Currency, onClick: () -
     val message = when (result) {
         null -> null
         ScanResult.Reading -> stringResource(R.string.scan_reading)
-        ScanResult.NotFound -> stringResource(R.string.scan_not_found, card.symbol)
+        ScanResult.NotFound -> stringResource(R.string.scan_not_found, card.mark)
         is ScanResult.Found -> when (val r = result.receipt) {
             is ScannedReceipt.Purchase -> stringResource(
                 R.string.scan_purchase,
-                "${Numbers.money(r.paid)} ${card.symbol}",
-                "${Numbers.money(r.price)} ${r.spend.symbol}",
+                "${Numbers.money(r.paid)} ${card.mark}",
+                "${Numbers.money(r.price)} ${r.spend.mark}",
             )
             is ScannedReceipt.Transfer -> stringResource(
                 R.string.scan_transfer,
-                "${Numbers.money(r.sent)} ${r.sentCurrency.symbol}",
-                "${Numbers.money(r.got)} ${card.symbol}",
+                "${Numbers.money(r.sent)} ${r.sentCurrency.mark}",
+                "${Numbers.money(r.got)} ${card.mark}",
             )
         }
     }
@@ -372,7 +372,7 @@ internal fun ManualRatePanel(
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                stringResource(R.string.editor_manual_unit, "${Numbers.moneyWhole(unit)} ${spend.symbol}"),
+                stringResource(R.string.editor_manual_unit, "${Numbers.moneyWhole(unit)} ${spend.mark}"),
                 style = type.body.copy(fontSize = 17.sp),
                 color = colors.muted,
             )
@@ -383,7 +383,7 @@ internal fun ManualRatePanel(
                 onValueChange = onValueChange,
                 description = stringResource(R.string.editor_manual_toggle),
                 placeholder = auto?.let { Numbers.rate(it.multiply(unit, MC)) },
-                trailing = { FieldSuffix(home.symbol) },
+                trailing = { FieldSuffix(home.mark) },
                 big = true,
                 modifier = Modifier.weight(1f),
             )
@@ -439,14 +439,14 @@ internal fun BoughtPlate(
     transfer: TransferReceipt?,
 ) {
     SubTitle(stringResource(R.string.receipt_bought_title, sentCurrency.shortRu.lowercase()))
-    val label = stringResource(R.string.receipt_bought, "${Numbers.moneyWhole(unit)} ${sentCurrency.symbol}")
+    val label = stringResource(R.string.receipt_bought, "${Numbers.moneyWhole(unit)} ${sentCurrency.mark}")
     AmountField(
         label = label,
         value = value,
         onValueChange = onValueChange,
         description = label,
         placeholder = official?.let { Numbers.rate(it.multiply(unit, MC)) },
-        trailing = { FieldSuffix(home.symbol) },
+        trailing = { FieldSuffix(home.mark) },
     )
     // Итог здесь не повторяем — он один, в плашке ниже.
     Hint(stringResource(if (value.isBlank()) R.string.receipt_bought_hint_empty else R.string.receipt_bought_hint))
@@ -499,7 +499,7 @@ internal fun CardDropdown(selected: BankCard?, cards: List<BankCard>, onSelect: 
                 .padding(horizontal = 6.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text("${selected?.currency?.symbol ?: "?"} ▾", style = AppTheme.type.mono, color = AppTheme.colors.accent, maxLines = 1, softWrap = false)
+            Text("${selected?.currency?.mark ?: "?"} ▾", style = AppTheme.type.mono, color = AppTheme.colors.accent, maxLines = 1, softWrap = false)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             for (c in cards) {

@@ -103,6 +103,10 @@ shot 27-onb-5-pay --es screen onboarding --ei step 4
 shot 30-guide --es screen guide
 shot 31-cards --es screen money
 shot 35-place --es screen place
+# Армения: строка валюты страны (AMD · ֏), значки справочника, суммы с кодом.
+shot 39-place-amd --es spend AMD --es screen place
+shot 40-guide-amd --es spend AMD --es screen guide
+shot 41-main-amd --es spend AMD
 # Пересчёт: выбран не лучший способ (карта в юанях), ввод в рублях, кошелёк без карт.
 shot 33-main-other --es card demo-cny
 shot 34-main-nocards --ez nocards true

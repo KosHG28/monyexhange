@@ -1,6 +1,7 @@
 package app.dirhamrub.ui.guide
 
 import android.content.Intent
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -17,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -26,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -54,21 +58,28 @@ fun countryName(iso: String): String = Countries.byIso(iso)?.nameRu ?: iso
 
 fun countryFlag(iso: String): String = Countries.byIso(iso)?.flag.orEmpty()
 
+/** Цвет значка «принимают ли»: зелёный — да, жёлтый — не везде, красный — нет (синий — только для действий). */
 @Composable
-private fun acceptanceColor(a: Acceptance?): Color = when (a) {
+internal fun acceptanceColor(a: Acceptance?): Color = when (a) {
     Acceptance.YES -> AppTheme.colors.good
     Acceptance.PARTIAL -> AppTheme.colors.warn
-    Acceptance.NO -> AppTheme.colors.accent
+    Acceptance.NO -> AppTheme.colors.danger
     null -> AppTheme.colors.muted
 }
 
-private fun acceptanceMark(a: Acceptance?): String = when (a) {
-    Acceptance.YES -> "✓"
-    Acceptance.PARTIAL -> "≈"
-    Acceptance.NO -> "✗"
-    null -> "?"
+/** Значок «принимают ли»: ✓, ≈, ✕ или ? — иконкой, а не символом шрифта. */
+@DrawableRes
+internal fun acceptanceIcon(a: Acceptance?): Int = when (a) {
+    Acceptance.YES -> R.drawable.ic_mark_yes
+    Acceptance.PARTIAL -> R.drawable.ic_mark_partial
+    Acceptance.NO -> R.drawable.ic_mark_no
+    null -> R.drawable.ic_mark_unknown
 }
 
+/** «Карты российских банков не работают» → «карты российских банков не работают»: после «·» в подписи. */
+private fun lower(text: String): String = text.replaceFirstChar { it.lowercase() }
+
+/** Название платёжной системы в разделе «Карты»: «Visa и Mastercard из РФ». */
 @Composable
 private fun networkName(n: CardNetwork): String = stringResource(
     when (n) {
@@ -79,9 +90,19 @@ private fun networkName(n: CardNetwork): String = stringResource(
     },
 )
 
+/** Коротко — в подписи вашей карты: «Зарубежная Visa/MC · принимают почти везде». */
+@Composable
+private fun networkShort(n: CardNetwork): String = stringResource(
+    when (n) {
+        CardNetwork.UNIONPAY -> R.string.network_unionpay
+        CardNetwork.MIR -> R.string.network_mir
+        CardNetwork.VISA_MC_RU -> R.string.guide_net_visa_ru
+        CardNetwork.VISA_MC_FOREIGN -> R.string.guide_net_visa_foreign
+    },
+)
+
 /**
- * Шторка «Чем платить в стране»: ваши карты здесь, платёжные системы, наличные, банкоматы, обменники,
- * советы; внизу — дата обновления и «Сообщить о неточности» (GitHub с готовым текстом).
+ * Шторка «Чем платить в стране»: ваши карты здесь, платёжные системы, наличные, банкоматы, советы; внизу — дата обновления и «Сообщить о неточности» (GitHub с готовым текстом).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,17 +131,24 @@ fun CountryGuideSheet(guide: CountryGuide, cards: List<BankCard>, onDismiss: () 
                     cards.forEachIndexed { i, card ->
                         if (i > 0) Divider()
                         val verdict = guide.verdict(card, local)
+                        val network = card.paymentNetwork
+                        val note = network?.let { guide.networks[it]?.text }
+                        // Наличные в чужой валюте здесь не платят — их меняют: значок обмена, а не «?».
+                        val foreignCash = card.kind == CardKind.CASH && verdict == null
                         val sub = when {
-                            // Наличные в чужой валюте здесь не платят — их меняют.
-                            card.kind == CardKind.CASH && verdict == null -> stringResource(R.string.guide_cash_other, card.currency.code)
-                            card.kind == CardKind.CASH && verdict == Acceptance.PARTIAL -> stringResource(R.string.guide_cash_exchange, card.currency.code)
-                            card.kind == CardKind.CASH -> ""
-                            verdict == null && card.paymentNetwork == null -> stringResource(R.string.guide_card_unknown)
-                            verdict == null -> stringResource(R.string.guide_card_no_data)
-                            else -> card.paymentNetwork?.let { guide.networks[it]?.text }.orEmpty()
+                            foreignCash -> stringResource(R.string.guide_cash_other)
+                            card.kind == CardKind.CASH && verdict == Acceptance.PARTIAL -> stringResource(R.string.guide_cash_exchange)
+                            card.kind == CardKind.CASH -> stringResource(R.string.guide_cash_local)
+                            network == null -> stringResource(R.string.guide_card_unknown)
+                            note == null -> networkShort(network) + " · " + stringResource(R.string.guide_card_no_data)
+                            else -> networkShort(network) + " · " + lower(note)
                         }
-                        val label = card.name + (card.paymentNetwork?.let { " · " + networkName(it) } ?: "")
-                        Line(acceptanceMark(verdict), acceptanceColor(verdict), label, sub)
+                        Line(
+                            if (foreignCash) R.drawable.ic_exchange else acceptanceIcon(verdict),
+                            acceptanceColor(verdict),
+                            card.name,
+                            sub,
+                        )
                     }
                 }
             }
@@ -129,13 +157,13 @@ fun CountryGuideSheet(guide: CountryGuide, cards: List<BankCard>, onDismiss: () 
                 CardNetwork.entries.filter { it in guide.networks }.forEachIndexed { i, n ->
                     if (i > 0) Divider()
                     val note = guide.networks.getValue(n)
-                    Line(acceptanceMark(note.acceptance), acceptanceColor(note.acceptance), networkName(n), note.text)
+                    Line(acceptanceIcon(note.acceptance), acceptanceColor(note.acceptance), networkName(n), note.text)
                 }
             }
-            Items(stringResource(R.string.guide_cash), "$", guide.cash)
-            Items(stringResource(R.string.guide_atm), "🏧", guide.atm)
-            Items(stringResource(R.string.guide_exchange), "!", guide.exchange)
-            Items(stringResource(R.string.guide_tips), "💡", guide.tips)
+            // Наличные — зелёной купюрой (без знаков валют), банкоматы — серым, советы — жёлтой лампочкой.
+            Items(stringResource(R.string.guide_cash), R.drawable.ic_cash, colors.good, guide.cash)
+            Items(stringResource(R.string.guide_atm), R.drawable.ic_atm, colors.muted, guide.atm)
+            Items(stringResource(R.string.guide_tips), R.drawable.ic_tip, colors.warn, guide.tips)
             Spacer(Modifier.height(12.dp))
             val stale = guide.isStale(LocalDate.now())
             Text(
@@ -176,13 +204,13 @@ fun CountryGuideSheet(guide: CountryGuide, cards: List<BankCard>, onDismiss: () 
 private const val REPORT_URL = "https://github.com/KosHG28/monyexhange/issues/new"
 
 @Composable
-private fun Items(title: String, mark: String, items: List<GuideItem>) {
+private fun Items(title: String, @DrawableRes icon: Int, tint: Color, items: List<GuideItem>) {
     if (items.isEmpty()) return
     Section(title)
     Group {
         items.forEachIndexed { i, item ->
             if (i > 0) Divider()
-            Line(mark, AppTheme.colors.warn, item.title, item.text)
+            Line(icon, tint, item.title, item.text)
         }
     }
 }
@@ -193,7 +221,8 @@ private fun Section(text: String) {
         text.uppercase(),
         style = AppTheme.type.label.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp),
         color = AppTheme.colors.muted,
-        modifier = Modifier.padding(start = 4.dp, top = 16.dp, bottom = 6.dp),
+        // Заголовок отделён от карточки воздухом: 12 dp снизу.
+        modifier = Modifier.padding(start = 4.dp, top = 18.dp, bottom = 12.dp),
     )
 }
 
@@ -207,19 +236,26 @@ private fun Group(content: @Composable () -> Unit) {
     ) { content() }
 }
 
+/** Разделитель от края текста: колонка значков остаётся чистой. */
 @Composable
-private fun Divider() = HorizontalDivider(color = AppTheme.colors.line)
+private fun Divider() = HorizontalDivider(color = AppTheme.colors.line, modifier = Modifier.padding(start = LINE_PAD + ICON_COLUMN))
+
+private val LINE_PAD = 12.dp
+private val ICON_COLUMN = 36.dp
 
 @Composable
-private fun Line(mark: String, markColor: Color, title: String, text: String) {
+private fun Line(@DrawableRes icon: Int, tint: Color, title: String, text: String) {
     val type = AppTheme.type
     Row(
         Modifier
             .fillMaxWidth()
             .semantics(mergeDescendants = true) { }
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = LINE_PAD, vertical = 11.dp),
     ) {
-        Text(mark, style = type.bodyStrong, color = markColor, modifier = Modifier.width(24.dp))
+        // Значок — к первой строке заголовка; смысл несут заголовок и подпись, TalkBack их и читает.
+        Box(Modifier.width(ICON_COLUMN).padding(top = 1.dp)) {
+            Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+        }
         Column(Modifier.weight(1f)) {
             Text(title, style = type.body, color = AppTheme.colors.ink)
             if (text.isNotEmpty()) Text(text, style = type.caption, color = AppTheme.colors.muted)

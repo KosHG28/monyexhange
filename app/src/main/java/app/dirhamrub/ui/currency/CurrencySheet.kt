@@ -366,8 +366,8 @@ private fun LazyListScope.homeItems(
     }
 }
 
-/** «IDR · Rp» или просто «AED», если знак — это код. */
-internal fun label(c: Currency): String = if (c.symbol == c.code) c.code else "${c.code} · ${c.symbol}"
+/** «USD · $» у валют со знаком в суммах (рубль, доллар, евро, юань), у остальных — только код: «AMD». */
+internal fun label(c: Currency): String = if (c.mark == c.code) c.code else "${c.code} · ${c.mark}"
 
 /**
  * «10 000 Rp = 57,69 ₽» по курсу ЦБ, «100 Rs ≈ 24,65 ₽» — по справочному курсу UnionPay;
@@ -378,7 +378,7 @@ internal fun rateText(c: Currency, home: Currency, official: OfficialRates?): St
     val rate = official.cross(c, home) ?: return null
     val unit = Numbers.unitFor(rate)
     val sign = if (official.viaUnionPay(c, home)) "≈" else "="
-    return "${Numbers.moneyWhole(unit)} ${c.symbol} $sign ${Numbers.rateShort(rate.multiply(unit, MC))} ${home.symbol}"
+    return "${Numbers.moneyWhole(unit)} ${c.mark} $sign ${Numbers.rateShort(rate.multiply(unit, MC))} ${home.mark}"
 }
 
 /** Курса нет: валюты нет ни в известном списке ЦБ, ни в загруженных курсах ЦБ, ни у UnionPay. */

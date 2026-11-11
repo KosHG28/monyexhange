@@ -197,7 +197,7 @@ class PricePipeline(private val metrics: LabelMetrics) {
             if (labels.size >= MAX_LABELS) break
             val focused = t.id == focusId
             val homeAmount = rate?.let { t.value.multiply(it, MC) }
-            val amount = homeAmount?.let { "${Numbers.cheat(it)} ${home.symbol}" } ?: "${Numbers.money(t.value)} ${spend.symbol}"
+            val amount = homeAmount?.let { "${Numbers.cheat(it)} ${home.mark}" } ?: "${Numbers.money(t.value)} ${spend.mark}"
             val text = when {
                 t.isOld -> "было $amount"
                 !t.confident -> "$amount?"
@@ -210,7 +210,7 @@ class PricePipeline(private val metrics: LabelMetrics) {
             // Вписываем только уверенные цены с пересчётом: догадку, выглядящую как настоящая цена, не рисуем.
             if (embedded && t.confident && homeAmount != null) {
                 // Вписанная сумма появляется своей анимацией (проявляется слева направо) — без общего затухания.
-                val label = embeddedLabel(t, focused, alpha, first, "${Numbers.cheat(homeAmount)} ${home.symbol}", homeAmount, official)
+                val label = embeddedLabel(t, focused, alpha, first, "${Numbers.cheat(homeAmount)} ${home.mark}", homeAmount, official)
                 if (label != null) {
                     labels += label
                     continue

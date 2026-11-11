@@ -150,7 +150,7 @@ private fun ExampleRow(style: CardStyle?, name: String, sub: String, rate: BigDe
 internal fun HowPage(home: Currency) {
     Title(stringResource(R.string.onboarding_how_title))
     Lead(stringResource(R.string.onboarding_how_lead))
-    val homeSym = home.symbol
+    val homeSym = home.mark
     WayCard(
         icon = "💳",
         title = homeCardName(home),
@@ -380,9 +380,9 @@ internal fun CurrenciesPage(
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(stringResource(R.string.onboarding_cur_preview, "${Numbers.moneyWhole(amount)} ${spend.symbol}"), style = type.body, color = colors.muted, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.onboarding_cur_preview, "${Numbers.moneyWhole(amount)} ${spend.mark}"), style = type.body, color = colors.muted, modifier = Modifier.weight(1f))
                 Text(
-                    "≈ ${Numbers.moneyWhole(amount.multiply(rate, MC))} ${home.symbol}",
+                    "≈ ${Numbers.moneyWhole(amount.multiply(rate, MC))} ${home.mark}",
                     style = type.number.copy(fontSize = 20.sp),
                     color = colors.ink,
                     textAlign = TextAlign.End,

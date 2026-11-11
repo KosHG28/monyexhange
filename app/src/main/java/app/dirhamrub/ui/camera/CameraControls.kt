@@ -301,13 +301,13 @@ internal fun BottomStrip(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        stringResource(R.string.camera_basket, basket.size, Numbers.money(total), spend.symbol),
+                        stringResource(R.string.camera_basket, basket.size, Numbers.money(total), spend.mark),
                         style = type.label,
                         color = colors.muted,
                         maxLines = 1,
                     )
                     Text(
-                        stringResource(R.string.camera_basket_total, homeTotal?.let(Numbers::moneyWhole) ?: "—", home.symbol),
+                        stringResource(R.string.camera_basket_total, homeTotal?.let(Numbers::moneyWhole) ?: "—", home.mark),
                         style = type.number.copy(fontSize = 20.sp, lineHeight = 26.sp),
                         color = colors.ink,
                         maxLines = 1,

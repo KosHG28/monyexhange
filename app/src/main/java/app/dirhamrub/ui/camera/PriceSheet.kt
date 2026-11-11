@@ -61,7 +61,7 @@ fun PriceSheet(
         ) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    text = "${Numbers.money(amount)} ${spend.symbol}",
+                    text = "${Numbers.money(amount)} ${spend.mark}",
                     style = type.hero.copy(fontSize = 34.sp, lineHeight = 40.sp),
                     color = if (isOld) colors.muted else colors.ink,
                     textDecoration = if (isOld) TextDecoration.LineThrough else null,
@@ -91,7 +91,7 @@ fun PriceSheet(
                     Column(Modifier.weight(1f)) {
                         Text(q.card.name, style = type.label, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
-                            "${Numbers.money(amount.multiply(q.cardPerUnit, MC))} ${q.card.currency.symbol} · ${basisLabel(q)}",
+                            "${Numbers.money(amount.multiply(q.cardPerUnit, MC))} ${q.card.currency.mark} · ${basisLabel(q)}",
                             style = type.mono.copy(fontSize = 12.sp),
                             color = colors.muted,
                             maxLines = 1,
@@ -99,7 +99,7 @@ fun PriceSheet(
                         )
                     }
                     Text(
-                        "${Numbers.money(amount.multiply(q.homePerUnit, MC))} ${home.symbol}",
+                        "${Numbers.money(amount.multiply(q.homePerUnit, MC))} ${home.mark}",
                         style = if (isSelected) type.number else type.monoStrong.copy(fontSize = 18.sp),
                         color = if (isSelected) colors.ink else colors.muted,
                     )
@@ -118,7 +118,7 @@ fun PriceSheet(
                         color = colors.muted,
                         modifier = Modifier.weight(1f),
                     )
-                    Text("${Numbers.money(amount.multiply(o, MC))} ${home.symbol}", style = type.mono, color = colors.muted)
+                    Text("${Numbers.money(amount.multiply(o, MC))} ${home.mark}", style = type.mono, color = colors.muted)
                 }
             }
             Spacer(Modifier.height(16.dp))

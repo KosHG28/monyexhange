@@ -154,7 +154,7 @@ private fun CardRow(state: MainUiState, card: BankCard, q: CardQuote?, onClick: 
         stringResource(
             R.string.money_rate,
             "${Numbers.moneyWhole(unit)} ${wallet.spend.code}",
-            (if (exact) "" else "≈ ") + "${Numbers.rateShort(it.homePerUnit.multiply(unit, MC))} ${wallet.home.symbol}",
+            (if (exact) "" else "≈ ") + "${Numbers.rateShort(it.homePerUnit.multiply(unit, MC))} ${wallet.home.mark}",
         )
     }
     Row(

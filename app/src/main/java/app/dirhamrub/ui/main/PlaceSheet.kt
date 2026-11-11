@@ -1,6 +1,20 @@
 package app.dirhamrub.ui.main
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import app.dirhamrub.ui.guide.acceptanceColor
+import app.dirhamrub.ui.guide.acceptanceIcon
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -57,33 +71,79 @@ fun PlaceSheet(
                 style = AppTheme.type.title.copy(fontSize = 20.sp),
                 color = colors.ink,
                 modifier = Modifier
-                    .padding(start = 4.dp, bottom = 12.dp)
+                    .padding(start = 4.dp)
                     .semantics { heading() },
             )
-            // Только текст и «›»: какие карты принимают, обменники, шпаргалка. Смена страны — касанием страны в шапке.
+            // Валюта страны: название, код и знак — по нему узнают цены на ценниках («Армянский драм (AMD · ֏)»).
+            val c = wallet.spend
+            Text(
+                if (c.symbol == c.code) {
+                    stringResource(R.string.place_currency_code, c.nameRu, c.code)
+                } else {
+                    stringResource(R.string.place_currency, c.nameRu, c.code, c.symbol)
+                },
+                style = AppTheme.type.body.copy(fontSize = 13.5.sp),
+                color = colors.muted,
+                modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 14.dp),
+            )
+            // Только текст и «›»: какие карты принимают, шпаргалка. Смена страны — касанием страны в шапке.
             Group {
-                var first = true
                 if (guide != null) {
-                    val up = guide.networks[CardNetwork.UNIONPAY]?.acceptance
-                    val mir = guide.networks[CardNetwork.MIR]?.acceptance
-                    LinkRow(
-                        stringResource(R.string.money_guide),
-                        stringResource(R.string.trip_guide_sub, mark(up), mark(mir), RuDates.short(guide.updated)),
-                        null,
-                        onClick = onGuide,
-                    )
-                    first = false
+                    GuideRow(guide, onGuide)
+                    Divider()
                 }
-                if (!first) Divider()
                 LinkRow(stringResource(R.string.money_cheat), stringResource(R.string.cards_page_cheat_sub), null, onClick = onCheat)
             }
         }
     }
 }
 
-private fun mark(a: Acceptance?): String = when (a) {
-    Acceptance.YES -> "✓"
-    Acceptance.PARTIAL -> "≈"
-    Acceptance.NO -> "✗"
-    null -> "?"
+/** «Какие карты здесь принимают» и под ним «UnionPay ≈ · МИР ✕ · обновлено 10 ноя» — значки цветом, как в справочнике. */
+@Composable
+private fun GuideRow(guide: CountryGuide, onClick: () -> Unit) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    val up = guide.networks[CardNetwork.UNIONPAY]?.acceptance
+    val mir = guide.networks[CardNetwork.MIR]?.acceptance
+    val updated = stringResource(R.string.trip_guide_updated, RuDates.short(guide.updated))
+    val title = stringResource(R.string.money_guide)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = type.body, color = colors.ink)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val sub = type.caption.copy(color = colors.muted)
+                Text(stringResource(R.string.network_unionpay) + " ", style = sub, maxLines = 1)
+                Mark(up)
+                Text(" · " + stringResource(R.string.network_mir) + " ", style = sub, maxLines = 1)
+                Mark(mir)
+                Text(" · $updated", style = sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Spacer(Modifier.width(6.dp))
+        Text("›", style = type.title.copy(fontWeight = FontWeight.Normal), color = colors.muted)
+    }
+}
+
+@Composable
+private fun Mark(a: Acceptance?) {
+    Icon(
+        painterResource(acceptanceIcon(a)),
+        contentDescription = stringResource(
+            when (a) {
+                Acceptance.YES -> R.string.guide_mark_yes
+                Acceptance.PARTIAL -> R.string.guide_mark_partial
+                Acceptance.NO -> R.string.guide_mark_no
+                null -> R.string.guide_mark_unknown
+            },
+        ),
+        tint = acceptanceColor(a),
+        modifier = Modifier.size(14.dp),
+    )
 }

@@ -76,12 +76,12 @@ internal fun FocusCard(
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    val price = "${Numbers.money(info.value)} ${spend.symbol}" + if (info.unsure) "?" else ""
+    val price = "${Numbers.money(info.value)} ${spend.mark}" + if (info.unsure) "?" else ""
     val head = (if (info.isOld) stringResource(R.string.camera_focus_old, price) else price) +
         (cardName?.let { " · $it" } ?: "")
     // «≈» — у оценки: курс без чека покупки в валюте трат, по ЦБ, или сама цена — догадка.
     val exact = !info.unsure && (cardQuote?.basis == RateBasis.RECEIPTS || cardQuote?.basis == RateBasis.MANUAL)
-    val homeText = info.homeAmount?.let { (if (exact) "" else "≈ ") + "${Numbers.cheat(it)} ${home.symbol}" } ?: "—"
+    val homeText = info.homeAmount?.let { (if (exact) "" else "≈ ") + "${Numbers.cheat(it)} ${home.mark}" } ?: "—"
     val details = buildAnnotatedString {
         if (cardQuote != null) {
             append(basisShort(cardQuote))
@@ -102,7 +102,7 @@ internal fun FocusCard(
         }
         info.officialAmount?.let {
             append(if (length > 0) " · " else "")
-            append(stringResource(if (viaUnionPay) R.string.camera_focus_unionpay else R.string.camera_focus_cbr, Numbers.cheat(it), home.symbol))
+            append(stringResource(if (viaUnionPay) R.string.camera_focus_unionpay else R.string.camera_focus_cbr, Numbers.cheat(it), home.mark))
         }
     }
     val open = stringResource(R.string.camera_focus_open)
@@ -127,7 +127,7 @@ internal fun FocusCard(
                 } else {
                     if (!exact) Text("≈ ", style = amountStyle, color = colors.ink, maxLines = 1, softWrap = false)
                     RollingText(Numbers.cheat(amount), style = amountStyle, color = colors.ink)
-                    Text(" " + home.symbol, style = amountStyle, color = colors.ink, maxLines = 1, softWrap = false)
+                    Text(" " + home.mark, style = amountStyle, color = colors.ink, maxLines = 1, softWrap = false)
                 }
             }
             val add = stringResource(R.string.camera_focus_add)
@@ -166,7 +166,7 @@ internal fun FocusComparison(value: BigDecimal, home: Currency, c: CardCompariso
     val dot = CardPalette.style(other.card).start
     HorizontalDivider(color = colors.line, modifier = Modifier.padding(top = 8.dp, end = 8.dp))
     if (c.selectedIsBest) {
-        val otherAmount = "${Numbers.cheat(value.multiply(other.homePerUnit, MC))} ${home.symbol}"
+        val otherAmount = "${Numbers.cheat(value.multiply(other.homePerUnit, MC))} ${home.mark}"
         Text(
             text = buildAnnotatedString {
                 withStyle(SpanStyle(color = colors.good, fontWeight = FontWeight.SemiBold)) { append("✓ ") }
@@ -183,8 +183,8 @@ internal fun FocusComparison(value: BigDecimal, home: Currency, c: CardCompariso
         )
     } else {
         val diff = (if (c.isExact) "" else "≈ ") + Numbers.saving(c.difference(value))
-        val text = stringResource(R.string.camera_focus_cheaper, other.card.name, diff, home.symbol)
-        val a11y = stringResource(R.string.camera_focus_cheaper_a11y, other.card.name, diff, home.symbol)
+        val text = stringResource(R.string.camera_focus_cheaper, other.card.name, diff, home.mark)
+        val a11y = stringResource(R.string.camera_focus_cheaper_a11y, other.card.name, diff, home.mark)
         Row(
             modifier = Modifier
                 .fillMaxWidth()

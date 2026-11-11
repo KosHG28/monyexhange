@@ -74,7 +74,8 @@ class WalletCodecTest {
         assertEquals(listOf(Currency.IDR, Currency.AED), w.recent)
         // Тратить можно в любой валюте, и в рублях тоже (поездка по России).
         assertEquals(Currency.RUB, WalletCodec.decode("spend=RUB")!!.spend)
-        assertEquals("b", w.selectedId)
+        // Выбранной карты нет среди уцелевших — автовыбор.
+        assertNull(w.selectedId)
         assertNull(WalletCodec.decodeRates("date=oops"))
     }
 

@@ -31,8 +31,6 @@ data class AppSettings(
     val dynamicColor: Boolean = false,
     /** Вибрация при нажатии клавиш калькулятора. */
     val keyHaptics: Boolean = true,
-    /** Быстрые суммы (5 · 10 · 50 · 100…) над клавиатурой. */
-    val showChips: Boolean = false,
 )
 
 /** Когда скачивать курсы: по настройке [RatesUpdate], поводу и времени прошлой загрузки. */

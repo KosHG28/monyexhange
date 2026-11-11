@@ -4,7 +4,6 @@
     <string name="save">Сохранить</string>
 
     <!-- Шапка и валюты -->
-    <string name="currency_button_a11y">Траты в: %1$s, итог в: %2$s. Сменить валюты</string>
     <string name="currency_sheet_spend">Где тратите</string>
     <string name="currency_sheet_home">Итог считать в</string>
     <string name="currency_sheet_home_hint">В этой валюте — крупная сумма и курс карт</string>
@@ -43,28 +42,18 @@
     <string name="card_basis_manual">вручную</string>
     <string name="card_no_rate">нет курса</string>
     <string name="card_need_receipt">нужен чек</string>
-    <string name="card_best_a11y">Самая выгодная карта, дешевле на %1$s %%</string>
     <string name="card_edit_a11y">Изменить карту</string>
     <string name="percent_value">%1$s %%</string>
     <string name="card_add">Добавить карту</string>
-    <string name="card_add_hint">Добавьте свою карту и чеки — посчитаем ваш реальный курс. Пока считаем по курсу ЦБ.</string>
     <string name="card_default_name">Карта %1$s</string>
     <string name="card_a11y">%1$s: покупка %2$s, курс %3$s</string>
 
     <!-- Главный экран -->
-    <string name="result_a11y">Итого %1$s</string>
     <string name="stale_receipt">Чек от %1$s · ЦБ с тех пор %2$s %%</string>
     <string name="stale_receipt_action">" · обновить ›"</string>
     <string name="stale_receipt_a11y">Чек от %1$s устарел: курс ЦБ с тех пор изменился на %2$s %%. Открыть карту, чтобы обновить чек</string>
     <string name="add_receipt">" · добавить чек ›"</string>
     <string name="add_receipt_a11y">Добавить чек покупки, %1$s — курс станет точным</string>
-    <string name="compare_amount">%1$s %2$s (%3$s %%)</string>
-    <string name="compare_percent">%1$s %%</string>
-    <string name="compare_best">На %1$s дешевле, чем «%2$s»</string>
-    <string name="compare_other">Дешевле на %1$s — «%2$s» ›</string>
-    <string name="compare_other_a11y">%1$s: дешевле на %2$s. Выбрать эту карту</string>
-    <string name="card_next">Следующая карта</string>
-    <string name="card_prev">Предыдущая карта</string>
     <string name="result_no_rate">Нет курса: добавьте карту или обновите курсы ЦБ</string>
     <string name="result_no_cbr">У ЦБ нет курса %1$s — нужен чек покупки</string>
     <string name="result_no_ref">Нет курса %1$s ни у ЦБ, ни у UnionPay — нужен чек покупки</string>
@@ -82,26 +71,17 @@
     <string name="official_no_currency">У ЦБ нет курса %1$s · считаем по вашим чекам</string>
     <string name="official_no_ref">Нет курса %1$s у ЦБ и UnionPay · считаем по чекам</string>
     <string name="official_refresh">Обновить курсы ЦБ</string>
-    <string name="line_a11y">%1$s: %2$s %3$s</string>
-    <string name="input_a11y">Ввод в валюте %1$s: %2$s %3$s</string>
-    <string name="input_switch">Валюта ввода</string>
-    <string name="input_here_a11y">Вводить в: %1$s</string>
-    <string name="input_here">Вводить в этой валюте</string>
-    <string name="debit_card">Спишется с карты</string>
-    <string name="debit_cash">Отдадите наличными</string>
     <string name="cash_add_exchange">" · указать обмен ›"</string>
     <string name="cash_add_bought">" · почём купили %1$s ›"</string>
     <string name="cash_edit_a11y">Открыть «%1$s», чтобы указать обмен</string>
     <string name="basis_exchange">по обмену %1$s: %2$s → %3$s</string>
     <string name="basis_atm">из банкомата %1$s: %2$s за %3$s</string>
-    <string name="chip_a11y">%1$s %2$s</string>
-    <string name="chip_metro_a11y">22 дирхама, проезд в метро</string>
     <string name="key_backspace">Стереть. Долгое нажатие — очистить</string>
     <string name="key_plus">Плюс, сложить покупки. Долгое нажатие — равно</string>
     <string name="key_times">Умножить: несколько одинаковых покупок</string>
     <string name="key_equals">Равно</string>
     <string name="key_comma">Запятая</string>
-    <string name="price_tag_button">Ценник</string>
+    <string name="price_tag_button">Камера</string>
     <string name="price_tag_a11y">Ценник: камера с суммами поверх цен</string>
 
     <!-- Шпаргалка -->
@@ -276,11 +256,11 @@
     <string name="onboarding_cur_title">Откуда и куда считаем</string>
     <string name="onboarding_cur_spend">Где тратите — валюта ценников</string>
     <string name="onboarding_cur_home">Итог считать в — ваши деньги</string>
-    <string name="onboarding_cur_home_hint">В этой валюте — крупная сумма на главном экране: сколько ваших денег уйдёт.</string>
+    <string name="onboarding_cur_home_hint">В этой валюте — нижнее поле пересчёта: сколько ваших денег уйдёт.</string>
     <string name="onboarding_cur_preview">Ценник %1$s</string>
-    <string name="onboarding_cur_foot">Пока без карт — по курсу ЦБ. Сменить валюты можно в любой момент в шапке главного экрана.</string>
+    <string name="onboarding_cur_foot">Пока без карт — по курсу ЦБ. Сменить валюту можно в любой момент: коснитесь её названия в поле.</string>
     <string name="onboarding_pay_title">Чем будете платить?</string>
-    <string name="onboarding_pay_lead">Можно добавить несколько — подскажем, чем дешевле. Остальные — потом, кнопкой «+» в ряду карт.</string>
+    <string name="onboarding_pay_lead">Можно добавить несколько — подскажем, чем дешевле. Остальные — потом, в «Моих деньгах».</string>
     <string name="onboarding_pay_currency">В другой валюте</string>
     <string name="onboarding_pay_cash">Наличные</string>
     <string name="onboarding_pay_nothing_short">Пока ничего</string>
@@ -299,7 +279,7 @@
     <string name="onboarding_pay_live_cbr">✓ %1$s · ЦБ %2$s (%3$s %%)</string>
     <string name="onboarding_pay_now">Уже сейчас: %1$s %2$s %3$s</string>
     <string name="onboarding_pay_no_receipt">Чека ещё нет — не страшно: до первой покупки посчитаем по курсу ЦБ с пометкой «≈».</string>
-    <string name="onboarding_pay_nothing">Считаем по курсу ЦБ с пометкой «≈». Карту или наличные добавите потом — кнопка «+» в ряду карт.</string>
+    <string name="onboarding_pay_nothing">Считаем по курсу ЦБ с пометкой «≈». Карту или наличные добавите потом — в «Моих деньгах».</string>
     <string name="onboarding_pay_done">Готово</string>
     <string name="onboarding_pay_screenshot">Заполнить из скриншота банка</string>
     <string name="onboarding_step">Шаг %1$d из %2$d</string>
@@ -342,15 +322,6 @@
     <string name="settings_home_sub">Рубль или валюта с курсом ЦБ</string>
     <string name="settings_country_hint">Подсказка в другой стране</string>
     <string name="settings_country_hint_sub">«Вы в Армении — считать в драмах?» по сотовой сети</string>
-    <string name="settings_cards">Карты и наличные</string>
-    <string name="settings_card_add">+ Карта или наличные</string>
-    <string name="settings_card_up">Выше</string>
-    <string name="settings_card_down">Ниже</string>
-    <string name="settings_card_drag">Перетащите, чтобы поменять порядок</string>
-    <string name="settings_card_cash">Только когда тратите %1$s</string>
-    <string name="settings_card_unionpay">%1$s · UnionPay, расчёт в %2$s</string>
-    <string name="settings_card_receipts">%1$s · по чекам</string>
-    <string name="settings_card_plain">%1$s · без чеков</string>
     <string name="settings_camera">Камера</string>
     <string name="settings_camera_mode">Суммы на ценниках</string>
     <string name="settings_camera_embed">Вписывать в ценник</string>
@@ -452,8 +423,8 @@
     <string name="exchange_yesterday">вчера %1$s</string>
     <string name="exchange_spread_short">разница %1$s %%</string>
     <string name="camera_mode_back">‹ Назад</string>
-    <string name="camera_mode_price">Ценник</string>
-    <string name="camera_mode_exchange">Обменник</string>
+    <string name="camera_mode_price">Ценники</string>
+    <string name="camera_mode_exchange">Табло обменника</string>
     <string name="board_hint">Наведите камеру на табло обменника — найдём строку %1$s и её курс.</string>
     <string name="board_buy">Покупают 1 %1$s по %2$s %3$s</string>
     <string name="board_card_better">карта выгоднее на %1$s %%</string>
@@ -465,22 +436,53 @@
     <string name="transfer_history">Прежние пополнения</string>
     <string name="transfer_remove">Удалить пополнение</string>
     <string name="transfer_new">+ Новое пополнение</string>
-    <string name="picker_vs">%1$s %% к ЦБ</string>
-    <string name="picker_open">Все карты</string>
-    <string name="cards_page_title">%1$s %2$s — чем платить:</string>
-    <string name="cards_page_add">Карта или наличные</string>
     <string name="cards_page_cheat_sub">Ходовые суммы по всем картам и ЦБ</string>
     <string name="trip_guide_sub">UnionPay %1$s · МИР %2$s · обновлено %3$s</string>
     <string name="trip_exchange">Обменники</string>
     <string name="trip_exchange_best">Лучший: %1$s — 1 %2$s = %3$s %4$s</string>
     <string name="trip_exchange_none">Запишите курсы 2–3 обменников — покажем лучший</string>
-    <string name="settings_main">Главный экран</string>
-    <string name="settings_main_chips">Быстрые суммы</string>
-    <string name="settings_main_chips_sub">5 · 10 · 50 · 100… над клавиатурой</string>
     <string name="guide_cash_other">%1$s здесь не платят — поменяйте в обменнике</string>
     <string name="guide_cash_exchange">%1$s меняют везде; иногда принимают и напрямую</string>
-    <string name="menu_button">Ещё: страна, обменники, шпаргалка, настройки</string>
-    <string name="menu_guide">Чем платить: %1$s</string>
-    <string name="menu_settings_sub">Курсы, валюты, карты, оформление</string>
-    <string name="cards_sheet_hint">Касание — выбрать, удержание — изменить</string>
+    <string name="menu_settings_sub">Курсы, валюты, камера, оформление</string>
+    <!-- Пересчёт (главный экран) -->
+    <string name="field_spend">цена на ценнике</string>
+    <string name="field_spend_enough">на столько хватит</string>
+    <string name="field_home">столько это стоит вам</string>
+    <string name="field_home_have">у вас есть</string>
+    <string name="field_a11y">%1$s, %2$s: %3$s %4$s</string>
+    <string name="field_activate">считать от этого поля</string>
+    <string name="field_currency_a11y">Валюта: %1$s. Выбрать другую</string>
+    <string name="rate_line">%1$s = %2$s</string>
+    <string name="rate_line_approx">%1$s ≈ %2$s</string>
+    <string name="rate_line_by">%1$s · %2$s</string>
+    <string name="rate_line_none">Курса пока нет</string>
+    <string name="rate_by_cbr">по курсу ЦБ</string>
+    <string name="rate_card_by_cbr">%1$s, по курсу ЦБ</string>
+    <string name="pay_label">Плачу:</string>
+    <string name="money_link">Мои деньги ›</string>
+    <string name="money_link_a11y">Мои деньги: карты и наличные, страна, настройки</string>
+    <string name="tile_a11y">%1$s: %2$s</string>
+    <string name="tile_best_a11y">%1$s, выгоднее всего: %2$s</string>
+    <string name="debit_line">Спишут с карты %1$s</string>
+    <string name="dearer">на %1$s дороже, чем «%2$s»</string>
+    <string name="dearer_first">На %1$s дороже, чем «%2$s»</string>
+    <string name="nocards_title">Чем вы платите?</string>
+    <string name="nocards_text">Добавьте карту или наличные — посчитаем по их курсу. Пока — по курсу ЦБ</string>
+    <string name="nocards_add">Добавить</string>
+
+    <!-- Мои деньги -->
+    <string name="money_title">Мои деньги</string>
+    <string name="money_pay">Чем плачу</string>
+    <string name="money_rate">%1$s стоит %2$s</string>
+    <string name="money_exact">точно</string>
+    <string name="money_approx">примерно · уточнить ›</string>
+    <string name="money_no_rate">нет курса для %1$s</string>
+    <string name="money_only_in">платят только в %1$s</string>
+    <string name="money_topped_up">пополнение %1$s</string>
+    <string name="money_exchanged">обмен %1$s</string>
+    <string name="money_add">＋ Добавить карту или наличные</string>
+    <string name="money_guide">Какие карты здесь принимают</string>
+    <string name="money_exchange">Где менять деньги</string>
+    <string name="money_cheat">Шпаргалка цен</string>
+    <string name="money_app">Приложение</string>
 </resources>

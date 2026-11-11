@@ -77,7 +77,7 @@ object WalletCodec {
             cards = cards,
             home = Currency.byCode(p.getProperty("home")) ?: Currency.RUB,
             spend = Currency.byCode(p.getProperty("spend")) ?: Currency.AED,
-            selectedId = p.getProperty("selected")?.takeIf { id -> cards.any { it.id == id } } ?: cards.firstOrNull()?.id,
+            selectedId = p.getProperty("selected")?.takeIf { id -> cards.any { it.id == id } },
             recent = p.getProperty("recent").orEmpty().split(',').mapNotNull { Currency.byCode(it.trim()) }.distinct().take(Wallet.RECENT),
         )
     }

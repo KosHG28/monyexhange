@@ -151,7 +151,7 @@ data class BankCard(
 const val HISTORY_MAX = 20
 
 /**
- * Всё, что пользователь настроил: карты, итоговая валюта, валюта трат, выбранная карта
+ * Всё, что пользователь настроил: карты, итоговая валюта, валюта трат, выбранная вручную карта (null — автовыбор)
  * и недавние валюты трат (сначала последняя) — для быстрого выбора среди ~150 валют.
  */
 data class Wallet(
@@ -169,10 +169,16 @@ data class Wallet(
     val usable: List<BankCard> get() = cards.filter { it.canPay(spend) }
 
     /**
-     * Выбранная карта, если ею можно заплатить в валюте трат; иначе — первая подходящая.
-     * Выбор не теряется: вернулись к валюте наличных — снова выбраны наличные.
+     * Чем считаем: выбранный вручную способ, если им можно заплатить в валюте трат; иначе — лучший
+     * ([bestId], самый дешёвый — его знает расчёт курсов), иначе — первый подходящий.
+     * [selectedId] == null — «автовыбор»: считаем лучшим. Ручной выбор не теряется: вернулись
+     * к валюте наличных — снова выбраны наличные.
      */
-    val selected: BankCard? get() = usable.firstOrNull { it.id == selectedId } ?: usable.firstOrNull()
+    fun pick(bestId: String?): BankCard? =
+        usable.firstOrNull { it.id == selectedId } ?: usable.firstOrNull { it.id == bestId } ?: usable.firstOrNull()
+
+    /** Выбрали способ касанием: лучший — снова автовыбор (дальше считаем лучшим, каким бы он ни стал). */
+    fun choose(id: String, bestId: String?): Wallet = copy(selectedId = id.takeIf { it != bestId })
 
     /** Карты в порядке [ids] (настройки); не названные — после них, в прежнем порядке. */
     fun reorder(ids: List<String>): Wallet {
@@ -184,12 +190,12 @@ data class Wallet(
     fun upsert(card: BankCard): Wallet {
         val exists = cards.any { it.id == card.id }
         val next = if (exists) cards.map { if (it.id == card.id) card else it } else cards + card
-        return copy(cards = next, selectedId = selectedId ?: card.id)
+        return copy(cards = next)
     }
 
     fun remove(id: String): Wallet {
         val next = cards.filterNot { it.id == id }
-        return copy(cards = next, selectedId = if (selectedId == id) next.firstOrNull()?.id else selectedId)
+        return copy(cards = next, selectedId = selectedId?.takeIf { it != id })
     }
 
     /** Свободный номер оформления для новой карты. */

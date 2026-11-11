@@ -252,7 +252,7 @@ internal fun RoundButton(icon: Int, description: String, onClick: () -> Unit, hi
 @Composable
 internal fun CardSwitch(wallet: Wallet, viaUnionPay: Boolean, onSelect: (String) -> Unit) {
     val colors = AppTheme.colors
-    val card = wallet.selected
+    val card = wallet.pick(null)
     val title = card?.name ?: stringResource(if (viaUnionPay) R.string.camera_unionpay else R.string.camera_official)
     val desc = stringResource(R.string.camera_card_switch, title)
     Row(

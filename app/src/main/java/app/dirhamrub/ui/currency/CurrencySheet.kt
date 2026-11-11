@@ -58,9 +58,11 @@ fun CurrencySheet(
     recent: List<Currency> = emptyList(),
     country: String? = null,
     official: OfficialRates? = null,
+    /** Открыть сразу на итоговой валюте (касание нижнего поля пересчёта). */
+    startOnHome: Boolean = false,
 ) {
     val colors = AppTheme.colors
-    var homeTab by rememberSaveable { mutableStateOf(false) }
+    var homeTab by rememberSaveable { mutableStateOf(startOnHome && onHome != null) }
     var query by rememberSaveable { mutableStateOf("") }
     ModalBottomSheet(
         onDismissRequest = onDismiss,

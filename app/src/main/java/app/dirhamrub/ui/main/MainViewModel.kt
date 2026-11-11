@@ -110,7 +110,8 @@ data class MainUiState(
     val weekTrend: BigDecimal? get() = official?.trendPercent(officialWeekAgo, wallet.spend, wallet.home)
 
     val quote: WalletQuote by lazy { QuoteCache.quote(wallet, reference, activeUnionPay) }
-    val selectedCard: BankCard? get() = wallet.selected
+    /** Чем считаем: выбранный вручную способ, а без ручного выбора — самый выгодный ([Wallet.pick]). */
+    val selectedCard: BankCard? get() = wallet.pick(quote.best?.card?.id)
     val selectedQuote: CardQuote? get() = quote.of(selectedCard?.id)
 
     /** Курс для расчёта: выбранная карта, а без карт — курс ЦБ. */
@@ -184,10 +185,12 @@ class MainViewModel(
             val stored = repository.load()
             _state.value = MainUiState(
                 loaded = true,
-                wallet = stored.wallet,
+                // С переделки «конвертер» выбор по умолчанию — лучший способ: старый «выбранный» сбрасываем один раз.
+                wallet = if (stored.selectionAuto) stored.wallet else stored.wallet.copy(selectedId = null),
                 official = stored.official,
                 officialWeekAgo = stored.officialWeekAgo,
-                active = if (stored.active == Line.CARD && stored.wallet.cards.isEmpty()) Line.SPEND else stored.active,
+                // Ввод — только в валюте трат или в итоговой (поля «цена» и «стоит вам»); валюты карты больше нет.
+                active = if (stored.active == Line.CARD) Line.SPEND else stored.active,
                 expression = stored.expression,
                 countryHandled = stored.countryHandled,
                 // Знакомство — только для нового пользователя: у перешедших со старых версий карты уже есть.
@@ -204,8 +207,7 @@ class MainViewModel(
                 guides = loadGuides(stored.guideText),
                 exchangers = stored.exchangers,
             )
-            // Быстрые суммы выбраны при первом запуске этой версии — запоминаем, чтобы настройка не менялась сама.
-            if (!stored.chipsSaved) repository.saveSettings(stored.settings)
+            if (!stored.selectionAuto) repository.markSelectionAuto(_state.value.wallet)
             refresh(Trigger.LAUNCH)
             // Карты и чеки пишем сразу: сохранил карту и тут же закрыл приложение — она не пропадёт.
             // Изменения, не касающиеся кошелька (курсы загружаются, настройки), запись не вызывают.
@@ -230,21 +232,16 @@ class MainViewModel(
 
     fun press(key: Key) = _state.update { it.copy(expression = it.expression.press(key)) }
 
+    /** Коснулись поля «цена» ([Line.SPEND]) или «стоит вам» ([Line.HOME]): вводим в нём, сумма не меняется. */
     fun setActive(line: Line) = _state.update { s ->
-        if (s.active == line) s else s.copy(active = line, expression = Expression.of(s.totals.of(line) ?: BigDecimal.ZERO))
+        if (s.active == line || line == Line.CARD) s
+        else s.copy(active = line, expression = Expression.of(s.totals.of(line) ?: BigDecimal.ZERO))
     }
 
+    /** Коснулись плитки способа: выбрать его; лучший — снова автовыбор ([Wallet.choose]). */
     fun selectCard(id: String) = _state.update { s ->
-        when {
-            s.wallet.selectedId == id -> s
-            // Сумма в валюте карты не должна прыгнуть: сначала переводим её в валюту трат.
-            s.active == Line.CARD -> s.copy(
-                wallet = s.wallet.copy(selectedId = id),
-                active = Line.SPEND,
-                expression = Expression.of(s.totals.spend),
-            )
-            else -> s.copy(wallet = s.wallet.copy(selectedId = id))
-        }
+        val next = s.wallet.choose(id, s.quote.best?.card?.id)
+        if (next == s.wallet) s else s.copy(wallet = next)
     }
 
     /** Другая валюта трат: сохраняем сумму в итоговой валюте и пересчитываем в новую валюту. */
@@ -292,23 +289,14 @@ class MainViewModel(
         viewModelScope.launch { repository.saveCountryHandled(iso) }
     }
 
-    /** Соседняя карта (свайп по сумме): [step] = +1 — следующая, −1 — предыдущая; у края ряда ничего не делает. */
-    fun stepCard(step: Int) {
-        val w = _state.value.wallet
-        val cards = w.usable
-        val i = cards.indexOfFirst { it.id == w.selected?.id }
-        val next = cards.getOrNull(i + step) ?: return
-        selectCard(next.id)
-    }
-
     fun saveCard(card: BankCard) {
-        _state.update { s -> s.copy(wallet = s.wallet.upsert(card).copy(selectedId = card.id)) }
+        _state.update { s -> s.copy(wallet = s.wallet.upsert(card)) }
         refreshReceiptRates()
     }
 
     fun deleteCard(id: String) = _state.update { s ->
         val wallet = s.wallet.remove(id)
-        s.copy(wallet = wallet, active = if (wallet.cards.isEmpty() && s.active == Line.CARD) Line.SPEND else s.active)
+        s.copy(wallet = wallet)
     }
 
     /** Пустая карта для редактора: валюта трат по умолчанию — первая, которой ещё нет среди карт. */
@@ -430,10 +418,6 @@ class MainViewModel(
     fun setMotion(value: MotionMode) = updateSettings { it.copy(motion = value) }
     fun setDynamicColor(value: Boolean) = updateSettings { it.copy(dynamicColor = value) }
     fun setKeyHaptics(value: Boolean) = updateSettings { it.copy(keyHaptics = value) }
-    fun setShowChips(value: Boolean) = updateSettings { it.copy(showChips = value) }
-
-    /** Порядок карт из настроек. */
-    fun reorderCards(ids: List<String>) = _state.update { it.copy(wallet = it.wallet.reorder(ids)) }
 
     /** «Показать знакомство снова». */
     fun restartOnboarding() {
@@ -532,8 +516,6 @@ class MainViewModel(
             }
         }
 
-        /** Быстрые суммы в валюте трат; у дирхама 22 — проезд в метро. */
-        fun chips(c: Currency): List<BigDecimal> = QuickSums.chips(c)
 
         /** Строки шпаргалки: девять сумм, от мелкой покупки до крупной. */
         fun cheat(c: Currency): List<BigDecimal> = QuickSums.cheat(c)

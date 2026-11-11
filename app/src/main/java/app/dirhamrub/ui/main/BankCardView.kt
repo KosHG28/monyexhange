@@ -257,34 +257,3 @@ internal fun BankCardView(
         }
     }
 }
-
-/** Пустой кошелёк: широкая плитка с объяснением. */
-@Composable
-internal fun AddCardHint(onAdd: () -> Unit, modifier: Modifier = Modifier) {
-    val colors = AppTheme.colors
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.line, RoundedCornerShape(16.dp))
-            .clickable(role = Role.Button, onClick = onAdd)
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(colors.accentSoft),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(R.drawable.ic_add), contentDescription = null, tint = colors.accent)
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.card_add), style = AppTheme.type.bodyStrong, color = colors.ink)
-            Text(stringResource(R.string.card_add_hint), style = AppTheme.type.caption, color = colors.muted, textAlign = TextAlign.Start)
-        }
-    }
-}

@@ -240,10 +240,10 @@ private fun CameraContent(
         }
     }
     val pipeline = remember(metrics) { PricePipeline(metrics) }
-    val selectedQuote = quote.of(wallet.selected?.id)
+    val selectedQuote = quote.of(wallet.pick(null)?.id)
     val homePerUnit = selectedQuote?.homePerUnit ?: quote.official
     // Сравнение с самой дешёвой из остальных карт — для карточки фокуса (как на главном экране).
-    val comparison = quote.compare(wallet.selected?.id)?.takeIf { Numbers.percent(it.percent) != "0" }
+    val comparison = quote.compare(wallet.pick(null)?.id)?.takeIf { Numbers.percent(it.percent) != "0" }
     LaunchedEffect(pipeline, embedded) { pipeline.setEmbedded(embedded) }
     LaunchedEffect(pipeline, wallet.spend, wallet.home, homePerUnit, quote.official) {
         pipeline.setRates(wallet.spend, wallet.home, homePerUnit, quote.official.takeIf { selectedQuote != null })
@@ -561,7 +561,7 @@ private fun CameraContent(
                     info = info,
                     spend = wallet.spend,
                     home = wallet.home,
-                    cardName = wallet.selected?.name,
+                    cardName = wallet.pick(null)?.name,
                     cardQuote = selectedQuote,
                     viaUnionPay = quote.viaUnionPay,
                     comparison = comparison,
@@ -593,7 +593,7 @@ private fun CameraContent(
             home = wallet.home,
             isOld = label.isOld,
             quote = quote,
-            selectedId = wallet.selected?.id,
+            selectedId = wallet.pick(null)?.id,
             onToCalculator = {
                 sheet = null
                 onToCalculator(listOf(label.value))

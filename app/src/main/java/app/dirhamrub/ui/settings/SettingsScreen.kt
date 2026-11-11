@@ -51,7 +51,6 @@ import app.dirhamrub.domain.MotionMode
 import app.dirhamrub.domain.RatesUpdate
 import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.ThemeMode
-import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.cbrPublishes
 import app.dirhamrub.ui.currency.CurrencyPickerSheet
@@ -69,9 +68,6 @@ class SettingsActions(
     val onRatesUpdate: (RatesUpdate) -> Unit,
     val onHome: (Currency) -> Unit,
     val onCountryHint: (Boolean) -> Unit,
-    val onEditCard: (BankCard) -> Unit,
-    val onAddCard: () -> Unit,
-    val onReorder: (List<String>) -> Unit,
     val onCameraEmbedded: (Boolean) -> Unit,
     /** null — плитку в шторку добавить нельзя (Android до 13). */
     val onAddTile: (() -> Unit)?,
@@ -80,13 +76,12 @@ class SettingsActions(
     /** null — цветов из обоев нет (Android до 12). */
     val onDynamicColor: ((Boolean) -> Unit)?,
     val onKeyHaptics: (Boolean) -> Unit,
-    val onShowChips: (Boolean) -> Unit,
     val onOnboarding: () -> Unit,
 )
 
 /**
- * Настройки (⚙ на главном экране): когда и откуда скачаны курсы, обновление, UnionPay, итоговая валюта,
- * подсказка о стране, порядок карт, камера, тема, анимации, знакомство и журнал ошибок.
+ * Настройки (из «Мои деньги»): когда и откуда скачаны курсы, обновление, UnionPay, итоговая валюта,
+ * подсказка о стране, камера, тема, анимации, знакомство и журнал ошибок. Карты — в «Мои деньги».
  */
 @Composable
 fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
@@ -127,12 +122,6 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
         ) {
             RatesSection(state, actions)
             CurrenciesSection(state, actions) { homePicker = true }
-            SectionTitle(stringResource(R.string.settings_cards))
-            Group {
-                CardOrderList(state.wallet.cards, actions.onReorder, actions.onEditCard)
-                if (state.wallet.cards.isNotEmpty()) Divider()
-                LinkRow(stringResource(R.string.settings_card_add), null, null, actions.onAddCard, titleColor = colors.accent)
-            }
             CameraSection(state, actions)
             LookSection(state, actions)
             AboutSection(actions)
@@ -312,13 +301,6 @@ private fun LookSection(state: MainUiState, actions: SettingsActions) {
                 dynamic,
             )
         }
-        Divider()
-        SwitchRow(
-            stringResource(R.string.settings_main_chips),
-            stringResource(R.string.settings_main_chips_sub),
-            state.settings.showChips,
-            actions.onShowChips,
-        )
         Divider()
         SwitchRow(
             stringResource(R.string.settings_key_haptics),

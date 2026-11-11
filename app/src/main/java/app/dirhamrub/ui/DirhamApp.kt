@@ -59,10 +59,10 @@ import app.dirhamrub.ui.exchange.EXCHANGE_GIVE
 import app.dirhamrub.ui.exchange.ExchangeSheet
 import app.dirhamrub.ui.guide.CountryGuideSheet
 import app.dirhamrub.ui.main.CountryOffer
-import app.dirhamrub.ui.main.CardsSheet
 import app.dirhamrub.ui.main.MainScreen
 import app.dirhamrub.ui.main.MainViewModel
-import app.dirhamrub.ui.main.MenuSheet
+import app.dirhamrub.ui.money.MoneyActions
+import app.dirhamrub.ui.money.MoneyScreen
 import app.dirhamrub.ui.onboarding.OnboardingScreen
 import app.dirhamrub.ui.settings.SettingsActions
 import app.dirhamrub.ui.settings.SettingsScreen
@@ -108,11 +108,13 @@ fun DirhamApp(
     var exchangeOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_EXCHANGE) }
     // Местная валюта обменников: валюта трат, а из редактора наличных — их валюта.
     var exchangeLocal by rememberSaveable { mutableStateOf<String?>(null) }
-    var cardsOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CARDS) }
-    var menuOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_MENU) }
+    // «Мои деньги» — второй экран поверх пересчёта.
+    var moneyOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_MONEY) }
     var guideOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_GUIDE) }
     var cheatOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CHEAT) }
     var currenciesOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CURRENCIES) }
+    // Выбор валюты открыли с нижнего поля — сразу на итоговой.
+    var currenciesHome by rememberSaveable { mutableStateOf(false) }
     var cameraOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CAMERA) }
     var settingsOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_SETTINGS) }
     // Снимки CI: знакомство поверх демо-данных, с нужного шага.
@@ -124,7 +126,7 @@ fun DirhamApp(
     // Скриншоты CI: сразу редактор выбранной карты.
     LaunchedEffect(state.loaded) {
         if (state.loaded && startScreen == MainActivity.SCREEN_EDITOR) {
-            (state.wallet.cards.firstOrNull { it.id == startCard } ?: state.wallet.selected)?.let { editing = Editing(it, isNew = false) }
+            (state.wallet.cards.firstOrNull { it.id == startCard } ?: state.selectedCard)?.let { editing = Editing(it, isNew = false) }
         }
     }
     val context = LocalContext.current
@@ -194,63 +196,44 @@ fun DirhamApp(
         },
         onKey = vm::press,
         onSelectCard = vm::selectCard,
-        onStepCard = vm::stepCard,
         onEditCard = { editing = Editing(it, isNew = false) },
         onAddReceipt = { editing = Editing(it, isNew = false, addPurchase = state.wallet.spend) },
         onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
         onSelectLine = vm::setActive,
-        onChip = vm::putAmount,
-        onOpenCurrencies = { currenciesOpen = true },
+        onOpenCurrencies = { home ->
+            currenciesHome = home
+            currenciesOpen = true
+        },
         onCountry = { accept -> offer?.let { vm.handleCountry(it.iso, if (accept) it.currency else null) } },
         onRefreshRates = vm::refreshRates,
-        onOpenMenu = { menuOpen = true },
-        onOpenCards = { cardsOpen = true },
+        onOpenMoney = { moneyOpen = true },
         onOpenCamera = { cameraOpen = true },
         onCameraPlaced = { cameraOrigin = it },
     )
-    // Шторка «Карты» (касание строки карты): выбрать, изменить, добавить; курс ЦБ.
-    if (cardsOpen) {
-        CardsSheet(
-            state = state,
-            onSelect = {
-                vm.selectCard(it)
-                cardsOpen = false
-            },
-            onEdit = {
-                cardsOpen = false
-                editing = Editing(it, isNew = false)
-            },
-            onAdd = {
-                cardsOpen = false
-                editing = Editing(vm.newCard(), isNew = true)
-            },
-            onRefreshRates = vm::refreshRates,
-            onDismiss = { cardsOpen = false },
-        )
-    }
-    // Шторка «Ещё» (☰): единственный вход в справочник страны, обменники, шпаргалку и настройки.
-    if (menuOpen) {
-        MenuSheet(
+    val reduceMotion = LocalReduceMotion.current
+    // «Мои деньги» — экран поверх пересчёта, въезжает справа; единственный вход в карты, страну и настройки.
+    AnimatedVisibility(
+        visible = moneyOpen,
+        enter = if (reduceMotion) EnterTransition.None else slideInHorizontally(tween(260)) { it / 3 } + fadeIn(tween(200)),
+        exit = if (reduceMotion) ExitTransition.None else slideOutHorizontally(tween(220)) { it / 3 } + fadeOut(tween(180)),
+    ) {
+        BackHandler { moneyOpen = false }
+        MoneyScreen(
             state = state,
             guide = guide,
-            onOpenGuide = {
-                menuOpen = false
-                guideOpen = true
-            },
-            onOpenExchange = {
-                menuOpen = false
-                exchangeLocal = null
-                exchangeOpen = true
-            },
-            onOpenCheat = {
-                menuOpen = false
-                cheatOpen = true
-            },
-            onOpenSettings = {
-                menuOpen = false
-                settingsOpen = true
-            },
-            onDismiss = { menuOpen = false },
+            actions = MoneyActions(
+                onBack = { moneyOpen = false },
+                onEditCard = { editing = Editing(it, isNew = false) },
+                onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
+                onOpenGuide = { guideOpen = true },
+                onOpenExchange = {
+                    exchangeLocal = null
+                    exchangeOpen = true
+                },
+                onOpenCheat = { cheatOpen = true },
+                onOpenSettings = { settingsOpen = true },
+                onRefreshRates = vm::refreshRates,
+            ),
         )
     }
     if (guideOpen && guide != null) {
@@ -288,7 +271,7 @@ fun DirhamApp(
             quote = state.quote,
             spend = state.wallet.spend,
             home = state.wallet.home,
-            selectedId = state.wallet.selected?.id,
+            selectedId = state.selectedCard?.id,
             amount = state.totals.spend,
             onDismiss = { cheatOpen = false },
         )
@@ -303,9 +286,9 @@ fun DirhamApp(
             recent = state.wallet.recent,
             country = country,
             official = state.reference,
+            startOnHome = currenciesHome,
         )
     }
-    val reduceMotion = LocalReduceMotion.current
     // Настройки — экран поверх главного, въезжает справа.
     AnimatedVisibility(
         visible = settingsOpen,
@@ -322,9 +305,6 @@ fun DirhamApp(
                 onRatesUpdate = vm::setRatesUpdate,
                 onHome = vm::setHome,
                 onCountryHint = vm::setCountryHint,
-                onEditCard = { editing = Editing(it, isNew = false) },
-                onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
-                onReorder = vm::reorderCards,
                 onCameraEmbedded = vm::setCameraEmbedded,
                 onAddTile = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) requestCameraTile(context) }
@@ -335,7 +315,6 @@ fun DirhamApp(
                 onMotion = vm::setMotion,
                 onDynamicColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) vm::setDynamicColor else null,
                 onKeyHaptics = vm::setKeyHaptics,
-                onShowChips = vm::setShowChips,
                 onOnboarding = {
                     settingsOpen = false
                     onboardingReshown = true
@@ -377,7 +356,8 @@ fun DirhamApp(
                 },
         ) {
             CameraScreen(
-                wallet = state.wallet,
+                // Камера считает тем же способом, что и пересчёт (выбранным или лучшим).
+                wallet = state.wallet.copy(selectedId = state.selectedCard?.id),
                 quote = state.quote,
                 embedded = state.cameraEmbedded,
                 onEmbeddedChange = vm::setCameraEmbedded,

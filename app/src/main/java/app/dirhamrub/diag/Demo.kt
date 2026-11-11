@@ -25,12 +25,13 @@ import java.time.LocalDate
  * на сегодня и неделю назад, сумма 167 AED. Только в отладочной сборке — в release недоступно.
  * [spendCode] — другая валюта трат для снимков: «IDR» (курс ЦБ есть, у карт — оценка),
  * «LKR» (у ЦБ курса нет: карта в юанях — UnionPay, курс по UnionPay; у карты в тенге — справочный курс
- * UnionPay × ЦБ с наценкой карты). Курсы UnionPay — настоящие на 06.11.2026 (к доллару), к юаню — через ЦБ.
+ * UnionPay × ЦБ с наценкой карты). [selected] — способ, выбранный вручную, [noCards] — кошелёк без карт.
+ * Курсы UnionPay — настоящие на 06.11.2026 (к доллару), к юаню — через ЦБ.
  */
 object Demo {
     fun allowed(context: Context): Boolean = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
-    suspend fun seed(repository: WalletRepository, spendCode: String? = null) {
+    suspend fun seed(repository: WalletRepository, spendCode: String? = null, selected: String? = null, noCards: Boolean = false) {
         val spend = Currency.byCode(spendCode) ?: Currency.AED
         val today = LocalDate.now()
         val day = today.minusDays(3)
@@ -89,9 +90,12 @@ object Demo {
         )
         repository.saveDemo(
             wallet = Wallet(
-                cards = listOf(tenge, yuan, cash, atm),
+                // Без карт — снимок «Чем вы платите?».
+                cards = if (noCards) emptyList() else listOf(tenge, yuan, cash, atm),
                 spend = spend,
-                selectedId = yuan.id,
+                // Без ручного выбора: считаем лучшим способом (наличными), как у нового пользователя;
+                // [selected] — снимок «выбран не лучший способ».
+                selectedId = selected,
                 recent = listOf(spend, Currency.AED, Currency.KZT, Currency.THB, Currency.TRY).distinct(),
             ),
             official = now,

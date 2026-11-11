@@ -30,12 +30,12 @@ class CashTest {
     @Test
     fun `выбор наличных не теряется при смене валюты трат`() {
         val wallet = Wallet(cards = listOf(tenge, cash, yuan), spend = Currency.AED, selectedId = "cash")
-        assertEquals("cash", wallet.selected?.id)
+        assertEquals("cash", wallet.pick(null)?.id)
         val amd = wallet.withSpend(Currency.AMD)
         assertEquals(listOf("kzt", "cny"), amd.usable.map { it.id })
-        assertEquals("kzt", amd.selected?.id)
+        assertEquals("kzt", amd.pick(null)?.id)
         assertEquals("cash", amd.selectedId)
-        assertEquals("cash", amd.withSpend(Currency.AED).selected?.id)
+        assertEquals("cash", amd.withSpend(Currency.AED).pick(null)?.id)
     }
 
     @Test

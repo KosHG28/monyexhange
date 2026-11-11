@@ -71,8 +71,8 @@ data class StoredState(
     val guideText: String?,
     /** Записанные курсы обменников. */
     val exchangers: List<Exchanger>,
-    /** Настройка быстрых сумм уже сохранена (иначе она выбрана сейчас — её надо записать, чтобы не менялась сама). */
-    val chipsSaved: Boolean,
+    /** Выбор способа оплаты уже переведён на «автовыбор лучшего» (переделка «конвертер»). */
+    val selectionAuto: Boolean,
     val settings: AppSettings,
 )
 
@@ -122,7 +122,7 @@ class WalletRepository(
             officialSource = r[OFFICIAL_SOURCE],
             guideText = r[GUIDE],
             exchangers = ExchangerCodec.decode(p[EXCHANGERS]),
-            chipsSaved = p[SET_SHOW_CHIPS] != null,
+            selectionAuto = p[SELECTION_AUTO] == true,
             settings = AppSettings(
                 unionPay = p[SET_UNIONPAY] ?: true,
                 ratesUpdate = RatesUpdate.entries.firstOrNull { it.name == p[SET_RATES_UPDATE] } ?: RatesUpdate.EVERY_6H,
@@ -131,9 +131,6 @@ class WalletRepository(
                 motion = MotionMode.entries.firstOrNull { it.name == p[SET_MOTION] } ?: MotionMode.SYSTEM,
                 dynamicColor = p[SET_DYNAMIC_COLOR] ?: false,
                 keyHaptics = p[SET_KEY_HAPTICS] ?: true,
-                // Быстрые суммы раньше были всегда: у тех, кто уже пользуется приложением, остаются включёнными.
-                showChips = p[SET_SHOW_CHIPS]
-                    ?: (WalletCodec.decode(p[WALLET])?.cards?.isNotEmpty() == true || p[ONBOARDING_DONE] == true),
             ),
         )
     }
@@ -147,7 +144,6 @@ class WalletRepository(
             p[SET_MOTION] = settings.motion.name
             p[SET_DYNAMIC_COLOR] = settings.dynamicColor
             p[SET_KEY_HAPTICS] = settings.keyHaptics
-            p[SET_SHOW_CHIPS] = settings.showChips
         }
     }
 
@@ -168,6 +164,14 @@ class WalletRepository(
 
     suspend fun saveExchangers(list: List<Exchanger>) {
         store.edit { p -> p[EXCHANGERS] = ExchangerCodec.encode(list) }
+    }
+
+    /** Один раз при переходе на автовыбор: кошелёк без ручного выбора и отметка, что переход сделан. */
+    suspend fun markSelectionAuto(wallet: Wallet) {
+        store.edit { p ->
+            p[WALLET] = WalletCodec.encode(wallet)
+            p[SELECTION_AUTO] = true
+        }
     }
 
     suspend fun saveCameraUsed() {
@@ -253,6 +257,7 @@ class WalletRepository(
             // как и предложение плитки «Ценник».
             p[COUNTRY_HANDLED] = "US"
             p[TILE_OFFERED] = true
+            p[SELECTION_AUTO] = true
         }
     }
 
@@ -326,7 +331,7 @@ class WalletRepository(
         val SET_MOTION = stringPreferencesKey("settings_motion")
         val SET_DYNAMIC_COLOR = booleanPreferencesKey("settings_dynamic_color")
         val SET_KEY_HAPTICS = booleanPreferencesKey("settings_key_haptics")
-        val SET_SHOW_CHIPS = booleanPreferencesKey("settings_show_chips")
+        val SELECTION_AUTO = booleanPreferencesKey("selection_auto")
         val UNIONPAY = stringPreferencesKey("unionpay_rates")
         val UNIONPAY_AT = longPreferencesKey("unionpay_fetched_at")
     }

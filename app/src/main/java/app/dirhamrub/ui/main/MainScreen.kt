@@ -285,10 +285,13 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
     val empty = state.expression.isEmpty || value == null
     val approx = !empty && approxNow(state)
     val number = if (empty) "0" else big(value!!, state.settings.rounding)
+    // Самая крупная строка — единственное место, где валюта знаком у любой валюты, у которой он есть («800 ֏»):
+    // крупно знак смотрится лучше кода. Везде ещё — код ([Currency.mark]); TalkBack читает код.
+    val sign = currency.symbol
     val text = buildAnnotatedString {
         if (approx) withStyle(SpanStyle(color = colors.muted, fontSize = 0.6.em)) { append("≈ ") }
         append(number)
-        withStyle(SpanStyle(color = if (empty) colors.ink else colors.muted, fontSize = 0.62.em)) { append(" " + currency.mark) }
+        withStyle(SpanStyle(color = if (empty) colors.ink else colors.muted, fontSize = 0.62.em)) { append(" " + sign) }
     }
     val a11y = stringResource(R.string.hero_a11y, (if (approx) "≈ " else "") + number, currency.mark)
     val switchLabel = stringResource(if (homeInput) R.string.hero_switch_spend else R.string.hero_switch_home, state.wallet.spend.code)
@@ -322,7 +325,7 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
                 }
                 HeroPart(number, style, size, colors.ink)
                 Spacer(Modifier.width((size * 0.12f).dp))
-                HeroPart(currency.mark, style, size * SIGN_SCALE, if (empty) colors.ink else colors.muted)
+                HeroPart(sign, style, size * SIGN_SCALE, if (empty) colors.ink else colors.muted)
             }
         }
     }

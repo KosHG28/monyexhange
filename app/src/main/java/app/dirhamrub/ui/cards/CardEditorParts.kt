@@ -1,6 +1,7 @@
 package app.dirhamrub.ui.cards
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,8 +60,6 @@ import app.dirhamrub.domain.wallet.TransferReceipt
 import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.ui.components.CurrencyChips
 import app.dirhamrub.ui.components.NumberField
-import app.dirhamrub.ui.components.ReceiptLine
-import app.dirhamrub.ui.components.ReceiptSection
 import app.dirhamrub.ui.theme.AppTheme
 import java.math.BigDecimal
 
@@ -123,6 +122,7 @@ internal fun NetworkChips(network: CardNetwork?, onChange: (CardNetwork?) -> Uni
                             .heightIn(min = 44.dp)
                             .clip(RoundedCornerShape(50))
                             .background(if (selected) colors.accent else colors.surface)
+                            .border(1.dp, if (selected) colors.accent else colors.line, RoundedCornerShape(50))
                             .selectable(selected = selected, role = Role.RadioButton) { onChange(if (selected) null else option) }
                             .padding(horizontal = 10.dp),
                         contentAlignment = Alignment.Center,
@@ -227,9 +227,7 @@ internal fun TransferHistory(
             }
         }
     }
-    if (canAddNew) {
-        TextButton(onClick = onNew) { Text(stringResource(R.string.transfer_new), style = type.bodyStrong, color = colors.accent) }
-    }
+    if (canAddNew) AddAction(stringResource(R.string.transfer_new), onNew)
 }
 
 /** «Заполнить из скриншота банка» и что получилось. */
@@ -237,20 +235,29 @@ internal fun TransferHistory(
 internal fun ScreenshotButton(result: ScanResult?, card: Currency, onClick: () -> Unit) {
     val colors = AppTheme.colors
     val type = AppTheme.type
+    // Главная кнопка блока: избавляет от ручного ввода сумм ниже — бледно-синяя подложка, значок сканера.
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 52.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(colors.surface)
+            .heightIn(min = 64.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(colors.accentSoft)
             .clickable(role = Role.Button, enabled = result != ScanResult.Reading, onClick = onClick)
-            .padding(horizontal = 14.dp),
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(painterResource(R.drawable.ic_screenshot), contentDescription = null, tint = colors.accent, modifier = Modifier.size(22.dp))
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(colors.accent),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(R.drawable.ic_scan), contentDescription = null, tint = colors.onAccent, modifier = Modifier.size(22.dp))
+        }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.scan_button), style = type.bodyStrong, color = colors.ink)
+            Text(stringResource(R.string.scan_button), style = type.bodyStrong, color = colors.accent)
             Text(stringResource(R.string.scan_hint), style = type.caption, color = colors.muted)
         }
     }
@@ -276,7 +283,7 @@ internal fun ScreenshotButton(result: ScanResult?, card: Currency, onClick: () -
             text = message,
             style = type.caption.copy(fontSize = 13.sp),
             color = when (result) {
-                ScanResult.NotFound -> colors.accent
+                ScanResult.NotFound -> colors.danger
                 is ScanResult.Found -> colors.good
                 else -> colors.muted
             },
@@ -300,125 +307,115 @@ internal fun ReceiptRate(rate: String, whole: Boolean = false) {
         if (whole) rate else stringResource(R.string.receipt_rate, rate),
         style = AppTheme.type.caption.copy(fontSize = 13.sp, fontWeight = FontWeight.Medium),
         color = AppTheme.colors.good,
-        modifier = Modifier.padding(top = 2.dp),
+        modifier = Modifier.padding(start = 2.dp, top = 6.dp),
     )
 }
 
 @Composable
 internal fun Hint(text: String) {
-    Text(text, style = AppTheme.type.caption, color = AppTheme.colors.muted, modifier = Modifier.padding(top = 2.dp))
+    // Подсказка под полем — один стиль во всём приложении: 12 sp, серым, 4 dp сверху.
+    Text(text, style = AppTheme.type.caption, color = AppTheme.colors.muted, modifier = Modifier.padding(start = 2.dp, top = 4.dp))
 }
 
-/** Свой курс для текущей пары валют на единицу [unit]; серым в пустом поле — курс по чекам сейчас ([auto]). */
+/**
+ * Свой курс: по умолчанию выключен — на экране только итог по чекам. Включили — одно крупное поле
+ * «1 000 ₩ = [62,50 ₽]» (₽ — серый знак внутри поля: итоговая валюта не выбирается).
+ */
 @Composable
 internal fun ManualRatePanel(
+    on: Boolean,
+    onToggle: (Boolean) -> Unit,
     unit: BigDecimal,
     spend: Currency,
     home: Currency,
     value: String,
     onValueChange: (String) -> Unit,
     auto: BigDecimal?,
-    onDone: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    Column(
-        modifier = modifier
+    Box(
+        Modifier
+            .padding(top = 12.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(colors.surface)
-            .padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 10.dp),
+            .height(1.dp)
+            .background(colors.line),
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .toggleable(value = on, role = Role.Switch, onValueChange = onToggle)
+            .padding(top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.editor_manual_toggle), style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink)
+            Hint(stringResource(if (on) R.string.editor_manual_on_hint else R.string.editor_manual_off_hint))
+        }
+        Spacer(Modifier.width(8.dp))
+        Switch(
+            checked = on,
+            onCheckedChange = null,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = colors.onAccent,
+                checkedTrackColor = colors.accent,
+                uncheckedThumbColor = colors.muted,
+                uncheckedTrackColor = colors.bg,
+                uncheckedBorderColor = colors.line,
+            ),
+        )
+    }
+    if (on) {
+        Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                stringResource(R.string.editor_manual, "${Numbers.moneyWhole(unit)} ${spend.symbol}"),
-                style = type.monoStrong.copy(fontSize = 15.sp),
-                color = colors.ink,
-                modifier = Modifier.weight(1f),
+                stringResource(R.string.editor_manual_unit, "${Numbers.moneyWhole(unit)} ${spend.symbol}"),
+                style = type.body.copy(fontSize = 17.sp),
+                color = colors.muted,
             )
-            NumberField(
+            Spacer(Modifier.width(10.dp))
+            AmountField(
+                label = null,
                 value = value,
                 onValueChange = onValueChange,
-                style = type.monoStrong.copy(fontSize = 17.sp),
-                description = stringResource(R.string.editor_manual_hint),
-                onDone = onDone,
+                description = stringResource(R.string.editor_manual_toggle),
                 placeholder = auto?.let { Numbers.rate(it.multiply(unit, MC)) },
-                modifier = Modifier.width(MANUAL_FIELD),
+                trailing = { FieldSuffix(home.symbol) },
+                big = true,
+                modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.width(8.dp))
-            CurrencyMark(home.symbol)
         }
-        Hint(stringResource(R.string.editor_manual_hint))
+        Hint(stringResource(R.string.editor_manual_home_hint, home.shortRu))
     }
 }
 
-private val MANUAL_FIELD = 116.dp
-
 /**
- * «Карта UnionPay» и валюта расчёта: UnionPay пересчитывает покупку в любой валюте по своему курсу
- * в валюту расчёта (обычно юань), банк — из неё в валюту карты.
+ * Валюта расчёта UnionPay (блок появляется, только если выбрана система UnionPay): UnionPay пересчитывает
+ * покупку в любой валюте по своему курсу в валюту расчёта (обычно юань), банк — из неё в валюту карты.
  */
 @Composable
 internal fun UnionPaySection(
-    enabled: Boolean,
     settlement: Currency,
     cardCurrency: Currency,
-    onEnabled: (Boolean) -> Unit,
     onSettlement: (Currency) -> Unit,
     onMoreSettlements: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    val colors = AppTheme.colors
-    val type = AppTheme.type
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(colors.surface)
-            .padding(start = 14.dp, end = 10.dp, top = 4.dp, bottom = 10.dp),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 56.dp)
-                .toggleable(value = enabled, role = Role.Switch, onValueChange = onEnabled),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.editor_unionpay), style = type.bodyStrong, color = colors.ink)
-                Text(stringResource(R.string.editor_unionpay_hint), style = type.caption, color = colors.muted)
-            }
-            Spacer(Modifier.width(8.dp))
-            Switch(
-                checked = enabled,
-                onCheckedChange = null,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = colors.onAccent,
-                    checkedTrackColor = colors.accent,
-                    uncheckedThumbColor = colors.muted,
-                    uncheckedTrackColor = colors.bg,
-                    uncheckedBorderColor = colors.line,
-                ),
-            )
-        }
-        if (enabled) {
-            Spacer(Modifier.height(4.dp))
-            Text(stringResource(R.string.editor_settlement), style = type.caption, color = colors.muted)
-            Spacer(Modifier.height(6.dp))
-            CurrencyChips(
-                options = (UnionPayRates.BASES.take(SETTLEMENT_CHIPS) + settlement).distinct(),
-                selected = settlement,
-                onSelect = onSettlement,
-                onMore = onMoreSettlements,
-                moreLabel = stringResource(R.string.currency_more),
-            )
-            if (settlement != cardCurrency) {
-                Spacer(Modifier.height(4.dp))
-                Hint(stringResource(R.string.editor_settlement_hint, settlement.code, cardCurrency.code))
-            }
-        }
-    }
+    FieldLabel(stringResource(R.string.editor_settlement))
+    CurrencyChips(
+        options = (UnionPayRates.BASES.take(SETTLEMENT_CHIPS) + settlement).distinct(),
+        selected = settlement,
+        onSelect = onSettlement,
+        onMore = onMoreSettlements,
+        moreLabel = stringResource(R.string.currency_more),
+    )
+    Hint(
+        if (settlement != cardCurrency) {
+            stringResource(R.string.editor_settlement_hint, settlement.code, cardCurrency.code)
+        } else {
+            stringResource(R.string.editor_unionpay_hint)
+        },
+    )
 }
 
 /** Частые валюты расчёта чипами: юань, доллар, евро, гонконгский доллар; остальные — в списке. */
@@ -439,12 +436,16 @@ internal fun BoughtPlate(
     official: BigDecimal?,
     transfer: TransferReceipt?,
 ) {
-    Spacer(Modifier.height(10.dp))
-    ReceiptSection(stringResource(R.string.receipt_bought_title, sentCurrency.shortRu.lowercase()))
+    SubTitle(stringResource(R.string.receipt_bought_title, sentCurrency.shortRu.lowercase()))
     val label = stringResource(R.string.receipt_bought, "${Numbers.moneyWhole(unit)} ${sentCurrency.symbol}")
-    ReceiptLine(label, value, onValueChange, label, last = true, placeholder = official?.let { Numbers.rate(it.multiply(unit, MC)) }) {
-        CurrencyMark(home.symbol)
-    }
+    AmountField(
+        label = label,
+        value = value,
+        onValueChange = onValueChange,
+        description = label,
+        placeholder = official?.let { Numbers.rate(it.multiply(unit, MC)) },
+        trailing = { FieldSuffix(home.symbol) },
+    )
     val bought = Numbers.parse(value)?.takeIf { it.signum() > 0 }?.divide(unit, MC) ?: official
     if (transfer != null && bought != null) {
         val homePerCard = transfer.sent.divide(transfer.got, MC).multiply(bought, MC)

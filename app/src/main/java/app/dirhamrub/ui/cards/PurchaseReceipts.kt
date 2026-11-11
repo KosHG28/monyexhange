@@ -7,10 +7,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,8 +37,6 @@ import app.dirhamrub.domain.wallet.ReceiptCheck
 import app.dirhamrub.ui.main.signedPercent
 import java.math.BigDecimal
 import app.dirhamrub.ui.components.CurrencyDropdown
-import app.dirhamrub.ui.components.ReceiptLine
-import app.dirhamrub.ui.components.ReceiptSection
 import app.dirhamrub.ui.theme.AppTheme
 import java.time.LocalDate
 
@@ -50,13 +48,13 @@ internal class PurchaseDraft(val key: Int, spend: Currency, paid: String, price:
 }
 
 /**
- * Чеки покупок карты в разных валютах трат: валюта, «списали» и «за», курс по чеку;
- * ниже — «+ чек покупки» и подсказка [hint].
+ * Чеки покупок карты в разных валютах трат: «Списали [55 ¥]» и «За [10 000 ₩ ⌄]» (валюту покупки выбирают
+ * в самом поле), курс по чеку; ниже — «+ Чек покупки» и подсказка [hint]. Чеков нет — заглушка с крупной кнопкой.
  */
 @Composable
 internal fun PurchaseReceipts(
     purchases: SnapshotStateList<PurchaseDraft>,
-    /** Подсветить незаполненную сумму в чеках, где заполнена только одна из двух. */
+    /** Подсветить ошибки в чеках (нажали «Сохранить»). */
     showErrors: Boolean,
     /** Курсы ЦБ — заметить опечатку в суммах чека. */
     official: OfficialRates?,
@@ -68,18 +66,21 @@ internal fun PurchaseReceipts(
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    ReceiptSection(stringResource(R.string.receipt_purchases))
-    for (d in purchases) {
+    SubTitle(stringResource(R.string.receipt_purchases))
+    if (purchases.isEmpty()) {
+        EmptyReceipts(stringResource(R.string.purchases_empty), stringResource(R.string.purchases_add_first), onAdd)
+        return
+    }
+    purchases.forEachIndexed { i, d ->
+        if (i > 0) Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            CurrencyDropdown(d.spend, (listOf(spend, d.spend) + Currency.POPULAR).distinct(), { d.spend = it }, pick, chip = true)
-            Spacer(Modifier.width(8.dp))
             Text(
                 d.spend.nameRu,
                 style = type.caption,
                 color = colors.muted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).padding(start = 2.dp),
             )
             val remove = stringResource(R.string.receipt_remove)
             Icon(
@@ -90,24 +91,37 @@ internal fun PurchaseReceipts(
                     .size(40.dp)
                     .clip(CircleShape)
                     .clickable(role = Role.Button) { purchases.remove(d) }
-                    .padding(10.dp),
+                    .padding(11.dp),
             )
         }
-        ReceiptLine(stringResource(R.string.receipt_paid), d.paid, { d.paid = it }, stringResource(R.string.receipt_paid), error = missing(showErrors, d.paid, d.price)) {
-            CurrencyMark(cardCurrency.symbol)
-        }
-        ReceiptLine(stringResource(R.string.receipt_for), d.price, { d.price = it }, stringResource(R.string.receipt_for), error = missing(showErrors, d.price, d.paid)) {
-            CurrencyMark(d.spend.symbol)
-        }
+        val paidLabel = stringResource(R.string.receipt_paid)
+        val forLabel = stringResource(R.string.receipt_for)
+        FieldPair(
+            first = { m ->
+                AmountField(
+                    paidLabel, d.paid, { d.paid = it }, paidLabel, m,
+                    imeAction = ImeAction.Next,
+                    error = amountError(showErrors, d.paid, d.price),
+                    trailing = { FieldSuffix(cardCurrency.symbol) },
+                )
+            },
+            second = { m ->
+                AmountField(
+                    forLabel, d.price, { d.price = it }, forLabel, m,
+                    error = amountError(showErrors, d.price, d.paid),
+                    trailing = { CurrencyDropdown(d.spend, (listOf(spend, d.spend) + Currency.POPULAR).distinct(), { d.spend = it }, pick) },
+                    selectable = true,
+                )
+            },
+        )
         val paid = Numbers.parse(d.paid)?.takeIf { it.signum() > 0 }
         val price = Numbers.parse(d.price)?.takeIf { it.signum() > 0 }
         if (paid != null && price != null) {
             ReceiptRate(Numbers.transferRate(paid.divide(price, MC), cardCurrency.symbol, d.spend.symbol))
             ReceiptTypo(paid, price, official?.cross(d.spend, cardCurrency))
         }
-        Spacer(Modifier.height(6.dp))
     }
-    TextButton(onClick = onAdd) { Text(stringResource(R.string.receipt_add), style = type.bodyStrong, color = colors.accent) }
+    AddAction(stringResource(R.string.receipt_add), onAdd)
     hint?.let { Hint(it) }
 }
 
@@ -117,10 +131,23 @@ private fun filled(text: String): Boolean = Numbers.parse(text)?.let { it.signum
 /** В паре сумм чека заполнена ровно одна: такой чек не сохранится. */
 internal fun halfFilled(a: String, b: String): Boolean = filled(a) != filled(b)
 
-/** Пояснение под пустым полем [value], если вторая сумма пары [other] заполнена и пользователь уже нажал «Сохранить». */
+/** Сумма набрана, но не больше нуля («0», «0,»): такой чек не учтётся. */
+private fun zero(text: String): Boolean = text.isNotBlank() && !filled(text)
+
+/** В паре сумм ошибка: одна из сумм — ноль или заполнена только одна. */
+internal fun pairInvalid(a: String, b: String): Boolean = zero(a) || zero(b) || halfFilled(a, b)
+
+/**
+ * Ошибка поля [value] после нажатия «Сохранить» ([show]): «Сумма должна быть больше 0» или,
+ * если заполнено только парное поле [other], — «Заполните оба поля».
+ */
 @Composable
-internal fun missing(show: Boolean, value: String, other: String): String? =
-    if (show && !filled(value) && filled(other)) stringResource(R.string.receipt_missing) else null
+internal fun amountError(show: Boolean, value: String, other: String): String? = when {
+    !show -> null
+    zero(value) -> stringResource(R.string.field_zero)
+    !filled(value) && filled(other) -> stringResource(R.string.receipt_missing)
+    else -> null
+}
 
 /**
  * «⚠ Курс по чеку на +900 % от ЦБ — проверьте суммы»: [paid] за [got] при курсе ЦБ [officialPaidPerGot].

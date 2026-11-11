@@ -109,6 +109,25 @@ object Numbers {
 
     private val MAX_UNIT = BigDecimal(1_000_000)
 
+    /**
+     * Набранное в поле суммы: только цифры и одна запятая (точка — тоже запятая), без пробелов —
+     * разряды поле показывает само. «15 000.5» → «15000,5», «,5» → «0,5».
+     */
+    fun cleanInput(text: String): String {
+        val out = StringBuilder()
+        var comma = false
+        for (ch in text) {
+            when {
+                ch.isDigit() -> out.append(ch)
+                (ch == ',' || ch == '.') && !comma -> {
+                    comma = true
+                    out.append(if (out.isEmpty()) "0," else ",")
+                }
+            }
+        }
+        return out.toString()
+    }
+
     /** Ввод в процессе набора: «15000,5» → «15 000,5», хвостовая запятая сохраняется. */
     fun groupInput(raw: String): String {
         val comma = raw.indexOf(',')

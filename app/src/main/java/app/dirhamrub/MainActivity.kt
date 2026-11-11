@@ -72,6 +72,9 @@ class MainActivity : ComponentActivity() {
 
         /** Только для снимков CI: редактор этой карты (id из демо-данных). */
         const val EXTRA_CARD = "card"
+
+        /** Для снимков CI: редактор новой карты. */
+        const val CARD_NEW = "new"
         const val SCREEN_CAMERA = "camera"
         const val SCREEN_CHEAT = "cheat"
         const val SCREEN_CURRENCIES = "currencies"

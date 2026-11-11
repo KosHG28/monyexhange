@@ -72,6 +72,9 @@ shot 19-cheat-lkr --es spend LKR --es screen cheat
 shot 20-currencies-lkr --es spend LKR --es screen currencies
 shot 21-settings --es screen settings
 WAIT=12 shot 22-cash-editor --es screen editor --es card demo-aed-cash
+# Редактор карты: карта в юанях (UnionPay, пополнение и чек) и новая карта (пустые блоки).
+WAIT=12 shot 37-card-editor --es screen editor --es card demo-cny
+WAIT=12 shot 38-card-editor-new --es screen editor --es card new
 # Знакомство по шагам: зачем, как считаем, что учитываем, откуда и куда, чем платите.
 shot 23-onb-1-why --es screen onboarding --ei step 0
 shot 24-onb-2-how --es screen onboarding --ei step 1

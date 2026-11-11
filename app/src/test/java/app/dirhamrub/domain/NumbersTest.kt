@@ -128,4 +128,12 @@ class NumbersTest {
         assertEquals("5,40", Numbers.total(BigDecimal("5.4"), Rounding.TENS))
         assertEquals("67", Numbers.total(BigDecimal("67"), Rounding.NONE))
     }
+
+    @Test
+    fun `ввод суммы в поле чека`() {
+        assertEquals("15000,5", Numbers.cleanInput("15 000.5"))
+        assertEquals("0,5", Numbers.cleanInput(",5"))
+        assertEquals("12,34", Numbers.cleanInput("12,3,4"))
+        assertEquals("150000", Numbers.cleanInput("150 000 ₽"))
+    }
 }

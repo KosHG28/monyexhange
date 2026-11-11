@@ -86,7 +86,6 @@
     <string name="receipt_received">Получил</string>
     <string name="receipt_exchange_hint">Сколько отдали в обменнике и сколько получили на руки — курс наличных будет точным.</string>
     <string name="editor_name">Название</string>
-    <string name="editor_name_hint">Например, Kaspi или Tinkoff</string>
     <string name="editor_currency">Валюта карты</string>
     <string name="receipt_transfer">Пополнение</string>
     <string name="receipt_sent">Отправил</string>
@@ -95,7 +94,7 @@
     <string name="receipt_purchases">Покупки по карте</string>
     <string name="receipt_paid">Списали</string>
     <string name="receipt_for">За</string>
-    <string name="receipt_add">+ чек покупки</string>
+    <string name="receipt_add">+ Чек покупки</string>
     <string name="receipt_remove">Удалить чек</string>
     <string name="receipt_rate">✓ По этому чеку %1$s</string>
     <string name="receipt_estimate_hint">Чека покупки в %1$s нет — курс оценён по ЦБ с наценкой карты по её чекам. Чек в %1$s сделает его точным.</string>
@@ -114,13 +113,9 @@
     <string name="receipt_bought_hint_empty">Пусто — по курсу ЦБ (серым). Курс, по которому покупали, сделает итог точным.</string>
     <string name="receipt_bought_hint">Итог по обоим чекам: обмен и покупка валюты.</string>
     <string name="receipt_unionpay_hint">Чека покупки в %1$s нет — курс UnionPay в %2$s, без комиссий банка. Чек в %1$s сделает курс точным.</string>
-    <string name="receipt_purchases_hint">По чеку в нужной валюте курс точный. Для других валют — курс ЦБ с наценкой карты по её чекам.</string>
-    <string name="editor_unionpay">Карта UnionPay</string>
     <string name="editor_unionpay_hint">Покупку в любой валюте UnionPay пересчитывает по своему курсу — курс есть и без чека.</string>
     <string name="editor_settlement">Валюта расчёта UnionPay</string>
     <string name="editor_settlement_hint">Обычно юань. Из %1$s в %2$s — по курсу банка: его даст чек покупки в %1$s.</string>
-    <string name="editor_manual">Свой курс: %1$s =</string>
-    <string name="editor_manual_hint">Пусто — считать по чекам; серым — курс по ним сейчас</string>
     <string name="editor_result">%1$s = %2$s %3$s</string>
     <string name="editor_no_result">Добавьте чек или обновите курсы ЦБ</string>
     <string name="editor_delete">Удалить карту</string>
@@ -319,7 +314,7 @@
     <string name="settings_crash_copy">Скопировать</string>
     <string name="settings_crash_clear">Очистить</string>
     <string name="settings_footer">Сеть — только для курсов ЦБ, UnionPay и справочника стран. Карты и чеки хранятся на телефоне.</string>
-    <string name="receipt_missing">Заполните и эту сумму — без неё чек не учтётся</string>
+    <string name="receipt_missing">Заполните оба поля</string>
     <string name="currency_more_count">Все валюты (%1$d) ›</string>
     <string name="onboarding_skip">Пропустить</string>
     <string name="receipt_typo_high">⚠ Курс по чеку на %1$s %% от ЦБ — проверьте суммы: нет ли лишнего нуля?</string>
@@ -463,4 +458,22 @@
     <string name="settings_onboarding_sub">Пять экранов о том, как считаем</string>
     <string name="settings_unionpay_on">Карты UnionPay и валюты без ЦБ · %1$s</string>
     <string name="crash_hint">Журнал хранится только на телефоне. Отправьте его разработчику, если что-то сломалось.</string>
+    <string name="editor_block_main">Основное</string>
+    <string name="editor_block_rate">Курс карты</string>
+    <string name="editor_block_cash">Обмен</string>
+    <string name="editor_frozen_a11y">Чеки не используются: задан свой курс</string>
+    <string name="editor_result_title">Итог по чекам</string>
+    <string name="editor_result_estimate">Пока примерно</string>
+    <string name="editor_result_approx">%1$s ≈ %2$s %3$s</string>
+    <string name="editor_manual_toggle">Задать курс вручную</string>
+    <string name="editor_manual_off_hint">Обычно не нужно — считаем по чекам</string>
+    <string name="editor_manual_on_hint">Чеки не используются, пока включено</string>
+    <string name="editor_manual_unit">%1$s =</string>
+    <string name="editor_manual_home_hint">%1$s — итоговая валюта, её выбирать не нужно</string>
+    <string name="editor_fix_fields">Исправьте поля, отмеченные красным</string>
+    <string name="field_zero">Сумма должна быть больше 0</string>
+    <string name="transfer_empty">Сколько отправили и сколько пришло на карту — из уведомления банка</string>
+    <string name="transfer_add_first">+ Добавить пополнение</string>
+    <string name="purchases_empty">Пока чеков нет — считаем по курсу ЦБ с пометкой «≈»</string>
+    <string name="purchases_add_first">+ Добавить первый чек</string>
 </resources>

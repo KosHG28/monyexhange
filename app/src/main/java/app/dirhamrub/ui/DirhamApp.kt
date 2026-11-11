@@ -132,7 +132,11 @@ fun DirhamApp(
     // Скриншоты CI: сразу редактор выбранной карты.
     LaunchedEffect(state.loaded) {
         if (state.loaded && startScreen == MainActivity.SCREEN_EDITOR) {
-            (state.wallet.cards.firstOrNull { it.id == startCard } ?: state.selectedCard)?.let { editing = Editing(it, isNew = false) }
+            if (startCard == MainActivity.CARD_NEW) {
+                editing = Editing(vm.newCard(), isNew = true)
+            } else {
+                (state.wallet.cards.firstOrNull { it.id == startCard } ?: state.selectedCard)?.let { editing = Editing(it, isNew = false) }
+            }
         }
     }
     val context = LocalContext.current

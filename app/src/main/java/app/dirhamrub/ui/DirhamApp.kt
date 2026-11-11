@@ -49,6 +49,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.dirhamrub.CameraTileService
 import app.dirhamrub.MainActivity
 import app.dirhamrub.R
+import app.dirhamrub.domain.wallet.Countries
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.ui.camera.CameraScreen
@@ -182,7 +183,9 @@ fun DirhamApp(
     // Плитка «Ценник» в шторке: предлагаем один раз, после первого знакомства с камерой (Android 13+).
     val tileOffer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && state.cameraUsed && !state.tileOffered
     // Справочник «Чем платить»: по валюте трат и стране сотовой сети.
-    val guide = state.guides?.forSpend(state.wallet.spend, country)
+    // Справочник — той страны, что в шапке (выбранная, страна сети или главная страна валюты): у евро их много.
+    val placeIso = Countries.placeFor(state.wallet.spend, state.wallet.place, country)?.iso
+    val guide = placeIso?.let { state.guides?.countries?.get(it) } ?: state.guides?.forSpend(state.wallet.spend, country)
     val place = placeOf(state.wallet.spend, state.wallet.place, country)
     MainScreen(
         state = state,

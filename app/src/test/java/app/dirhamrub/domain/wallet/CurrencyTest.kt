@@ -204,6 +204,9 @@ class CurrencyTest {
         assertEquals("د.م.", Currency.MAD.sign)
         assertEquals("MAD", Currency.MAD.symbol)
         assertEquals("֏", Currency.AMD.sign)
-        assertEquals("AED", Currency.AED.sign)
+        assertEquals("د.إ", Currency.AED.sign)
+        assertEquals("AED", Currency.AED.symbol)
+        // Знак для показа есть у каждой валюты.
+        for (c in Currency.entries) assertTrue(c.code, c.sign != c.code)
     }
 }

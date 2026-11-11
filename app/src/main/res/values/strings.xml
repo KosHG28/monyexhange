@@ -442,9 +442,7 @@
     <string name="pay_dearer">на %1$s дороже</string>
     <string name="pay_less">на %1$s меньше</string>
     <string name="pay_row_a11y">%1$s, %2$s: %3$s</string>
-    <string name="network_unionpay">UnionPay</string>
     <string name="network_unionpay_short">UP</string>
-    <string name="network_mir">МИР</string>
     <string name="network_mir_short">МИР</string>
     <string name="network_visa_mc">Visa/MC</string>
     <string name="network_visa_mc_short">V/MC</string>

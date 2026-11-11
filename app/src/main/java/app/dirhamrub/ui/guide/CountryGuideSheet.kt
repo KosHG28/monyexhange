@@ -164,6 +164,13 @@ fun CountryGuideSheet(guide: CountryGuide, cards: List<BankCard>, onDismiss: () 
             }
             // Наличные — зелёной купюрой (без знаков валют), банкоматы — серым, советы — жёлтой лампочкой.
             Items(stringResource(R.string.guide_cash), R.drawable.ic_cash, colors.good, guide.cash)
+            // Ввоз и вывоз — жёлтым: местную валюту нельзя вывезти, крупные суммы декларируют.
+            Items(stringResource(R.string.guide_export), R.drawable.ic_alert, colors.warn, guide.export)
+            // Ходовые купюры: номиналы и код валюты — чтобы узнавать деньги в руках.
+            guide.notes?.let { n ->
+                val code = Countries.byIso(guide.iso)?.currency?.code.orEmpty()
+                Items(stringResource(R.string.guide_notes), R.drawable.ic_cash, colors.muted, listOf(GuideItem("${n.title} $code", n.text)))
+            }
             Items(stringResource(R.string.guide_atm), R.drawable.ic_atm, colors.muted, guide.atm)
             Items(stringResource(R.string.guide_tips), R.drawable.ic_tip, colors.warn, guide.tips)
             Spacer(Modifier.height(12.dp))

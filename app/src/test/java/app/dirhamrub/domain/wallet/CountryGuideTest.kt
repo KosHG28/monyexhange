@@ -113,4 +113,19 @@ class CountryGuideTest {
         assertEquals(CardNetwork.UNIONPAY_FOREIGN, back.network)
         assertTrue(back.unionPay)
     }
+
+    @Test
+    fun `купюры и ввоз-вывоз`() {
+        val g = CountryGuideParser.parse("version=2026-11-11\n[TN]\nupdated=2026-11-11\nnotes=10 · 20 · 50\nexport=Динары вывозить нельзя|Обменяйте остаток\n[MA]\nupdated=2026-11-11")!!
+        val tn = g.countries.getValue("TN")
+        assertEquals(GuideItem("10 · 20 · 50", ""), tn.notes)
+        assertEquals(listOf(GuideItem("Динары вывозить нельзя", "Обменяйте остаток")), tn.export)
+        assertNull(g.countries.getValue("MA").notes)
+        // Во встроенном файле: у Туниса — запрет на вывоз динаров, у Еврозоны — декларация от 10 000 €.
+        val file = listOf("src/main/assets/countries.txt", "app/src/main/assets/countries.txt", "../../app/src/main/assets/countries.txt").map(::File).first { it.exists() }
+        val all = CountryGuideParser.parse(file.readText())!!.countries
+        assertTrue(all.getValue("TN").export.any { it.title.contains("нельзя") })
+        assertTrue(all.getValue("DE").export.any { it.title.contains("10 000 €") })
+        assertNotNull(all.getValue("TN").notes)
+    }
 }

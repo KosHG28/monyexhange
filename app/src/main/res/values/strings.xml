@@ -346,6 +346,8 @@
     <string name="guide_cash">Наличные</string>
     <string name="guide_atm">Банкоматы</string>
     <string name="guide_tips">Советы</string>
+    <string name="guide_export">Ввоз и вывоз денег</string>
+    <string name="guide_notes">Купюры</string>
     <string name="guide_updated">Обновлено: %1$s</string>
     <string name="guide_updated_stale">Обновлено: %1$s — давно, сведения могли устареть</string>
     <string name="guide_disclaimer">Сведения меняются: перед поездкой уточните в своём банке.</string>

@@ -23,6 +23,10 @@ data class CountryGuide(
     val atm: List<GuideItem> = emptyList(),
     val exchange: List<GuideItem> = emptyList(),
     val tips: List<GuideItem> = emptyList(),
+    /** Ходовые купюры местной валюты: номиналы («20 · 50 · 100 · 200») и пояснение, если нужно. */
+    val notes: GuideItem? = null,
+    /** Ввоз и вывоз денег: местную валюту вывозить нельзя, крупные суммы декларируют. */
+    val export: List<GuideItem> = emptyList(),
 ) {
     /** Давно не обновлялись — показываем пометку. */
     fun isStale(today: LocalDate): Boolean = updated.plusDays(STALE_DAYS).isBefore(today)
@@ -126,6 +130,8 @@ object CountryGuideParser {
         val atm = ArrayList<GuideItem>()
         val exchange = ArrayList<GuideItem>()
         val tips = ArrayList<GuideItem>()
+        val export = ArrayList<GuideItem>()
+        var notes: GuideItem? = null
 
         fun put(key: String, value: String) {
             when (key) {
@@ -147,13 +153,15 @@ object CountryGuideParser {
                     }
                     networks[network] = NetworkNote(acceptance, text)
                 }
-                "cash", "atm", "exchange", "tip" -> {
+                "notes" -> notes = pair(value)?.let { (title, text) -> GuideItem(title, text) }
+                "cash", "atm", "exchange", "tip", "export" -> {
                     val (title, text) = pair(value) ?: return
                     val item = GuideItem(title, text)
                     when (key) {
                         "cash" -> cash += item
                         "atm" -> atm += item
                         "exchange" -> exchange += item
+                        "export" -> export += item
                         else -> tips += item
                     }
                 }
@@ -162,7 +170,7 @@ object CountryGuideParser {
 
         fun build(): CountryGuide? {
             val u = updated ?: return null
-            return CountryGuide(iso, u, networks.toMap(), cash.toList(), atm.toList(), exchange.toList(), tips.toList())
+            return CountryGuide(iso, u, networks.toMap(), cash.toList(), atm.toList(), exchange.toList(), tips.toList(), notes, export.toList())
         }
     }
 }

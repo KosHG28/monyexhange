@@ -112,6 +112,9 @@ shot 42-place-mad --es spend MAD --es screen place
 shot 43-guide-mad --es spend MAD --es screen guide
 # Иран: «Мир» принимают, зарубежные Visa/MC — нет.
 shot 44-guide-irr --es spend IRR --es screen guide
+# Тунис: динары вывозить нельзя, купюры.
+shot 45-guide-tnd --es spend TND --es screen guide
+scrolled 45-guide-tnd-low --es spend TND --es screen guide
 # Пересчёт: выбран не лучший способ (карта в юанях), ввод в рублях, кошелёк без карт.
 shot 33-main-other --es card demo-cny
 shot 34-main-nocards --ez nocards true

@@ -125,6 +125,28 @@ adb shell cmd uimode night yes
 shot store-7-settings --es screen settings
 adb shell wm size reset
 
+# Плавность редактора карты (журнал — screens/jank.txt). Эмулятор без GPU и отладочная сборка медленнее
+# телефона, поэтому смотреть на сравнение между сборками, а не на сами числа. В покое под шторкой кадров
+# быть почти не должно: всё, что там рисуется каждый кадр, заново размывает весь экран.
+adb shell am force-stop "$PKG"
+adb shell am start -W -n "$PKG/$ACT" --ez demo true --es screen editor --es card demo-cny > /dev/null
+sleep 12
+{
+  echo "== покой 5 с под шторкой редактора"
+  adb shell dumpsys gfxinfo "$PKG" reset > /dev/null
+  sleep 5
+  adb shell dumpsys gfxinfo "$PKG" | grep -E "Total frames|Janky frames"
+  echo "== три прокрутки вниз-вверх и закрытие «Назад»"
+  adb shell dumpsys gfxinfo "$PKG" reset > /dev/null
+  for i in 1 2 3; do
+    adb shell input swipe 540 1700 540 600 300
+    adb shell input swipe 540 600 540 1700 300
+  done
+  adb shell input keyevent KEYCODE_BACK
+  sleep 3
+  adb shell dumpsys gfxinfo "$PKG" | grep -E "Total frames|Janky frames|percentile|Number"
+} | tee "$OUT/jank.txt"
+
 # Первый запуск: данные стёрты — знакомство.
 adb shell pm clear "$PKG"
 adb shell am start -W -n "$PKG/$ACT" > /dev/null

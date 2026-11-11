@@ -20,7 +20,14 @@ import androidx.compose.ui.unit.dp
  * снизу — когда есть что прокрутить вперёд. Ставить перед `verticalScroll` (на окно, а не на содержимое).
  */
 fun Modifier.fadingEdges(state: ScrollableState, edge: Dp = 24.dp): Modifier = this
-    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    // Отдельный буфер нужен только для смешивания краёв: когда прокручивать некуда, рисуем как обычно.
+    .graphicsLayer {
+        compositingStrategy = if (state.canScrollBackward || state.canScrollForward) {
+            CompositingStrategy.Offscreen
+        } else {
+            CompositingStrategy.Auto
+        }
+    }
     .drawWithContent {
         drawContent()
         val h = edge.toPx().coerceAtMost(size.height / 3f)

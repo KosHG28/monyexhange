@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
@@ -68,6 +69,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.ui.components.fadingScroll
+import app.dirhamrub.ui.components.underSheet
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.MC
@@ -406,22 +408,24 @@ private fun PriceField(state: MainUiState) {
     }
 }
 
-/** Мигающий курсор сразу за последней цифрой; без анимаций — просто черта. */
+/**
+ * Мигающий курсор сразу за последней цифрой; без анимаций и под шторкой — просто черта (мигание под
+ * шторкой каждый кадр заново размывало бы весь экран). Прозрачность меняется в слое — без рекомпозиций.
+ */
 @Composable
 private fun Caret(fontSp: Float) {
-    val reduceMotion = LocalReduceMotion.current
-    val a = if (reduceMotion) {
-        1f
+    val still = LocalReduceMotion.current || underSheet()
+    val blink = if (still) {
+        null
     } else {
-        val t = rememberInfiniteTransition(label = "caret")
-        val v by t.animateFloat(1f, 0f, infiniteRepeatable(tween(530, delayMillis = 300), RepeatMode.Reverse), label = "caretAlpha")
-        v
+        rememberInfiniteTransition(label = "caret")
+            .animateFloat(1f, 0f, infiniteRepeatable(tween(530, delayMillis = 300), RepeatMode.Reverse), label = "caretAlpha")
     }
     Box(
         Modifier
             .padding(start = 2.dp)
             .size(width = 2.dp, height = (fontSp * 0.95f).dp)
-            .alpha(a)
+            .graphicsLayer { alpha = blink?.value ?: 1f }
             .background(AppTheme.colors.accent, RoundedCornerShape(1.dp)),
     )
 }

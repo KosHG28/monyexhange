@@ -477,7 +477,8 @@ private fun PayRow(
             .heightIn(min = 58.dp)
             .clip(shape)
             .background(bg)
-            .then(if (selected) Modifier.border(1.5.dp, colors.accent, shape) else Modifier)
+            // Синяя обводка — только у выбранного вручную; лучший и так выделен зелёным.
+            .then(if (selected && !isBest) Modifier.border(1.5.dp, colors.accent, shape) else Modifier)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = editLabel)
             .clearAndSetSemantics {
                 contentDescription = a11y

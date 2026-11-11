@@ -60,6 +60,8 @@ WAIT=12 shot 13-editor-narrow --es screen editor
 shot 14-currencies-narrow --es screen currencies
 adb shell wm density reset
 adb shell cmd uimode night yes
+# После смены плотности и темы система перерисовывается — первый снимок иначе выходит чёрным.
+sleep 8
 
 # Другие валюты трат: рупия Индонезии (курс ЦБ есть, у карт — оценка) и Шри-Ланки (у ЦБ курса нет).
 shot 15-main-idr --es spend IDR

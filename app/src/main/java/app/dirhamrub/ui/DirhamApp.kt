@@ -17,7 +17,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -53,7 +55,7 @@ import app.dirhamrub.domain.wallet.Exchanger
 import app.dirhamrub.ui.camera.CameraScreen
 import app.dirhamrub.ui.cards.CardEditorSheet
 import app.dirhamrub.ui.cheat.CheatSheet
-import app.dirhamrub.ui.currency.CurrencySheet
+import app.dirhamrub.ui.currency.CountryScreen
 import app.dirhamrub.ui.exchange.BoardCamera
 import app.dirhamrub.ui.exchange.EXCHANGE_GIVE
 import app.dirhamrub.ui.exchange.ExchangeSheet
@@ -206,6 +208,7 @@ fun DirhamApp(
         onAddReceipt = { editing = Editing(it, isNew = false, addPurchase = state.wallet.spend) },
         onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
         onSelectLine = vm::setActive,
+        onOpenCountries = { currenciesOpen = true },
         onOpenPlace = { placeOpen = true },
         onOpenSettings = { settingsOpen = true },
         onCountry = { accept -> offer?.let { vm.handleCountry(it.iso, if (accept) it.currency else null) } },
@@ -219,10 +222,6 @@ fun DirhamApp(
             state = state,
             place = place,
             guide = guide,
-            onChange = {
-                placeOpen = false
-                currenciesOpen = true
-            },
             onGuide = {
                 placeOpen = false
                 guideOpen = true
@@ -279,13 +278,18 @@ fun DirhamApp(
             onDismiss = { cheatOpen = false },
         )
     }
-    if (currenciesOpen) {
-        CurrencySheet(
+    // «Где вы тратите?» — полноэкранный выбор страны, въезжает снизу.
+    AnimatedVisibility(
+        visible = currenciesOpen,
+        enter = if (reduceMotion) EnterTransition.None else slideInVertically(tween(280)) { it / 4 } + fadeIn(tween(200)),
+        exit = if (reduceMotion) ExitTransition.None else slideOutVertically(tween(220)) { it / 4 } + fadeOut(tween(180)),
+    ) {
+        BackHandler { currenciesOpen = false }
+        CountryScreen(
             spend = state.wallet.spend,
             home = state.wallet.home,
             onSpend = vm::setSpend,
-            onHome = vm::setHome,
-            onDismiss = { currenciesOpen = false },
+            onBack = { currenciesOpen = false },
             recent = state.wallet.recent,
             country = country,
             official = state.reference,

@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.AppSheet
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.BankCard
@@ -251,7 +252,7 @@ fun CardEditorSheet(
         )
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = colors.bg) {
+    AppSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         // Блоки редактора появляются каскадом.
         val cascade = rememberCascade()
         // «Сохранить» всегда внизу шторки, прокручивается только содержимое над ней.

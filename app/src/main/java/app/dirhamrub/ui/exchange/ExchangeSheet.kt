@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.AppSheet
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.RuDates
@@ -119,11 +120,7 @@ fun ExchangeSheet(
     val bestCard = quote.quotes.filter { it.card.kind == CardKind.CARD }.minByOrNull { it.homePerUnit }
     val cbrBuy = official?.cross(giveCurrency, local)
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = colors.bg,
-    ) {
+    AppSheet(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()

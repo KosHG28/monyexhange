@@ -430,7 +430,7 @@
     <string name="money_exchange">Где менять деньги</string>
     <string name="money_cheat">Шпаргалка цен</string>
     <!-- Главный экран (вариант Б) -->
-    <string name="place_a11y">Где тратите: %1$s. Страна, обменники, шпаргалка</string>
+    <string name="place_a11y">Где тратите: %1$s. Сменить страну</string>
     <string name="hero_a11y">Итог: %1$s %2$s</string>
     <string name="hero_switch_home">ввести сумму в рублях</string>
     <string name="hero_switch_spend">ввести цену в %1$s</string>
@@ -457,8 +457,11 @@
     <string name="money_refine">уточнить ›</string>
     <string name="money_add_short">Добавить карту или наличные</string>
     <string name="nocards_text">Добавьте карту или наличные — посчитаем по их курсу. Пока — по курсу ЦБ</string>
-    <string name="place_change">Страна и валюта</string>
     <string name="cards_title">Карты и наличные</string>
     <string name="settings_cards_link">Карты и наличные</string>
     <string name="settings_cards_link_sub">Все способы оплаты, в том числе наличные в других валютах</string>
+    <string name="place_tools_a11y">О стране %1$s: какие карты принимают, обменники, шпаргалка</string>
+    <string name="place_exchange">Сравнение обменников</string>
+    <string name="place_exchange_sub">Сравните уличные курсы и найдите лучший</string>
+    <string name="country_title">Где вы тратите?</string>
 </resources>

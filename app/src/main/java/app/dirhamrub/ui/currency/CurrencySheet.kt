@@ -1,5 +1,21 @@
 package app.dirhamrub.ui.currency
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -28,6 +44,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.AppSheet
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.Countries
@@ -64,11 +81,7 @@ fun CurrencySheet(
     val colors = AppTheme.colors
     var homeTab by rememberSaveable { mutableStateOf(startOnHome && onHome != null) }
     var query by rememberSaveable { mutableStateOf("") }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = colors.bg,
-    ) {
+    AppSheet(onDismissRequest = onDismiss) {
         val cascade = rememberCascade()
         Column(
             Modifier
@@ -128,6 +141,78 @@ fun CurrencySheet(
 }
 
 /**
+ * «Где вы тратите?» — полноэкранный выбор страны (касание страны в шапке главного): стрелка назад, поиск,
+ * страна по сотовой сети и недавние, ниже — все страны по частям света с курсом. Выбрали — сразу назад.
+ * Итоговая валюта здесь не выбирается — только в настройках.
+ */
+@Composable
+fun CountryScreen(
+    spend: Currency,
+    home: Currency,
+    onSpend: (Currency) -> Unit,
+    onBack: () -> Unit,
+    recent: List<Currency> = emptyList(),
+    country: String? = null,
+    official: OfficialRates? = null,
+) {
+    val colors = AppTheme.colors
+    var query by rememberSaveable { mutableStateOf("") }
+    val cascade = rememberCascade()
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(colors.bg)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(horizontal = 16.dp),
+    ) {
+        Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
+            val back = stringResource(R.string.settings_back)
+            Box(
+                Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .clickable(role = Role.Button, onClickLabel = back, onClick = onBack),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = back, tint = colors.ink, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(4.dp))
+            Text(
+                stringResource(R.string.country_title),
+                style = AppTheme.type.title.copy(fontSize = 21.sp),
+                color = colors.ink,
+                modifier = Modifier.semantics { heading() },
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        SearchField(value = query, onValueChange = { query = it }, hint = stringResource(R.string.currency_search_hint))
+        Spacer(Modifier.height(4.dp))
+        val texts = SheetTexts(
+            here = stringResource(R.string.currency_here),
+            recent = stringResource(R.string.currency_recent),
+            frequent = stringResource(R.string.currency_frequent),
+            all = stringResource(R.string.currency_all),
+            found = stringResource(R.string.currency_found),
+            nothing = stringResource(R.string.currency_nothing),
+            noCbr = stringResource(if (official?.derived.isNullOrEmpty()) R.string.currency_no_cbr else R.string.currency_no_rate),
+            unionPay = stringResource(R.string.currency_unionpay),
+            homeHint = "",
+        )
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentPadding = PaddingValues(bottom = 24.dp),
+        ) {
+            spendItems(query, spend, home, recent, country, official, cascade, texts) {
+                onSpend(it)
+                onBack()
+            }
+        }
+    }
+}
+
+/**
  * Выбор одной валюты из [options] с поиском — валюта карты в редакторе, итоговая в знакомстве.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -141,11 +226,7 @@ fun CurrencyPickerSheet(
 ) {
     val colors = AppTheme.colors
     var query by rememberSaveable { mutableStateOf("") }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = colors.bg,
-    ) {
+    AppSheet(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()

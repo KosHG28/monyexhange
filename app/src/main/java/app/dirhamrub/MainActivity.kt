@@ -17,6 +17,7 @@ import app.dirhamrub.diag.CrashLog
 import app.dirhamrub.diag.Demo
 import app.dirhamrub.diag.CrashReportDialog
 import app.dirhamrub.ui.DirhamApp
+import app.dirhamrub.ui.components.SheetBlurHost
 import app.dirhamrub.ui.main.MainViewModel
 import app.dirhamrub.ui.theme.DirhamTheme
 import kotlinx.coroutines.runBlocking
@@ -50,12 +51,15 @@ class MainActivity : ComponentActivity() {
             val dynamic by remember { derivedStateOf { state.value.settings.dynamicColor } }
             val keyHaptics by remember { derivedStateOf { state.value.settings.keyHaptics } }
             DirhamTheme(theme = theme, motion = motion, dynamic = dynamic, keyHaptics = keyHaptics) {
-                DirhamApp(
-                    startScreen = screen,
-                    startCard = intent?.getStringExtra(EXTRA_CARD),
-                    startStep = intent?.getIntExtra(EXTRA_STEP, 0) ?: 0,
-                    vm = vm,
-                )
+                // Под открытой шторкой экран размыт и затемнён.
+                SheetBlurHost {
+                    DirhamApp(
+                        startScreen = screen,
+                        startCard = intent?.getStringExtra(EXTRA_CARD),
+                        startStep = intent?.getIntExtra(EXTRA_STEP, 0) ?: 0,
+                        vm = vm,
+                    )
+                }
                 CrashReportDialog()
             }
         }

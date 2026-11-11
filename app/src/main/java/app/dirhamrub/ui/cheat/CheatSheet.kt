@@ -43,6 +43,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.AppSheet
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.Currency
@@ -76,11 +77,7 @@ fun CheatSheet(
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = colors.bg,
-    ) {
+    AppSheet(onDismissRequest = onDismiss) {
         // Строки шпаргалки появляются каскадом, текущая сумма подсвечивается пробегающей полосой.
         val cascade = rememberCascade()
         Column(

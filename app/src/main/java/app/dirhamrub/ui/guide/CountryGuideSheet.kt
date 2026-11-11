@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.AppSheet
 import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.wallet.Acceptance
 import app.dirhamrub.domain.wallet.BankCard
@@ -88,11 +89,7 @@ fun CountryGuideSheet(guide: CountryGuide, cards: List<BankCard>, onDismiss: () 
     val type = AppTheme.type
     val context = LocalContext.current
     val local = Countries.byIso(guide.iso)?.currency
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = colors.bg,
-    ) {
+    AppSheet(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()

@@ -117,6 +117,9 @@ fun MainScreen(
     onAddCard: () -> Unit,
     /** Касание итога — ввод в другой валюте (рубли ↔ валюта трат). */
     onSelectLine: (Line) -> Unit,
+    /** Касание страны в шапке — полноэкранный выбор страны. */
+    onOpenCountries: () -> Unit,
+    /** ⓘ рядом со страной — шторка «всё о стране». */
     onOpenPlace: () -> Unit,
     onOpenSettings: () -> Unit,
     onCountry: (accept: Boolean) -> Unit,
@@ -135,7 +138,7 @@ fun MainScreen(
             .background(colors.bg)
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        Header(place, onOpenPlace, onOpenSettings)
+        Header(place, onOpenCountries, onOpenPlace, onOpenSettings)
         // Верх на низких телефонах и при крупном шрифте прокручивается, клавиатура всегда на месте.
         Column(
             modifier = Modifier
@@ -182,9 +185,9 @@ fun MainScreen(
     }
 }
 
-/** «🇦🇲 Армения ⌄» слева, настройки справа. */
+/** «🇦🇲 Армения ⌄» (сменить страну), рядом ⓘ (всё о стране), справа — настройки. У каждой кнопки одно действие. */
 @Composable
-private fun Header(place: Pair<String, String>, onPlace: () -> Unit, onSettings: () -> Unit) {
+private fun Header(place: Pair<String, String>, onCountries: () -> Unit, onPlace: () -> Unit, onSettings: () -> Unit) {
     val colors = AppTheme.colors
     Row(
         Modifier
@@ -194,12 +197,13 @@ private fun Header(place: Pair<String, String>, onPlace: () -> Unit, onSettings:
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val placeA11y = stringResource(R.string.place_a11y, place.second)
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Row(
                 Modifier
+                    .weight(1f, fill = false)
                     .heightIn(min = 48.dp)
                     .clip(RoundedCornerShape(50))
-                    .clickable(role = Role.Button, onClick = onPlace)
+                    .clickable(role = Role.Button, onClick = onCountries)
                     .clearAndSetSemantics {
                         contentDescription = placeA11y
                         role = Role.Button
@@ -225,6 +229,25 @@ private fun Header(place: Pair<String, String>, onPlace: () -> Unit, onSettings:
                     )
                     Spacer(Modifier.width(4.dp))
                     Icon(painterResource(R.drawable.ic_chevron_down), contentDescription = null, tint = colors.muted, modifier = Modifier.size(16.dp))
+                }
+            }
+            val tools = stringResource(R.string.place_tools_a11y, place.second)
+            Box(
+                Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .clickable(role = Role.Button, onClickLabel = tools, onClick = onPlace)
+                    .semantics { contentDescription = tools },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(colors.surface),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(painterResource(R.drawable.ic_info), contentDescription = null, tint = colors.ink, modifier = Modifier.size(21.dp))
                 }
             }
         }

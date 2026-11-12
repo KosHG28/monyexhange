@@ -14,6 +14,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.foundation.Canvas
 import app.dirhamrub.ui.components.fadingScroll
+import app.dirhamrub.ui.components.finishCascadeOnTouch
+import app.dirhamrub.ui.components.rememberCascade
+import app.dirhamrub.ui.components.cascade
 import app.dirhamrub.ui.components.FullScreen
 import app.dirhamrub.ui.components.ScreenBar
 import app.dirhamrub.domain.wallet.noun
@@ -147,9 +150,12 @@ fun CountryGuideScreen(
       Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
         ScreenBar(onBack = { close() })
+        // Шапка — сразу, блоки ниже выплывают снизу по очереди; касание — сразу всё на месте.
+        val cascade = rememberCascade()
         Column(
             Modifier
                 .fillMaxWidth()
+                .finishCascadeOnTouch(cascade)
                 .fadingScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 20.dp),
@@ -159,6 +165,7 @@ fun CountryGuideScreen(
                 Spacer(Modifier.height(16.dp))
                 Column(
                     Modifier
+                        .cascade(cascade, 0)
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
                         .background(colors.surface)
@@ -172,7 +179,9 @@ fun CountryGuideScreen(
             val local = Countries.byIso(guide.iso)?.currency
             // Наличные в чужой валюте здесь не платят — это и так понятно, строку не показываем.
             val shown = cards.filterNot { local != null && it.kind == CardKind.CASH && guide.verdict(it, local) == null }
+            var step = 0
             if (local != null && shown.isNotEmpty()) {
+              Column(Modifier.cascade(cascade, step++)) {
                 Section(stringResource(R.string.guide_your_cards))
                 Group {
                     shown.forEachIndexed { i, card ->
@@ -190,7 +199,9 @@ fun CountryGuideScreen(
                         Line(acceptanceIcon(verdict), acceptanceColor(verdict), card.name, sub)
                     }
                 }
+              }
             }
+            Column(Modifier.cascade(cascade, step++)) {
             Section(stringResource(R.string.guide_networks))
             Group {
                 CardNetwork.entries.filter { it in guide.networks }.forEachIndexed { i, n ->
@@ -199,17 +210,18 @@ fun CountryGuideScreen(
                     Line(acceptanceIcon(note.acceptance), acceptanceColor(note.acceptance), networkName(n), note.text)
                 }
             }
+            }
             // Наличные — зелёной купюрой (без знаков валют), банкоматы — серым, советы — жёлтой лампочкой.
-            Items(stringResource(R.string.guide_cash), R.drawable.ic_cash, colors.good, guide.cash)
+            Items(stringResource(R.string.guide_cash), R.drawable.ic_cash, colors.good, guide.cash, Modifier.cascade(cascade, step++))
             // Ввоз и вывоз — жёлтым: местную валюту нельзя вывезти, крупные суммы декларируют.
-            Items(stringResource(R.string.guide_export), R.drawable.ic_alert, colors.warn, guide.export)
+            Items(stringResource(R.string.guide_export), R.drawable.ic_alert, colors.warn, guide.export, Modifier.cascade(cascade, step++))
             // Ходовые купюры: номиналы и код валюты — чтобы узнавать деньги в руках.
             guide.notes?.let { n ->
                 val code = local?.code.orEmpty()
-                Items(stringResource(R.string.guide_notes), R.drawable.ic_cash, colors.muted, listOf(GuideItem("${n.title} $code", n.text)))
+                Items(stringResource(R.string.guide_notes), R.drawable.ic_cash, colors.muted, listOf(GuideItem("${n.title} $code", n.text)), Modifier.cascade(cascade, step++))
             }
-            Items(stringResource(R.string.guide_atm), R.drawable.ic_atm, colors.muted, guide.atm)
-            Items(stringResource(R.string.guide_tips), R.drawable.ic_tip, colors.warn, guide.tips)
+            Items(stringResource(R.string.guide_atm), R.drawable.ic_atm, colors.muted, guide.atm, Modifier.cascade(cascade, step++))
+            Items(stringResource(R.string.guide_tips), R.drawable.ic_tip, colors.warn, guide.tips, Modifier.cascade(cascade, step++))
             Spacer(Modifier.height(12.dp))
             val stale = guide.isStale(LocalDate.now())
             Text(
@@ -370,14 +382,16 @@ private fun ReportLink(text: String, iso: String?, country: String, updated: Loc
 private const val REPORT_URL = "https://github.com/KosHG28/monyexhange/issues/new"
 
 @Composable
-private fun Items(title: String, @DrawableRes icon: Int, tint: Color, items: List<GuideItem>) {
+private fun Items(title: String, @DrawableRes icon: Int, tint: Color, items: List<GuideItem>, modifier: Modifier = Modifier) {
     if (items.isEmpty()) return
+    Column(modifier) {
     Section(title)
     Group {
         items.forEachIndexed { i, item ->
             if (i > 0) Divider()
             Line(icon, tint, item.title, item.text)
         }
+    }
     }
 }
 

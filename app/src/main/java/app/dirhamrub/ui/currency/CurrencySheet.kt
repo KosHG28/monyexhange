@@ -58,6 +58,7 @@ import app.dirhamrub.domain.wallet.Region
 import app.dirhamrub.domain.wallet.cbrPublishes
 import app.dirhamrub.ui.components.CurrencyChips
 import app.dirhamrub.ui.components.cascade
+import app.dirhamrub.ui.components.finishCascadeOnTouch
 import app.dirhamrub.ui.components.rememberCascade
 import app.dirhamrub.ui.theme.AppTheme
 
@@ -124,6 +125,7 @@ fun CurrencyScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .finishCascadeOnTouch(cascade)
                     .fadingEdges(listState),
                 contentPadding = PaddingValues(bottom = 24.dp),
             ) {
@@ -206,6 +208,7 @@ fun CountryScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .finishCascadeOnTouch(cascade)
                 .fadingEdges(listState),
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {

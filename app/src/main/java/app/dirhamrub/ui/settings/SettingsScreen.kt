@@ -61,6 +61,9 @@ import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import app.dirhamrub.R
 import app.dirhamrub.ui.components.fadingScroll
+import app.dirhamrub.ui.components.finishCascadeOnTouch
+import app.dirhamrub.ui.components.rememberCascade
+import app.dirhamrub.ui.components.cascade
 import app.dirhamrub.diag.CrashLog
 import app.dirhamrub.domain.MotionMode
 import app.dirhamrub.domain.RatesUpdate
@@ -138,27 +141,34 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
                 modifier = Modifier.semantics { heading() },
             )
         }
+        // Разделы выплывают снизу по очереди; касание — сразу всё на месте.
+        val cascade = rememberCascade()
         Column(
             Modifier
                 .fillMaxWidth()
+                .finishCascadeOnTouch(cascade)
                 .fadingScroll(rememberScrollState())
                 .padding(horizontal = 14.dp)
                 .padding(bottom = 24.dp),
         ) {
-            SectionTitle(stringResource(R.string.settings_section_main))
-            Group {
-                LinkRow(
-                    stringResource(R.string.settings_cards_link),
-                    stringResource(R.string.settings_cards_link_sub),
-                    state.wallet.cards.size.takeIf { it > 0 }?.toString(),
-                    onClick = actions.onCards,
-                )
+            Column(Modifier.cascade(cascade, 0)) {
+                SectionTitle(stringResource(R.string.settings_section_main))
+                Group {
+                    LinkRow(
+                        stringResource(R.string.settings_cards_link),
+                        stringResource(R.string.settings_cards_link_sub),
+                        state.wallet.cards.size.takeIf { it > 0 }?.toString(),
+                        onClick = actions.onCards,
+                    )
+                }
             }
-            RatesSection(state, actions)
-            CurrenciesSection(state, actions, onPickHome = { homePicker = true }, onPickRounding = { roundingPicker = true })
-            CameraSection(state, actions)
-            LookSection(state, actions)
-            AboutSection(onOnboarding = actions.onOnboarding, onCrash = { crashOpen = true })
+            Column(Modifier.cascade(cascade, 1)) { RatesSection(state, actions) }
+            Column(Modifier.cascade(cascade, 2)) {
+                CurrenciesSection(state, actions, onPickHome = { homePicker = true }, onPickRounding = { roundingPicker = true })
+            }
+            Column(Modifier.cascade(cascade, 3)) { CameraSection(state, actions) }
+            Column(Modifier.cascade(cascade, 4)) { LookSection(state, actions) }
+            Column(Modifier.cascade(cascade, 5)) { AboutSection(onOnboarding = actions.onOnboarding, onCrash = { crashOpen = true }) }
         }
     }
     if (roundingPicker) {

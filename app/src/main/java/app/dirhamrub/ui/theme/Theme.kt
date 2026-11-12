@@ -1,5 +1,7 @@
 package app.dirhamrub.ui.theme
 
+import android.os.PowerManager
+import android.content.Context
 import android.app.Activity
 import android.os.Build
 import android.provider.Settings
@@ -65,8 +67,10 @@ fun DirhamTheme(
     val context = LocalContext.current
     val base = if (dark) DarkColors else LightColors
     val colors = base
+    // Анимации выключены в системе или включено энергосбережение — без анимаций (слабые устройства).
     val systemReduce = remember(context) {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f ||
+            (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isPowerSaveMode == true
     }
     val reduceMotion = motion == MotionMode.OFF || systemReduce
     val view = LocalView.current

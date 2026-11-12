@@ -66,6 +66,7 @@ import app.dirhamrub.ui.components.FullScreen
 import app.dirhamrub.ui.components.FullScreenScope
 import app.dirhamrub.ui.components.ScreenBar
 import app.dirhamrub.ui.components.fadingScroll
+import app.dirhamrub.ui.components.finishCascadeOnTouch
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.Rounding
@@ -321,6 +322,7 @@ fun CardEditorScreen(
                 .weight(1f)
                 .fillMaxWidth()
                 .pointerInput(Unit) { detectTapGestures(onTap = { focus.clearFocus() }) }
+                .finishCascadeOnTouch(cascade)
                 .fadingScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 12.dp),
@@ -333,7 +335,6 @@ fun CardEditorScreen(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .cascade(cascade, 1)
                     .clearAndSetSemantics { },
                 contentAlignment = Alignment.Center,
             ) {
@@ -355,11 +356,12 @@ fun CardEditorScreen(
             }
             Spacer(Modifier.height(8.dp))
             // Карта или наличные из обменника: у наличных вместо пополнения — обмен, покупок по чекам нет.
-            Box(Modifier.cascade(cascade, 1)) { KindSwitch(kind) { kind = it } }
+            // Карточка и «Карта / Наличные» — сразу; блоки ниже выплывают по очереди.
+            KindSwitch(kind) { kind = it }
             Spacer(Modifier.height(10.dp))
 
             // Блок 1. Основное: название, валюта, платёжная система.
-            EditorBlock(stringResource(R.string.editor_block_main), Modifier.cascade(cascade, 2)) {
+            EditorBlock(stringResource(R.string.editor_block_main), Modifier.cascade(cascade, 0)) {
                 FieldLabel(stringResource(R.string.editor_name))
                 BasicTextField(
                     value = name,
@@ -412,7 +414,7 @@ fun CardEditorScreen(
             // Блок 2. UnionPay — только если выбрана эта система.
             if (!cash && network.isUnionPay()) {
                 Spacer(Modifier.height(10.dp))
-                EditorBlock(stringResource(R.string.network_unionpay), Modifier.cascade(cascade, 3)) {
+                EditorBlock(stringResource(R.string.network_unionpay), Modifier.cascade(cascade, 1)) {
                     UnionPaySection(
                         settlement = settlement ?: UnionPayRates.defaultSettlement(currency),
                         cardCurrency = currency,
@@ -424,7 +426,7 @@ fun CardEditorScreen(
 
             // Блок 3. Курс карты: скриншот, пополнение, покупки, итог, свой курс.
             Spacer(Modifier.height(10.dp))
-            EditorBlock(stringResource(if (cash) R.string.editor_block_cash else R.string.editor_block_rate), Modifier.cascade(cascade, 4)) {
+            EditorBlock(stringResource(if (cash) R.string.editor_block_cash else R.string.editor_block_rate), Modifier.cascade(cascade, 2)) {
                 val frozenText = stringResource(R.string.editor_frozen_a11y)
                 Column(Modifier.frozen(manualOn, frozenText)) {
                     // Скриншот банка — только у карт: обмен наличных в приложении банка не виден.

@@ -38,6 +38,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.ui.components.fadingScroll
+import app.dirhamrub.ui.components.finishCascadeOnTouch
+import app.dirhamrub.ui.components.rememberCascade
+import app.dirhamrub.ui.components.cascade
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.RuDates
@@ -107,9 +110,11 @@ fun MoneyScreen(state: MainUiState, actions: MoneyActions) {
                 modifier = Modifier.semantics { heading() },
             )
         }
+        val cascade = rememberCascade()
         Column(
             Modifier
                 .fillMaxWidth()
+                .finishCascadeOnTouch(cascade)
                 .fadingScroll(rememberScrollState())
                 .padding(horizontal = 14.dp)
                 .padding(bottom = 24.dp),
@@ -118,14 +123,14 @@ fun MoneyScreen(state: MainUiState, actions: MoneyActions) {
             val cards = wallet.cards.sortedBy { state.quote.of(it.id)?.homePerUnit ?: BigDecimal(Long.MAX_VALUE) }
             if (cards.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
-                Group {
+                Group(Modifier.cascade(cascade, 0)) {
                     cards.forEachIndexed { i, card ->
                         if (i > 0) Divider()
                         CardRow(state, card, state.quote.of(card.id)) { actions.onEditCard(card) }
                     }
                 }
             }
-            AddRow(actions.onAddCard)
+            Box(Modifier.cascade(cascade, 1)) { AddRow(actions.onAddCard) }
         }
     }
 }

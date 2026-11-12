@@ -56,3 +56,12 @@ fun Modifier.softGlow(color: Color, radius: Dp, corner: Dp): Modifier =
 
 /** Свечение поддерживается (Android 9+): иначе вместо него — обычная обводка. */
 val glowSupported: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+
+/**
+ * Свечение поля ввода — цветом его же заливки, без акцента: поле будто светится изнутри. В тёмной теме — на тон
+ * светлее заливки (на чёрном фоне цвет самой заливки почти не виден), в светлой — белым ореолом на сером фоне.
+ */
+fun Modifier.fieldGlow(corner: Dp): Modifier = composed {
+    val c = AppTheme.colors
+    softGlow(if (c.isDark) c.surface2 else c.surface, radius = 16.dp, corner = corner)
+}

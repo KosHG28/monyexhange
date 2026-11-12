@@ -1,7 +1,6 @@
 package app.dirhamrub.ui.main
 
-import app.dirhamrub.ui.theme.glowSupported
-import app.dirhamrub.ui.theme.softGlow
+import app.dirhamrub.ui.theme.fieldGlow
 import app.dirhamrub.ui.components.TypingText
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -410,17 +409,11 @@ private fun PriceField(state: MainUiState, covered: Boolean) {
     Column(
         Modifier
             .fillMaxWidth()
-            // Вместо синей рамки — мягкое синее свечение вокруг поля и еле заметная тонкая обводка.
-            .softGlow(colors.accent.copy(alpha = if (colors.isDark) 0.45f else 0.28f), radius = 14.dp, corner = 18.dp)
+            // Мягкое свечение цветом заливки поля и тонкая нейтральная обводка — без синего.
+            .fieldGlow(corner = 18.dp)
             .clip(shape)
             .background(colors.surface)
-            .then(
-                if (glowSupported) {
-                    Modifier.border(1.dp, colors.accent.copy(alpha = 0.35f), shape)
-                } else {
-                    Modifier.border(1.5.dp, colors.accent, shape)
-                },
-            )
+            .border(1.dp, colors.line, shape)
             .padding(start = 16.dp, end = 18.dp, top = 10.dp, bottom = 10.dp)
             .clearAndSetSemantics { contentDescription = a11y },
     ) {

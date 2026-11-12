@@ -141,10 +141,10 @@ fun CountryGuideScreen(
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    FullScreen(onDismissRequest = onDismiss) {
-      // Флаг страны — фоном в правом верхнем углу, под содержимым; прокручивается только содержимое.
+    // Флаг страны — фоном в правом верхнем углу экрана (и под строкой состояния — без резкого среза сверху);
+    // прокручивается только содержимое.
+    FullScreen(onDismissRequest = onDismiss, backdrop = { FlagBackdrop(place.first, Modifier.align(Alignment.TopEnd)) }) {
       Box(Modifier.fillMaxSize()) {
-        FlagBackdrop(place.first, Modifier.align(Alignment.TopEnd))
         Column(Modifier.fillMaxSize()) {
         ScreenBar(onBack = { close() })
         Column(

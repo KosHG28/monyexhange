@@ -12,6 +12,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -74,6 +75,8 @@ class FullScreenScope internal constructor(
 fun FullScreen(
     onDismissRequest: () -> Unit,
     interceptBack: () -> Boolean = { false },
+    /** Фон на весь экран, под строкой состояния (флаг страны) — без отступов от краёв. */
+    backdrop: @Composable BoxScope.() -> Unit = {},
     content: @Composable FullScreenScope.() -> Unit,
 ) {
     val reduceMotion = LocalReduceMotion.current
@@ -109,9 +112,11 @@ fun FullScreen(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(colors.bg)
-                    .windowInsetsPadding(WindowInsets.safeDrawing),
-            ) { scope.content() }
+                    .background(colors.bg),
+            ) {
+                backdrop()
+                Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) { scope.content() }
+            }
         }
     }
 }

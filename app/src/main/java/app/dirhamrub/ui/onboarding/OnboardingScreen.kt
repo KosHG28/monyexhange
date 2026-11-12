@@ -55,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.dirhamrub.ui.theme.Springs
 import app.dirhamrub.R
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
@@ -167,8 +168,8 @@ fun OnboardingScreen(
         // Страна — тот же экран, что из шапки главного, выезжает снизу поверх знакомства.
         AnimatedVisibility(
             visible = countryOpen,
-            enter = if (reduceMotion) EnterTransition.None else slideInVertically(tween(260)) { it / 4 } + fadeIn(tween(200)),
-            exit = if (reduceMotion) ExitTransition.None else slideOutVertically(tween(220)) { it / 4 } + fadeOut(tween(180)),
+            enter = if (reduceMotion) EnterTransition.None else Springs.screenIn,
+            exit = if (reduceMotion) ExitTransition.None else Springs.screenOut,
         ) {
             BackHandler { countryOpen = false }
             CountryScreen(

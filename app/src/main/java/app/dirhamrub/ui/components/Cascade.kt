@@ -18,6 +18,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.dirhamrub.ui.theme.HighFrameRate
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -62,6 +63,8 @@ fun rememberCascade(timing: CascadeTiming = CascadeTiming.Screen): CascadeState 
     LaunchedEffect(Unit) {
         if (!reduceMotion) clock.animateTo(total, tween(total.toInt(), easing = LinearEasing))
     }
+    // Пока волна идёт — экран на высокой частоте кадров (120 Гц).
+    HighFrameRate(clock.isRunning)
     return remember(clock, scope) { CascadeState(clock, scope, total) }
 }
 

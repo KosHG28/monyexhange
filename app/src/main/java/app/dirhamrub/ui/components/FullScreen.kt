@@ -51,8 +51,10 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
+import app.dirhamrub.ui.theme.Springs
 import app.dirhamrub.R
 import app.dirhamrub.ui.theme.AppTheme
+import app.dirhamrub.ui.theme.HighFrameRate
 import app.dirhamrub.ui.theme.LocalReduceMotion
 
 /** Что может экран [FullScreen]: закрыться с анимацией и потом выполнить [then] (сохранить, удалить). */
@@ -96,11 +98,11 @@ fun FullScreen(
         // Туда — как только экран знает, где у него превью; обратно — по close(), потом закрываемся.
         val targetKnown = flight.target != null
         LaunchedEffect(targetKnown) {
-            if (targetKnown && !flight.closing) flight.progress.animateTo(1f, tween(MORPH_IN_MS, easing = MORPH_IN))
+            if (targetKnown && !flight.closing) flight.progress.animateTo(1f, Springs.spatial())
         }
         LaunchedEffect(flight.closing) {
             if (flight.closing) {
-                flight.progress.animateTo(0f, tween(MORPH_OUT_MS, easing = MORPH_OUT))
+                flight.progress.animateTo(0f, Springs.exit())
                 visible.targetState = false
             }
         }
@@ -129,11 +131,13 @@ fun FullScreen(
                 }
             }
         }
+        // Въезд, уход и перелёт карты — на высокой частоте кадров (120 Гц).
+        HighFrameRate(!visible.isIdle || flight?.progress?.isRunning == true)
         val plain = reduceMotion || flight != null
         AnimatedVisibility(
             visibleState = visible,
-            enter = if (plain) EnterTransition.None else slideInVertically(tween(280)) { it / 4 } + fadeIn(tween(200)),
-            exit = if (plain) ExitTransition.None else slideOutVertically(tween(220)) { it / 4 } + fadeOut(tween(180)),
+            enter = if (plain) EnterTransition.None else Springs.screenIn,
+            exit = if (plain) ExitTransition.None else Springs.screenOut,
         ) {
             Box(Modifier.fillMaxSize()) {
                 Box(

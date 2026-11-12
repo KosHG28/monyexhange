@@ -47,6 +47,9 @@ enum class Haptic {
 
     /** Шаг знакомства сменился. */
     STEP,
+
+    /** Список упёрся в край прокрутки: мягкий щелчок, один раз на упор. */
+    EDGE,
 }
 
 /**
@@ -101,6 +104,7 @@ class Haptics internal constructor(private val view: View, private val enabled: 
             Haptic.TOGGLE_ON -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.7f)
             Haptic.TOGGLE_OFF -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.6f)
             Haptic.STEP -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.5f)
+            Haptic.EDGE -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.5f)
         }
         val effect = c.compose()
         val v = vibrator ?: return
@@ -135,6 +139,7 @@ class Haptics internal constructor(private val view: View, private val enabled: 
             Haptic.TOGGLE_ON -> if (sdk >= u) HapticFeedbackConstants.TOGGLE_ON else HapticFeedbackConstants.CLOCK_TICK
             Haptic.TOGGLE_OFF -> if (sdk >= u) HapticFeedbackConstants.TOGGLE_OFF else HapticFeedbackConstants.CLOCK_TICK
             Haptic.STEP -> if (sdk >= u) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.CLOCK_TICK
+            Haptic.EDGE -> if (sdk >= u) HapticFeedbackConstants.SEGMENT_FREQUENT_TICK else null
         }
     }
 

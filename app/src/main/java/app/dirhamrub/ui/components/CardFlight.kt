@@ -1,7 +1,6 @@
 package app.dirhamrub.ui.components
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -58,7 +57,7 @@ class CardMorph(val origin: Rect) {
     internal var closing by mutableStateOf(false)
 
     /** Летит (туда или обратно): настоящее превью на экране спрятано. */
-    val flying: Boolean get() = progress.value < 1f || closing
+    val flying: Boolean get() = progress.value < 0.999f || closing
 
     /** Фон экрана проявляется быстрее карты, содержимое — во второй половине полёта. */
     internal val backgroundAlpha: Float get() = (progress.value * 1.4f).coerceAtMost(1f)
@@ -91,9 +90,3 @@ internal fun CardMorphOverlay(morph: CardMorph) {
 }
 
 private fun lerp(a: Float, b: Float, t: Float): Float = a + (b - a) * t
-
-/** Material 3 «Emphasized»: туда — с мягкой посадкой, обратно — с разгоном. */
-internal val MORPH_IN = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
-internal val MORPH_OUT = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
-internal const val MORPH_IN_MS = 320
-internal const val MORPH_OUT_MS = 280

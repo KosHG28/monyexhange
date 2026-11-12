@@ -1,5 +1,6 @@
 package app.dirhamrub.ui
 
+import app.dirhamrub.ui.theme.Springs
 import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.ui.components.LocalCardFlight
 import app.dirhamrub.ui.components.CardMorph
@@ -248,8 +249,8 @@ fun DirhamApp(
     // «Где вы тратите?» — полноэкранный выбор страны, въезжает снизу.
     AnimatedVisibility(
         visible = currenciesOpen,
-        enter = if (reduceMotion) EnterTransition.None else slideInVertically(tween(280)) { it / 4 } + fadeIn(tween(200)),
-        exit = if (reduceMotion) ExitTransition.None else slideOutVertically(tween(220)) { it / 4 } + fadeOut(tween(180)),
+        enter = if (reduceMotion) EnterTransition.None else Springs.screenIn,
+        exit = if (reduceMotion) ExitTransition.None else Springs.screenOut,
     ) {
         BackHandler { currenciesOpen = false }
         CountryScreen(
@@ -265,8 +266,8 @@ fun DirhamApp(
     // Настройки — экран поверх главного, въезжает справа.
     AnimatedVisibility(
         visible = settingsOpen,
-        enter = if (reduceMotion) EnterTransition.None else slideInHorizontally(tween(260)) { it / 3 } + fadeIn(tween(200)),
-        exit = if (reduceMotion) ExitTransition.None else slideOutHorizontally(tween(220)) { it / 3 } + fadeOut(tween(180)),
+        enter = if (reduceMotion) EnterTransition.None else Springs.sideIn,
+        exit = if (reduceMotion) ExitTransition.None else Springs.sideOut,
     ) {
         BackHandler { settingsOpen = false }
         SettingsScreen(
@@ -301,8 +302,8 @@ fun DirhamApp(
     // «Карты и наличные» — поверх настроек, выезжает снизу (справа — только настройки).
     AnimatedVisibility(
         visible = moneyOpen,
-        enter = if (reduceMotion) EnterTransition.None else slideInVertically(tween(280)) { it / 4 } + fadeIn(tween(200)),
-        exit = if (reduceMotion) ExitTransition.None else slideOutVertically(tween(220)) { it / 4 } + fadeOut(tween(180)),
+        enter = if (reduceMotion) EnterTransition.None else Springs.screenIn,
+        exit = if (reduceMotion) ExitTransition.None else Springs.screenOut,
     ) {
         BackHandler { moneyOpen = false }
         MoneyScreen(

@@ -1,5 +1,7 @@
 package app.dirhamrub.ui.main
 
+import kotlinx.coroutines.launch
+import app.dirhamrub.ui.theme.Springs
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -147,17 +149,24 @@ private fun KeyBase(
     content: @Composable () -> Unit,
 ) {
     val haptics = rememberHaptics()
-    // Клавиша «проседает» при нажатии: даже короткий тап доигрывает нажатие, потом пружинит обратно.
+    // Живая клавиша (Material 3 Expressive): при нажатии чуть проседает и её углы скругляются почти до круга;
+    // отпустили — пружиной обратно с лёгким перелётом. Долгое нажатие — круг держится, пока держите.
     val source = remember { MutableInteractionSource() }
     val press = remember { Animatable(1f) }
+    val round = remember { Animatable(0f) }
     val reduceMotion = LocalReduceMotion.current
     LaunchedEffect(source, reduceMotion) {
         if (reduceMotion) return@LaunchedEffect
         source.interactions.collect { interaction ->
             when (interaction) {
-                is PressInteraction.Press -> press.animateTo(PRESSED_SCALE, tween(PRESS_MS))
-                is PressInteraction.Release, is PressInteraction.Cancel ->
-                    press.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium))
+                is PressInteraction.Press -> {
+                    launch { press.animateTo(PRESSED_SCALE, tween(PRESS_MS)) }
+                    launch { round.animateTo(1f, tween(ROUND_MS)) }
+                }
+                is PressInteraction.Release, is PressInteraction.Cancel -> {
+                    launch { press.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium)) }
+                    launch { round.animateTo(0f, Springs.fastSpatial()) }
+                }
             }
         }
     }
@@ -166,8 +175,11 @@ private fun KeyBase(
             .graphicsLayer {
                 scaleX = press.value
                 scaleY = press.value
+                val rest = KEY_RADIUS.toPx()
+                val full = minOf(size.width, size.height) / 2f
+                shape = RoundedCornerShape((rest + (full - rest) * round.value).coerceAtLeast(0f))
+                clip = true
             }
-            .clip(RoundedCornerShape(14.dp))
             .background(background)
             .combinedClickable(
                 interactionSource = source,
@@ -241,5 +253,7 @@ private fun CameraKey(modifier: Modifier, onClick: () -> Unit, onPlaced: (Offset
 }
 
 /** Насколько клавиша «проседает» при нажатии и за сколько. */
-private const val PRESSED_SCALE = 0.92f
+private const val PRESSED_SCALE = 0.94f
 private const val PRESS_MS = 60
+private const val ROUND_MS = 90
+private val KEY_RADIUS = 14.dp

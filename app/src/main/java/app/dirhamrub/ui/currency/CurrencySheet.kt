@@ -1,5 +1,20 @@
 package app.dirhamrub.ui.currency
 
+import app.dirhamrub.ui.theme.Springs
+import app.dirhamrub.ui.theme.LocalReduceMotion
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.runtime.key
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.AnimatedVisibility
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -162,6 +177,20 @@ fun CountryScreen(
     val colors = AppTheme.colors
     var query by rememberSaveable { mutableStateOf("") }
     val cascade = rememberCascade()
+    // Разворачивающийся поиск (Material 3 Expressive): касание поля — строка «←» уезжает, поле поднимается
+    // на её место в светлой панели, сразу клавиатура; «←» в поле или «Назад» — сворачивается обратно.
+    var searching by rememberSaveable { mutableStateOf(false) }
+    val focus = LocalFocusManager.current
+    val reduceMotion = LocalReduceMotion.current
+    fun exitSearch() {
+        searching = false
+        query = ""
+        focus.clearFocus()
+    }
+    BackHandler(enabled = searching) { exitSearch() }
+    val open by animateFloatAsState(if (searching) 1f else 0f, if (reduceMotion) snap() else Springs.spatial(), label = "search")
+    // Результаты поиска выплывают каскадом, когда набрана первая буква.
+    val searchWave = key(query.isBlank()) { rememberCascade() }
     Column(
         Modifier
             .fillMaxSize()
@@ -169,6 +198,11 @@ fun CountryScreen(
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .padding(horizontal = 16.dp),
     ) {
+        AnimatedVisibility(
+            visible = !searching,
+            enter = if (reduceMotion) EnterTransition.None else expandVertically(Springs.spatial()) + fadeIn(Springs.effects()),
+            exit = if (reduceMotion) ExitTransition.None else shrinkVertically(Springs.exit()) + fadeOut(Springs.fastEffects()),
+        ) {
         Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
             val back = stringResource(R.string.settings_back)
             Box(
@@ -188,8 +222,25 @@ fun CountryScreen(
                 modifier = Modifier.semantics { heading() },
             )
         }
+        }
         Spacer(Modifier.height(4.dp))
-        SearchField(value = query, onValueChange = { query = it }, hint = stringResource(R.string.currency_search_hint))
+        // Панель поиска: в развёрнутом виде — светлая подложка вокруг поля, поле на ней — на тон темнее.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(28.dp))
+                .background(colors.surface.copy(alpha = open.coerceIn(0f, 1f)))
+                .padding(all = 8.dp * open.coerceIn(0f, 1f)),
+        ) {
+            SearchField(
+                value = query,
+                onValueChange = { query = it },
+                hint = stringResource(R.string.currency_search_hint),
+                onFocus = { if (it) searching = true },
+                onExit = if (searching) ({ exitSearch() }) else null,
+                background = if (searching) colors.surface2 else colors.surface,
+            )
+        }
         Spacer(Modifier.height(4.dp))
         val texts = SheetTexts(
             here = stringResource(R.string.currency_here),
@@ -212,7 +263,7 @@ fun CountryScreen(
                 .fadingEdges(listState),
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {
-            spendItems(query, spend, home, recent, country, official, cascade, texts) { c, iso ->
+            spendItems(query, spend, home, recent, country, official, if (query.isBlank()) cascade else searchWave, texts) { c, iso ->
                 onSpend(c, iso)
                 onBack()
             }

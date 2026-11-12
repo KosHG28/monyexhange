@@ -288,6 +288,7 @@ fun DirhamApp(
                 onTheme = vm::setTheme,
                 onMotion = vm::setMotion,
                 onKeyHaptics = vm::setKeyHaptics,
+                onPureBlack = vm::setPureBlack,
                 onWifiOnly = vm::setWifiOnly,
                 onRounding = vm::setRounding,
                 onOnboarding = {

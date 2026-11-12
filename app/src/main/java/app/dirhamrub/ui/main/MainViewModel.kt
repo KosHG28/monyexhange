@@ -417,6 +417,8 @@ class MainViewModel(
     fun setRounding(value: Rounding) = updateSettings { it.copy(rounding = value) }
     fun setKeyHaptics(value: Boolean) = updateSettings { it.copy(keyHaptics = value) }
 
+    fun setPureBlack(value: Boolean) = updateSettings { it.copy(pureBlack = value) }
+
     /** «Показать знакомство снова». */
     fun restartOnboarding() {
         _state.update { it.copy(onboardingDone = false) }

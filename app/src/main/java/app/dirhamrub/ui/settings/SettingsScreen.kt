@@ -1,5 +1,8 @@
 package app.dirhamrub.ui.settings
 
+import app.dirhamrub.ui.components.rememberCollapsingTitle
+import app.dirhamrub.ui.components.LargeTitle
+import app.dirhamrub.ui.components.CollapsingBar
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -92,6 +95,7 @@ class SettingsActions(
     val onTheme: (ThemeMode) -> Unit,
     val onMotion: (MotionMode) -> Unit,
     val onKeyHaptics: (Boolean) -> Unit,
+    val onPureBlack: (Boolean) -> Unit,
     val onWifiOnly: (Boolean) -> Unit,
     val onRounding: (Rounding) -> Unit,
     val onOnboarding: () -> Unit,
@@ -122,35 +126,20 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
             .background(colors.bg)
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            val back = stringResource(R.string.settings_back)
-            Box(
-                Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .clickable(role = Role.Button, onClickLabel = back, onClick = actions.onBack),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = back, tint = colors.ink, modifier = Modifier.size(22.dp))
-            }
-            Spacer(Modifier.width(6.dp))
-            Text(
-                stringResource(R.string.settings_title),
-                style = type.title.copy(fontSize = 21.sp),
-                color = colors.ink,
-                modifier = Modifier.semantics { heading() },
-            )
-        }
+        val scroll = rememberScrollState()
+        val collapsing = rememberCollapsingTitle(scroll)
+        CollapsingBar(stringResource(R.string.settings_title), actions.onBack, collapsing)
         // Разделы выплывают снизу по очереди; касание — сразу всё на месте.
         val cascade = rememberCascade()
         Column(
             Modifier
                 .fillMaxWidth()
                 .finishCascadeOnTouch(cascade)
-                .fadingScroll(rememberScrollState())
+                .fadingScroll(scroll)
                 .padding(horizontal = 14.dp)
                 .padding(bottom = 24.dp),
         ) {
+            LargeTitle(stringResource(R.string.settings_title), collapsing)
             Column(Modifier.cascade(cascade, 0)) {
                 SectionTitle(stringResource(R.string.settings_section_main))
                 Group {
@@ -393,6 +382,13 @@ private fun LookSection(state: MainUiState, actions: SettingsActions) {
             ),
             themes.indexOf(state.settings.theme),
         ) { actions.onTheme(themes[it]) }
+        Divider()
+        SwitchRow(
+            stringResource(R.string.settings_pure_black),
+            stringResource(R.string.settings_pure_black_sub),
+            state.settings.pureBlack,
+            actions.onPureBlack,
+        )
         Divider()
         val motions = MotionMode.entries
         ChoiceRow(

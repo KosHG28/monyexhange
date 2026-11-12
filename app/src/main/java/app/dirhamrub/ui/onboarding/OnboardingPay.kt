@@ -1,5 +1,6 @@
 package app.dirhamrub.ui.onboarding
 
+import app.dirhamrub.ui.components.ButtonGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -314,10 +315,9 @@ private fun PurchaseFields(
     )
 }
 
-/** Тип первого способа: рублёвая (карта в итоговой валюте), валютная, наличные — сегменты в одну строку. */
+/** Тип первого способа: рублёвая (карта в итоговой валюте), валютная, наличные — группа кнопок Expressive. */
 @Composable
 private fun TypeSwitch(way: PayWay, home: Currency, onChange: (PayWay) -> Unit) {
-    val colors = AppTheme.colors
     val labels = listOf(
         PayWay.HOME_CARD to if (home == Currency.RUB) {
             stringResource(R.string.onboarding_type_home_rub)
@@ -327,36 +327,13 @@ private fun TypeSwitch(way: PayWay, home: Currency, onChange: (PayWay) -> Unit) 
         PayWay.CURRENCY_CARD to stringResource(R.string.onboarding_type_currency),
         PayWay.CASH to stringResource(R.string.onboarding_type_cash),
     )
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(colors.surface2)
-            .padding(3.dp)
-            .selectableGroup(),
-    ) {
-        for ((w, label) in labels) {
-            val on = w == way || (w == PayWay.HOME_CARD && way == PayWay.NOTHING)
-            Box(
-                Modifier
-                    .weight(1f)
-                    .heightIn(min = 48.dp)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(if (on) colors.surface else Color.Transparent)
-                    .selectable(selected = on, role = Role.RadioButton) { onChange(w) }
-                    .padding(horizontal = 4.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    label,
-                    style = AppTheme.type.body.copy(fontSize = 14.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal),
-                    color = if (on) colors.accent else colors.muted,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                )
-            }
-        }
-    }
+    val ways = labels.map { it.first }
+    ButtonGroup(
+        options = labels.map { it.second },
+        selected = ways.indexOf(if (way == PayWay.NOTHING) PayWay.HOME_CARD else way),
+        onSelect = { onChange(ways[it]) },
+        textStyle = AppTheme.type.body.copy(fontSize = 14.sp),
+    )
 }
 
 @Composable

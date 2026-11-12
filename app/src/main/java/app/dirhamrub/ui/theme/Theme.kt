@@ -56,6 +56,8 @@ fun DirhamTheme(
     theme: ThemeMode = ThemeMode.SYSTEM,
     motion: MotionMode = MotionMode.SYSTEM,
     keyHaptics: Boolean = true,
+    /** Тёмная тема на чисто чёрном фоне ([BlackColors]); в светлой ничего не меняет. */
+    pureBlack: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val systemDark = isSystemInDarkTheme()
@@ -65,7 +67,11 @@ fun DirhamTheme(
         ThemeMode.LIGHT -> false
     }
     val context = LocalContext.current
-    val base = if (dark) DarkColors else LightColors
+    val base = when {
+        dark && pureBlack -> BlackColors
+        dark -> DarkColors
+        else -> LightColors
+    }
     val colors = base
     // Анимации выключены в системе или включено энергосбережение — без анимаций (слабые устройства).
     val systemReduce = remember(context) {

@@ -29,6 +29,8 @@ data class AppSettings(
     /** Подсказка «Вы в Армении — считать в драмах?» по стране сотовой сети. */
     val countryHint: Boolean = true,
     val theme: ThemeMode = ThemeMode.SYSTEM,
+    /** Тёмная тема на чисто чёрном фоне (OLED: пиксели выключены, меньше расход батареи). */
+    val pureBlack: Boolean = false,
     val motion: MotionMode = MotionMode.SYSTEM,
     /** Вибрация при нажатии клавиш калькулятора. */
     val keyHaptics: Boolean = true,

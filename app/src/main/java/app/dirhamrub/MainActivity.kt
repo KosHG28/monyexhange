@@ -49,7 +49,8 @@ class MainActivity : ComponentActivity() {
             val theme by remember { derivedStateOf { state.value.settings.theme } }
             val motion by remember { derivedStateOf { state.value.settings.motion } }
             val keyHaptics by remember { derivedStateOf { state.value.settings.keyHaptics } }
-            DirhamTheme(theme = theme, motion = motion, keyHaptics = keyHaptics) {
+            val pureBlack by remember { derivedStateOf { state.value.settings.pureBlack } }
+            DirhamTheme(theme = theme, motion = motion, keyHaptics = keyHaptics, pureBlack = pureBlack) {
                 // Наклон телефона — для блика на картах (флагманы, Android 13+).
                 ProvideTilt {
                     DirhamApp(

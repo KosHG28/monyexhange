@@ -1,5 +1,8 @@
 package app.dirhamrub.ui.money
 
+import app.dirhamrub.ui.components.rememberCollapsingTitle
+import app.dirhamrub.ui.components.LargeTitle
+import app.dirhamrub.ui.components.CollapsingBar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -85,40 +88,19 @@ fun MoneyScreen(state: MainUiState, actions: MoneyActions) {
             .background(colors.bg)
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(60.dp)
-                .padding(horizontal = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val back = stringResource(R.string.settings_back)
-            Box(
-                Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .clickable(role = Role.Button, onClickLabel = back, onClick = actions.onBack),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = back, tint = colors.ink, modifier = Modifier.size(22.dp))
-            }
-            Spacer(Modifier.width(6.dp))
-            Text(
-                stringResource(R.string.cards_title),
-                style = type.title.copy(fontSize = 21.sp),
-                color = colors.ink,
-                modifier = Modifier.semantics { heading() },
-            )
-        }
+        val scroll = rememberScrollState()
+        val collapsing = rememberCollapsingTitle(scroll)
+        CollapsingBar(stringResource(R.string.cards_title), actions.onBack, collapsing)
         val cascade = rememberCascade()
         Column(
             Modifier
                 .fillMaxWidth()
                 .finishCascadeOnTouch(cascade)
-                .fadingScroll(rememberScrollState())
+                .fadingScroll(scroll)
                 .padding(horizontal = 14.dp)
                 .padding(bottom = 24.dp),
         ) {
+            LargeTitle(stringResource(R.string.cards_title), collapsing)
             // От дешёвого к дорогому, как на главном; без курса — в конце.
             val cards = wallet.cards.sortedBy { state.quote.of(it.id)?.homePerUnit ?: BigDecimal(Long.MAX_VALUE) }
             if (cards.isNotEmpty()) {

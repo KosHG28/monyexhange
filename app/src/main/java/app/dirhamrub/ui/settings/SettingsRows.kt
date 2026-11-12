@@ -1,5 +1,6 @@
 package app.dirhamrub.ui.settings
 
+import app.dirhamrub.ui.components.ButtonGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -109,7 +110,7 @@ internal fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onCha
     }
 }
 
-/** Выбор одного из вариантов: заголовок и сегменты под ним. */
+/** Выбор одного из вариантов: заголовок и группа кнопок Expressive под ним. */
 @Composable
 internal fun ChoiceRow(title: String, options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
     val colors = AppTheme.colors
@@ -117,39 +118,12 @@ internal fun ChoiceRow(title: String, options: List<String>, selected: Int, onSe
     Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
         Text(title, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink)
         Spacer(Modifier.height(8.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(colors.bg)
-                .padding(3.dp)
-                .selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            options.forEachIndexed { i, label ->
-                val on = i == selected
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 44.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (on) colors.accentSoft else Color.Transparent)
-                        .selectable(selected = on, role = Role.RadioButton) { onSelect(i) }
-                        .padding(horizontal = 4.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        label,
-                        // Выбранный — жирнее соседей: читается сразу.
-                        style = type.caption.copy(fontSize = 13.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal),
-                        color = if (on) colors.accent else colors.muted,
-                        textAlign = TextAlign.Center,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
+        ButtonGroup(
+            options = options,
+            selected = selected,
+            onSelect = onSelect,
+            textStyle = type.caption.copy(fontSize = 13.sp),
+        )
     }
 }
 

@@ -68,6 +68,19 @@ val DarkColors = AppColors(
     isDark = true,
 )
 
+/**
+ * Тёмная тема на чисто чёрном фоне (настройка «Чисто чёрный фон»): на OLED-экране пиксели фона выключены.
+ * Карточки и поля — тёмно-серые, чтобы не сливаться с фоном; акцент, «лучшая» и цвета карт — как в тёмной.
+ */
+val BlackColors = DarkColors.copy(
+    bg = Color(0xFF000000),
+    surface = Color(0xFF15191E),
+    surface2 = Color(0xFF20262D),
+    paper = Color(0xFF181D23),
+    line = Color(0xFF262C33),
+    goodSoft = Color(0xFF0F2A1E),
+)
+
 val LocalAppColors = staticCompositionLocalOf { LightColors }
 
 /** Оформление «банковской» карты: градиент, водяной знак, чип. Одинаково в обеих темах. */

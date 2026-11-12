@@ -127,6 +127,7 @@ class WalletRepository(
                 theme = ThemeMode.entries.firstOrNull { it.name == p[SET_THEME] } ?: ThemeMode.SYSTEM,
                 motion = MotionMode.entries.firstOrNull { it.name == p[SET_MOTION] } ?: MotionMode.SYSTEM,
                 keyHaptics = p[SET_KEY_HAPTICS] ?: true,
+                pureBlack = p[SET_PURE_BLACK] ?: false,
                 wifiOnly = p[SET_WIFI_ONLY] ?: false,
                 rounding = Rounding.entries.firstOrNull { it.name == p[SET_ROUNDING] } ?: Rounding.WHOLE,
             ),
@@ -141,6 +142,7 @@ class WalletRepository(
             p[SET_THEME] = settings.theme.name
             p[SET_MOTION] = settings.motion.name
             p[SET_KEY_HAPTICS] = settings.keyHaptics
+            p[SET_PURE_BLACK] = settings.pureBlack
             p[SET_WIFI_ONLY] = settings.wifiOnly
             p[SET_ROUNDING] = settings.rounding.name
         }
@@ -332,6 +334,7 @@ class WalletRepository(
         val SET_WIFI_ONLY = booleanPreferencesKey("settings_wifi_only")
         val SET_ROUNDING = stringPreferencesKey("settings_rounding")
         val SET_KEY_HAPTICS = booleanPreferencesKey("settings_key_haptics")
+        val SET_PURE_BLACK = booleanPreferencesKey("settings_pure_black")
         val SELECTION_AUTO = booleanPreferencesKey("selection_auto")
         val UNIONPAY = stringPreferencesKey("unionpay_rates")
         val UNIONPAY_AT = longPreferencesKey("unionpay_fetched_at")

@@ -1,5 +1,6 @@
 package app.dirhamrub.ui.cards
 
+import app.dirhamrub.ui.components.ButtonGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -71,37 +72,16 @@ internal sealed interface ScanResult {
     data class Found(val receipt: ScannedReceipt) : ScanResult
 }
 
-/** «Карта | Наличные» в редакторе. */
+/** «Карта | Наличные» в редакторе: группа кнопок Expressive. */
 @Composable
 internal fun KindSwitch(kind: CardKind, onChange: (CardKind) -> Unit) {
-    val colors = AppTheme.colors
-    val type = AppTheme.type
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(colors.surface)
-            .padding(4.dp),
-    ) {
-        for (option in CardKind.entries) {
-            val selected = option == kind
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 48.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) colors.accentSoft else colors.surface)
-                    .selectable(selected = selected, role = Role.Tab) { onChange(option) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    stringResource(if (option == CardKind.CASH) R.string.kind_cash else R.string.kind_card),
-                    style = type.bodyStrong,
-                    color = if (selected) colors.accent else colors.muted,
-                )
-            }
-        }
-    }
+    val options = CardKind.entries
+    ButtonGroup(
+        options = options.map { stringResource(if (it == CardKind.CASH) R.string.kind_cash else R.string.kind_card) },
+        selected = options.indexOf(kind),
+        onSelect = { onChange(options[it]) },
+        role = Role.Tab,
+    )
 }
 
 /** Чипы платёжных систем по рядам: российская и зарубежная — рядом. */

@@ -273,6 +273,8 @@
     <string name="settings_theme_light">Светлая</string>
     <string name="settings_motion">Анимации</string>
     <string name="settings_motion_off">Без анимаций</string>
+    <string name="settings_pure_black">Чисто чёрный фон</string>
+    <string name="settings_pure_black_sub">В тёмной теме: глубже контраст и меньше расход батареи на OLED-экранах</string>
     <string name="settings_key_haptics">Виброотклик</string>
     <string name="settings_key_haptics_sub">Клавиши, выбор карты, камера, скриншоты</string>
     <string name="settings_about">О приложении</string>

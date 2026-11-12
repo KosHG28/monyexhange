@@ -1,6 +1,5 @@
 package app.dirhamrub.ui.settings
 
-import app.dirhamrub.ui.components.WavyProgress
 import app.dirhamrub.ui.components.rememberCollapsingTitle
 import app.dirhamrub.ui.components.LargeTitle
 import app.dirhamrub.ui.components.CollapsingBar
@@ -271,7 +270,6 @@ private fun RatesSection(state: MainUiState, actions: SettingsActions) {
     ) {
         Text("↻  $label", style = AppTheme.type.bodyStrong, color = colors.accent)
     }
-    if (state.ratesLoading) WavyProgress(Modifier.padding(horizontal = 24.dp, vertical = 6.dp))
 }
 
 @Composable

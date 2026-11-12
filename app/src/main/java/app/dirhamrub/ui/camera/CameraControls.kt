@@ -1,11 +1,5 @@
 package app.dirhamrub.ui.camera
 
-import app.dirhamrub.ui.theme.Springs
-import app.dirhamrub.ui.theme.LocalReduceMotion
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.LocalIndication
-import androidx.compose.animation.core.snap
 import androidx.camera.core.ZoomState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
@@ -71,7 +65,7 @@ import kotlin.math.roundToInt
 
 /** Кнопки зума 1× 2× 4× — только те, что поддерживает камера; текущий — подсвечен. */
 @Composable
-internal fun ZoomChips(zoom: ZoomState?, onZoom: (Float) -> Unit, modifier: Modifier = Modifier, background: Boolean = true) {
+internal fun ZoomChips(zoom: ZoomState?, onZoom: (Float) -> Unit, modifier: Modifier = Modifier) {
     val min = zoom?.minZoomRatio ?: 1f
     val max = zoom?.maxZoomRatio ?: 1f
     val presets = ZOOM_PRESETS.filter { it >= min - 0.01f && it <= max + 0.01f }
@@ -81,7 +75,7 @@ internal fun ZoomChips(zoom: ZoomState?, onZoom: (Float) -> Unit, modifier: Modi
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .then(if (background) Modifier.background(Scrim) else Modifier),
+            .background(Scrim),
     ) {
         for (p in presets) {
             val selected = p == current
@@ -158,14 +152,18 @@ internal fun FocusRing(at: Offset) {
     }
 }
 
-/** Верхний ряд: назад, карта, режим «в ценнике / плашки». Фонарик, пауза и зум — в панели внизу ([CameraToolbar]). */
+/** Один ряд кнопок: назад, карта, режим «в ценнике / плашки», фонарик, пауза. */
 @Composable
 internal fun TopControls(
     wallet: Wallet,
     viaUnionPay: Boolean,
+    torch: Boolean,
+    paused: Boolean,
     embedded: Boolean,
     onBack: () -> Unit,
     onSelectCard: (String) -> Unit,
+    onTorch: () -> Unit,
+    onPause: () -> Unit,
     onToggleMode: () -> Unit,
 ) {
     Row(
@@ -184,69 +182,19 @@ internal fun TopControls(
             stringResource(if (embedded) R.string.camera_mode_to_bubbles else R.string.camera_mode_to_embed),
             onToggleMode,
         )
-    }
-}
-
-/**
- * Плавающая панель камеры внизу (Material 3 Expressive): одна закруглённая «таблетка» — зум 1× 2× 4×, фонарик и
- * пауза. Нажатая кнопка пружинит. На паузе зум прячется (кадр замер).
- */
-@Composable
-internal fun CameraToolbar(
-    zoom: ZoomState?,
-    onZoom: (Float) -> Unit,
-    torch: Boolean,
-    paused: Boolean,
-    onTorch: () -> Unit,
-    onPause: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier
-            .clip(RoundedCornerShape(28.dp))
-            .background(Scrim)
-            .padding(horizontal = 4.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (!paused) {
-            ZoomChips(zoom, onZoom, background = false)
-        }
-        ToolbarButton(
+        Spacer(Modifier.width(4.dp))
+        RoundButton(
             if (torch) R.drawable.ic_flash_on else R.drawable.ic_flash_off,
             stringResource(if (torch) R.string.camera_torch_off else R.string.camera_torch_on),
             onTorch,
-            highlighted = torch,
         )
-        ToolbarButton(
+        Spacer(Modifier.width(4.dp))
+        RoundButton(
             if (paused) R.drawable.ic_play else R.drawable.ic_pause,
             stringResource(if (paused) R.string.camera_resume else R.string.camera_pause),
             onPause,
             highlighted = paused,
         )
-    }
-}
-
-@Composable
-private fun ToolbarButton(icon: Int, description: String, onClick: () -> Unit, highlighted: Boolean) {
-    val colors = AppTheme.colors
-    val source = remember { MutableInteractionSource() }
-    val pressed by source.collectIsPressedAsState()
-    val reduceMotion = LocalReduceMotion.current
-    val scale by animateFloatAsState(if (pressed) 0.86f else 1f, if (reduceMotion) snap() else Springs.fastSpatial(), label = "toolbarPress")
-    Box(
-        modifier = Modifier
-            .size(48.dp)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .clip(CircleShape)
-            .background(if (highlighted) colors.accent else Color.Transparent)
-            .clickable(interactionSource = source, indication = LocalIndication.current, role = Role.Button, onClickLabel = description, onClick = onClick)
-            .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(painterResource(icon), contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
     }
 }
 

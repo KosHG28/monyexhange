@@ -1,7 +1,5 @@
 package app.dirhamrub.ui.settings
 
-import androidx.compose.ui.graphics.Path
-import androidx.compose.foundation.Canvas
 import app.dirhamrub.ui.theme.topLight
 import app.dirhamrub.ui.components.ButtonGroup
 import androidx.compose.foundation.background
@@ -62,57 +60,28 @@ internal fun SectionTitle(text: String) {
     )
 }
 
-/**
- * Карточка раздела в стиле Android 16 (Material 3 Expressive): строки — отдельные плитки, снаружи крупное
- * скругление (24 dp), между строками — зазор 2 dp цвета фона с маленькими скруглениями (6 dp) у каждой плитки
- * ([Divider]). Светлая полоса сверху — в тёмной теме ([topLight]).
- */
+/** Карточка раздела: строки друг под другом, между ними — тонкая линия ([Divider]). */
 @Composable
 internal fun Group(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(GROUP_RADIUS))
+            .clip(RoundedCornerShape(18.dp))
             .background(AppTheme.colors.surface)
             .topLight(),
         content = content,
     )
 }
 
-/**
- * Зазор между плитками группы: полоса цвета фона и «срезы» углов над и под ней — у каждой плитки свои
- * маленькие скругления, как в настройках Android 16.
- */
 @Composable
 internal fun Divider() {
-    val bg = AppTheme.colors.bg
-    Canvas(
+    Box(
         Modifier
             .fillMaxWidth()
-            .height(GAP),
-    ) {
-        drawRect(bg)
-        val r = INNER_RADIUS.toPx()
-        val top = 0f
-        val bottom = size.height
-        for ((x, dx) in listOf(0f to 1f, size.width to -1f)) {
-            // Над зазором — нижние углы верхней плитки, под ним — верхние углы нижней.
-            for ((y, dy) in listOf(top to -1f, bottom to 1f)) {
-                val p = Path().apply {
-                    moveTo(x, y)
-                    lineTo(x + dx * r, y)
-                    quadraticTo(x, y, x, y + dy * r)
-                    close()
-                }
-                drawPath(p, bg)
-            }
-        }
-    }
+            .height(1.dp)
+            .background(AppTheme.colors.line),
+    )
 }
-
-private val GROUP_RADIUS = 24.dp
-private val INNER_RADIUS = 6.dp
-private val GAP = 2.dp
 
 /** Заголовок и подпись строки. */
 @Composable

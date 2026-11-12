@@ -1,6 +1,5 @@
 package app.dirhamrub.ui.cards
 
-import app.dirhamrub.ui.components.WavyProgress
 import app.dirhamrub.ui.theme.Springs
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -275,7 +274,6 @@ internal fun ScreenshotButton(result: ScanResult?, card: Currency, onClick: (() 
             )
         }
     }
-    if (result == ScanResult.Reading) WavyProgress(Modifier.padding(top = 6.dp))
     if (message != null) {
         Text(
             text = message,

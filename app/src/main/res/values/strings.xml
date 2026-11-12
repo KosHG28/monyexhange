@@ -63,10 +63,6 @@
     <string name="cheat_unionpay">UnionPay</string>
 
     <!-- Редактор карты -->
-    <string name="undo_card_deleted">Карта удалена</string>
-    <string name="undo_cash_deleted">Наличные удалены</string>
-    <string name="undo_action">Вернуть</string>
-    <string name="delete_hold_hint">Удерживайте корзину, чтобы удалить</string>
     <string name="saved_a11y">Сохранено</string>
     <string name="nfc_title">Приложите карту к задней панели</string>
     <string name="nfc_sub">Определим платёжную систему и валюту карты. Номер карты не читаем и не сохраняем.</string>
@@ -384,11 +380,6 @@
     <string name="cbr_loading">Курс ЦБ: обновляем…</string>
     <string name="cbr_none">Курса ЦБ пока нет · обновить</string>
     <string name="money_refine">уточнить ›</string>
-    <string name="add_menu_open">Показать, что добавить</string>
-    <string name="add_menu_close">Скрыть</string>
-    <string name="add_menu_card">Карта</string>
-    <string name="add_menu_cash">Наличные</string>
-    <string name="add_menu_screenshot">Из скриншота банка</string>
     <string name="money_add_short">Добавить карту или наличные</string>
     <string name="nocards_text">Добавьте карту или наличные — посчитаем по их курсу. Пока — по курсу ЦБ</string>
     <string name="cards_title">Карты и наличные</string>

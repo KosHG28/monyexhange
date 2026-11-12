@@ -4,43 +4,55 @@ plugins {
 }
 
 android {
+    // Пакет в коде прежний (app.dirhamrub), идентификатор приложения — ru.kurspocheku (с 1.18, новый ключ).
     namespace = "app.dirhamrub"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "app.dirhamrub"
+        applicationId = "ru.kurspocheku"
         minSdk = 26
         targetSdk = 37
         // В CI номер сборки растёт, поэтому каждое новое APK ставится поверх старого.
         versionCode = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull() ?: 1
-        versionName = "1.10.0"
+        versionName = "1.33.0"
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            // Только 64-битные телефоны: копия распознавания текста для 32-битных весила 6,8 МБ из 23.
+            abiFilters += listOf("arm64-v8a")
             // Для прогона на x86_64-эмуляторе в CI: ./gradlew assembleRelease -Pdirhamrub.x86=true
             if (providers.gradleProperty("dirhamrub.x86").isPresent) abiFilters += "x86_64"
         }
     }
 
+    // Ключ подписи — только из секретов репозитория (CI: SIGNING_KEYSTORE_FILE и пароли, см. android.yml),
+    // один и тот же — обновления ставятся поверх. Без них (pull request'ы Dependabot, локальная сборка) —
+    // отладочный ключ Android: такой APK поверх установленного не встанет, и выпуск CI без ключа не делает.
+    fun secret(name: String): String? = providers.environmentVariable(name).orNull?.takeIf { it.isNotEmpty() }
+    val keystore = secret("SIGNING_KEYSTORE_FILE")?.let { file(it) }?.takeIf { it.exists() }
+    val keystorePassword = secret("SIGNING_STORE_PASSWORD")
+    val signingAlias = secret("SIGNING_KEY_ALIAS")
+    val signingKeyPassword = secret("SIGNING_KEY_PASSWORD")
     signingConfigs {
-        // Личное приложение: стабильный ключ лежит в репозитории, чтобы обновления ставились поверх.
-        create("app") {
-            storeFile = rootProject.file("keystore/app.keystore")
-            storeType = "pkcs12"
-            storePassword = "dirhamrub"
-            keyAlias = "dirhamrub"
-            keyPassword = "dirhamrub"
+        if (keystore != null && keystorePassword != null && signingAlias != null && signingKeyPassword != null) {
+            create("app") {
+                storeFile = keystore
+                storeType = "pkcs12"
+                storePassword = keystorePassword
+                keyAlias = signingAlias
+                keyPassword = signingKeyPassword
+            }
         }
     }
+    val signing = signingConfigs.findByName("app") ?: signingConfigs.getByName("debug")
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("app")
+            signingConfig = signing
         }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("app")
+            signingConfig = signing
         }
     }
 
@@ -78,6 +90,8 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
+    // Только отладочная сборка: проверка Gemini Nano (src/debug/…/nanolab). В релиз не попадает.
+    debugImplementation(libs.mlkit.genai.prompt)
 
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)

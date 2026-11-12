@@ -13,6 +13,7 @@ import java.time.LocalDateTime
  */
 object CrashLog {
     private const val FILE = "last_crash.txt"
+    private const val SEEN = "last_crash_seen.txt"
 
     fun install(context: Context) {
         val app = context.applicationContext
@@ -21,12 +22,28 @@ object CrashLog {
         Thread.setDefaultUncaughtExceptionHandler(Handler(app, previous))
     }
 
+    /** Новое падение, ещё не показанное (диалог при запуске). */
     fun read(context: Context): String? =
         file(context).takeIf { it.exists() }?.runCatching { readText() }?.getOrNull()
 
+    /** Показали — убираем из «нового», но храним как последнее: его видно в настройках. */
     fun clear(context: Context) {
-        file(context).delete()
+        val new = file(context)
+        if (new.exists()) runCatching { new.copyTo(seen(context), overwrite = true) }
+        new.delete()
     }
+
+    /** Последнее падение — новое или уже показанное; null — падений не было. */
+    fun last(context: Context): String? =
+        read(context) ?: seen(context).takeIf { it.exists() }?.runCatching { readText() }?.getOrNull()
+
+    /** «Очистить» в настройках. */
+    fun forget(context: Context) {
+        file(context).delete()
+        seen(context).delete()
+    }
+
+    private fun seen(context: Context) = File(context.applicationContext.filesDir, SEEN)
 
     private fun file(context: Context) = File(context.applicationContext.filesDir, FILE)
 

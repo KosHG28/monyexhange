@@ -46,6 +46,23 @@ object Numbers {
         }
     }
 
+    /**
+     * Итог по настройке округления: без округления — с копейками («3 706,06»); до целых — целыми,
+     * а меньше 10 — с копейками («3 706», «5,40»); до десятков — до ближайших 10 («3 710»), меньше 10 — как до целых.
+     */
+    fun total(value: BigDecimal, rounding: Rounding): String =
+        if (rounding == Rounding.NONE || value.abs() < TEN) money(value) else moneyWhole(rounded(value, rounding))
+
+    /**
+     * Сумма так, как её показывает [total], — числом: разницу между картами считаем из показанных сумм,
+     * чтобы «на 43 ₽ дороже» сходилось с «3 749» и «3 706» на экране.
+     */
+    fun rounded(value: BigDecimal, rounding: Rounding): BigDecimal = when {
+        rounding == Rounding.NONE || value.abs() < TEN -> value.setScale(2, RoundingMode.HALF_UP)
+        rounding == Rounding.TENS -> value.divide(TEN).setScale(0, RoundingMode.HALF_UP).multiply(TEN)
+        else -> value.setScale(0, RoundingMode.HALF_UP)
+    }
+
     /** Деньги, округлённые до целых: «8 507». */
     fun moneyWhole(value: BigDecimal): String = format(value.setScale(0, RoundingMode.HALF_UP))
 
@@ -98,8 +115,29 @@ object Numbers {
 
     private val MAX_UNIT = BigDecimal(1_000_000)
 
+    /**
+     * Набранное в поле суммы: только цифры и одна запятая (точка — тоже запятая), без пробелов —
+     * разряды поле показывает само. «15 000.5» → «15000,5», «,5» → «0,5».
+     */
+    fun cleanInput(text: String): String {
+        val out = StringBuilder()
+        var comma = false
+        for (ch in text) {
+            when {
+                ch.isDigit() -> out.append(ch)
+                (ch == ',' || ch == '.') && !comma -> {
+                    comma = true
+                    out.append(if (out.isEmpty()) "0," else ",")
+                }
+            }
+        }
+        return out.toString()
+    }
+
     /** Ввод в процессе набора: «15000,5» → «15 000,5», хвостовая запятая сохраняется. */
     fun groupInput(raw: String): String {
+        // Отрицательный итог после «=» («100 − 250 =»): знак отдельно, разряды — у цифр.
+        if (raw.startsWith('-')) return "−" + groupInput(raw.substring(1))
         val comma = raw.indexOf(',')
         val intPart = if (comma >= 0) raw.substring(0, comma) else raw
         val rest = if (comma >= 0) raw.substring(comma) else ""

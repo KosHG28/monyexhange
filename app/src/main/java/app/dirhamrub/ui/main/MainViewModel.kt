@@ -6,32 +6,53 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import app.dirhamrub.data.CbrClient
+import app.dirhamrub.data.GuideClient
+import app.dirhamrub.data.NetworkState
+import app.dirhamrub.data.UnionPayClient
 import app.dirhamrub.data.WalletRepository
+import app.dirhamrub.data.ratesDataStore
 import app.dirhamrub.data.settingsDataStore
+import app.dirhamrub.data.unionPayDataStore
+import app.dirhamrub.domain.AppSettings
 import app.dirhamrub.domain.Expression
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.MC
+import app.dirhamrub.domain.MotionMode
 import app.dirhamrub.domain.Numbers
+import app.dirhamrub.domain.RatesPolicy
+import app.dirhamrub.domain.RatesPolicy.Trigger
+import app.dirhamrub.domain.RatesUpdate
+import app.dirhamrub.domain.Rounding
+import app.dirhamrub.domain.ThemeMode
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardQuote
+import app.dirhamrub.domain.wallet.CountryGuideParser
+import app.dirhamrub.domain.wallet.CountryGuides
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.RateEngine
 import app.dirhamrub.domain.wallet.ReceiptAge
 import app.dirhamrub.domain.wallet.StaleReceipt
+import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.domain.wallet.Wallet
 import app.dirhamrub.domain.wallet.WalletQuote
+import java.math.BigDecimal
+import java.time.LocalDate
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.math.BigDecimal
-import java.time.LocalDate
-import java.util.UUID
+import kotlinx.coroutines.withContext
 
 /** Одна сумма в трёх валютах: трат, итоговой и выбранной карты (null — курса нет). */
 data class Totals(val spend: BigDecimal, val home: BigDecimal?, val card: BigDecimal?) {
@@ -62,7 +83,22 @@ data class MainUiState(
     val ratesHistory: Map<LocalDate, OfficialRates> = emptyMap(),
     val cameraUsed: Boolean = false,
     val tileOffered: Boolean = true,
+    /** Курсы UnionPay: карты UnionPay и справочный курс валют, которых нет у ЦБ. */
+    val unionPay: UnionPayRates? = null,
+    val settings: AppSettings = AppSettings(),
+    /** Когда скачаны курсы ЦБ (мс, 0 — никогда) и откуда — для настроек. */
+    val officialFetchedAt: Long = 0L,
+    val officialSource: String? = null,
+    val unionPayFetchedAt: Long = 0L,
+    /** Справочник «Чем платить в стране»: встроенный или скачанный, что свежее. */
+    val guides: CountryGuides? = null,
 ) {
+    /** Курсы UnionPay, если они включены в настройках. */
+    val activeUnionPay: UnionPayRates? get() = unionPay.takeIf { settings.unionPay }
+
+    /** Справочные курсы: ЦБ, а валюты без ЦБ — по UnionPay к доллару и ЦБ доллара (они в [OfficialRates.derived]). */
+    val reference: OfficialRates? by lazy { QuoteCache.reference(official, activeUnionPay) }
+
     /** Устаревший чек выбранной карты: давно, а ЦБ с тех пор заметно сдвинулся. */
     val staleReceipt: StaleReceipt?
         get() = selectedCard?.let { ReceiptAge.check(it, wallet.spend, wallet.home, LocalDate.now(), official, ratesHistory) }
@@ -70,8 +106,9 @@ data class MainUiState(
     /** Изменение курса ЦБ валюты трат к итоговой за неделю, в процентах. */
     val weekTrend: BigDecimal? get() = official?.trendPercent(officialWeekAgo, wallet.spend, wallet.home)
 
-    val quote: WalletQuote by lazy { RateEngine.quoteAll(wallet, official) }
-    val selectedCard: BankCard? get() = wallet.selected
+    val quote: WalletQuote by lazy { QuoteCache.quote(wallet, reference, activeUnionPay) }
+    /** Чем считаем: выбранный вручную способ, а без ручного выбора — самый выгодный ([Wallet.pick]). */
+    val selectedCard: BankCard? get() = wallet.pick(quote.best?.card?.id)
     val selectedQuote: CardQuote? get() = quote.of(selectedCard?.id)
 
     /** Курс для расчёта: выбранная карта, а без карт — курс ЦБ. */
@@ -107,21 +144,52 @@ data class MainUiState(
         }
 }
 
-class MainViewModel(private val repository: WalletRepository) : ViewModel() {
+/**
+ * Последний расчёт справочных курсов и курсов карт. Они зависят только от кошелька и курсов, а состояние
+ * пересоздаётся на каждое нажатие клавиши — без памяти ~150 валют и все карты считались бы заново на каждую цифру.
+ * Сравнение — по ссылке (те же объекты), записи неизменяемые: гонка потоков даёт лишний расчёт, а не ошибку.
+ */
+private object QuoteCache {
+    private class Ref(val official: OfficialRates?, val unionPay: UnionPayRates?, val result: OfficialRates?)
+    private class Quote(val wallet: Wallet, val reference: OfficialRates?, val unionPay: UnionPayRates?, val result: WalletQuote)
+
+    @Volatile private var ref: Ref? = null
+
+    @Volatile private var quote: Quote? = null
+
+    fun reference(official: OfficialRates?, unionPay: UnionPayRates?): OfficialRates? {
+        ref?.let { if (it.official === official && it.unionPay === unionPay) return it.result }
+        return official?.withUnionPay(unionPay).also { ref = Ref(official, unionPay, it) }
+    }
+
+    fun quote(wallet: Wallet, reference: OfficialRates?, unionPay: UnionPayRates?): WalletQuote {
+        quote?.let { if (it.wallet === wallet && it.reference === reference && it.unionPay === unionPay) return it.result }
+        return RateEngine.quoteAll(wallet, reference, unionPay).also { quote = Quote(wallet, reference, unionPay, it) }
+    }
+}
+
+class MainViewModel(
+    private val repository: WalletRepository,
+    /** Встроенный справочник стран (`assets/countries.txt`). */
+    private val bundledGuide: () -> String? = { null },
+    /** Сеть сейчас безлимитная (Wi-Fi, Ethernet) — для «только по Wi-Fi». */
+    private val unmetered: () -> Boolean = { true },
+) : ViewModel() {
     private val _state = MutableStateFlow(MainUiState())
     val state: StateFlow<MainUiState> = _state.asStateFlow()
-    private var officialFetchedAt = 0L
+    private var unionPayLoading = false
 
     init {
         viewModelScope.launch {
             val stored = repository.load()
-            officialFetchedAt = stored.officialFetchedAt
             _state.value = MainUiState(
                 loaded = true,
-                wallet = stored.wallet,
+                // С переделки «конвертер» выбор по умолчанию — лучший способ: старый «выбранный» сбрасываем один раз.
+                wallet = if (stored.selectionAuto) stored.wallet else stored.wallet.copy(selectedId = null),
                 official = stored.official,
                 officialWeekAgo = stored.officialWeekAgo,
-                active = if (stored.active == Line.CARD && stored.wallet.cards.isEmpty()) Line.SPEND else stored.active,
+                // Ввод — только в валюте трат или в итоговой (поля «цена» и «стоит вам»); валюты карты больше нет.
+                active = if (stored.active == Line.CARD) Line.SPEND else stored.active,
                 expression = stored.expression,
                 countryHandled = stored.countryHandled,
                 // Знакомство — только для нового пользователя: у перешедших со старых версий карты уже есть.
@@ -130,41 +198,60 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
                 ratesHistory = stored.ratesHistory,
                 cameraUsed = stored.cameraUsed,
                 tileOffered = stored.tileOffered,
+                unionPay = stored.unionPay,
+                settings = stored.settings,
+                officialFetchedAt = stored.officialFetchedAt,
+                officialSource = stored.officialSource,
+                unionPayFetchedAt = stored.unionPayFetchedAt,
+                guides = loadGuides(stored.guideText),
             )
-            refreshRates(force = false)
-            // Сохраняем не чаще раза в 300 мс: collectLatest отменяет отложенную запись при новом нажатии.
-            _state.collectLatest { s ->
+            if (!stored.selectionAuto) repository.markSelectionAuto(_state.value.wallet)
+            repository.dropLegacy()
+            refresh(Trigger.LAUNCH)
+            // Карты и чеки пишем сразу: сохранил карту и тут же закрыл приложение — она не пропадёт.
+            // Изменения, не касающиеся кошелька (курсы загружаются, настройки), запись не вызывают.
+            launch {
+                _state.map { it.wallet }.distinctUntilChanged().drop(1).collect { repository.saveWallet(it) }
+            }
+            // Набираемую сумму — не чаще раза в 300 мс: collectLatest отменяет отложенную запись при новом нажатии.
+            _state.map { it.active to it.expression }.distinctUntilChanged().drop(1).collectLatest { (active, expression) ->
                 delay(SAVE_DELAY_MS)
-                repository.saveSession(s.wallet, s.active, s.expression)
+                repository.saveInput(active, expression)
             }
         }
     }
 
+    /** Приложение ушло с экрана: дописываем то, что ждало своей задержки (последние нажатия). */
+    fun flush() {
+        val s = _state.value
+        if (!s.loaded) return
+        // Запись не отменяется, даже если экран закрывают в этот момент.
+        viewModelScope.launch { withContext(NonCancellable) { repository.saveSession(s.wallet, s.active, s.expression) } }
+    }
+
     fun press(key: Key) = _state.update { it.copy(expression = it.expression.press(key)) }
 
+    /** Коснулись поля «цена» ([Line.SPEND]) или «стоит вам» ([Line.HOME]): вводим в нём, сумма не меняется. */
     fun setActive(line: Line) = _state.update { s ->
-        if (s.active == line) s else s.copy(active = line, expression = Expression.of(s.totals.of(line) ?: BigDecimal.ZERO))
+        if (s.active == line || line == Line.CARD) s
+        else s.copy(active = line, expression = Expression.of(s.totals.of(line) ?: BigDecimal.ZERO))
     }
 
+    /** Коснулись плитки способа: выбрать его; лучший — снова автовыбор ([Wallet.choose]). */
     fun selectCard(id: String) = _state.update { s ->
-        when {
-            s.wallet.selectedId == id -> s
-            // Сумма в валюте карты не должна прыгнуть: сначала переводим её в валюту трат.
-            s.active == Line.CARD -> s.copy(
-                wallet = s.wallet.copy(selectedId = id),
-                active = Line.SPEND,
-                expression = Expression.of(s.totals.spend),
-            )
-            else -> s.copy(wallet = s.wallet.copy(selectedId = id))
-        }
+        val next = s.wallet.choose(id, s.quote.best?.card?.id)
+        if (next == s.wallet) s else s.copy(wallet = next)
     }
 
-    /** Другая валюта трат: сохраняем сумму в итоговой валюте и пересчитываем в новую валюту. */
-    fun setSpend(currency: Currency) {
+    /**
+     * Другая валюта трат: сохраняем сумму в итоговой валюте и пересчитываем в новую валюту. [place] — страна,
+     * если её выбрали в списке стран (та же валюта, другая страна — меняется только шапка).
+     */
+    fun setSpend(currency: Currency, place: String? = null) {
         _state.update { s ->
-            if (s.wallet.spend == currency) return@update s
+            if (s.wallet.spend == currency) return@update s.copy(wallet = s.wallet.withSpend(currency, place))
             val home = s.totals.home
-            val next = s.copy(wallet = s.wallet.copy(spend = currency), active = Line.SPEND)
+            val next = s.copy(wallet = s.wallet.withSpend(currency, place), active = Line.SPEND)
             val rate = next.homePerUnit
             val amount = if (home != null && rate != null) divideOrZero(home, rate) else BigDecimal.ZERO
             next.copy(expression = Expression.of(amount))
@@ -199,27 +286,19 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
 
     /** Подсказка «вы в другой стране»: [accept] — переключить валюту трат; больше для этой страны не показываем. */
     fun handleCountry(iso: String, accept: Currency?) {
-        if (accept != null) setSpend(accept)
+        if (accept != null) setSpend(accept, iso)
         _state.update { it.copy(countryHandled = iso) }
         viewModelScope.launch { repository.saveCountryHandled(iso) }
     }
 
-    /** Соседняя карта (свайп по сумме): [step] = +1 — следующая, −1 — предыдущая; у края ряда ничего не делает. */
-    fun stepCard(step: Int) {
-        val w = _state.value.wallet
-        val i = w.cards.indexOfFirst { it.id == w.selected?.id }
-        val next = w.cards.getOrNull(i + step) ?: return
-        selectCard(next.id)
-    }
-
     fun saveCard(card: BankCard) {
-        _state.update { s -> s.copy(wallet = s.wallet.upsert(card).copy(selectedId = card.id)) }
+        _state.update { s -> s.copy(wallet = s.wallet.upsert(card)) }
         refreshReceiptRates()
     }
 
     fun deleteCard(id: String) = _state.update { s ->
         val wallet = s.wallet.remove(id)
-        s.copy(wallet = wallet, active = if (wallet.cards.isEmpty() && s.active == Line.CARD) Line.SPEND else s.active)
+        s.copy(wallet = wallet)
     }
 
     /** Пустая карта для редактора: валюта трат по умолчанию — первая, которой ещё нет среди карт. */
@@ -229,34 +308,130 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
         return BankCard(id = UUID.randomUUID().toString(), name = "", currency = currency, style = w.nextStyle())
     }
 
-    /** Курсы ЦБ: при запуске — если старше 6 часов, по кнопке — всегда. */
-    fun refreshRates(force: Boolean = true) {
+    /** Кнопка «Обновить» (строка ЦБ, настройки): курсы ЦБ и UnionPay скачиваются всегда. */
+    fun refreshRates() = refresh(Trigger.BUTTON)
+
+    /** Вернулись в приложение: курсы старше 6 часов — скачиваем, если так в настройках. */
+    fun onResume() {
+        if (_state.value.loaded) refresh(Trigger.RESUME)
+    }
+
+    /** Курсы ЦБ и UnionPay — по настройке «Обновлять курсы» ([RatesPolicy]). */
+    private fun refresh(trigger: Trigger) {
         val s = _state.value
+        // «Только по Wi-Fi»: по мобильной сети сами не ходим, кнопкой — всегда.
+        if (!RatesPolicy.network(trigger, s.settings.wifiOnly, unmetered())) return
+        val now = System.currentTimeMillis()
+        val update = s.settings.ratesUpdate
+        val upAt = if (s.unionPay == null) 0L else s.unionPayFetchedAt
+        if (s.settings.unionPay && RatesPolicy.due(update, trigger, upAt, now)) refreshUnionPay()
         if (s.ratesLoading) return
-        if (!force && s.official != null && System.currentTimeMillis() - officialFetchedAt < RATES_TTL_MS) {
-            refreshWeekAgo()
-            refreshReceiptRates()
+        val allow = trigger == Trigger.BUTTON || RatesPolicy.auto(update)
+        val cbrAt = if (s.official == null) 0L else s.officialFetchedAt
+        if (!RatesPolicy.due(update, trigger, cbrAt, now)) {
+            refreshWeekAgo(allow)
+            refreshReceiptRates(allow)
             return
         }
         _state.update { it.copy(ratesLoading = true, ratesFailed = false) }
+        refreshGuide()
         viewModelScope.launch {
-            val rates = CbrClient.fetch()
-            if (rates != null) {
-                officialFetchedAt = System.currentTimeMillis()
-                repository.saveOfficial(rates, officialFetchedAt)
+            val fetched = CbrClient.fetch()
+            val at = System.currentTimeMillis()
+            if (fetched != null) repository.saveOfficial(fetched.rates, at, fetched.source)
+            _state.update {
+                it.copy(
+                    official = fetched?.rates ?: it.official,
+                    officialFetchedAt = if (fetched != null) at else it.officialFetchedAt,
+                    officialSource = fetched?.source ?: it.officialSource,
+                    ratesLoading = false,
+                    ratesFailed = fetched == null,
+                )
             }
-            _state.update { it.copy(official = rates ?: it.official, ratesLoading = false, ratesFailed = rates == null) }
-            refreshWeekAgo()
-            refreshReceiptRates()
+            refreshWeekAgo(allow)
+            refreshReceiptRates(allow)
         }
+    }
+
+    /** Встроенный справочник и сохранённый скачанный — что свежее (разбор — не на главном потоке). */
+    private suspend fun loadGuides(saved: String?): CountryGuides? = withContext(Dispatchers.Default) {
+        val bundled = runCatching { bundledGuide() }.getOrNull()?.let(CountryGuideParser::parse)
+        val downloaded = saved?.let(CountryGuideParser::parse)
+        bundled?.newer(downloaded) ?: downloaded
+    }
+
+    private var guideLoading = false
+
+    /** Справочник из репозитория: сохраняем, только если он свежее того, что уже есть. */
+    private fun refreshGuide() {
+        if (guideLoading) return
+        guideLoading = true
+        viewModelScope.launch {
+            val fetched = GuideClient.fetch()
+            val have = _state.value.guides
+            if (fetched != null && (have == null || fetched.second.version.isAfter(have.version))) {
+                repository.saveGuide(fetched.first)
+                _state.update { it.copy(guides = fetched.second) }
+            }
+            guideLoading = false
+        }
+    }
+
+    /** Курсы UnionPay: тихо, без индикатора — не скачались, так остаются прежние (или ЦБ и чеки). */
+    private fun refreshUnionPay() {
+        if (unionPayLoading) return
+        unionPayLoading = true
+        viewModelScope.launch {
+            val rates = UnionPayClient.fetch()
+            if (rates != null) {
+                val at = System.currentTimeMillis()
+                repository.saveUnionPay(rates, at)
+                _state.update { it.copy(unionPay = rates, unionPayFetchedAt = at) }
+            }
+            unionPayLoading = false
+        }
+    }
+
+    /** Настройки: сохраняются сразу; включили UnionPay, а его курсов нет — скачиваем (если не «вручную»). */
+    private fun updateSettings(transform: (AppSettings) -> AppSettings) {
+        val before = _state.value.settings
+        val next = transform(before)
+        if (next == before) return
+        _state.update { it.copy(settings = next) }
+        viewModelScope.launch { repository.saveSettings(next) }
+        if (next.unionPay && !before.unionPay && _state.value.unionPay == null && autoNetwork()) refreshUnionPay()
+    }
+
+    fun setUnionPayEnabled(value: Boolean) = updateSettings { it.copy(unionPay = value) }
+    fun setRatesUpdate(value: RatesUpdate) = updateSettings { it.copy(ratesUpdate = value) }
+    fun setCountryHint(value: Boolean) = updateSettings { it.copy(countryHint = value) }
+    fun setTheme(value: ThemeMode) = updateSettings { it.copy(theme = value) }
+    fun setMotion(value: MotionMode) = updateSettings { it.copy(motion = value) }
+    /** Сами (не кнопкой) в сеть можно: обновление не ручное и не мешает «только по Wi-Fi». */
+    private fun autoNetwork(): Boolean {
+        val settings = _state.value.settings
+        return RatesPolicy.auto(settings.ratesUpdate) && RatesPolicy.network(Trigger.RESUME, settings.wifiOnly, unmetered())
+    }
+
+    fun setWifiOnly(value: Boolean) = updateSettings { it.copy(wifiOnly = value) }
+    fun setRounding(value: Rounding) = updateSettings { it.copy(rounding = value) }
+    fun setKeyHaptics(value: Boolean) = updateSettings { it.copy(keyHaptics = value) }
+
+    /** «Показать знакомство снова». */
+    fun restartOnboarding() {
+        _state.update { it.copy(onboardingDone = false) }
+        viewModelScope.launch { repository.saveOnboardingDone(false) }
     }
 
     private val historyLoading = HashSet<LocalDate>()
 
-    /** Курсы ЦБ на даты старых чеков (для «чек устарел»): качаем недостающие, не больше нескольких за раз. */
-    private fun refreshReceiptRates() {
+    /**
+     * Курсы ЦБ на даты старых чеков (для «чек устарел»): качаем недостающие, не больше нескольких за раз.
+     * При обновлении «вручную» — только по кнопке ([allow]).
+     */
+    private fun refreshReceiptRates(allow: Boolean = autoNetwork()) {
         val s = _state.value
-        if (s.official == null) return
+        if (s.official == null || !allow) return
         val today = LocalDate.now()
         val missing = s.wallet.cards
             .flatMap { ReceiptAge.datesToCheck(it, s.wallet.spend, s.wallet.home, today) }
@@ -278,8 +453,9 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
     private var weekLoading = false
 
     /** Курсы неделю назад для стрелки тренда: качаем, только если их нет или они не за ту неделю. */
-    private fun refreshWeekAgo() {
+    private fun refreshWeekAgo(allow: Boolean) {
         val s = _state.value
+        if (!allow) return
         val official = s.official ?: return
         val target = official.date.minusDays(WEEK_DAYS)
         val have = s.officialWeekAgo?.date
@@ -322,7 +498,7 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
 
     companion object {
         private const val SAVE_DELAY_MS = 300L
-        private const val RATES_TTL_MS = 6 * 60 * 60 * 1000L
+        private const val GUIDE_ASSET = "countries.txt"
         private const val WEEK_DAYS = 7L
         private const val WEEK_SLACK_DAYS = 3L
         private const val HISTORY_BATCH = 5
@@ -331,28 +507,13 @@ class MainViewModel(private val repository: WalletRepository) : ViewModel() {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]!!
-                MainViewModel(WalletRepository(app.settingsDataStore))
+                MainViewModel(
+                    WalletRepository(app.settingsDataStore, app.unionPayDataStore, app.ratesDataStore),
+                    bundledGuide = { app.assets.open(GUIDE_ASSET).use { String(it.readBytes(), Charsets.UTF_8) } },
+                    unmetered = { NetworkState.unmetered(app) },
+                )
             }
         }
-
-        /** Быстрые суммы в валюте трат; у дирхама 22 — проезд в метро. */
-        fun chips(c: Currency): List<BigDecimal> = when (c) {
-            Currency.AED -> listOf(5, 10, 22, 50, 100, 200, 500)
-            Currency.TRY, Currency.THB -> listOf(50, 100, 200, 500, 1000, 2000, 5000)
-            Currency.CNY -> listOf(10, 20, 50, 100, 200, 500, 1000)
-            Currency.KZT, Currency.AMD -> listOf(500, 1000, 2000, 5000, 10000, 20000, 50000)
-            Currency.VND -> listOf(10000, 20000, 50000, 100000, 200000, 500000, 1000000)
-            else -> listOf(1, 5, 10, 20, 50, 100, 200)
-        }.map { BigDecimal(it) }
-
-        /** Строки шпаргалки: девять сумм, от мелкой покупки до крупной. */
-        fun cheat(c: Currency): List<BigDecimal> = when (c) {
-            Currency.AED, Currency.CNY -> listOf(1, 5, 10, 20, 50, 100, 200, 500, 1000)
-            Currency.TRY, Currency.THB -> listOf(10, 50, 100, 200, 500, 1000, 2000, 5000, 10000)
-            Currency.KZT, Currency.AMD -> listOf(100, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000)
-            Currency.VND -> listOf(1000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000)
-            else -> listOf(1, 2, 5, 10, 20, 50, 100, 200, 500)
-        }.map { BigDecimal(it) }
     }
 }
 

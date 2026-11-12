@@ -39,7 +39,13 @@ object ReceiptScanner {
         Currency.BYN to "BYN|Br(?!\\p{L})",
         Currency.UZS to "UZS|(?iu:сум(?!\\p{L}))",
         Currency.KGS to "KGS|(?iu:сом(?!\\p{L}))",
-    )
+    ) + Currency.entries.filter { it.ordinal >= Currency.KGS.ordinal + 1 }.map { c ->
+        // Остальные валюты — по коду и по знаку, если он не совпадает с кодом («IDR», «Rp», «₹»).
+        // Одиночные буквы («R», «P») не берём: их легко принять за часть текста.
+        val sign = c.symbol.takeIf { it != c.code && (it.length > 1 || !it[0].isLetter()) }
+            ?.let { "|" + Regex.escape(it) + "(?!\\p{L})" }.orEmpty()
+        c to "(?<!\\p{L})${c.code}(?!\\p{L})$sign"
+    }
     private val AFTER = MARKERS.map { (c, p) -> c to Regex("^[\\s\\u00A0\\u202F]{0,2}(?:$p)") }
     private val BEFORE = MARKERS.map { (c, p) -> c to Regex("(?:$p)[\\s\\u00A0\\u202F]{0,2}[-−+]?[\\s\\u00A0\\u202F]?$") }
 
@@ -70,11 +76,12 @@ object ReceiptScanner {
         fun purchase(c: Currency) = ScannedReceipt.Purchase(c, onCard, byCurrency.getValue(c))
         fun transfer(c: Currency) = ScannedReceipt.Transfer(byCurrency.getValue(c), c, onCard)
         return when {
-            spend in others && spend in Currency.SPEND -> purchase(spend)
+            spend in others && spend != home -> purchase(spend)
             home in others -> transfer(home)
             else -> {
+                // Платят в поездке любой валютой, кроме рубля: рубли — это пополнение.
                 val other = others.firstOrNull() ?: return null
-                if (other in Currency.SPEND) purchase(other) else transfer(other)
+                if (other != Currency.RUB) purchase(other) else transfer(other)
             }
         }
     }

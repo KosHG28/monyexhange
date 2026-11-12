@@ -2,8 +2,11 @@ package app.dirhamrub.domain.wallet
 
 import app.dirhamrub.domain.Numbers
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.math.BigDecimal
 import java.time.LocalDate
 
 class OfficialRatesTest {
@@ -72,5 +75,19 @@ class OfficialRatesTest {
     fun `мусор не разбирается`() {
         assertNull(CbrParser.parseXml("<html>error</html>"))
         assertNull(CbrParser.parseJson("{}"))
+    }
+
+    @Test
+    fun `есть ли у ЦБ курс валюты`() {
+        // Курсы, сохранённые 1.10: только старые 14 валют.
+        val old = OfficialRates(LocalDate.of(2026, 11, 6), mapOf(Currency.USD to BigDecimal("81.79"), Currency.KZT to BigDecimal("0.1806")))
+        assertTrue(cbrPublishes(Currency.RUB))
+        assertTrue(cbrPublishes(Currency.MDL, old))
+        assertTrue(cbrPublishes(Currency.TJS, old))
+        assertTrue(cbrPublishes(Currency.BDT))
+        assertFalse(cbrPublishes(Currency.LKR))
+        assertFalse(cbrPublishes(Currency.LKR, old))
+        // ЦБ добавил валюту, которой нет в известном списке, — берём из ответа.
+        assertTrue(cbrPublishes(Currency.LKR, OfficialRates(old.date, mapOf(Currency.LKR to BigDecimal("0.27")))))
     }
 }

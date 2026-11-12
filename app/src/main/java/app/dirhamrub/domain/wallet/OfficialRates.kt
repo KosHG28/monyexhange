@@ -4,11 +4,45 @@ import app.dirhamrub.domain.MC
 import java.math.BigDecimal
 import java.time.LocalDate
 
-/** Официальные курсы ЦБ РФ: сколько рублей стоит 1 единица валюты (у рубля — 1). */
+/**
+ * Есть ли у ЦБ курс валюты [c]: по известному списку ([Currency.cbr]) или по загруженным курсам [official]
+ * (если ЦБ добавил валюту). Отсутствия в загруженных курсах мало, чтобы сказать «у ЦБ нет»: их могла
+ * сохранить старая версия с меньшим справочником, а свежие ещё не скачаны.
+ */
+fun cbrPublishes(c: Currency, official: OfficialRates? = null): Boolean =
+    c == Currency.RUB || c.cbr || (official != null && c in official.rubPerUnit && c !in official.derived)
+
+/**
+ * Официальные курсы ЦБ РФ: сколько рублей стоит 1 единица валюты (у рубля — 1).
+ * Справочные курсы ([withUnionPay]) дополняют их валютами, которых у ЦБ нет: эти валюты — в [derived].
+ */
 data class OfficialRates(
     val date: LocalDate,
     val rubPerUnit: Map<Currency, BigDecimal>,
+    /** Валюты, курс которых не от ЦБ, а по UnionPay к доллару и курсу ЦБ доллара. */
+    val derived: Set<Currency> = emptySet(),
 ) {
+    /** Курс пары [from] → [to] взят не только у ЦБ, но и у UnionPay — подписывать «UnionPay». */
+    fun viaUnionPay(from: Currency, to: Currency): Boolean = from in derived || to in derived
+
+    /**
+     * Справочные курсы: курсы ЦБ и валюты, которых у ЦБ нет, — по курсу UnionPay к доллару, умноженному
+     * на курс ЦБ доллара (100 LKR = 0,3014 $ × 81,79 ₽). Валюты, которые ЦБ публикует, берутся только у ЦБ —
+     * даже если в сохранённых курсах их пока нет.
+     */
+    fun withUnionPay(unionPay: UnionPayRates?): OfficialRates {
+        unionPay ?: return this
+        val usd = rubPerUnit[Currency.USD] ?: return this
+        val extra = HashMap<Currency, BigDecimal>()
+        for (c in Currency.entries) {
+            if (c == Currency.RUB || c.cbr || c in rubPerUnit) continue
+            val perUsd = unionPay.rate(c, Currency.USD) ?: continue
+            extra[c] = perUsd.multiply(usd, MC)
+        }
+        if (extra.isEmpty()) return this
+        return copy(rubPerUnit = rubPerUnit + extra, derived = derived + extra.keys)
+    }
+
     /** Сколько [to] стоит 1 [from] по курсам ЦБ; null, если какой-то валюты нет. */
     fun cross(from: Currency, to: Currency): BigDecimal? {
         if (from == to) return BigDecimal.ONE

@@ -44,6 +44,9 @@ fun CurrencyChips(
     selected: Currency,
     onSelect: (Currency) -> Unit,
     modifier: Modifier = Modifier,
+    /** «Все валюты…» под сеткой — открыть полный выбор с поиском. */
+    onMore: (() -> Unit)? = null,
+    moreLabel: String = "",
 ) {
     val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
     BoxWithConstraints(modifier.fillMaxWidth()) {
@@ -53,6 +56,21 @@ fun CurrencyChips(
                 Row(horizontalArrangement = Arrangement.spacedBy(CHIP_GAP)) {
                     for (c in row) CurrencyChip(c, c == selected, Modifier.weight(1f)) { onSelect(c) }
                     repeat(perRow - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            if (onMore != null) {
+                val colors = AppTheme.colors
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 44.dp)
+                        .clip(RoundedCornerShape(50))
+                        .border(1.dp, colors.line, RoundedCornerShape(50))
+                        .clickable(role = Role.Button, onClick = onMore)
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(moreLabel, style = AppTheme.type.bodyStrong.copy(fontSize = 14.sp), color = colors.accent, maxLines = 1)
                 }
             }
         }
@@ -123,7 +141,7 @@ fun CurrencyDropdown(
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 )
             } else {
-                Text("${selected.symbol} ▾", style = type.mono, color = colors.accent, maxLines = 1, softWrap = false)
+                Text("${selected.mark} ▾", style = type.mono, color = colors.accent, maxLines = 1, softWrap = false)
             }
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {

@@ -1,5 +1,7 @@
 package app.dirhamrub.domain.price
 
+import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.NumberStyle
 import java.math.BigDecimal
 import kotlin.math.max
 
@@ -35,7 +37,29 @@ class PriceCurrency(
     val max: BigDecimal,
     val dotThousands: Boolean = false,
     val longRunDigits: Int = 7,
+    /** Индийские разряды: «1,50,000» — полтора лакха. */
+    val indian: Boolean = false,
+    /** Знаков после запятой у цен: 3 у динаров Кувейта, Бахрейна, Иордании, Туниса и риала Омана. */
+    val decimals: Int = 2,
 ) {
+    /** Как выглядит число-цена в этой валюте. */
+    internal val number: Regex = run {
+        val f = "\\d{1,$decimals}"
+        val alternatives = buildList {
+            // У трёхзначных динаров цены маленькие, а «1,250» и «1.250» — это 1,25: разрядов не ищем.
+            if (decimals < 3) {
+                if (indian) add("\\d{1,2}(?:,\\d{2})+,\\d{3}(?:\\.$f)?")
+                if (dotThousands) add("\\d{1,3}(?:\\.\\d{3})+(?:,$f)?")
+                add("\\d{1,3}(?:,\\d{3})+(?:\\.$f)?")
+            }
+            add("\\d+(?:[.,]$f)?")
+        }
+        Regex("(?<![\\d.,])(" + alternatives.joinToString("|") + ")(?![\\d]|[.,]\\d)")
+    }
+
+    /** Есть ли у числа копейки («49,95», «1.250» у динара). */
+    internal val fraction: Regex = Regex("[.,]\\d{1,$decimals}$")
+
     companion object {
         private fun words(vararg w: String) = "(?<![A-Za-z])(?:${w.joinToString("|")})(?![A-Za-z])\\.?"
         private fun currency(pattern: String) = Regex(pattern, RegexOption.IGNORE_CASE)
@@ -95,8 +119,59 @@ class PriceCurrency(
             BigDecimal("1000"), BigDecimal("100000000"), dotThousands = true, longRunDigits = 10,
         )
 
-        /** По трёхбуквенному коду; для неизвестной валюты — дирхамы. */
+        /**
+         * Местные подписи валют на ценниках — сверх кода и знака из справочника. Латиница — словом
+         * (без учёта регистра), остальное — как есть.
+         */
+        private val LOCAL: Map<String, List<String>> = mapOf(
+            "IDR" to listOf("RP"), "INR" to listOf("RS", "₹"), "LKR" to listOf("RS", "SLRS"), "PKR" to listOf("RS"),
+            "NPR" to listOf("RS", "NRS"), "MUR" to listOf("RS"), "SCR" to listOf("SR"), "MVR" to listOf("RF", "MRF"),
+            "MYR" to listOf("RM"), "PHP" to listOf("₱"), "MXN" to listOf("MN", "$"), "MAD" to listOf("DH", "DHS", "DIRHAMS?"),
+            "EGP" to listOf("LE", "L\\.E", "E£", "£E"), "JPY" to listOf("YEN", "¥", "円"), "KRW" to listOf("WON", "₩", "원"),
+            "GBP" to listOf("£"), "CHF" to listOf("FR"), "CZK" to listOf("KČ", "KC"), "PLN" to listOf("ZŁ", "ZL"),
+            "HUF" to listOf("FT"), "SEK" to listOf("KR"), "NOK" to listOf("KR"), "DKK" to listOf("KR"), "ISK" to listOf("KR"),
+            "RSD" to listOf("DIN", "дин"), "BAM" to listOf("KM"), "MKD" to listOf("DEN", "ден"), "ALL" to listOf("LEK"),
+            "TND" to listOf("DT"), "JOD" to listOf("JD"), "ILS" to listOf("NIS", "₪"), "SAR" to listOf("SR"),
+            "QAR" to listOf("QR"), "OMR" to listOf("RO"), "KWD" to listOf("KD"), "BHD" to listOf("BD"),
+            "HKD" to listOf("HK$", "$"), "SGD" to listOf("S$", "$"), "TWD" to listOf("NT$", "NT"), "AUD" to listOf("A$", "$"),
+            "NZD" to listOf("NZ$", "$"), "CAD" to listOf("C$", "CA$", "$"), "BRL" to listOf("R$"), "ARS" to listOf("$"),
+            "CLP" to listOf("$"), "COP" to listOf("$"), "PEN" to listOf("S/"), "KHR" to listOf("៛", "RIELS?"),
+            "LAK" to listOf("₭", "KIP"), "MMK" to listOf("KS", "KYATS?"), "MNT" to listOf("₮"), "AZN" to listOf("₼", "MAN"),
+            "TJS" to listOf("SM", "смн"), "TMT" to listOf("MANAT"), "UAH" to listOf("₴", "грн"), "MDL" to listOf("LEI"),
+            "RON" to listOf("LEI"), "TZS" to listOf("TSH"), "KES" to listOf("KSH"), "ZAR" to listOf("R"),
+            "DOP" to listOf("RD$", "$"), "CUP" to listOf("$"), "NGN" to listOf("₦"), "GHS" to listOf("GH₵", "₵"),
+            "LBP" to listOf("LL", "L\\.L"), "BDT" to listOf("TK", "৳"), "IRR" to listOf("RIALS?", "﷼"),
+        )
+
+        /**
+         * Правила для любой валюты справочника: подписи — код, знак и местные сокращения; формат чисел —
+         * как пишут в стране; диапазон цен и длина «не цены» (телефона, кода) — от размера валюты.
+         */
+        fun generic(c: Currency): PriceCurrency {
+            val marks = (listOf(c.code, c.symbol) + LOCAL[c.code].orEmpty()).distinct()
+            val latin = marks.filter { m -> m.all { it in 'A'..'Z' || it in 'a'..'z' || it == '?' || it == '\\' || it == '.' || it == 'Č' || it == 'Ł' } }
+            val cyrillic = marks.filter { m -> m.all { it in 'а'..'я' || it in 'А'..'Я' } }
+            val other = marks - latin.toSet() - cyrillic.toSet()
+            val parts = buildList {
+                if (latin.isNotEmpty()) add(words(*latin.toTypedArray()))
+                if (cyrillic.isNotEmpty()) add("(?<![А-Яа-я])(?:${cyrillic.joinToString("|")})(?![А-Яа-я])\\.?")
+                other.forEach { add(Regex.escape(it)) }
+            }
+            val unit = BigDecimal.TEN.pow(c.magnitude)
+            return PriceCurrency(
+                currency(parts.joinToString("|")),
+                min = unit.divide(BigDecimal.TEN),
+                max = unit.multiply(BigDecimal(100_000)),
+                dotThousands = c.style == NumberStyle.DOT,
+                longRunDigits = maxOf(7, c.magnitude + 6),
+                indian = c.style == NumberStyle.INDIAN,
+                decimals = if (c.digits == 3) 3 else 2,
+            )
+        }
+
+        /** По трёхбуквенному коду: у частых валют — подобранные вручную правила, у остальных — общие. */
         fun of(code: String): PriceCurrency = when (code) {
+            "AED" -> AED
             "KZT" -> KZT
             "TRY" -> TRY
             "THB" -> THB
@@ -106,7 +181,7 @@ class PriceCurrency(
             "GEL" -> GEL
             "AMD" -> AMD
             "VND" -> VND
-            else -> AED
+            else -> Currency.byCode(code)?.let(::generic) ?: AED
         }
     }
 }
@@ -215,7 +290,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         val oldKeyword = OLD_WORD.containsMatchIn(text) ||
             (prevLine != null && OLD_WORD.containsMatchIn(prevLine.text) && NUMBER.find(prevLine.text) == null)
 
-        for (m in (if (currency.dotThousands) NUMBER_DOT else NUMBER).findAll(text)) {
+        for (m in currency.number.findAll(text)) {
             if (m.range.any { masked[it] }) continue
             val numberText = m.value
             val after = text.substring(m.range.last + 1)
@@ -238,7 +313,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
                 box = box,
                 hasCurrency = hasCurrency,
                 blockCurrency = blockCurrency,
-                hasFraction = FRACTION.containsMatchIn(numberText),
+                hasFraction = currency.fraction.containsMatchIn(numberText),
                 digits = numberText.count { it.isDigit() },
                 isOld = oldKeyword,
                 extent = extent,
@@ -251,8 +326,11 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
     /** «1,299.00» → 1299.00, «49,95» → 49.95, «379» → 379; при [PriceCurrency.dotThousands] «1.299,90» → 1299.90. */
     private fun parseNumber(text: String): BigDecimal? {
         val normalized = when {
+            currency.decimals == 3 -> text.replace(',', '.')
             currency.dotThousands && DOT_THOUSANDS.matches(text) -> text.replace(".", "").replace(',', '.')
             THOUSANDS.matches(text) -> text.replace(",", "")
+            // «1,50,000» — индийские разряды.
+            currency.indian && INDIAN.matches(text) -> text.replace(",", "")
             else -> text.replace(',', '.')
         }
         return normalized.toBigDecimalOrNull()
@@ -410,12 +488,9 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         private const val SAME_PLACE_IOU = 0.5f
 
         private val NUMBER = Regex("""(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\d]|[.,]\d)""")
-        private val NUMBER_DOT = Regex(
-            """(?<![\d.,])(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\d]|[.,]\d)""",
-        )
         private val DOT_THOUSANDS = Regex("""\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?""")
-        private val THOUSANDS = Regex("""\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?""")
-        private val FRACTION = Regex("""[.,]\d{1,2}$""")
+        private val THOUSANDS = Regex("""\d{1,3}(?:,\d{3})+(?:\.\d{1,3})?""")
+        private val INDIAN = Regex("""\d{1,2}(?:,\d{2})+,\d{3}(?:\.\d{1,2})?""")
 
         private val OLD_WORD = Regex(
             """(?<![A-Za-z])(?:WAS|OLD|BEFORE|RRP|REG|REGULAR|ORIGINAL)(?![A-Za-z])""",

@@ -12,13 +12,15 @@ sealed interface Key {
     data object Backspace : Key
     data object Clear : Key
     data object Plus : Key
+    data object Minus : Key
     data object Times : Key
     data object Equals : Key
 }
 
-/** Знак между числами: «+» или «×» (умножение выполняется раньше сложения). */
+/** Знак между числами: «+», «−» или «×» (умножение выполняется раньше сложения и вычитания). */
 enum class Op(val symbol: Char, val stored: Char) {
     PLUS('+', '+'),
+    MINUS('−', '-'),
     TIMES('×', '*'),
 }
 
@@ -37,7 +39,7 @@ data class Expression(
     val isEmpty: Boolean get() = terms.all { it.isEmpty() }
 
     /**
-     * Значение: сначала умножение, потом сложение. Недописанный хвост («3 × ») не считается —
+     * Значение: сначала умножение, потом сложение и вычитание. Недописанный хвост («3 × ») не считается —
      * пока набирают второй множитель, видно 3, а не 0.
      */
     val value: BigDecimal
@@ -46,18 +48,20 @@ data class Expression(
             if (count > 1 && terms.last().isEmpty()) count--
             var sum = BigDecimal.ZERO
             var product = number(0)
+            var minus = false
             for (i in 1 until count) {
                 if (ops[i - 1] == Op.TIMES) {
                     product = product.multiply(number(i), MC)
                 } else {
-                    sum = sum.add(product, MC)
+                    sum = if (minus) sum.subtract(product, MC) else sum.add(product, MC)
+                    minus = ops[i - 1] == Op.MINUS
                     product = number(i)
                 }
             }
-            return sum.add(product, MC)
+            return if (minus) sum.subtract(product, MC) else sum.add(product, MC)
         }
 
-    private fun number(i: Int): BigDecimal = Numbers.parse(terms[i]) ?: BigDecimal.ZERO
+    private fun number(i: Int): BigDecimal = signed(terms[i]) ?: BigDecimal.ZERO
 
     /** «3 × 22 + 15,5», при наборе следующего числа — «3 × 22 + ». */
     fun display(): String = buildString {
@@ -70,7 +74,7 @@ data class Expression(
     /** Последнее (редактируемое) число в виде для показа. */
     fun currentTerm(): String = Numbers.groupInput(terms.last())
 
-    /** «3*22+15,5»: умножение хранится звёздочкой, старые сохранения «22+15,5» читаются как раньше. */
+    /** «3*22+15,5-2»: умножение хранится звёздочкой, вычитание — дефисом; старые сохранения «22+15,5» читаются как раньше. */
     fun serialize(): String = buildString {
         terms.forEachIndexed { i, term ->
             if (i > 0) append(ops[i - 1].stored)
@@ -84,6 +88,7 @@ data class Expression(
         Key.Backspace -> backspace()
         Key.Clear -> Expression()
         Key.Plus -> operator(Op.PLUS)
+        Key.Minus -> operator(Op.MINUS)
         Key.Times -> operator(Op.TIMES)
         Key.Equals -> equals()
     }
@@ -129,7 +134,7 @@ data class Expression(
         }
     }
 
-    /** «+» или «×». Сразу после знака — заменяет его («3 + ×» → «3 × »); на пустом месте — ничего. */
+    /** «+», «−» или «×». Сразу после знака — заменяет его («3 + ×» → «3 × »); на пустом месте — ничего. */
     private fun operator(op: Op): Expression {
         val last = terms.last()
         if (last.isEmpty()) {
@@ -167,8 +172,16 @@ data class Expression(
                 }
             }
             val texts = terms.map { it.toString() }
+            // «-150» — отрицательный итог после «=», а не «0 − 150».
+            if (texts.size == 2 && texts[0].isEmpty() && ops.first() == Op.MINUS && texts[1].isNotEmpty()) {
+                return Expression(listOf("-" + texts[1]), fresh = true)
+            }
             val valid = texts.all { it.isEmpty() || Numbers.parse(it) != null }
             return if (valid) Expression(texts, ops = ops) else Expression()
         }
+
+        /** Число набора со знаком: минус бывает только у итога после «=» («-150»). */
+        private fun signed(text: String): BigDecimal? =
+            if (text.startsWith('-')) Numbers.parse(text.substring(1))?.negate() else Numbers.parse(text)
     }
 }

@@ -157,12 +157,13 @@ class RateEngineTest {
     @Test
     fun `кошелёк`() {
         val w = Wallet().upsert(tenge).upsert(yuan)
-        assertEquals("kzt", w.selected!!.id)
+        // Ручного выбора нет — без известного лучшего первая подходящая.
+        assertEquals("kzt", w.pick(null)!!.id)
         assertEquals(2, w.nextStyle())
         val renamed = w.upsert(tenge.copy(name = "Kaspi"))
         assertEquals("Kaspi", renamed.cards.first().name)
         assertEquals(2, renamed.cards.size)
-        assertEquals("cny", w.remove("kzt").selected!!.id)
+        assertEquals("cny", w.remove("kzt").pick(null)!!.id)
         assertTrue(Wallet().remove("x").cards.isEmpty())
     }
 

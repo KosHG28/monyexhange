@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Только в отладочной сборке: проверка Gemini Nano (AICore) на телефоне, отдельный значок «Nano-тест». -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name="app.dirhamrub.nanolab.NanoLabActivity"
+            android:exported="true"
+            android:label="Nano-тест"
+            android:taskAffinity="ru.kurspocheku.nanolab">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

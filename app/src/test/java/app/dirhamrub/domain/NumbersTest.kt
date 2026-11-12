@@ -115,4 +115,42 @@ class NumbersTest {
         assertEquals(BigDecimal.ONE, Numbers.unitFor(bd("2.5")))
         assertEquals(BigDecimal(1_000_000), Numbers.unitFor(BigDecimal.ZERO))
     }
+
+    @Test
+    fun `округление итога`() {
+        val v = BigDecimal("3706.06")
+        assertEquals("3\u00A0706,06".replace("\u00A0", Numbers.money(BigDecimal(1000)).substring(1, 2)), Numbers.total(v, Rounding.NONE))
+        assertEquals(Numbers.moneyWhole(BigDecimal(3706)), Numbers.total(v, Rounding.WHOLE))
+        assertEquals(Numbers.moneyWhole(BigDecimal(3710)), Numbers.total(v, Rounding.TENS))
+        assertEquals(Numbers.moneyWhole(BigDecimal(3700)), Numbers.total(BigDecimal("3704.99"), Rounding.TENS))
+        assertEquals(Numbers.moneyWhole(BigDecimal(3710)), Numbers.total(BigDecimal("3705"), Rounding.TENS))
+        // Меньше 10 — с копейками при любом округлении, иначе «0 ₽» ничего не скажет.
+        assertEquals("5,40", Numbers.total(BigDecimal("5.4"), Rounding.TENS))
+        assertEquals("67", Numbers.total(BigDecimal("67"), Rounding.NONE))
+    }
+
+    @Test
+    fun `ввод суммы в поле чека`() {
+        assertEquals("15000,5", Numbers.cleanInput("15 000.5"))
+        assertEquals("0,5", Numbers.cleanInput(",5"))
+        assertEquals("12,34", Numbers.cleanInput("12,3,4"))
+        assertEquals("150000", Numbers.cleanInput("150 000 ₽"))
+    }
+
+    @Test
+    fun `округлённая сумма совпадает с показанной`() {
+        assertEquals(0, BigDecimal("3706").compareTo(Numbers.rounded(BigDecimal("3705.6"), Rounding.WHOLE)))
+        assertEquals(0, BigDecimal("3710").compareTo(Numbers.rounded(BigDecimal("3705.6"), Rounding.TENS)))
+        assertEquals(0, BigDecimal("3705.60").compareTo(Numbers.rounded(BigDecimal("3705.6"), Rounding.NONE)))
+        assertEquals(0, BigDecimal("5.40").compareTo(Numbers.rounded(BigDecimal("5.4"), Rounding.TENS)))
+        // Разница показанных сумм: 3 749 − 3 706 = 43, а не округлённые 43,8 → 44.
+        val diff = Numbers.rounded(BigDecimal("3749.4"), Rounding.WHOLE).subtract(Numbers.rounded(BigDecimal("3705.6"), Rounding.WHOLE))
+        assertEquals("43", Numbers.saving(diff))
+        for (v in listOf("3705.6", "0.5", "12345.678", "-150.4")) {
+            for (r in Rounding.entries) {
+                val x = BigDecimal(v)
+                assertEquals(Numbers.total(x, r), if (r == Rounding.NONE || x.abs() < BigDecimal.TEN) Numbers.money(Numbers.rounded(x, r)) else Numbers.moneyWhole(Numbers.rounded(x, r)))
+            }
+        }
+    }
 }

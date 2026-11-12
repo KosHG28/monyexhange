@@ -12,11 +12,26 @@ import java.util.Properties
  * Числа — строками BigDecimal, даты — ISO. Испорченные записи пропускаются.
  */
 object WalletCodec {
+    /**
+     * Отпечаток справочника валют. Курсы ЦБ разбираются только по валютам справочника, поэтому курсы,
+     * сохранённые с другим справочником (до 1.11 — 14 валют), неполные: их показывают, но скачивают заново.
+     */
+    val RATES_TABLE: Int = tableOf(Currency.entries.map { it.code })
+
+    fun tableOf(codes: List<String>): Int = codes.joinToString(",").hashCode()
+
+    /** Курсы (или история курсов) сохранены с нынешним справочником валют. */
+    fun isCurrentTable(text: String?): Boolean =
+        !text.isNullOrBlank() && load(text)?.int(TABLE) == RATES_TABLE
+
+    private const val TABLE = "table"
 
     fun encode(wallet: Wallet): String {
         val p = Properties()
         p["home"] = wallet.home.code
         p["spend"] = wallet.spend.code
+        if (wallet.recent.isNotEmpty()) p["recent"] = wallet.recent.joinToString(",") { it.code }
+        wallet.place?.let { p["place"] = it }
         wallet.selectedId?.let { p["selected"] = it }
         p["cards"] = wallet.cards.size.toString()
         wallet.cards.forEachIndexed { i, c ->
@@ -26,12 +41,15 @@ object WalletCodec {
             p[k + "currency"] = c.currency.code
             p[k + "style"] = c.style.toString()
             p[k + "kind"] = c.kind.name
-            c.transfer?.let { t ->
-                p[k + "transfer.sent"] = t.sent.toPlainString()
-                p[k + "transfer.sentCurrency"] = t.sentCurrency.code
-                p[k + "transfer.got"] = t.got.toPlainString()
-                p[k + "transfer.date"] = t.date.toString()
+            if (c.unionPay) p[k + "unionpay"] = "1"
+            c.settlement?.let { p[k + "settlement"] = it.code }
+            c.network?.let { p[k + "network"] = it.name }
+            c.transfer?.let { t -> putTransfer(p, k + "transfer.", t) }
+            if (c.history.isNotEmpty()) {
+                p[k + "history"] = c.history.size.toString()
+                c.history.forEachIndexed { j, t -> putTransfer(p, k + "history.$j.", t) }
             }
+            if (c.transferMode != TransferMode.LAST) p[k + "transferMode"] = c.transferMode.name
             p[k + "purchases"] = c.purchases.size.toString()
             c.purchases.forEachIndexed { j, r ->
                 val pk = k + "purchase.$j."
@@ -56,16 +74,20 @@ object WalletCodec {
         if (text.isNullOrBlank()) return null
         val p = load(text) ?: return null
         val cards = (0 until (p.int("cards") ?: 0)).mapNotNull { i -> card(p, "card.$i.") }
+        val spend = Currency.byCode(p.getProperty("spend")) ?: Currency.AED
         return Wallet(
             cards = cards,
             home = Currency.byCode(p.getProperty("home")) ?: Currency.RUB,
-            spend = Currency.byCode(p.getProperty("spend"))?.takeIf { it in Currency.SPEND } ?: Currency.AED,
-            selectedId = p.getProperty("selected")?.takeIf { id -> cards.any { it.id == id } } ?: cards.firstOrNull()?.id,
+            spend = spend,
+            selectedId = p.getProperty("selected")?.takeIf { id -> cards.any { it.id == id } },
+            recent = p.getProperty("recent").orEmpty().split(',').mapNotNull { Currency.byCode(it.trim()) }.distinct().take(Wallet.RECENT),
+            place = p.getProperty("place")?.takeIf { Countries.byIso(it)?.currency == spend },
         )
     }
 
     fun encodeRates(rates: OfficialRates): String {
         val p = Properties()
+        p[TABLE] = RATES_TABLE.toString()
         p["date"] = rates.date.toString()
         for ((c, v) in rates.rubPerUnit) p["rub." + c.code] = v.toPlainString()
         return store(p)
@@ -87,16 +109,8 @@ object WalletCodec {
     private fun card(p: Properties, k: String): BankCard? {
         val id = p.getProperty(k + "id") ?: return null
         val currency = Currency.byCode(p.getProperty(k + "currency")) ?: return null
-        val transfer = run {
-            val sent = p.decimal(k + "transfer.sent") ?: return@run null
-            val got = p.decimal(k + "transfer.got") ?: return@run null
-            TransferReceipt(
-                sent = sent,
-                sentCurrency = Currency.byCode(p.getProperty(k + "transfer.sentCurrency")) ?: Currency.RUB,
-                got = got,
-                date = p.date(k + "transfer.date") ?: LocalDate.now(),
-            )
-        }
+        val transfer = transfer(p, k + "transfer.")
+        val history = (0 until (p.int(k + "history") ?: 0)).mapNotNull { j -> transfer(p, k + "history.$j.") }
         val purchases = (0 until (p.int(k + "purchases") ?: 0)).mapNotNull { j ->
             val pk = k + "purchase.$j."
             PurchaseReceipt(
@@ -124,12 +138,69 @@ object WalletCodec {
             purchases = purchases,
             manual = manual,
             kind = CardKind.entries.firstOrNull { it.name == p.getProperty(k + "kind") } ?: CardKind.CARD,
+            unionPay = p.getProperty(k + "unionpay") == "1",
+            settlement = Currency.byCode(p.getProperty(k + "settlement"))?.takeIf { it in UnionPayRates.BASES },
+            network = CardNetwork.entries.firstOrNull { it.name == p.getProperty(k + "network") },
+            history = history,
+            transferMode = TransferMode.entries.firstOrNull { it.name == p.getProperty(k + "transferMode") } ?: TransferMode.LAST,
         )
+    }
+
+    private fun transfer(p: Properties, k: String): TransferReceipt? {
+        val sent = p.decimal(k + "sent") ?: return null
+        val got = p.decimal(k + "got") ?: return null
+        return TransferReceipt(
+            sent = sent,
+            sentCurrency = Currency.byCode(p.getProperty(k + "sentCurrency")) ?: Currency.RUB,
+            got = got,
+            date = p.date(k + "date") ?: LocalDate.now(),
+            boughtAt = p.decimal(k + "boughtAt"),
+            boughtIn = Currency.byCode(p.getProperty(k + "boughtIn")),
+            fromCard = p.getProperty(k + "fromCard")?.takeIf { it.isNotBlank() },
+        )
+    }
+
+    private fun putTransfer(p: Properties, k: String, t: TransferReceipt) {
+        p[k + "sent"] = t.sent.toPlainString()
+        p[k + "sentCurrency"] = t.sentCurrency.code
+        p[k + "got"] = t.got.toPlainString()
+        p[k + "date"] = t.date.toString()
+        t.fromCard?.let { p[k + "fromCard"] = it }
+        t.bought?.let { (rate, inCurrency) ->
+            p[k + "boughtAt"] = rate.toPlainString()
+            p[k + "boughtIn"] = inCurrency.code
+        }
+    }
+
+    /** Курсы UnionPay: «CNY.LKR=0.02015521» — сколько валюты расчёта за 1 единицу валюты покупки. */
+    fun encodeUnionPay(rates: UnionPayRates): String {
+        val p = Properties()
+        p[TABLE] = RATES_TABLE.toString()
+        p["date"] = rates.date.toString()
+        for ((base, row) in rates.rates) for ((trans, v) in row) p["${base.code}.${trans.code}"] = v.toPlainString()
+        return store(p)
+    }
+
+    fun decodeUnionPay(text: String?): UnionPayRates? {
+        if (text.isNullOrBlank()) return null
+        val p = load(text) ?: return null
+        val date = p.date("date") ?: return null
+        val out = HashMap<Currency, HashMap<Currency, BigDecimal>>()
+        for (name in p.stringPropertyNames()) {
+            val parts = name.split('.')
+            if (parts.size != 2) continue
+            val base = Currency.byCode(parts[0]) ?: continue
+            val trans = Currency.byCode(parts[1]) ?: continue
+            val v = p.decimal(name)?.takeIf { it.signum() > 0 } ?: continue
+            out.getOrPut(base) { HashMap() }[trans] = v
+        }
+        return if (out.isEmpty()) null else UnionPayRates(date, out)
     }
 
     /** Курсы ЦБ на даты чеков: ключ — дата чека, значение — курсы, действовавшие на неё. */
     fun encodeHistory(history: Map<LocalDate, OfficialRates>): String {
         val p = Properties()
+        p[TABLE] = RATES_TABLE.toString()
         for ((day, rates) in history) {
             p["$day.date"] = rates.date.toString()
             for ((c, v) in rates.rubPerUnit) p["$day.rub.${c.code}"] = v.toPlainString()
@@ -156,9 +227,9 @@ object WalletCodec {
         return out
     }
 
-    private fun store(p: Properties): String = StringWriter().also { p.store(it, null) }.toString()
+    internal fun store(p: Properties): String = StringWriter().also { p.store(it, null) }.toString()
 
-    private fun load(text: String): Properties? =
+    internal fun load(text: String): Properties? =
         runCatching { Properties().apply { load(StringReader(text)) } }.getOrNull()
 
     private fun Properties.int(key: String): Int? = getProperty(key)?.toIntOrNull()

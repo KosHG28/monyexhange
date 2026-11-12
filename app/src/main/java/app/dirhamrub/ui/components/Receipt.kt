@@ -1,15 +1,19 @@
 package app.dirhamrub.ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -17,6 +21,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,7 +30,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
@@ -65,6 +73,7 @@ fun ReceiptSection(title: String, modifier: Modifier = Modifier) {
  * (валюта или выбор валюты). Поле и хвост — постоянной ширины, чтобы поля всех строк стояли
  * ровной колонкой, а «₽ ▾» и «¥» — на одной линии.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ReceiptLine(
     label: String,
@@ -72,48 +81,67 @@ fun ReceiptLine(
     onValueChange: (String) -> Unit,
     description: String,
     last: Boolean = false,
+    /** Серая подсказка в пустом поле (например, курс ЦБ). */
+    placeholder: String? = null,
+    /** Поле нужно заполнить: подпись красным, пояснение под строкой, шторка прокручивается к нему. */
+    error: String? = null,
     trailing: @Composable () -> Unit,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val focus = LocalFocusManager.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, style = type.mono, color = colors.ink)
-        val dotColor = colors.muted
-        Canvas(
-            Modifier
-                .weight(1f)
-                .height(14.dp)
-                .padding(horizontal = 6.dp),
+    val bring = remember { BringIntoViewRequester() }
+    LaunchedEffect(error) { if (error != null) bring.bringIntoView() }
+    Column(Modifier.bringIntoViewRequester(bring)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            val step = 5.dp.toPx()
-            val r = 1.dp.toPx()
-            var x = r
-            while (x < size.width) {
-                drawCircle(dotColor, r, Offset(x, size.height - r))
-                x += step
+            Text(label, style = type.mono, color = if (error != null) colors.danger else colors.ink)
+            val dotColor = colors.muted
+            Canvas(
+                Modifier
+                    .weight(1f)
+                    .height(14.dp)
+                    .padding(horizontal = 6.dp),
+            ) {
+                val step = 5.dp.toPx()
+                val r = 1.dp.toPx()
+                var x = r
+                while (x < size.width) {
+                    drawCircle(dotColor, r, Offset(x, size.height - r))
+                    x += step
+                }
             }
+            NumberField(
+                value = value,
+                onValueChange = onValueChange,
+                style = type.monoStrong.copy(fontSize = 17.sp),
+                description = description,
+                imeAction = if (last) ImeAction.Done else ImeAction.Next,
+                onDone = { focus.clearFocus() },
+                placeholder = placeholder,
+                modifier = Modifier.width(RECEIPT_FIELD),
+            )
+            Box(
+                Modifier
+                    .width(RECEIPT_TRAILING)
+                    .padding(start = 4.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) { trailing() }
         }
-        NumberField(
-            value = value,
-            onValueChange = onValueChange,
-            style = type.monoStrong.copy(fontSize = 17.sp),
-            description = description,
-            imeAction = if (last) ImeAction.Done else ImeAction.Next,
-            onDone = { focus.clearFocus() },
-            modifier = Modifier.width(RECEIPT_FIELD),
-        )
-        Box(
-            Modifier
-                .width(RECEIPT_TRAILING)
-                .padding(start = 4.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) { trailing() }
+        if (error != null) {
+            Text(
+                error,
+                style = type.caption,
+                color = colors.accent,
+                modifier = Modifier
+                    .padding(bottom = 4.dp)
+                    .semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
     }
 }
 

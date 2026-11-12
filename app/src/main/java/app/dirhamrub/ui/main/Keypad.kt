@@ -12,6 +12,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.Key
 import app.dirhamrub.ui.theme.AppTheme
+import app.dirhamrub.ui.theme.LocalKeyHaptics
 import app.dirhamrub.ui.theme.LocalReduceMotion
 
 /** Высота клавиш: на коротких экранах ниже, чтобы сумма и подсказки не уходили под прокрутку. */
@@ -57,74 +59,92 @@ import app.dirhamrub.ui.theme.LocalReduceMotion
 private fun keyHeight(): Dp {
     val h = LocalConfiguration.current.screenHeightDp
     return when {
-        h < SHORT_SCREEN_DP -> 44.dp
-        h < MEDIUM_SCREEN_DP -> 48.dp
-        else -> 54.dp
+        h < SHORT_SCREEN_DP -> 40.dp
+        h < MEDIUM_SCREEN_DP -> 44.dp
+        else -> 48.dp
     }
 }
 
-/** Ниже этой высоты экрана (dp) — короткий телефон: клавиши ниже, быстрых сумм нет. */
+/** Ниже этой высоты экрана (dp) — короткий телефон: клавиши и итог ниже. */
 internal const val SHORT_SCREEN_DP = 760
 private const val MEDIUM_SCREEN_DP = 820
-private val KEY_GAP = 8.dp
+private val KEY_GAP = 6.dp
 
 /**
- * Своя клавиатура калькулятора. Системная клавиатура на главном экране не появляется.
- * Кнопка «Ценник» — в правом нижнем углу, под большим пальцем.
+ * Своя клавиатура калькулятора, сетка 4 × 5 без пустот: сверху C · × · − · ⌫, справа высокие «+» и
+ * камера (в правом нижнем углу, под большим пальцем, на синей подложке), снизу «0» двойной ширины и «,».
+ * «=» нет: итог считается на лету (удержание «+» сворачивает выражение в одно число).
  */
 @Composable
 fun Keypad(
     onKey: (Key) -> Unit,
     onCamera: () -> Unit,
     modifier: Modifier = Modifier,
-    /** Где на экране кнопка «Ценник» (центр, в координатах окна): из неё раскрывается камера. */
+    /** Где на экране клавиша камеры (центр, в координатах окна): из неё раскрывается камера. */
     onCameraPlaced: (Offset) -> Unit = {},
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(KEY_GAP)) {
-        val plus = stringResource(R.string.key_plus)
-        val times = stringResource(R.string.key_times)
-        val equals = stringResource(R.string.key_equals)
-        val comma = stringResource(R.string.key_comma)
-        KeyRow(
-            left = { DigitKey(7, onKey); DigitKey(8, onKey) },
-            right = { DigitKey(9, onKey); BackspaceKey(onKey) },
-        )
-        KeyRow(
-            left = { DigitKey(4, onKey); DigitKey(5, onKey) },
-            // Долгое нажатие на «+» — «=»: свернуть выражение в одно число.
-            right = { DigitKey(6, onKey); OperatorKey("+", plus, onLongClick = { onKey(Key.Equals) }, longClickLabel = equals) { onKey(Key.Plus) } },
-        )
-        KeyRow(
-            left = { DigitKey(1, onKey); DigitKey(2, onKey) },
-            right = { DigitKey(3, onKey); OperatorKey("×", times) { onKey(Key.Times) } },
-        )
-        KeyRow(
-            left = { TextKey(",", comma) { onKey(Key.Comma) }; DigitKey(0, onKey) },
-            right = { CameraKey(onCamera, onCameraPlaced) },
-        )
+    val colors = AppTheme.colors
+    val h = keyHeight()
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val w = (maxWidth - KEY_GAP * 3) / 4
+        val tall = h * 2 + KEY_GAP
+        val ops = colors.surface2
+        Column(verticalArrangement = Arrangement.spacedBy(KEY_GAP)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
+                KeyBase(stringResource(R.string.key_clear), ops, Modifier.size(w, h), onClick = { onKey(Key.Clear) }) {
+                    Text("C", style = AppTheme.type.key.copy(fontSize = 19.sp, fontWeight = FontWeight.SemiBold), color = colors.muted)
+                }
+                IconKey(R.drawable.ic_times, stringResource(R.string.key_times), ops, Modifier.size(w, h)) { onKey(Key.Times) }
+                IconKey(R.drawable.ic_minus, stringResource(R.string.key_minus), ops, Modifier.size(w, h)) { onKey(Key.Minus) }
+                IconKey(
+                    R.drawable.ic_backspace_line,
+                    stringResource(R.string.key_backspace),
+                    ops,
+                    Modifier.size(w, h),
+                    onLongClick = { onKey(Key.Clear) },
+                ) { onKey(Key.Backspace) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
+                Column(verticalArrangement = Arrangement.spacedBy(KEY_GAP)) {
+                    for (row in listOf(listOf(7, 8, 9), listOf(4, 5, 6), listOf(1, 2, 3))) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
+                            for (d in row) TextKey(d.toString(), d.toString(), Modifier.size(w, h)) { onKey(Key.Digit(d)) }
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
+                        TextKey("0", "0", Modifier.size(w * 2 + KEY_GAP, h)) { onKey(Key.Digit(0)) }
+                        TextKey(",", stringResource(R.string.key_comma), Modifier.size(w, h)) { onKey(Key.Comma) }
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(KEY_GAP)) {
+                    // Удержание «+» — «=»: свернуть выражение в одно число.
+                    IconKey(
+                        R.drawable.ic_plus,
+                        stringResource(R.string.key_plus),
+                        ops,
+                        Modifier.size(w, tall),
+                        onLongClick = { onKey(Key.Equals) },
+                        longClickLabel = stringResource(R.string.key_equals),
+                    ) { onKey(Key.Plus) }
+                    CameraKey(Modifier.size(w, tall), onCamera, onCameraPlaced)
+                }
+            }
+        }
     }
 }
 
-/** Ряд из двух половин: так кнопка «Ценник» ровно занимает две клавиши вместе с зазором. */
 @Composable
-private fun KeyRow(left: @Composable RowScope.() -> Unit, right: @Composable RowScope.() -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(KEY_GAP), content = left)
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(KEY_GAP), content = right)
-    }
-}
-
-@Composable
-private fun RowScope.KeyBase(
+private fun KeyBase(
     description: String,
     background: Color,
+    modifier: Modifier,
     onLongClick: (() -> Unit)? = null,
     longClickLabel: String? = null,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     val view = LocalView.current
+    val haptics = LocalKeyHaptics.current
     // Клавиша «проседает» при нажатии: даже короткий тап доигрывает нажатие, потом пружинит обратно.
     val source = remember { MutableInteractionSource() }
     val press = remember { Animatable(1f) }
@@ -141,25 +161,23 @@ private fun RowScope.KeyBase(
     }
     Box(
         modifier = modifier
-            .weight(1f)
-            .height(keyHeight())
             .graphicsLayer {
                 scaleX = press.value
                 scaleY = press.value
             }
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(background)
             .combinedClickable(
                 interactionSource = source,
                 indication = LocalIndication.current,
                 onLongClickLabel = longClickLabel,
                 onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     onClick()
                 },
                 onLongClick = onLongClick?.let { action ->
                     {
-                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        if (haptics) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                         action()
                     }
                 },
@@ -181,60 +199,41 @@ private fun RowScope.KeyBase(
 }
 
 @Composable
-private fun RowScope.DigitKey(digit: Int, onKey: (Key) -> Unit) {
-    TextKey(digit.toString(), digit.toString()) { onKey(Key.Digit(digit)) }
-}
-
-@Composable
-private fun RowScope.TextKey(label: String, description: String, onClick: () -> Unit) {
+private fun TextKey(label: String, description: String, modifier: Modifier, onClick: () -> Unit) {
     val colors = AppTheme.colors
-    KeyBase(description, colors.surface, onClick = onClick) {
+    KeyBase(description, colors.surface, modifier, onClick = onClick) {
         Text(label, style = AppTheme.type.key, color = colors.ink)
     }
 }
 
+/** Клавиша действия: контурный значок в цвет цифр на второй поверхности. */
 @Composable
-private fun RowScope.OperatorKey(
-    label: String,
+private fun IconKey(
+    icon: Int,
     description: String,
+    background: Color,
+    modifier: Modifier,
     onLongClick: (() -> Unit)? = null,
     longClickLabel: String? = null,
     onClick: () -> Unit,
 ) {
-    val colors = AppTheme.colors
-    // Знаки действий без подложки — только цветом: клавиатура спокойнее.
-    KeyBase(description, Color.Transparent, onLongClick = onLongClick, longClickLabel = longClickLabel, onClick = onClick) {
-        Text(label, style = AppTheme.type.key.copy(fontSize = 30.sp, fontWeight = FontWeight.Light), color = colors.accent)
+    KeyBase(description, background, modifier, onLongClick = onLongClick, longClickLabel = longClickLabel, onClick = onClick) {
+        Icon(painterResource(icon), contentDescription = null, tint = AppTheme.colors.ink, modifier = Modifier.size(24.dp))
     }
 }
 
+/** Камера: та же форма, но светло-синяя подложка — заметна и зовёт к действию; значок контурный. */
 @Composable
-private fun RowScope.BackspaceKey(onKey: (Key) -> Unit) {
+private fun CameraKey(modifier: Modifier, onClick: () -> Unit, onPlaced: (Offset) -> Unit) {
     val colors = AppTheme.colors
-    KeyBase(
-        description = stringResource(R.string.key_backspace),
-        background = Color.Transparent,
-        onLongClick = { onKey(Key.Clear) },
-        onClick = { onKey(Key.Backspace) },
-    ) {
-        Icon(painterResource(R.drawable.ic_backspace), contentDescription = null, tint = colors.accent, modifier = Modifier.size(26.dp))
-    }
-}
-
-@Composable
-private fun RowScope.CameraKey(onClick: () -> Unit, onPlaced: (Offset) -> Unit) {
-    val colors = AppTheme.colors
+    val tint = colors.accent.copy(alpha = if (colors.isDark) 0.24f else 0.12f)
     KeyBase(
         stringResource(R.string.price_tag_a11y),
-        colors.accent,
+        tint,
+        modifier.onGloballyPositioned { onPlaced(it.boundsInRoot().center) },
         onClick = onClick,
-        modifier = Modifier.onGloballyPositioned { onPlaced(it.boundsInRoot().center) },
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(painterResource(R.drawable.ic_camera), contentDescription = null, tint = colors.onAccent, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.price_tag_button), style = AppTheme.type.bodyStrong.copy(fontSize = 18.sp), color = colors.onAccent)
-        }
+        Icon(painterResource(R.drawable.ic_camera_line), contentDescription = null, tint = colors.accent, modifier = Modifier.size(28.dp))
     }
 }
 

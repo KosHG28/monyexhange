@@ -15,6 +15,7 @@ class CalculatorTest {
             ',' -> Key.Comma
             '+' -> Key.Plus
             '*' -> Key.Times
+            '-' -> Key.Minus
             '=' -> Key.Equals
             else -> Key.Digit(it - '0')
         }
@@ -26,6 +27,19 @@ class CalculatorTest {
         assertEquals("22 + 15,5 + 8", e.display())
         assertEquals(0, BigDecimal("45.5").compareTo(e.value))
         assertTrue(e.isCompound)
+    }
+
+    @Test
+    fun `вычитание после умножения`() {
+        val e = type(*digits("100-30*2+5"))
+        assertEquals("100 − 30 × 2 + 5", e.display())
+        assertEquals(0, BigDecimal("45").compareTo(e.value))
+        assertEquals(0, BigDecimal("-20").compareTo(type(*digits("10-30")).value))
+        // Хранение: «−» — дефисом, читается обратно.
+        assertEquals("100-30*2+5", e.serialize())
+        assertEquals(0, BigDecimal("45").compareTo(Expression.parse(e.serialize()).value))
+        // Знак после знака заменяется.
+        assertEquals("5 − ", type(*digits("5+-")).display())
     }
 
     @Test
@@ -150,5 +164,19 @@ class CalculatorTest {
     fun `значение из числа`() {
         assertEquals("8507,31", Expression.of(BigDecimal("8507.3125")).display().replace(NBSP.toString(), ""))
         assertTrue(Expression.of(BigDecimal.ZERO).isEmpty)
+    }
+
+    @Test
+    fun `отрицательный итог после равно остаётся отрицательным`() {
+        val e = type(*digits("100-250")).press(Key.Equals)
+        assertEquals(0, BigDecimal("-150").compareTo(e.value))
+        assertEquals("−150", e.currentTerm())
+        // Сохранение и чтение после перезапуска — то же число, а не «0 − 150».
+        val back = Expression.parse(e.serialize())
+        assertEquals(0, BigDecimal("-150").compareTo(back.value))
+        assertEquals("−150", back.display())
+        // Дальше считается как обычно.
+        assertEquals(0, BigDecimal("-100").compareTo(e.press(Key.Plus).press(Key.Digit(5)).press(Key.Digit(0)).value))
+        assertEquals("−1${NBSP}500", type(*digits("1000-2500")).press(Key.Equals).currentTerm())
     }
 }

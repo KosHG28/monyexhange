@@ -15,11 +15,39 @@ on:
 permissions:
   contents: write
 
+env:
+  SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+  SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+  SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+
 concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  # Хранилище артефактов Actions — 0,5 ГБ на аккаунт: удаляем артефакты прошлых сборок старше суток
+  # (APK для установки — в GitHub Release, они в эту квоту не входят).
+  cleanup-artifacts:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
+              owner: context.repo.owner, repo: context.repo.repo, per_page: 100,
+            });
+            let removed = 0, bytes = 0;
+            for (const a of artifacts) {
+              if (a.expired || a.workflow_run?.id === context.runId) continue;
+              if (new Date(a.created_at).getTime() > dayAgo) continue;
+              await github.rest.actions.deleteArtifact({ owner: context.repo.owner, repo: context.repo.repo, artifact_id: a.id });
+              removed++; bytes += a.size_in_bytes;
+            }
+            core.info(`Удалено артефактов: ${removed}, ${(bytes / 1e6).toFixed(0)} МБ`);
+
   build:
     runs-on: ubuntu-latest
     env:
@@ -28,6 +56,23 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
+
+      # Ключ подписи — из секретов репозитория (KEYSTORE_BASE64 и пароли SIGNING_*); без них — отладочный ключ.
+      - name: Ключ подписи из секретов
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::секрета KEYSTORE_BASE64 нет — отладочный ключ (выпуск невозможен)"
+          elif echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/app.keystore" 2>/dev/null \
+              && keytool -list -keystore "$RUNNER_TEMP/app.keystore" -storetype pkcs12 \
+                   -storepass "$SIGNING_STORE_PASSWORD" > /dev/null 2>&1; then
+            echo "SIGNING_KEYSTORE_FILE=$RUNNER_TEMP/app.keystore" >> "$GITHUB_ENV"
+            echo "ключ — из секретов"
+          else
+            # Неверный секрет (не base64 или не тот пароль) не ломает проверку: отладочный ключ, но выпуск — нет.
+            echo "::warning::KEYSTORE_BASE64 не открывается как ключ (нужен ключ подписи в base64) — отладочный ключ (выпуск невозможен)"
+          fi
 
       - uses: actions/setup-java@v5
         with:
@@ -50,21 +95,21 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk out/dirhamrub-debug.apk
           cp app/build/outputs/apk/release/app-release.apk out/dirhamrub-release.apk
 
-      # Квота хранилища артефактов общая на аккаунт; если она кончилась, сборка всё равно зелёная,
-      # а APK для установки публикуется через GitHub Release по тегу.
+      # Квота хранилища артефактов общая на аккаунт (0,5 ГБ): APK сборки хранятся сутки — для установки
+      # есть GitHub Release. Если квота кончилась, сборка всё равно зелёная.
       - uses: actions/upload-artifact@v5
         if: success()
         continue-on-error: true
         with:
           name: dirhamrub-apk
           path: out/*.apk
-          retention-days: 14
+          retention-days: 1
 
       - uses: actions/upload-artifact@v5
         if: failure()
         continue-on-error: true
         with:
-          retention-days: 7
+          retention-days: 3
           name: reports
           path: |
             app/build/reports/
@@ -79,6 +124,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.inputs.release || github.ref_name }}
         run: |
+          # Выпуск — только с ключом из секретов: APK с отладочным ключом поверх установленного не встанет.
+          if [ -z "${SIGNING_KEYSTORE_FILE:-}" ]; then
+            echo "::error::нет ключа подписи из секретов (KEYSTORE_BASE64, SIGNING_*) — выпуск отменён"
+            exit 1
+          fi
           cp out/dirhamrub-release.apk "out/dirhamrub-$TAG.apk"
           gh release create "$TAG" "out/dirhamrub-$TAG.apk" \
             --target "$GITHUB_SHA" \
@@ -96,6 +146,23 @@ jobs:
       LANG: C.UTF-8
     steps:
       - uses: actions/checkout@v5
+
+      # Ключ подписи — из секретов репозитория (KEYSTORE_BASE64 и пароли SIGNING_*); без них — отладочный ключ.
+      - name: Ключ подписи из секретов
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::секрета KEYSTORE_BASE64 нет — отладочный ключ (выпуск невозможен)"
+          elif echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/app.keystore" 2>/dev/null \
+              && keytool -list -keystore "$RUNNER_TEMP/app.keystore" -storetype pkcs12 \
+                   -storepass "$SIGNING_STORE_PASSWORD" > /dev/null 2>&1; then
+            echo "SIGNING_KEYSTORE_FILE=$RUNNER_TEMP/app.keystore" >> "$GITHUB_ENV"
+            echo "ключ — из секретов"
+          else
+            # Неверный секрет (не base64 или не тот пароль) не ломает проверку: отладочный ключ, но выпуск — нет.
+            echo "::warning::KEYSTORE_BASE64 не открывается как ключ (нужен ключ подписи в base64) — отладочный ключ (выпуск невозможен)"
+          fi
 
       - uses: actions/setup-java@v5
         with:
@@ -138,6 +205,23 @@ jobs:
       LANG: C.UTF-8
     steps:
       - uses: actions/checkout@v5
+
+      # Ключ подписи — из секретов репозитория (KEYSTORE_BASE64 и пароли SIGNING_*); без них — отладочный ключ.
+      - name: Ключ подписи из секретов
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::секрета KEYSTORE_BASE64 нет — отладочный ключ (выпуск невозможен)"
+          elif echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/app.keystore" 2>/dev/null \
+              && keytool -list -keystore "$RUNNER_TEMP/app.keystore" -storetype pkcs12 \
+                   -storepass "$SIGNING_STORE_PASSWORD" > /dev/null 2>&1; then
+            echo "SIGNING_KEYSTORE_FILE=$RUNNER_TEMP/app.keystore" >> "$GITHUB_ENV"
+            echo "ключ — из секретов"
+          else
+            # Неверный секрет (не base64 или не тот пароль) не ломает проверку: отладочный ключ, но выпуск — нет.
+            echo "::warning::KEYSTORE_BASE64 не открывается как ключ (нужен ключ подписи в base64) — отладочный ключ (выпуск невозможен)"
+          fi
 
       - uses: actions/setup-java@v5
         with:

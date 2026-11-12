@@ -1,5 +1,14 @@
 package app.dirhamrub.ui.cards
 
+import app.dirhamrub.ui.theme.LocalReduceMotion
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.AnimatedVisibility
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -427,8 +436,14 @@ fun CardEditorScreen(
             // Блок 3. Курс карты: скриншот, пополнение, покупки, итог, свой курс.
             Spacer(Modifier.height(10.dp))
             EditorBlock(stringResource(if (cash) R.string.editor_block_cash else R.string.editor_block_rate), Modifier.cascade(cascade, 2)) {
-                val frozenText = stringResource(R.string.editor_frozen_a11y)
-                Column(Modifier.frozen(manualOn, frozenText)) {
+                // Свой курс включён — чеки не нужны: блок с ними сворачивается, поле курса сразу на виду.
+                val reduceMotion = LocalReduceMotion.current
+                AnimatedVisibility(
+                    visible = !manualOn,
+                    enter = if (reduceMotion) EnterTransition.None else expandVertically(tween(260)) + fadeIn(tween(200)),
+                    exit = if (reduceMotion) ExitTransition.None else shrinkVertically(tween(260)) + fadeOut(tween(160)),
+                ) {
+                Column {
                     // Скриншот банка — только у карт: обмен наличных в приложении банка не виден.
                     if (!cash) {
                         ScreenshotButton(
@@ -641,7 +656,8 @@ fun CardEditorScreen(
                         Hint(stringResource(R.string.editor_no_result))
                     }
                 }
-                // Свой курс — за переключателем; включён — всё выше заморожено.
+                }
+                // Свой курс — за переключателем; включён — чеки выше свёрнуты.
                 val autoRate = RateEngine.quote(draft.withoutManual(spend, home), spend, home, official, unionPay, cards)?.homePerUnit
                 ManualRatePanel(
                     on = manualOn,

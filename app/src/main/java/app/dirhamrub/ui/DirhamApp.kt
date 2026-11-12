@@ -271,11 +271,11 @@ fun DirhamApp(
             ),
         )
     }
-    // «Карты и наличные» — поверх настроек, въезжает справа.
+    // «Карты и наличные» — поверх настроек, выезжает снизу (справа — только настройки).
     AnimatedVisibility(
         visible = moneyOpen,
-        enter = if (reduceMotion) EnterTransition.None else slideInHorizontally(tween(260)) { it / 3 } + fadeIn(tween(200)),
-        exit = if (reduceMotion) ExitTransition.None else slideOutHorizontally(tween(220)) { it / 3 } + fadeOut(tween(180)),
+        enter = if (reduceMotion) EnterTransition.None else slideInVertically(tween(280)) { it / 4 } + fadeIn(tween(200)),
+        exit = if (reduceMotion) ExitTransition.None else slideOutVertically(tween(220)) { it / 4 } + fadeOut(tween(180)),
     ) {
         BackHandler { moneyOpen = false }
         MoneyScreen(

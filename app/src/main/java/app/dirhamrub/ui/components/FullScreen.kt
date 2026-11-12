@@ -7,8 +7,8 @@ import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -66,8 +66,8 @@ class FullScreenScope internal constructor(
 }
 
 /**
- * Экран поверх всего (вместо шторки): своё окно на весь экран, въезжает справа и уезжает вправо — как
- * настройки; закрывается «←» ([FullScreenScope.close]) и системным «Назад». Шторки тянулись пальцем и
+ * Экран поверх всего (вместо шторки): своё окно на весь экран, выезжает снизу и уезжает вниз (справа —
+ * только настройки); закрывается «←» ([FullScreenScope.close]) и системным «Назад». Шторки тянулись пальцем и
  * застревали на полпути, у экрана тянуть нечего. [interceptBack] — перехватить «Назад» (несохранённые правки):
  * true — экран остаётся. Своё окно — чтобы экран ложился поверх чего угодно (главного, настроек, знакомства).
  */
@@ -106,8 +106,8 @@ fun FullScreen(
         }
         AnimatedVisibility(
             visibleState = visible,
-            enter = if (reduceMotion) EnterTransition.None else slideInHorizontally(tween(260)) { it / 3 } + fadeIn(tween(200)),
-            exit = if (reduceMotion) ExitTransition.None else slideOutHorizontally(tween(220)) { it / 3 } + fadeOut(tween(180)),
+            enter = if (reduceMotion) EnterTransition.None else slideInVertically(tween(280)) { it / 4 } + fadeIn(tween(200)),
+            exit = if (reduceMotion) ExitTransition.None else slideOutVertically(tween(220)) { it / 4 } + fadeOut(tween(180)),
         ) {
             Box(
                 Modifier

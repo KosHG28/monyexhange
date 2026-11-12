@@ -421,7 +421,6 @@
     <string name="editor_block_main">Основное</string>
     <string name="editor_block_rate">Курс карты</string>
     <string name="editor_block_cash">Обмен</string>
-    <string name="editor_frozen_a11y">Чеки не используются: задан свой курс</string>
     <string name="editor_result_title">Итог по чекам</string>
     <string name="editor_result_estimate">Пока примерно</string>
     <string name="editor_result_approx">%1$s ≈ %2$s %3$s</string>

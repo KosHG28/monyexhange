@@ -35,12 +35,9 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
@@ -323,24 +320,3 @@ internal fun ResultBox(title: String, value: String, sub: String?, exact: Boolea
     }
 }
 
-/**
- * Замороженный раздел (включён свой курс): прозрачность 0,35, нажатия и фокус не доходят до полей,
- * TalkBack читает одной строкой [description].
- */
-internal fun Modifier.frozen(on: Boolean, description: String): Modifier =
-    if (!on) {
-        this
-    } else {
-        this
-            .alpha(FROZEN_ALPHA)
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
-                    }
-                }
-            }
-            .clearAndSetSemantics { contentDescription = description }
-    }
-
-private const val FROZEN_ALPHA = 0.35f

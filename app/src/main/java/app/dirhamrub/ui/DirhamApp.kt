@@ -128,9 +128,12 @@ fun DirhamApp(
     val context = LocalContext.current
     // Страну сети перечитываем при каждом возвращении в приложение: прилетели — подсказка уже на месте.
     var country by remember { mutableStateOf<String?>(null) }
+    // Страну сети уже прочитали (null после этого — российская SIM или её нет).
+    var countryRead by remember { mutableStateOf(false) }
     // Заодно курсы: старше 6 часов — скачиваем (если так в настройках).
     LifecycleResumeEffect(Unit) {
         country = networkCountry(context)
+        countryRead = true
         vm.onResume()
         // Уходим с экрана — дописываем последние нажатия, не дожидаясь задержки.
         onPauseOrDispose { vm.flush() }
@@ -161,8 +164,13 @@ fun DirhamApp(
             home = state.wallet.home,
             place = placeOf(state.wallet.spend, state.wallet.place, country),
             country = country,
-            suggested = country?.takeIf { !onboardingReshown && !onboardingForced }
-                ?.let { iso -> Currency.forCountry(iso)?.let { it to iso } },
+            // Первый запуск: страна сотовой сети, а с российской SIM (или без неё) — Турция, самое частое
+            // направление. Знакомство из настроек страну не трогает.
+            suggested = if (onboardingReshown || onboardingForced || !countryRead) {
+                null
+            } else {
+                country?.let { iso -> Currency.forCountry(iso)?.let { it to iso } } ?: (Currency.TRY to "TR")
+            },
             recent = state.wallet.recent,
             official = state.reference,
             unionPay = state.activeUnionPay,

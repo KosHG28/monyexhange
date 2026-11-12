@@ -1,5 +1,6 @@
 package app.dirhamrub.ui.main
 
+import app.dirhamrub.ui.components.flightOrigin
 import app.dirhamrub.ui.theme.sheen
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -574,7 +575,7 @@ private fun PayRow(
             .padding(start = 12.dp, end = 18.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PayIcon(card, isBest)
+        PayIcon(card, isBest, flight = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(card.name, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -602,9 +603,12 @@ private fun PayRow(
     }
 }
 
-/** Значок способа: у наличных — купюра, у карты — мини-карта в цветах её оформления с подписью системы. */
+/**
+ * Значок способа: у наличных — купюра, у карты — мини-карта в цветах её оформления с подписью системы.
+ * [flight] — на главном: отсюда карта «перелетает» в настройку карты ([flightOrigin]).
+ */
 @Composable
-internal fun PayIcon(card: BankCard, best: Boolean) {
+internal fun PayIcon(card: BankCard, best: Boolean, flight: Boolean = false) {
     val colors = AppTheme.colors
     if (card.kind == CardKind.CASH) {
         Box(Modifier.size(width = 38.dp, height = 26.dp), contentAlignment = Alignment.Center) {
@@ -615,6 +619,7 @@ internal fun PayIcon(card: BankCard, best: Boolean) {
     val style = CardPalette.style(card)
     Box(
         Modifier
+            .then(if (flight) Modifier.flightOrigin(card.id) else Modifier)
             .size(width = 38.dp, height = 26.dp)
             .clip(RoundedCornerShape(5.dp))
             .background(Brush.linearGradient(listOf(style.start, style.end)))

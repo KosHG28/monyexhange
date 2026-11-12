@@ -88,6 +88,8 @@ internal fun BankCardView(
     needsReceipt: Boolean = false,
     /** Переворот и свечение при смене чеков; в предпросмотре редактора чек меняется на каждой цифре — там без них. */
     flipOnChange: Boolean = true,
+    /** Насколько видны надписи (перелёт карты: на мини-карте их нет, проявляются по пути). */
+    textAlpha: () -> Float = { 1f },
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
@@ -182,11 +184,15 @@ internal fun BankCardView(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .offset(x = 6.dp, y = if (mark.length > 2) 4.dp else 24.dp)
-                    .graphicsLayer { translationX = parallaxOf(tilt, 6.dp.toPx()) },
+                    .graphicsLayer {
+                        translationX = parallaxOf(tilt, 6.dp.toPx())
+                        alpha = textAlpha()
+                    },
             )
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .graphicsLayer { alpha = textAlpha() }
                     .padding(horizontal = if (compact) 10.dp else 13.dp, vertical = if (compact) 9.dp else 11.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

@@ -1,5 +1,8 @@
 package app.dirhamrub.ui
 
+import app.dirhamrub.domain.wallet.CardKind
+import app.dirhamrub.ui.components.LocalCardFlight
+import app.dirhamrub.ui.components.CardMorph
 import android.app.StatusBarManager
 import android.content.ComponentName
 import android.content.Context
@@ -71,7 +74,13 @@ import app.dirhamrub.ui.theme.LocalReduceMotion
 import kotlin.math.hypot
 
 /** Карта в редакторе: новая или существующая; [addPurchase] — сразу добавить чек покупки в этой валюте. */
-private data class Editing(val card: BankCard, val isNew: Boolean, val addPurchase: Currency? = null)
+private data class Editing(
+    val card: BankCard,
+    val isNew: Boolean,
+    val addPurchase: Currency? = null,
+    /** Перелёт карты из строки главного в настройку (null — экран выезжает снизу). */
+    val morph: CardMorph? = null,
+)
 
 /** Страна сотовой сети («KZ»); без SIM, в авиарежиме или на планшете — null. Интернет не нужен. */
 private fun networkCountry(context: Context): String? =
@@ -126,6 +135,8 @@ fun DirhamApp(
         }
     }
     val context = LocalContext.current
+    // Где на главном мини-карты строк — из них карта «перелетает» в настройку.
+    val cardFlight = LocalCardFlight.current
     // Страну сети перечитываем при каждом возвращении в приложение: прилетели — подсказка уже на месте.
     var country by remember { mutableStateOf<String?>(null) }
     // Страну сети уже прочитали (null после этого — российская SIM или её нет).
@@ -205,7 +216,12 @@ fun DirhamApp(
         },
         onKey = vm::press,
         onSelectCard = vm::selectCard,
-        onEditCard = { editing = Editing(it, isNew = false) },
+        onEditCard = { card ->
+            // С главного карта «перелетает» из своей строки; наличные — экран снизу, как раньше.
+            val origin = if (card.kind == CardKind.CARD) cardFlight.originOf(card.id) else null
+            if (origin != null) cardFlight.flying = card.id
+            editing = Editing(card, isNew = false, morph = origin?.let(::CardMorph))
+        },
         onAddReceipt = { editing = Editing(it, isNew = false, addPurchase = state.wallet.spend) },
         onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
         onSelectLine = vm::setActive,
@@ -362,15 +378,21 @@ fun DirhamApp(
             onSave = {
                 vm.saveCard(it)
                 editing = null
+                cardFlight.flying = null
             },
             onDelete = {
                 vm.deleteCard(e.card.id)
                 editing = null
+                cardFlight.flying = null
             },
-            onDismiss = { editing = null },
+            onDismiss = {
+                editing = null
+                cardFlight.flying = null
+            },
             addPurchaseFor = e.addPurchase,
             amount = state.totals.spend,
             rounding = state.settings.rounding,
+            morph = e.morph,
         )
       }
     }

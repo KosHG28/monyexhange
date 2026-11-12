@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -58,10 +59,12 @@ import app.dirhamrub.ui.theme.LocalReduceMotion
 class FullScreenScope internal constructor(
     private val visible: MutableTransitionState<Boolean>,
     private val pending: MutableState<(() -> Unit)?>,
+    private val morph: CardMorph?,
 ) {
     fun close(then: (() -> Unit)? = null) {
         pending.value = then
-        visible.targetState = false
+        // С перелётом: сначала карта летит обратно в свою строку, потом экран закрывается.
+        if (morph != null) morph.closing = true else visible.targetState = false
     }
 }
 
@@ -77,12 +80,34 @@ fun FullScreen(
     interceptBack: () -> Boolean = { false },
     /** Фон на весь экран, под строкой состояния (флаг страны) — без отступов от краёв. */
     backdrop: @Composable BoxScope.() -> Unit = {},
+    /**
+     * Перелёт карты с главного: экран не выезжает снизу, а проявляется, пока карта летит на своё место
+     * ([CardMorph]); закрытие — в обратную сторону. Без анимаций в системе — как обычный экран.
+     */
+    morph: CardMorph? = null,
     content: @Composable FullScreenScope.() -> Unit,
 ) {
     val reduceMotion = LocalReduceMotion.current
-    val visible = remember { MutableTransitionState(reduceMotion).apply { targetState = true } }
+    val flight = morph?.takeIf { !reduceMotion }
+    val visible = remember { MutableTransitionState(reduceMotion || flight != null).apply { targetState = true } }
     val pending = remember { mutableStateOf<(() -> Unit)?>(null) }
-    val scope = remember { FullScreenScope(visible, pending) }
+    val scope = remember { FullScreenScope(visible, pending, flight) }
+    if (flight != null) {
+        // Туда — как только экран знает, где у него превью; обратно — по close(), потом закрываемся.
+        val targetKnown = flight.target != null
+        LaunchedEffect(targetKnown) {
+            if (targetKnown && !flight.closing) flight.progress.animateTo(1f, tween(MORPH_IN_MS, easing = MORPH_IN))
+        }
+        LaunchedEffect(flight.closing) {
+            if (flight.closing) {
+                flight.progress.animateTo(0f, tween(MORPH_OUT_MS, easing = MORPH_OUT))
+                visible.targetState = false
+            }
+        }
+    } else if (morph != null) {
+        // Без анимаций: превью сразу на месте.
+        LaunchedEffect(Unit) { morph.progress.snapTo(1f) }
+    }
     // Уехал совсем — тогда сообщаем наверх (и выполняем отложенное действие).
     if (visible.isIdle && !visible.currentState && !visible.targetState) {
         LaunchedEffect(Unit) { (pending.value ?: onDismissRequest)() }
@@ -104,18 +129,26 @@ fun FullScreen(
                 }
             }
         }
+        val plain = reduceMotion || flight != null
         AnimatedVisibility(
             visibleState = visible,
-            enter = if (reduceMotion) EnterTransition.None else slideInVertically(tween(280)) { it / 4 } + fadeIn(tween(200)),
-            exit = if (reduceMotion) ExitTransition.None else slideOutVertically(tween(220)) { it / 4 } + fadeOut(tween(180)),
+            enter = if (plain) EnterTransition.None else slideInVertically(tween(280)) { it / 4 } + fadeIn(tween(200)),
+            exit = if (plain) ExitTransition.None else slideOutVertically(tween(220)) { it / 4 } + fadeOut(tween(180)),
         ) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(colors.bg),
-            ) {
-                backdrop()
-                Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) { scope.content() }
+            Box(Modifier.fillMaxSize()) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { if (flight != null) alpha = flight.backgroundAlpha }
+                        .background(colors.bg),
+                ) { backdrop() }
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { if (flight != null) alpha = flight.contentAlpha }
+                        .windowInsetsPadding(WindowInsets.safeDrawing),
+                ) { scope.content() }
+                if (flight != null) CardMorphOverlay(flight)
             }
         }
     }

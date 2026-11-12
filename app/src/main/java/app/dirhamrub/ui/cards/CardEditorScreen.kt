@@ -1,5 +1,10 @@
 package app.dirhamrub.ui.cards
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.runtime.SideEffect
+import app.dirhamrub.ui.components.CardMorph
 import app.dirhamrub.ui.theme.Haptic
 import app.dirhamrub.ui.theme.rememberHaptics
 import app.dirhamrub.ui.theme.LocalReduceMotion
@@ -133,6 +138,8 @@ fun CardEditorScreen(
     amount: BigDecimal = BigDecimal.ZERO,
     /** Округление итогов из настроек — сумма на карточке-предпросмотре такая же, как на главном. */
     rounding: Rounding = Rounding.WHOLE,
+    /** Перелёт с главного: мини-карта строки вырастает в карточку-предпросмотр (null — экран выезжает снизу). */
+    morph: CardMorph? = null,
 ) {
     val previewAmount = amount.takeIf { it.signum() > 0 } ?: PREVIEW_AMOUNT
     val colors = AppTheme.colors
@@ -312,7 +319,7 @@ fun CardEditorScreen(
         if (dirty()) confirmExit = true else close()
     }
 
-    FullScreen(onDismissRequest = onDismiss, interceptBack = { dirty().also { if (it) confirmExit = true } }) {
+    FullScreen(onDismissRequest = onDismiss, interceptBack = { dirty().also { if (it) confirmExit = true } }, morph = morph) {
       screen[0] = this
       Column(Modifier.fillMaxSize()) {
         ScreenBar(
@@ -358,12 +365,7 @@ fun CardEditorScreen(
             val draft = build()
             val q = RateEngine.quote(draft, spend, home, official, unionPay, cards)
             // Живая карточка: как карта будет выглядеть на главном экране с тем, что уже введено.
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .clearAndSetSemantics { },
-                contentAlignment = Alignment.Center,
-            ) {
+            val preview: @Composable (() -> Float) -> Unit = { textAlpha ->
                 BankCardView(
                     card = draft,
                     quote = q,
@@ -378,7 +380,22 @@ fun CardEditorScreen(
                     height = PREVIEW_HEIGHT,
                     needsReceipt = official?.cross(spend, home) == null,
                     flipOnChange = false,
+                    textAlpha = textAlpha,
                 )
+            }
+            // Перелёт: та же карточка летит поверх экрана, а здесь она спрятана, пока не сядет на место.
+            if (morph != null) SideEffect { morph.card = preview }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clearAndSetSemantics { },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    Modifier
+                        .onGloballyPositioned { if (morph != null) morph.target = it.boundsInWindow() }
+                        .graphicsLayer { if (morph?.flying == true) alpha = 0f },
+                ) { preview { 1f } }
             }
             Spacer(Modifier.height(8.dp))
             // Карта или наличные из обменника: у наличных вместо пополнения — обмен, покупок по чекам нет.

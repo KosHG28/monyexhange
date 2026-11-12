@@ -159,11 +159,14 @@ fun DirhamApp(
             startStep = startStep,
             spend = state.wallet.spend,
             home = state.wallet.home,
-            suggested = country?.takeIf { !onboardingReshown && !onboardingForced }?.let { Currency.forCountry(it) },
+            place = placeOf(state.wallet.spend, state.wallet.place, country),
+            country = country,
+            suggested = country?.takeIf { !onboardingReshown && !onboardingForced }
+                ?.let { iso -> Currency.forCountry(iso)?.let { it to iso } },
+            recent = state.wallet.recent,
             official = state.reference,
             unionPay = state.activeUnionPay,
             onSpend = vm::setSpend,
-            onHome = vm::setHome,
             newCard = vm::newCard,
             onFinish = { card ->
                 card?.let(vm::saveCard)

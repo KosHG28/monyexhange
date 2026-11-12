@@ -30,11 +30,18 @@ class FirstCardTest {
     }
 
     @Test
-    fun `карта в другой валюте — чек пополнения`() {
-        val card = build(PayWay.CURRENCY_CARD, "30000", "2439")!!
+    fun `карта в другой валюте — чек покупки в валюте карты, пополнение по ЦБ`() {
+        // 100 AED, списали 197 CNY: 1,97 юаня за дирхам × 11,42 ₽ (ЦБ) = 22,4974 ₽ — с «≈».
+        val card = build(PayWay.CURRENCY_CARD, "100", "197")!!
         assertEquals(Currency.CNY, card.currency)
-        assertEquals(TransferReceipt(BigDecimal("30000"), Currency.RUB, BigDecimal("2439"), day), card.transfer)
-        assertNull(build(PayWay.CURRENCY_CARD, "30000", null)!!.transfer)
+        assertEquals(listOf(PurchaseReceipt(Currency.AED, BigDecimal("197"), BigDecimal("100"), day)), card.purchases)
+        assertNull(card.transfer)
+        val q = RateEngine.quote(card, Currency.AED, Currency.RUB, cbr)!!
+        assertEquals(RateBasis.ESTIMATE, q.basis)
+        assertEquals(0, BigDecimal("22.4974").compareTo(q.homePerUnit))
+        assertTrue(build(PayWay.CURRENCY_CARD, "100", null)!!.purchases.isEmpty())
+        // Карта в валюте трат — чек покупки ничего не говорит о курсе.
+        assertTrue(build(PayWay.CURRENCY_CARD, "100", "100", card = Currency.AED)!!.purchases.isEmpty())
     }
 
     @Test

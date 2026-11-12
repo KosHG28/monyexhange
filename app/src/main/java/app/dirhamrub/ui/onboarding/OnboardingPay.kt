@@ -1,23 +1,23 @@
 package app.dirhamrub.ui.onboarding
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,17 +29,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
-import app.dirhamrub.ui.components.fadingScroll
-import app.dirhamrub.ui.cards.ScreenshotButton
-import app.dirhamrub.ui.cards.FieldSuffix
-import app.dirhamrub.ui.cards.FieldPair
-import app.dirhamrub.ui.cards.AmountField
-import androidx.compose.ui.text.input.ImeAction
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.BankCard
@@ -49,49 +46,66 @@ import app.dirhamrub.domain.wallet.FirstCard
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.PayWay
 import app.dirhamrub.domain.wallet.QuickSums
-import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.RateEngine
 import app.dirhamrub.domain.wallet.UnionPayRates
-import app.dirhamrub.domain.wallet.approximate
-import app.dirhamrub.ui.components.CurrencyChips
+import app.dirhamrub.domain.wallet.noun
+import app.dirhamrub.ui.cards.AmountField
+import app.dirhamrub.ui.cards.FieldPair
+import app.dirhamrub.ui.cards.FieldSuffix
+import app.dirhamrub.ui.cards.ScreenshotButton
 import app.dirhamrub.ui.components.CurrencyDropdown
-import app.dirhamrub.ui.currency.CurrencyPickerScreen
-import app.dirhamrub.ui.main.signedPercent
+import app.dirhamrub.ui.main.BankCardView
 import app.dirhamrub.ui.theme.AppTheme
-import java.math.BigDecimal
 import java.time.LocalDate
 
-/** Частые валюты карт (кроме итоговой): остальные — в «Все валюты…». */
+/** Частые валюты карт: в «Списали» у валютной карты (кроме итоговой и валюты трат). */
 private val CARD_CURRENCIES = listOf(Currency.USD, Currency.EUR, Currency.CNY, Currency.KZT, Currency.AED, Currency.TRY)
 
 /** Что несут в обменник (кроме итоговой валюты — она есть всегда). */
 private val EXCHANGE_FROM = listOf(Currency.RUB, Currency.USD, Currency.EUR, Currency.CNY)
 
+private val PREVIEW_WIDTH = 190.dp
+private val PREVIEW_HEIGHT = 100.dp
+
 /**
- * 5. Чем будете платить: сверху способ, ниже — только нужные ему поля и курс, который из них выходит.
- * «Готово» сохраняет карту (или наличные) — даже без чека: тогда курс по ЦБ с пометкой «≈».
+ * 3. Настройте под поездку: страна (касание — список стран) и мини-конструктор первого способа оплаты —
+ * превью карты, тип (рублёвая, валютная, наличные), скриншот или «Цена / Списали» (у наличных — обмен).
+ * Чек есть — «Начать», нет — «Продолжить без чека»: карта сохраняется и считается по ЦБ с «≈».
  */
 @Composable
-internal fun PayStep(
+internal fun ColumnScope.SetupStep(
     spend: Currency,
     home: Currency,
+    place: Pair<String, String>,
     official: OfficialRates?,
     unionPay: UnionPayRates?,
     newCard: () -> BankCard,
+    onCountry: () -> Unit,
     onFinish: (BankCard?) -> Unit,
     onOpenEditor: (BankCard) -> Unit,
-    modifier: Modifier = Modifier,
+    enter: (Int) -> Modifier,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val template = remember { newCard() }
     var way by rememberSaveable { mutableStateOf(PayWay.HOME_CARD) }
-    var cardCurrency by rememberSaveable { mutableStateOf(CARD_CURRENCIES.first { it != home }) }
+    var cardCurrency by rememberSaveable { mutableStateOf(CARD_CURRENCIES.first { it != home && it != spend }) }
     var sentCurrency by rememberSaveable { mutableStateOf(home) }
     var first by rememberSaveable { mutableStateOf("") }
     var second by rememberSaveable { mutableStateOf("") }
     var bought by rememberSaveable { mutableStateOf("") }
-    var picker by remember { mutableStateOf(false) }
+    // Сменили страну — суммы были в прежней валюте: поля чистые, валюта карты — не валюта трат.
+    var seenSpend by rememberSaveable { mutableStateOf(spend) }
+    LaunchedEffect(spend) {
+        if (spend != seenSpend) {
+            seenSpend = spend
+            first = ""
+            second = ""
+            bought = ""
+            if (cardCurrency == spend || cardCurrency == home) cardCurrency = CARD_CURRENCIES.first { it != home && it != spend }
+            if (sentCurrency == spend) sentCurrency = home
+        }
+    }
 
     val cardName = stringResource(R.string.card_default_name, if (way == PayWay.HOME_CARD) home.code else cardCurrency.code)
     val cashName = stringResource(R.string.cash_default_name, spend.code)
@@ -99,17 +113,57 @@ internal fun PayStep(
         way, template, home, spend, cardCurrency, sentCurrency,
         Numbers.parse(first), Numbers.parse(second), Numbers.parse(bought), LocalDate.now(),
     )?.let { it.copy(name = if (it.kind == CardKind.CASH) cashName else cardName) }
+    val hasReceipt = draft != null && (draft.purchases.isNotEmpty() || draft.transfer != null)
+    val quote = draft?.let { RateEngine.quote(it, spend, home, official, unionPay) }
 
-    Column(modifier) {
+    StepLayout(
+        button = {
+            PrimaryButton(
+                stringResource(if (hasReceipt) R.string.onboarding_start else R.string.onboarding_without_receipt),
+                enter(6),
+                soft = !hasReceipt,
+            ) { onFinish(draft) }
+        },
+    ) {
+        Title(stringResource(R.string.onboarding_setup_title), enter(0))
+        Lead(stringResource(R.string.onboarding_setup_lead), enter(1))
+        CountryCard(place, spend, enter(2), onCountry)
+        Label(stringResource(R.string.onboarding_setup_way), enter(3))
         Column(
-            Modifier
-                .weight(1f)
+            enter(4)
                 .fillMaxWidth()
-                .fadingScroll(rememberScrollState()),
+                .clip(RoundedCornerShape(18.dp))
+                .background(colors.surface)
+                .padding(12.dp),
         ) {
-            Title(stringResource(R.string.onboarding_pay_title))
-            Lead(stringResource(R.string.onboarding_pay_lead))
-            WaySwitch(way, home) {
+            // Превью: так карта будет выглядеть на главном — с суммой за набранную цену (или быструю сумму).
+            val price = Numbers.parse(first)?.takeIf { it.signum() > 0 && way != PayWay.CASH } ?: QuickSums.chips(spend)[4]
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clearAndSetSemantics { },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (draft != null) {
+                    BankCardView(
+                        card = draft,
+                        quote = quote,
+                        spend = spend,
+                        home = home,
+                        sum = quote?.let { Numbers.moneyWhole(price.multiply(it.homePerUnit, MC)) },
+                        selected = true,
+                        best = null,
+                        onClick = {},
+                        onLongClick = {},
+                        width = PREVIEW_WIDTH,
+                        height = PREVIEW_HEIGHT,
+                        needsReceipt = official?.cross(spend, home) == null,
+                        flipOnChange = false,
+                    )
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            TypeSwitch(way, home) {
                 if (it != way) {
                     way = it
                     first = ""
@@ -117,54 +171,32 @@ internal fun PayStep(
                     bought = ""
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
             when (way) {
-                PayWay.HOME_CARD -> if (spend == home) {
+                PayWay.HOME_CARD, PayWay.NOTHING -> if (spend == home) {
                     Note(stringResource(R.string.onboarding_pay_same))
                 } else {
-                    Fields(stringResource(R.string.onboarding_pay_home_receipt)) {
-                        // Главный быстрый путь — скриншот уведомления: сверху, заметной кнопкой.
-                        draft?.let { d ->
-                            ScreenshotButton(null, home) { onOpenEditor(d) }
-                            Spacer(Modifier.height(12.dp))
-                        }
-                        val price = stringResource(R.string.onboarding_pay_price)
-                        val paid = stringResource(R.string.onboarding_pay_paid)
-                        FieldPair(
-                            first = { m -> AmountField(price, first, { first = it }, price, m, imeAction = ImeAction.Next, trailing = { FieldSuffix(spend.mark) }) },
-                            second = { m -> AmountField(paid, second, { second = it }, paid, m, trailing = { FieldSuffix(home.mark) }) },
-                        )
-                        Live(rate(second, first), spend, home, official?.cross(spend, home))
-                    }
+                    draft?.let { d -> ScreenshotButton(null, home) { onOpenEditor(d) } }
+                    Spacer(Modifier.height(10.dp))
+                    PurchaseFields(first, { first = it }, second, { second = it }, spend) { FieldSuffix(home.mark) }
                 }
                 PayWay.CURRENCY_CARD -> {
-                    Label(stringResource(R.string.onboarding_pay_card_currency))
-                    CurrencyChips(
-                        options = (CARD_CURRENCIES.filter { it != home } + cardCurrency).distinct(),
-                        selected = cardCurrency,
-                        onSelect = {
-                            if (it != cardCurrency) second = ""
-                            cardCurrency = it
-                        },
-                        onMore = { picker = true },
-                        moreLabel = stringResource(R.string.currency_more),
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Fields(stringResource(R.string.onboarding_pay_topup)) {
-                        draft?.let { d ->
-                            ScreenshotButton(null, cardCurrency) { onOpenEditor(d) }
-                            Spacer(Modifier.height(12.dp))
-                        }
-                        val sent = stringResource(R.string.onboarding_pay_sent)
-                        val got = stringResource(R.string.onboarding_pay_got)
-                        FieldPair(
-                            first = { m -> AmountField(sent, first, { first = it }, sent, m, imeAction = ImeAction.Next, trailing = { FieldSuffix(home.mark) }) },
-                            second = { m -> AmountField(got, second, { second = it }, got, m, trailing = { FieldSuffix(cardCurrency.mark) }) },
+                    draft?.let { d -> ScreenshotButton(null, cardCurrency) { onOpenEditor(d) } }
+                    Spacer(Modifier.height(10.dp))
+                    val pick = stringResource(R.string.onboarding_pay_card_currency)
+                    PurchaseFields(first, { first = it }, second, { second = it }, spend, selectable = true) {
+                        CurrencyDropdown(
+                            cardCurrency,
+                            (CARD_CURRENCIES + cardCurrency).filter { it != home && it != spend }.distinct(),
+                            {
+                                if (it != cardCurrency) second = ""
+                                cardCurrency = it
+                            },
+                            pick,
                         )
-                        Live(rate(first, second), cardCurrency, home, official?.cross(cardCurrency, home))
                     }
                 }
-                PayWay.CASH -> Fields(stringResource(R.string.onboarding_pay_exchange)) {
+                PayWay.CASH -> {
                     val gave = stringResource(R.string.onboarding_pay_gave)
                     val received = stringResource(R.string.onboarding_pay_received)
                     val pick = stringResource(R.string.editor_pick_currency)
@@ -204,140 +236,121 @@ internal fun PayStep(
                             trailing = { FieldSuffix(home.mark) },
                         )
                     }
-                    // Курс наличных в итоговой валюте: отданное за полученное × почём купили отданное.
-                    val perLocal = rate(first, second)?.let { r ->
-                        if (sentCurrency == home) r else (Numbers.parse(bought) ?: official?.cross(sentCurrency, home))?.let { r.multiply(it, MC) }
-                    }
-                    Live(perLocal, spend, home, official?.cross(spend, home))
                 }
-                PayWay.NOTHING -> Note(stringResource(R.string.onboarding_pay_nothing))
             }
-            // Что выйдет уже сейчас: быстрая сумма в валюте трат по этой карте (или по ЦБ).
-            val amount = QuickSums.chips(spend)[4]
-            val q = draft?.let { RateEngine.quote(it, spend, home, official, unionPay) }
-            val perUnit = q?.homePerUnit ?: official?.cross(spend, home)
-            if (perUnit != null && spend != home) {
-                val approx = q == null || q.basis.approximate || q.basis == RateBasis.OFFICIAL
-                Text(
-                    stringResource(
-                        R.string.onboarding_pay_now,
-                        "${Numbers.moneyWhole(amount)} ${spend.mark}",
-                        if (approx) "≈" else "=",
-                        "${Numbers.moneyWhole(amount.multiply(perUnit, MC))} ${home.mark}",
-                    ),
-                    style = type.body.copy(fontSize = 14.sp, lineHeight = 19.sp),
-                    color = colors.ink,
-                    modifier = Modifier
-                        .padding(top = 12.dp)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(colors.paper)
-                        .padding(horizontal = 14.dp, vertical = 11.dp),
-                )
-            }
-            if (way != PayWay.NOTHING && way != PayWay.CASH && first.isBlank() && second.isBlank()) {
-                Note(stringResource(R.string.onboarding_pay_no_receipt))
+            // Чек набран — «Ваш курс» сразу под полями.
+            if (hasReceipt && quote != null && spend != home) {
+                val unit = Numbers.unitFor(quote.homePerUnit)
+                Row(Modifier.fillMaxWidth().padding(top = 10.dp, start = 2.dp, end = 2.dp)) {
+                    Text(stringResource(R.string.onboarding_pay_live), style = type.caption.copy(fontSize = 13.sp), color = colors.muted, modifier = Modifier.weight(1f))
+                    Text(
+                        "${Numbers.moneyWhole(unit)} ${spend.mark} = ${Numbers.rate(quote.homePerUnit.multiply(unit, MC))} ${home.mark}",
+                        style = type.caption.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
+                        color = colors.good,
+                    )
+                }
             }
         }
-        Spacer(Modifier.height(12.dp))
-        PrimaryButton(stringResource(R.string.onboarding_pay_done)) { onFinish(draft) }
-        Spacer(Modifier.height(16.dp))
-    }
-    if (picker) {
-        CurrencyPickerScreen(
-            title = stringResource(R.string.onboarding_pay_card_currency),
-            selected = cardCurrency,
-            options = Currency.entries.filter { it != home },
-            onPick = {
-                if (it != cardCurrency) second = ""
-                cardCurrency = it
-            },
-            onDismiss = { picker = false },
+        Text(
+            stringResource(R.string.onboarding_setup_later),
+            style = type.caption.copy(fontSize = 12.5.sp, lineHeight = 17.sp),
+            color = colors.muted,
+            modifier = enter(5).padding(start = 2.dp, end = 2.dp, top = 10.dp),
         )
     }
 }
 
-/** Отношение двух набранных сумм [top] / [bottom] (курс), если обе заполнены. */
-private fun rate(top: String, bottom: String): BigDecimal? {
-    val t = Numbers.parse(top)?.takeIf { it.signum() > 0 } ?: return null
-    val b = Numbers.parse(bottom)?.takeIf { it.signum() > 0 } ?: return null
-    return t.divide(b, MC)
+/** Страна поездки: флаг, название, валюта («Лира · TRY») и «Изменить» — открывает список стран. */
+@Composable
+private fun CountryCard(place: Pair<String, String>, spend: Currency, modifier: Modifier, onClick: () -> Unit) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    val sub = "${spend.noun} · ${spend.code}"
+    val a11y = stringResource(R.string.onboarding_country_a11y, place.second, sub)
+    Row(
+        modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(colors.surface)
+            .clickable(role = Role.Button, onClick = onClick)
+            .clearAndSetSemantics { contentDescription = a11y }
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(place.first, fontSize = 26.sp)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(place.second, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1)
+            Text(sub, style = type.caption.copy(fontSize = 12.5.sp), color = colors.muted, maxLines = 1)
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(stringResource(R.string.onboarding_country_change), style = type.bodyStrong, color = colors.accent)
+    }
 }
 
-/** Способ оплаты: 2×2 — карта в итоговой валюте, в другой валюте, наличные, пока ничего. */
+/** «Цена» в валюте трат и «Списали» — справа валюта списания ([trailing]: знак или выбор валюты карты). */
 @Composable
-private fun WaySwitch(way: PayWay, home: Currency, onChange: (PayWay) -> Unit) {
-    val labels = listOf(
-        PayWay.HOME_CARD to "💳  " + homeCardName(home),
-        PayWay.CURRENCY_CARD to "💳  " + stringResource(R.string.onboarding_pay_currency),
-        PayWay.CASH to "💵  " + stringResource(R.string.onboarding_pay_cash),
-        PayWay.NOTHING to "⏭  " + stringResource(R.string.onboarding_pay_nothing_short),
+private fun PurchaseFields(
+    first: String,
+    onFirst: (String) -> Unit,
+    second: String,
+    onSecond: (String) -> Unit,
+    spend: Currency,
+    selectable: Boolean = false,
+    trailing: @Composable () -> Unit,
+) {
+    val price = stringResource(R.string.onboarding_pay_price)
+    val paid = stringResource(R.string.onboarding_pay_paid)
+    FieldPair(
+        first = { m -> AmountField(price, first, onFirst, price, m, imeAction = ImeAction.Next, trailing = { FieldSuffix(spend.mark) }) },
+        second = { m -> AmountField(paid, second, onSecond, paid, m, trailing = trailing, selectable = selectable) },
     )
-    Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (row in labels.chunked(2)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for ((w, label) in row) {
-                    val on = w == way
-                    val colors = AppTheme.colors
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (on) colors.accentSoft else colors.surface)
-                            .border(1.5.dp, if (on) colors.accent else Color.Transparent, RoundedCornerShape(12.dp))
-                            .selectable(selected = on, role = Role.RadioButton) { onChange(w) }
-                            .padding(horizontal = 8.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            label,
-                            style = AppTheme.type.caption.copy(fontSize = 13.5.sp, fontWeight = FontWeight.Medium),
-                            color = if (on) colors.accent else colors.muted,
-                            textAlign = TextAlign.Center,
-                            maxLines = 2,
-                        )
-                    }
-                }
+}
+
+/** Тип первого способа: рублёвая (карта в итоговой валюте), валютная, наличные — сегменты в одну строку. */
+@Composable
+private fun TypeSwitch(way: PayWay, home: Currency, onChange: (PayWay) -> Unit) {
+    val colors = AppTheme.colors
+    val labels = listOf(
+        PayWay.HOME_CARD to if (home == Currency.RUB) {
+            stringResource(R.string.onboarding_type_home_rub)
+        } else {
+            stringResource(R.string.onboarding_type_home_other, home.code)
+        },
+        PayWay.CURRENCY_CARD to stringResource(R.string.onboarding_type_currency),
+        PayWay.CASH to stringResource(R.string.onboarding_type_cash),
+    )
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.surface2)
+            .padding(3.dp)
+            .selectableGroup(),
+    ) {
+        for ((w, label) in labels) {
+            val on = w == way || (w == PayWay.HOME_CARD && way == PayWay.NOTHING)
+            Box(
+                Modifier
+                    .weight(1f)
+                    .heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(if (on) colors.surface else Color.Transparent)
+                    .selectable(selected = on, role = Role.RadioButton) { onChange(w) }
+                    .padding(horizontal = 4.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label,
+                    style = AppTheme.type.body.copy(fontSize = 14.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal),
+                    color = if (on) colors.accent else colors.muted,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                )
             }
         }
     }
-}
-
-/** Бумажка с полями чека: заголовок («Как пополняли — из уведомления банка») и строки. */
-@Composable
-private fun Fields(title: String, content: @Composable () -> Unit) {
-    val colors = AppTheme.colors
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(colors.surface)
-            .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 14.dp),
-    ) {
-        Text(title, style = AppTheme.type.caption.copy(fontSize = 12.5.sp), color = colors.muted, modifier = Modifier.padding(bottom = 8.dp))
-        content()
-    }
-}
-
-/** «✓ 1 AED = 22,45 ₽ · ЦБ 21,97 ₽ (+2,2 %)» — курс из набранного, рядом курс ЦБ. */
-@Composable
-private fun Live(homePerUnit: BigDecimal?, unit: Currency, home: Currency, cbr: BigDecimal?) {
-    homePerUnit ?: return
-    val u = Numbers.unitFor(homePerUnit)
-    val mine = "${Numbers.moneyWhole(u)} ${unit.mark} = ${Numbers.rate(homePerUnit.multiply(u, MC))} ${home.mark}"
-    val text = if (cbr != null && cbr.signum() > 0) {
-        val pct = homePerUnit.divide(cbr, MC).subtract(BigDecimal.ONE).multiply(BigDecimal(100))
-        stringResource(R.string.onboarding_pay_live_cbr, mine, "${Numbers.rate(cbr.multiply(u, MC))} ${home.mark}", signedPercent(pct))
-    } else {
-        stringResource(R.string.onboarding_pay_live, mine)
-    }
-    Text(
-        text,
-        style = AppTheme.type.caption.copy(fontSize = 13.sp, fontWeight = FontWeight.Medium),
-        color = AppTheme.colors.good,
-        modifier = Modifier.padding(top = 6.dp),
-    )
 }
 
 @Composable
@@ -347,11 +360,9 @@ private fun Note(text: String) {
         style = AppTheme.type.body.copy(fontSize = 13.5.sp, lineHeight = 19.sp),
         color = AppTheme.colors.muted,
         modifier = Modifier
-            .padding(top = 10.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(AppTheme.colors.surface)
-            .padding(horizontal = 14.dp, vertical = 11.dp),
+            .clip(RoundedCornerShape(12.dp))
+            .background(AppTheme.colors.bg)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
     )
 }
-

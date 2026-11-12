@@ -238,9 +238,9 @@ internal fun TransferHistory(
     if (canAddNew) AddAction(newLabel, onNew)
 }
 
-/** «Заполнить из скриншота банка» и что получилось. */
+/** «Заполнить из скриншота банка» и что получилось. Без [onClick] — только показ (знакомство). */
 @Composable
-internal fun ScreenshotButton(result: ScanResult?, card: Currency, onClick: () -> Unit) {
+internal fun ScreenshotButton(result: ScanResult?, card: Currency, onClick: (() -> Unit)?) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     // Главная кнопка блока: избавляет от ручного ввода сумм ниже — бледно-синяя подложка, значок сканера.
@@ -250,7 +250,9 @@ internal fun ScreenshotButton(result: ScanResult?, card: Currency, onClick: () -
             .heightIn(min = 64.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(colors.accentSoft)
-            .clickable(role = Role.Button, enabled = result != ScanResult.Reading, onClick = onClick)
+            .then(
+                if (onClick != null) Modifier.clickable(role = Role.Button, enabled = result != ScanResult.Reading, onClick = onClick) else Modifier,
+            )
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

@@ -14,7 +14,7 @@ android {
         targetSdk = 37
         // В CI номер сборки растёт, поэтому каждое новое APK ставится поверх старого.
         versionCode = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull() ?: 1
-        versionName = "1.32.1"
+        versionName = "1.33.0"
         ndk {
             // Только 64-битные телефоны: копия распознавания текста для 32-битных весила 6,8 МБ из 23.
             abiFilters += listOf("arm64-v8a")

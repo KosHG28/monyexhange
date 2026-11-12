@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import kotlinx.coroutines.CoroutineScope
@@ -30,23 +31,38 @@ import kotlinx.coroutines.launch
 class CascadeState internal constructor(
     private val clock: Animatable<Float, AnimationVector1D>,
     private val scope: CoroutineScope,
+    private val total: Float,
 ) : State<Float> {
     override val value: Float get() = clock.value
 
     fun finish() {
-        if (clock.value < CASCADE_TOTAL_MS || clock.isRunning) scope.launch { clock.snapTo(CASCADE_TOTAL_MS) }
+        if (clock.value < total || clock.isRunning) scope.launch { clock.snapTo(total) }
+    }
+}
+
+/**
+ * Ритм каскада: пауза до первого элемента, шаг между элементами, длительность и подъём одного элемента.
+ * [Screen] — экран въезжает сам, волна ждёт его; [Step] — шаги знакомства сменяются на месте, сразу и быстрее.
+ */
+class CascadeTiming(val delayMs: Float, val stepMs: Float, val itemMs: Float, val rise: Dp) {
+    val totalMs: Float get() = delayMs + MAX_INDEX * stepMs + itemMs
+
+    companion object {
+        val Screen = CascadeTiming(delayMs = 120f, stepMs = 40f, itemMs = 280f, rise = 24.dp)
+        val Step = CascadeTiming(delayMs = 0f, stepMs = 35f, itemMs = 250f, rise = 20.dp)
     }
 }
 
 @Composable
-fun rememberCascade(): CascadeState {
+fun rememberCascade(timing: CascadeTiming = CascadeTiming.Screen): CascadeState {
     val reduceMotion = LocalReduceMotion.current
     val scope = rememberCoroutineScope()
-    val clock = remember { Animatable(if (reduceMotion) CASCADE_TOTAL_MS else 0f) }
+    val total = timing.totalMs
+    val clock = remember { Animatable(if (reduceMotion) total else 0f) }
     LaunchedEffect(Unit) {
-        if (!reduceMotion) clock.animateTo(CASCADE_TOTAL_MS, tween(CASCADE_TOTAL_MS.toInt(), easing = LinearEasing))
+        if (!reduceMotion) clock.animateTo(total, tween(total.toInt(), easing = LinearEasing))
     }
-    return remember(clock, scope) { CascadeState(clock, scope) }
+    return remember(clock, scope) { CascadeState(clock, scope, total) }
 }
 
 /** Первое касание экрана — волна сразу доходит до конца (за 0 мс), чтобы не мешать листать и нажимать. */
@@ -57,14 +73,12 @@ fun Modifier.finishCascadeOnTouch(cascade: CascadeState): Modifier = pointerInpu
     }
 }
 
-/** Элемент номер [index] каскада: проявляется (0 → 100 %) и поднимается на место с 24 dp ниже. */
-fun Modifier.cascade(clock: State<Float>, index: Int): Modifier = graphicsLayer {
-    val p = progress(clock.value, startOf(index), ITEM_MS)
+/** Элемент номер [index] каскада: проявляется (0 → 100 %) и поднимается на место снизу ([CascadeTiming.rise]). */
+fun Modifier.cascade(clock: State<Float>, index: Int, timing: CascadeTiming = CascadeTiming.Screen): Modifier = graphicsLayer {
+    val p = progress(clock.value, timing.delayMs + minOf(index, MAX_INDEX) * timing.stepMs, timing.itemMs)
     alpha = p
-    translationY = (1f - p) * RISE.toPx()
+    translationY = (1f - p) * timing.rise.toPx()
 }
-
-private fun startOf(index: Int): Float = DELAY_MS + minOf(index, MAX_INDEX) * STEP_MS
 
 /** Доля пройденного отрезка [start, start + duration] по кривой Emphasized Decelerate (Material 3). */
 private fun progress(now: Float, start: Float, duration: Float): Float =
@@ -73,10 +87,5 @@ private fun progress(now: Float, start: Float, duration: Float): Float =
 /** Material 3 «Emphasized Decelerate»: быстрый старт, мягкая посадка на место. */
 private val DECELERATE = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 
-/** Экран въезжает ~0,26 с — волна начинается, когда он почти на месте; шаг 40 мс, каждый элемент 280 мс. */
-private const val DELAY_MS = 120f
-private const val STEP_MS = 40f
-private const val ITEM_MS = 280f
+/** Дальше 16-го элемента волна не растягивается: остальные появляются вместе с ним. */
 private const val MAX_INDEX = 16
-private val RISE = 24.dp
-private const val CASCADE_TOTAL_MS = DELAY_MS + MAX_INDEX * STEP_MS + ITEM_MS

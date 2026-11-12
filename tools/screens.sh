@@ -91,11 +91,9 @@ scrolled 37-card-editor-low --es screen editor --es card demo-cny
 WAIT=12 shot 38-card-editor-new --es screen editor --es card new
 scrolled 38-card-editor-new-low --es screen editor --es card new
 # Знакомство по шагам: зачем, как считаем, что учитываем, откуда и куда, чем платите.
-shot 23-onb-1-why --es screen onboarding --ei step 0
-shot 24-onb-2-how --es screen onboarding --ei step 1
-shot 25-onb-3-what --es screen onboarding --ei step 2
-shot 26-onb-4-currencies --es screen onboarding --ei step 3
-shot 27-onb-5-pay --es screen onboarding --ei step 4
+shot 23-onb-1-value --es screen onboarding --ei step 0
+shot 24-onb-2-receipts --es screen onboarding --ei step 1
+shot 25-onb-3-setup --es screen onboarding --ei step 2
 # «Карты и наличные» (из настроек).
 shot 31-cards --es screen money
 shot 41-main-amd --es spend AMD
@@ -113,8 +111,8 @@ shot 29-main-thb --es spend THB
 adb shell cmd uimode night yes
 adb shell wm size 1080x1920
 WAIT=10 shot store-1-main
-shot store-2-why --es screen onboarding --ei step 0
-shot store-3-how --es screen onboarding --ei step 1
+shot store-2-value --es screen onboarding --ei step 0
+shot store-3-receipts --es screen onboarding --ei step 1
 WAIT=12 shot store-4-editor --es screen editor
 adb shell cmd uimode night no
 shot store-6-main-light

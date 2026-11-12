@@ -1,13 +1,20 @@
 package app.dirhamrub.ui.onboarding
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,24 +24,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -43,40 +50,46 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
-import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.UnionPayRates
+import app.dirhamrub.ui.components.CascadeTiming
+import app.dirhamrub.ui.components.cascade
+import app.dirhamrub.ui.components.finishCascadeOnTouch
+import app.dirhamrub.ui.components.rememberCascade
+import app.dirhamrub.ui.currency.CountryScreen
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.LocalReduceMotion
-import kotlinx.coroutines.launch
 
-private const val STEPS = 5
+private const val STEPS = 3
 
 /**
- * Знакомство при первом запуске (и из настроек): зачем → как считаем → что учитываем → откуда и куда
- * считаем (валюта трат и итога) → чем будете платить (мастер первой карты или наличных).
- * Шаги листаются свайпом. Без привязки к конкретным картам: способы оплаты — карта в итоговой валюте, в другой валюте,
- * наличные или пока ничего. [suggested] — валюта страны сотовой сети: выбирается сразу, один раз
- * (null — знакомство открыли повторно из настроек: валюту трат не трогаем).
- * [onFinish] — карта из мастера (или null — без неё / «пропустить»), [onOpenEditor] — та же карта
- * в полном редакторе («заполнить из скриншота»).
+ * Знакомство при первом запуске (и из настроек), три шага: сколько на самом деле стоит покупка (кусок главного
+ * экрана) → откуда точный курс (скриншоты банка и какие чеки нужны) → настройка под поездку (страна и первый
+ * способ оплаты). Шапка на всех шагах: точки по центру, «Пропустить» справа, на 2–3 шаге «‹» слева.
+ * Блоки шага появляются каскадом. [suggested] — валюта и страна сотовой сети: выбираются сразу, один раз
+ * (null — знакомство открыли повторно из настроек: страну не трогаем). [onFinish] — карта из мастера
+ * (null — «Пропустить»), [onOpenEditor] — та же карта в полном редакторе («заполнить из скриншота»).
  */
 @Composable
 fun OnboardingScreen(
     spend: Currency,
     home: Currency,
-    suggested: Currency?,
+    /** Флаг и название страны трат — как в шапке главного. */
+    place: Pair<String, String>,
+    /** Страна сотовой сети (ISO): сверху списка стран. */
+    country: String?,
+    suggested: Pair<Currency, String>?,
+    recent: List<Currency>,
     official: OfficialRates?,
     unionPay: UnionPayRates?,
-    onSpend: (Currency) -> Unit,
-    onHome: (Currency) -> Unit,
+    onSpend: (Currency, String?) -> Unit,
     newCard: () -> BankCard,
     onFinish: (BankCard?) -> Unit,
     onOpenEditor: (BankCard) -> Unit,
@@ -84,92 +97,118 @@ fun OnboardingScreen(
     startStep: Int = 0,
 ) {
     val colors = AppTheme.colors
-    val pager = rememberPagerState(initialPage = startStep.coerceIn(0, STEPS - 1)) { STEPS }
-    val scope = rememberCoroutineScope()
     val reduceMotion = LocalReduceMotion.current
-    fun go(page: Int) {
-        scope.launch { if (reduceMotion) pager.scrollToPage(page) else pager.animateScrollToPage(page) }
-    }
-    BackHandler(enabled = pager.currentPage > 0) { go(pager.currentPage - 1) }
-    // Валюту страны подставляем один раз: поворот экрана или возврат в приложение не должны
-    // затирать то, что человек уже выбрал сам на шаге «Откуда и куда».
+    var step by rememberSaveable { mutableIntStateOf(startStep.coerceIn(0, STEPS - 1)) }
+    var countryOpen by rememberSaveable { mutableStateOf(false) }
+    BackHandler(enabled = step > 0 && !countryOpen) { step-- }
+    // Страну сети подставляем один раз: поворот экрана или возврат в приложение не должны
+    // затирать то, что человек уже выбрал сам на третьем шаге.
     var suggestionApplied by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(suggested) {
         if (suggested != null && !suggestionApplied) {
             suggestionApplied = true
-            onSpend(suggested)
+            onSpend(suggested.first, suggested.second)
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.bg)
-            .windowInsetsPadding(WindowInsets.safeDrawing),
-    ) {
-        // Шапка одинаковая на всех шагах: точки по центру, «Пропустить» справа на одной линии с ними
-        // (на последнем шаге его место пустое — там есть «Пока ничего»). Ничего не прыгает при листании.
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp, bottom = 4.dp),
-        ) {
-            Dots(pager.currentPage)
-            if (pager.currentPage < STEPS - 1) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 8.dp)
-                        .heightIn(min = 48.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(role = Role.Button) { onFinish(null) }
-                        .padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.Center,
+    Box(Modifier.fillMaxSize().background(colors.bg)) {
+        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+            Header(step, onBack = { step-- }, onSkip = { onFinish(null) })
+            // Шаг сменяется на месте: новый шаг собирается каскадом — блоки выплывают снизу друг за другом.
+            key(step) {
+                val wave = rememberCascade(CascadeTiming.Step)
+                val enter: (Int) -> Modifier = { Modifier.cascade(wave, it, CascadeTiming.Step) }
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .finishCascadeOnTouch(wave)
+                        .padding(horizontal = 20.dp),
                 ) {
-                    Text(stringResource(R.string.onboarding_skip), style = AppTheme.type.bodyStrong, color = colors.muted)
+                    when (step) {
+                        0 -> ValueStep(official, enter) { step = 1 }
+                        1 -> RulesStep(home, enter) { step = 2 }
+                        else -> SetupStep(
+                            spend = spend,
+                            home = home,
+                            place = place,
+                            official = official,
+                            unionPay = unionPay,
+                            newCard = newCard,
+                            onCountry = { countryOpen = true },
+                            onFinish = onFinish,
+                            onOpenEditor = onOpenEditor,
+                            enter = enter,
+                        )
+                    }
                 }
             }
         }
-        // Шаги листаются и свайпом, и кнопками; последний шаг сам рисует кнопки
-        // («Готово» зависит от выбранного способа и полей).
-        HorizontalPager(
-            state = pager,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            verticalAlignment = Alignment.Top,
-        ) { step ->
-            Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-                if (step == STEPS - 1) {
-                    PayStep(spend, home, official, unionPay, newCard, onFinish, onOpenEditor, Modifier.weight(1f))
-                    return@Column
-                }
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .fadingScroll(rememberScrollState()),
-                ) {
-                    when (step) {
-                        0 -> WhyPage()
-                        1 -> HowPage(home)
-                        2 -> WhatPage()
-                        else -> CurrenciesPage(spend, home, official, onSpend, onHome)
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                val label = when (step) {
-                    0 -> R.string.onboarding_why_next
-                    1 -> R.string.onboarding_how_next
-                    2 -> R.string.onboarding_what_next
-                    else -> R.string.onboarding_next
-                }
-                PrimaryButton(stringResource(label)) { go(step + 1) }
-                Spacer(Modifier.height(16.dp))
-            }
+        // Страна — тот же экран, что из шапки главного, выезжает снизу поверх знакомства.
+        AnimatedVisibility(
+            visible = countryOpen,
+            enter = if (reduceMotion) EnterTransition.None else slideInVertically(tween(260)) { it / 4 } + fadeIn(tween(200)),
+            exit = if (reduceMotion) ExitTransition.None else slideOutVertically(tween(220)) { it / 4 } + fadeOut(tween(180)),
+        ) {
+            BackHandler { countryOpen = false }
+            CountryScreen(
+                spend = spend,
+                home = home,
+                onSpend = onSpend,
+                onBack = { countryOpen = false },
+                recent = recent,
+                country = country,
+                official = official,
+            )
         }
     }
 }
 
-/** Точки шагов вверху. */
+/** Шапка: «‹» слева (со второго шага), точки по центру, «Пропустить» справа — на всех шагах. */
+@Composable
+private fun Header(step: Int, onBack: () -> Unit, onSkip: () -> Unit) {
+    val colors = AppTheme.colors
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 4.dp, start = 4.dp, end = 8.dp),
+    ) {
+        Dots(step)
+        if (step > 0) {
+            val back = stringResource(R.string.onboarding_back)
+            Box(
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .clickable(role = Role.Button, onClickLabel = back, onClick = onBack)
+                    .semantics { contentDescription = back },
+                contentAlignment = Alignment.Center,
+            ) {
+                // Шеврон «вниз», повёрнутый влево, — тонкий «‹».
+                Icon(
+                    painterResource(R.drawable.ic_chevron_down),
+                    contentDescription = null,
+                    tint = colors.ink,
+                    modifier = Modifier.size(24.dp).rotate(90f),
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .heightIn(min = 48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(role = Role.Button, onClick = onSkip)
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(stringResource(R.string.onboarding_skip), style = AppTheme.type.bodyStrong, color = colors.muted)
+        }
+    }
+}
+
+/** Точки шагов вверху: текущий — вытянутый и синий. */
 @Composable
 private fun Dots(step: Int) {
     val colors = AppTheme.colors
@@ -185,8 +224,8 @@ private fun Dots(step: Int) {
         repeat(STEPS) { i ->
             Box(
                 Modifier
-                    .padding(horizontal = 4.dp)
-                    .size(width = if (i == step) 22.dp else 8.dp, height = 8.dp)
+                    .padding(horizontal = 3.dp)
+                    .size(width = if (i == step) 20.dp else 7.dp, height = 7.dp)
                     .clip(CircleShape)
                     .background(if (i == step) colors.accent else colors.line),
             )
@@ -195,19 +234,19 @@ private fun Dots(step: Int) {
 }
 
 @Composable
-internal fun Title(text: String) {
+internal fun Title(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
         style = AppTheme.type.title.copy(fontSize = 27.sp, lineHeight = 33.sp),
         color = AppTheme.colors.ink,
-        modifier = Modifier
+        modifier = modifier
             .padding(top = 8.dp)
             .semantics { heading() },
     )
 }
 
 /**
- * Текст с полужирными местами: «По **чекам банка** — …» → «чекам банка» жирнее и темнее остального,
+ * Текст с полужирными местами: «Считаем **по вашим чекам**» → «по вашим чекам» жирнее и темнее остального,
  * чтобы при беглом просмотре глаз цеплялся за главное.
  */
 @Composable
@@ -228,36 +267,33 @@ internal fun Lead(text: String, modifier: Modifier = Modifier) {
         rich(text),
         style = AppTheme.type.body.copy(fontSize = 15.sp, lineHeight = 21.sp),
         color = AppTheme.colors.muted,
-        modifier = modifier.padding(top = 8.dp, bottom = 14.dp),
+        modifier = modifier.padding(top = 8.dp, bottom = 16.dp),
     )
 }
 
+/** Главная кнопка шага; [soft] — спокойная (бледно-синяя): «Продолжить без чека». */
 @Composable
-internal fun PrimaryButton(text: String, onClick: () -> Unit) {
+internal fun PrimaryButton(text: String, modifier: Modifier = Modifier, soft: Boolean = false, onClick: () -> Unit) {
     val colors = AppTheme.colors
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(colors.accent)
+            .background(if (soft) colors.accentSoft else colors.accent)
             .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, style = AppTheme.type.bodyStrong.copy(fontSize = 17.sp), color = colors.onAccent)
+        Text(text, style = AppTheme.type.bodyStrong.copy(fontSize = 17.sp), color = if (soft) colors.accent else colors.onAccent)
     }
 }
 
 @Composable
-internal fun SecondaryButton(text: String, muted: Boolean = false, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text, style = AppTheme.type.bodyStrong, color = if (muted) AppTheme.colors.muted else AppTheme.colors.accent)
-    }
+internal fun Label(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text.uppercase(),
+        style = AppTheme.type.caption.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp),
+        color = AppTheme.colors.muted,
+        modifier = modifier.padding(start = 2.dp, top = 18.dp, bottom = 8.dp),
+    )
 }

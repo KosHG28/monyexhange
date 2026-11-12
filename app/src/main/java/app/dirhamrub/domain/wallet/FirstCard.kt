@@ -8,7 +8,7 @@ enum class PayWay {
     /** Карта в итоговой валюте (обычно рублёвая): банк сам пересчитывает в валюту трат. */
     HOME_CARD,
 
-    /** Карта в другой валюте: пополняют из итоговой, платят валютой карты. */
+    /** Карта в другой валюте: в мастере — чек покупки (цена и сколько списали в валюте карты); пополнение — потом. */
     CURRENCY_CARD,
 
     /** Наличные валюты трат из обменника. */
@@ -25,8 +25,8 @@ enum class PayWay {
 object FirstCard {
     /**
      * [template] — пустая карта с id и оформлением; [first]/[second] — суммы чека способа:
-     * карта в итоговой валюте — цена в валюте трат / сколько списали; в другой валюте — сколько
-     * перевели / сколько пришло; наличные — сколько отдали ([sentCurrency]) / сколько получили.
+     * карта (в итоговой или другой валюте) — цена в валюте трат / сколько списали в валюте карты;
+     * наличные — сколько отдали ([sentCurrency]) / сколько получили.
      * [bought] — почём купили отданную валюту, если она не итоговая (1 единица в итоговой).
      */
     fun build(
@@ -53,7 +53,7 @@ object FirstCard {
             PayWay.CURRENCY_CARD -> template.copy(
                 currency = cardCurrency,
                 kind = CardKind.CARD,
-                transfer = if (a != null && b != null && cardCurrency != home) TransferReceipt(a, home, b, date) else null,
+                purchases = if (a != null && b != null && spend != cardCurrency) listOf(PurchaseReceipt(spend, b, a, date)) else emptyList(),
             )
             PayWay.CASH -> {
                 val boughtAt = bought?.takeIf { it.signum() > 0 && sentCurrency != home }

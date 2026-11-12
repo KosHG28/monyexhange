@@ -265,9 +265,9 @@ private const val HEADER_SP = 40f
 
 /**
  * Флаг страны фоном: мягкое цветное пятно в правом верхнем углу экрана, растворяется радиальной маской от угла
- * (35 % → 0 к середине — текст слева всегда на чистом фоне). Эмодзи — маленькая картинка (~136 px), растянутая
+ * (45 % → 0 к середине — текст слева всегда на чистом фоне). Эмодзи — маленькая картинка (~136 px), растянутая
  * текстом на полэкрана она рассыпается на пиксели (и тяжела для отрисовки). Поэтому флаг рисуется маленьким,
- * обрезается по самому флагу и растягивается со сглаживанием и размытием: это цветовой фон, а не рисунок.
+ * обрезается по самому флагу и растягивается со сглаживанием и лёгким размытием — читается как флаг, но без пикселей.
  * В светлой теме — наложение «умножение»: белые поля флага (Япония, Кипр) пропадают на светлом фоне.
  */
 @Composable
@@ -296,10 +296,10 @@ private fun FlagBackdrop(flag: String, modifier: Modifier = Modifier) {
         )
         drawRect(
             brush = Brush.radialGradient(
-                0f to Color.Black.copy(alpha = 0.35f),
-                0.3f to Color.Black.copy(alpha = 0.30f),
-                0.55f to Color.Black.copy(alpha = 0.12f),
-                0.78f to Color.Transparent,
+                0f to Color.Black.copy(alpha = 0.45f),
+                0.3f to Color.Black.copy(alpha = 0.38f),
+                0.55f to Color.Black.copy(alpha = 0.16f),
+                0.8f to Color.Transparent,
                 center = Offset(size.width, 0f),
                 radius = size.width,
             ),
@@ -338,8 +338,8 @@ private fun flagBitmap(flag: String): ImageBitmap? {
     return android.graphics.Bitmap.createBitmap(full, left, top, right - left + 1, bottom - top + 1).asImageBitmap()
 }
 
-private const val FLAG_BITMAP_PX = 96
-private val FLAG_BLUR = 6.dp
+private const val FLAG_BITMAP_PX = 160
+private val FLAG_BLUR = 3.dp
 
 private val FLAG_SIZE = 280.dp
 

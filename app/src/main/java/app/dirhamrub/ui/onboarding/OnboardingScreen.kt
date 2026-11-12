@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -31,10 +33,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -66,13 +67,15 @@ import app.dirhamrub.ui.components.rememberCascade
 import app.dirhamrub.ui.currency.CountryScreen
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.LocalReduceMotion
+import kotlinx.coroutines.launch
 
 private const val STEPS = 3
 
 /**
  * Знакомство при первом запуске (и из настроек), три шага: сколько на самом деле стоит покупка (кусок главного
  * экрана) → откуда точный курс (скриншоты банка и какие чеки нужны) → настройка под поездку (страна и первый
- * способ оплаты). Шапка на всех шагах: точки по центру, «Пропустить» справа, на 2–3 шаге «‹» слева.
+ * способ оплаты). Шаги листаются свайпом и кнопками. Шапка на всех шагах: точки по центру, «Пропустить» справа,
+ * на 2–3 шаге «‹» слева.
  * Блоки шага появляются каскадом. [suggested] — валюта и страна сотовой сети: выбираются сразу, один раз
  * (null — знакомство открыли повторно из настроек: страну не трогаем). [onFinish] — карта из мастера
  * (null — «Пропустить»), [onOpenEditor] — та же карта в полном редакторе («заполнить из скриншота»).
@@ -98,9 +101,13 @@ fun OnboardingScreen(
 ) {
     val colors = AppTheme.colors
     val reduceMotion = LocalReduceMotion.current
-    var step by rememberSaveable { mutableIntStateOf(startStep.coerceIn(0, STEPS - 1)) }
+    val pager = rememberPagerState(initialPage = startStep.coerceIn(0, STEPS - 1)) { STEPS }
+    val scope = rememberCoroutineScope()
+    fun go(page: Int) {
+        scope.launch { if (reduceMotion) pager.scrollToPage(page) else pager.animateScrollToPage(page) }
+    }
     var countryOpen by rememberSaveable { mutableStateOf(false) }
-    BackHandler(enabled = step > 0 && !countryOpen) { step-- }
+    BackHandler(enabled = pager.currentPage > 0 && !countryOpen) { go(pager.currentPage - 1) }
     // Страну сети подставляем один раз: поворот экрана или возврат в приложение не должны
     // затирать то, что человек уже выбрал сам на третьем шаге.
     var suggestionApplied by rememberSaveable { mutableStateOf(false) }
@@ -113,21 +120,25 @@ fun OnboardingScreen(
 
     Box(Modifier.fillMaxSize().background(colors.bg)) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            Header(step, onBack = { step-- }, onSkip = { onFinish(null) })
-            // Шаг сменяется на месте: новый шаг собирается каскадом — блоки выплывают снизу друг за другом.
-            key(step) {
+            Header(pager.currentPage, onBack = { go(pager.currentPage - 1) }, onSkip = { onFinish(null) })
+            // Шаги листаются свайпом и кнопками; появившийся шаг собирается каскадом — блоки выплывают
+            // снизу друг за другом (страница заново входит в композицию — волна заново).
+            HorizontalPager(
+                state = pager,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                verticalAlignment = Alignment.Top,
+            ) { step ->
                 val wave = rememberCascade(CascadeTiming.Step)
                 val enter: (Int) -> Modifier = { Modifier.cascade(wave, it, CascadeTiming.Step) }
                 Column(
                     Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
+                        .fillMaxSize()
                         .finishCascadeOnTouch(wave)
                         .padding(horizontal = 20.dp),
                 ) {
                     when (step) {
-                        0 -> ValueStep(official, enter) { step = 1 }
-                        1 -> RulesStep(home, enter) { step = 2 }
+                        0 -> ValueStep(official, enter) { go(1) }
+                        1 -> RulesStep(home, enter) { go(2) }
                         else -> SetupStep(
                             spend = spend,
                             home = home,

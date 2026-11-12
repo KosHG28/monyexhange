@@ -1,0 +1,6 @@
+# Промежуточные файлы рендера и сторонние звуки (из latent-spaces/brag)
+work/stills/
+work/*.png
+work/*.wav
+work/video-noaudio.mp4
+work/audio/

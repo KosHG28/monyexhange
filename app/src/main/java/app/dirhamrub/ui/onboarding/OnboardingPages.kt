@@ -39,6 +39,7 @@ import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.CardPalette
 import app.dirhamrub.ui.theme.CardStyle
+import app.dirhamrub.ui.theme.sheen
 import java.math.BigDecimal
 import java.math.RoundingMode
 
@@ -162,7 +163,8 @@ private fun WayRow(style: CardStyle, badge: String, name: String, sub: String, s
             Modifier
                 .size(width = 42.dp, height = 28.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Brush.linearGradient(listOf(style.start, style.end))),
+                .background(Brush.linearGradient(listOf(style.start, style.end)))
+                .sheen(halfWidth = 9.dp),
         ) {
             Box(
                 Modifier

@@ -1,5 +1,6 @@
 package app.dirhamrub
 
+import app.dirhamrub.ui.theme.ProvideTilt
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -49,12 +50,15 @@ class MainActivity : ComponentActivity() {
             val motion by remember { derivedStateOf { state.value.settings.motion } }
             val keyHaptics by remember { derivedStateOf { state.value.settings.keyHaptics } }
             DirhamTheme(theme = theme, motion = motion, keyHaptics = keyHaptics) {
-                DirhamApp(
-                    startScreen = screen,
-                    startCard = intent?.getStringExtra(EXTRA_CARD),
-                    startStep = intent?.getIntExtra(EXTRA_STEP, 0) ?: 0,
-                    vm = vm,
-                )
+                // Наклон телефона — для блика на картах (флагманы, Android 13+).
+                ProvideTilt {
+                    DirhamApp(
+                        startScreen = screen,
+                        startCard = intent?.getStringExtra(EXTRA_CARD),
+                        startStep = intent?.getIntExtra(EXTRA_STEP, 0) ?: 0,
+                        vm = vm,
+                    )
+                }
                 CrashReportDialog()
             }
         }

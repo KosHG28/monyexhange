@@ -1,5 +1,8 @@
 package app.dirhamrub.ui.main
 
+import app.dirhamrub.ui.theme.sheen
+import app.dirhamrub.ui.theme.parallaxOf
+import app.dirhamrub.ui.theme.LocalTilt
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -160,6 +163,7 @@ internal fun BankCardView(
                 }
                 .clip(CARD_SHAPE)
                 .background(Brush.linearGradient(listOf(style.start, style.end)))
+                .sheen(halfWidth = 46.dp)
                 .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = editLabel)
                 .clearAndSetSemantics {
                     contentDescription = a11y
@@ -167,8 +171,9 @@ internal fun BankCardView(
                     role = Role.RadioButton
                 },
         ) {
-            // Водяной знак валюты карты.
+            // Водяной знак валюты карты: при наклоне отстаёт на 6 dp — будто глубже в пластике.
             val mark = card.currency.mark
+            val tilt = LocalTilt.current
             Text(
                 text = mark,
                 style = type.hero.copy(fontSize = if (mark.length > 2) 40.sp else 88.sp, lineHeight = 92.sp, letterSpacing = 0.sp),
@@ -176,7 +181,8 @@ internal fun BankCardView(
                 maxLines = 1,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .offset(x = 6.dp, y = if (mark.length > 2) 4.dp else 24.dp),
+                    .offset(x = 6.dp, y = if (mark.length > 2) 4.dp else 24.dp)
+                    .graphicsLayer { translationX = parallaxOf(tilt, 6.dp.toPx()) },
             )
             Column(
                 modifier = Modifier

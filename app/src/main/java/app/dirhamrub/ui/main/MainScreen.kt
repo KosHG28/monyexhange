@@ -1,5 +1,6 @@
 package app.dirhamrub.ui.main
 
+import app.dirhamrub.ui.theme.sheen
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -616,7 +617,8 @@ internal fun PayIcon(card: BankCard, best: Boolean) {
         Modifier
             .size(width = 38.dp, height = 26.dp)
             .clip(RoundedCornerShape(5.dp))
-            .background(Brush.linearGradient(listOf(style.start, style.end))),
+            .background(Brush.linearGradient(listOf(style.start, style.end)))
+            .sheen(halfWidth = 9.dp),
     ) {
         Box(
             Modifier

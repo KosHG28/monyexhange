@@ -46,7 +46,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.dirhamrub.R
 import app.dirhamrub.ui.components.fadingEdges
-import app.dirhamrub.ui.components.AppSheet
+import app.dirhamrub.ui.components.FullScreen
+import app.dirhamrub.ui.components.ScreenBar
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.Countries
@@ -66,9 +67,8 @@ import app.dirhamrub.ui.theme.AppTheme
  * или пометкой «без ЦБ»; «Итог считать в» — рубль и валюты с курсом ЦБ (без него итог не посчитать).
  * Без [onHome] вкладки итоговой валюты нет (знакомство).
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CurrencySheet(
+fun CurrencyScreen(
     spend: Currency,
     home: Currency,
     onSpend: (Currency) -> Unit,
@@ -83,12 +83,14 @@ fun CurrencySheet(
     val colors = AppTheme.colors
     var homeTab by rememberSaveable { mutableStateOf(startOnHome && onHome != null) }
     var query by rememberSaveable { mutableStateOf("") }
-    AppSheet(onDismissRequest = onDismiss) {
+    FullScreen(onDismissRequest = onDismiss) {
         val cascade = rememberCascade()
+        Column(Modifier.fillMaxSize()) {
+        ScreenBar(onBack = { close() }, title = if (onHome == null) stringResource(R.string.currency_sheet_spend) else null)
         Column(
             Modifier
                 .fillMaxWidth()
-                .fillMaxHeight()
+                .weight(1f)
                 .padding(horizontal = 16.dp),
         ) {
             if (onHome != null) {
@@ -96,15 +98,8 @@ fun CurrencySheet(
                     homeTab = it
                     query = ""
                 }
-            } else {
-                Text(
-                    stringResource(R.string.currency_sheet_spend),
-                    style = AppTheme.type.title,
-                    color = colors.ink,
-                    modifier = Modifier.semantics { heading() },
-                )
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(4.dp))
             SearchField(
                 value = query,
                 onValueChange = { query = it },
@@ -137,10 +132,11 @@ fun CurrencySheet(
                 } else {
                     spendItems(query, spend, home, recent, country, official, cascade, texts) { c, _ ->
                         onSpend(c)
-                        onDismiss()
+                        close()
                     }
                 }
             }
+        }
         }
     }
 }
@@ -224,9 +220,8 @@ fun CountryScreen(
 /**
  * Выбор одной валюты из [options] с поиском — валюта карты в редакторе, итоговая в знакомстве.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CurrencyPickerSheet(
+fun CurrencyPickerScreen(
     title: String,
     selected: Currency,
     options: List<Currency>,
@@ -235,15 +230,15 @@ fun CurrencyPickerSheet(
 ) {
     val colors = AppTheme.colors
     var query by rememberSaveable { mutableStateOf("") }
-    AppSheet(onDismissRequest = onDismiss) {
+    FullScreen(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxSize()) {
+        ScreenBar(onBack = { close() }, title = title)
         Column(
             Modifier
                 .fillMaxWidth()
-                .fillMaxHeight()
+                .weight(1f)
                 .padding(horizontal = 16.dp),
         ) {
-            Text(title, style = AppTheme.type.title, color = colors.ink, modifier = Modifier.semantics { heading() })
-            Spacer(Modifier.height(10.dp))
             SearchField(query, { query = it }, stringResource(R.string.currency_search_currency))
             val nothing = stringResource(R.string.currency_nothing)
             val found = CurrencySearch.currencies(query, options)
@@ -260,10 +255,11 @@ fun CurrencyPickerSheet(
                 items(found, key = { it.code }) { c ->
                     CurrencyRow(c, selected = c == selected) {
                         onPick(c)
-                        onDismiss()
+                        close()
                     }
                 }
             }
+        }
         }
     }
 }

@@ -56,7 +56,7 @@ app/src/main/java/app/dirhamrub/
   ui/cards/          редактор карты и чеков
   ui/currency/       выбор валюты трат и итоговой
   ui/settings/       настройки: карты и наличные, курсы (когда и откуда), обновление, UnionPay, камера, тема
-  ui/components/     бумажный чек, поля, выбор валюты
+  ui/components/     поля, выбор валюты, FullScreen (экран поверх всего вместо шторки), AppSheet
   ui/camera/         AR-камера: CameraX + ML Kit, оверлей на Canvas
 ```
 

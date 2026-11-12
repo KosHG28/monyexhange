@@ -340,6 +340,9 @@
     <string name="guide_cash">Наличные</string>
     <string name="guide_atm">Банкоматы</string>
     <string name="guide_tips">Советы</string>
+    <string name="editor_exit_confirm">Выйти без сохранения? Изменения пропадут.</string>
+    <string name="editor_exit">Выйти</string>
+    <string name="editor_stay">Остаться</string>
     <string name="guide_empty">Сведений о том, чем здесь платить, пока нет.</string>
     <string name="guide_suggest">Подсказать, что добавить ›</string>
     <string name="guide_export">Ввоз и вывоз денег</string>

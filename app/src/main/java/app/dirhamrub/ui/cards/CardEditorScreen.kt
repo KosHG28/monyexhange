@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -39,7 +40,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -62,8 +62,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
-import app.dirhamrub.ui.components.sheetScroll
-import app.dirhamrub.ui.components.AppSheet
+import app.dirhamrub.ui.components.FullScreen
+import app.dirhamrub.ui.components.FullScreenScope
+import app.dirhamrub.ui.components.ScreenBar
+import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.Rounding
@@ -86,7 +88,7 @@ import app.dirhamrub.ui.components.CurrencyChips
 import app.dirhamrub.ui.components.CurrencyDropdown
 import app.dirhamrub.ui.components.cascade
 import app.dirhamrub.ui.components.rememberCascade
-import app.dirhamrub.ui.currency.CurrencyPickerSheet
+import app.dirhamrub.ui.currency.CurrencyPickerScreen
 import app.dirhamrub.ui.main.BankCardView
 import app.dirhamrub.ui.main.basisLabel
 import app.dirhamrub.ui.theme.AppTheme
@@ -100,7 +102,7 @@ import kotlinx.coroutines.launch
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CardEditorSheet(
+fun CardEditorScreen(
     card: BankCard,
     isNew: Boolean,
     spend: Currency,
@@ -123,13 +125,15 @@ fun CardEditorSheet(
     val previewAmount = amount.takeIf { it.signum() > 0 } ?: PREVIEW_AMOUNT
     val colors = AppTheme.colors
     val type = AppTheme.type
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val focus = LocalFocusManager.current
-    fun close(then: () -> Unit) {
+    // Экран закрывается с анимацией, а потом выполняется действие (сохранить, удалить).
+    val screen = remember { arrayOfNulls<FullScreenScope>(1) }
+    fun close(then: (() -> Unit)? = null) {
         focus.clearFocus()
-        scope.launch { sheetState.hide() }.invokeOnCompletion { then() }
+        screen[0]?.close(then) ?: (then ?: onDismiss)()
     }
+    var confirmExit by remember(card.id) { mutableStateOf(false) }
 
     var name by remember(card.id) { mutableStateOf(card.name) }
     var currency by remember(card.id) { mutableStateOf(card.currency) }
@@ -274,49 +278,53 @@ fun CardEditorSheet(
     fun invalid(): Boolean =
         pairInvalid(sent, got) || (!cash && purchases.any { pairInvalid(it.paid, it.price) })
 
-    AppSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    // Что было при открытии: «Назад» с несохранёнными правками спрашивает, выйти ли без сохранения.
+    val initial = remember(card.id) { build() }
+    fun dirty(): Boolean = build() != initial
+    fun back() {
+        if (dirty()) confirmExit = true else close()
+    }
+
+    FullScreen(onDismissRequest = onDismiss, interceptBack = { dirty().also { if (it) confirmExit = true } }) {
+      screen[0] = this
+      Column(Modifier.fillMaxSize()) {
+        ScreenBar(
+            onBack = { back() },
+            title = stringResource(
+                when {
+                    cash && isNew -> R.string.editor_title_new_cash
+                    cash -> R.string.editor_title_cash
+                    isNew -> R.string.editor_title_new
+                    else -> R.string.editor_title_edit
+                },
+            ),
+        ) {
+            if (!isNew) {
+                Icon(
+                    painterResource(R.drawable.ic_delete),
+                    contentDescription = stringResource(if (cash) R.string.editor_delete_cash else R.string.editor_delete),
+                    tint = colors.muted,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .clickable(role = Role.Button) { confirmDelete = true }
+                        .padding(12.dp),
+                )
+            }
+        }
         // Блоки редактора появляются каскадом.
         val cascade = rememberCascade()
-        // «Сохранить» всегда внизу шторки, прокручивается только содержимое над ней: последний элемент
+        // «Сохранить» всегда внизу экрана, прокручивается только содержимое над ней: последний элемент
         // докручивается выше кнопки. Касание мимо полей убирает клавиатуру.
         Column(
             modifier = Modifier
-                .weight(1f, fill = false)
+                .weight(1f)
                 .fillMaxWidth()
                 .pointerInput(Unit) { detectTapGestures(onTap = { focus.clearFocus() }) }
-                .sheetScroll(rememberScrollState())
+                .fadingScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 12.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.cascade(cascade, 0)) {
-                Text(
-                    text = stringResource(
-                        when {
-                            cash && isNew -> R.string.editor_title_new_cash
-                            cash -> R.string.editor_title_cash
-                            isNew -> R.string.editor_title_new
-                            else -> R.string.editor_title_edit
-                        },
-                    ),
-                    style = type.title,
-                    color = colors.ink,
-                    modifier = Modifier
-                        .weight(1f)
-                        .semantics { heading() },
-                )
-                if (!isNew) {
-                    Icon(
-                        painterResource(R.drawable.ic_delete),
-                        contentDescription = stringResource(if (cash) R.string.editor_delete_cash else R.string.editor_delete),
-                        tint = colors.muted,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .clickable(role = Role.Button) { confirmDelete = true }
-                            .padding(12.dp),
-                    )
-                }
-            }
             Spacer(Modifier.height(6.dp))
             // Черновик из полей и его курс — для предпросмотра сверху и итога ниже.
             val draft = build()
@@ -684,9 +692,26 @@ fun CardEditorSheet(
                     .heightIn(min = 52.dp),
             ) { Text(stringResource(R.string.save), style = type.bodyStrong.copy(fontSize = 16.sp)) }
         }
+      }
+    }
+    if (confirmExit) {
+        AlertDialog(
+            onDismissRequest = { confirmExit = false },
+            text = { Text(stringResource(R.string.editor_exit_confirm), style = type.body, color = colors.ink) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmExit = false
+                    close()
+                }) { Text(stringResource(R.string.editor_exit), style = type.bodyStrong, color = colors.danger) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmExit = false }) { Text(stringResource(R.string.editor_stay), style = type.bodyStrong, color = colors.accent) }
+            },
+            containerColor = colors.surface,
+        )
     }
     if (cardPicker) {
-        CurrencyPickerSheet(
+        CurrencyPickerScreen(
             title = stringResource(if (cash) R.string.editor_currency_cash else R.string.editor_currency),
             selected = currency,
             options = Currency.entries,
@@ -695,7 +720,7 @@ fun CardEditorSheet(
         )
     }
     if (settlementPicker) {
-        CurrencyPickerSheet(
+        CurrencyPickerScreen(
             title = stringResource(R.string.editor_settlement),
             selected = settlement ?: UnionPayRates.defaultSettlement(currency),
             options = UnionPayRates.BASES,

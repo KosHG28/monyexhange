@@ -3,7 +3,9 @@ package app.dirhamrub.ui.guide
 import android.content.Intent
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
-import app.dirhamrub.ui.components.sheetScroll
+import app.dirhamrub.ui.components.fadingScroll
+import app.dirhamrub.ui.components.FullScreen
+import app.dirhamrub.ui.components.ScreenBar
 import app.dirhamrub.domain.wallet.noun
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -22,6 +24,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -31,12 +34,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,7 +53,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import app.dirhamrub.R
-import app.dirhamrub.ui.components.AppSheet
 import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.wallet.Acceptance
 import app.dirhamrub.domain.wallet.BankCard
@@ -117,13 +116,12 @@ private fun networkShort(n: CardNetwork): String = stringResource(
 )
 
 /**
- * Шторка страны (ⓘ в шапке главного) — сразу «Чем платить». Сверху: страна мелко, валюта крупно, код и знак.
+ * Экран страны (ⓘ в шапке главного) — сразу «Чем платить». Сверху: страна мелко, валюта крупно, код и знак.
  * Ниже — ваши карты здесь, платёжные системы, наличные, ввоз и вывоз, купюры, банкоматы, советы; внизу — дата
  * и «Сообщить о неточности». Справочника по стране нет ([guide] == null) — шапка и «подсказать, что добавить».
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CountryGuideSheet(
+fun CountryGuideScreen(
     guide: CountryGuide?,
     /** Флаг и название страны — как в шапке главного. */
     place: Pair<String, String>,
@@ -135,14 +133,16 @@ fun CountryGuideSheet(
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    AppSheet(onDismissRequest = onDismiss) {
+    FullScreen(onDismissRequest = onDismiss) {
       // Флаг страны — фоном в правом верхнем углу, под содержимым; прокручивается только содержимое.
-      Box(Modifier.fillMaxWidth()) {
+      Box(Modifier.fillMaxSize()) {
         FlagBackdrop(place.first, Modifier.align(Alignment.TopEnd))
+        Column(Modifier.fillMaxSize()) {
+        ScreenBar(onBack = { close() })
         Column(
             Modifier
                 .fillMaxWidth()
-                .sheetScroll(rememberScrollState())
+                .fadingScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 20.dp),
         ) {
@@ -218,6 +218,7 @@ fun CountryGuideSheet(
             )
             ReportLink(stringResource(R.string.guide_report), guide.iso, countryName(guide.iso), guide.updated)
         }
+        }
       }
     }
 }
@@ -230,7 +231,7 @@ fun CountryGuideSheet(
 private fun Header(country: String, currency: Currency) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    Column(Modifier.padding(start = 4.dp, top = 18.dp)) {
+    Column(Modifier.padding(start = 4.dp, top = 4.dp)) {
         Text(country, style = type.body.copy(fontSize = 14.sp), color = colors.muted, maxLines = 1)
         val title = currency.noun
         val base = type.title.copy(fontSize = HEADER_SP.sp, lineHeight = (HEADER_SP * 1.12f).sp, fontWeight = FontWeight.SemiBold)
@@ -266,7 +267,7 @@ private fun FlagBackdrop(flag: String, modifier: Modifier = Modifier) {
     val fontSize = with(LocalDensity.current) { (size * 0.82f).toSp() }
     Box(
         modifier
-            .offset(x = size * 0.32f, y = -size * 0.25f)
+            .offset(x = size * 0.2f, y = -size * 0.04f)
             .size(size)
             .clearAndSetSemantics { }
             .graphicsLayer {

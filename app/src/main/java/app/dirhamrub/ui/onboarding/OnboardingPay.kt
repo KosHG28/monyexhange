@@ -55,7 +55,7 @@ import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.domain.wallet.approximate
 import app.dirhamrub.ui.components.CurrencyChips
 import app.dirhamrub.ui.components.CurrencyDropdown
-import app.dirhamrub.ui.currency.CurrencyPickerSheet
+import app.dirhamrub.ui.currency.CurrencyPickerScreen
 import app.dirhamrub.ui.main.signedPercent
 import app.dirhamrub.ui.theme.AppTheme
 import java.math.BigDecimal
@@ -244,7 +244,7 @@ internal fun PayStep(
         Spacer(Modifier.height(16.dp))
     }
     if (picker) {
-        CurrencyPickerSheet(
+        CurrencyPickerScreen(
             title = stringResource(R.string.onboarding_pay_card_currency),
             selected = cardCurrency,
             options = Currency.entries.filter { it != home },

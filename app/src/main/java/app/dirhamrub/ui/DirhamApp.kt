@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -53,9 +54,9 @@ import app.dirhamrub.domain.wallet.Countries
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.ui.camera.CameraScreen
-import app.dirhamrub.ui.cards.CardEditorSheet
+import app.dirhamrub.ui.cards.CardEditorScreen
 import app.dirhamrub.ui.currency.CountryScreen
-import app.dirhamrub.ui.guide.CountryGuideSheet
+import app.dirhamrub.ui.guide.CountryGuideScreen
 import app.dirhamrub.ui.main.CountryOffer
 import app.dirhamrub.ui.main.MainScreen
 import app.dirhamrub.ui.main.MainViewModel
@@ -208,7 +209,7 @@ fun DirhamApp(
     )
     val reduceMotion = LocalReduceMotion.current
     if (guideOpen) {
-        CountryGuideSheet(
+        CountryGuideScreen(
             guide = guide,
             place = place,
             iso = placeIso,
@@ -338,7 +339,8 @@ fun DirhamApp(
         }
     }
     editing?.let { e ->
-        CardEditorSheet(
+      key(e) {
+        CardEditorScreen(
             card = e.card,
             isNew = e.isNew,
             spend = state.wallet.spend,
@@ -359,6 +361,7 @@ fun DirhamApp(
             amount = state.totals.spend,
             rounding = state.settings.rounding,
         )
+      }
     }
 }
 

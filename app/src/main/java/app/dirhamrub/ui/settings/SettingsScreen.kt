@@ -68,7 +68,7 @@ import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.ThemeMode
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.cbrPublishes
-import app.dirhamrub.ui.currency.CurrencyPickerSheet
+import app.dirhamrub.ui.currency.CurrencyPickerScreen
 import app.dirhamrub.ui.main.MainUiState
 import app.dirhamrub.ui.theme.AppTheme
 import java.time.Instant
@@ -168,7 +168,7 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
         }, onDismiss = { roundingPicker = false })
     }
     if (homePicker) {
-        CurrencyPickerSheet(
+        CurrencyPickerScreen(
             title = stringResource(R.string.settings_home),
             selected = state.wallet.home,
             // Итог — только рубль и валюты с курсом ЦБ: иначе карты не с чем сравнить.

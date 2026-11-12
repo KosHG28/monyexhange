@@ -47,7 +47,7 @@ import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.QuickSums
 import app.dirhamrub.ui.components.CurrencyChips
-import app.dirhamrub.ui.currency.CurrencySheet
+import app.dirhamrub.ui.currency.CurrencyScreen
 import app.dirhamrub.ui.currency.CurrencyTile
 import app.dirhamrub.ui.main.signedPercent
 import app.dirhamrub.ui.theme.AppTheme
@@ -351,7 +351,7 @@ internal fun CurrenciesPage(
     ) {
         Text(stringResource(R.string.onboarding_other_country), style = type.bodyStrong, color = colors.accent)
     }
-    if (picker) CurrencySheet(spend = spend, home = home, onSpend = onSpend, onHome = null, onDismiss = { picker = false }, official = official)
+    if (picker) CurrencyScreen(spend = spend, home = home, onSpend = onSpend, onHome = null, onDismiss = { picker = false }, official = official)
     Label(stringResource(R.string.onboarding_cur_home))
     Column(
         Modifier

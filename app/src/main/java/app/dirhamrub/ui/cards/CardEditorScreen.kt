@@ -1,5 +1,7 @@
 package app.dirhamrub.ui.cards
 
+import app.dirhamrub.ui.theme.Haptic
+import app.dirhamrub.ui.theme.rememberHaptics
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
@@ -205,6 +207,7 @@ fun CardEditorScreen(
 
     // Чек из скриншота: уведомление или операция в приложении банка → суммы в поля чека.
     val context = LocalContext.current
+    val haptics = rememberHaptics()
     var scan by remember(card.id) { mutableStateOf<ScanResult?>(null) }
     val pickScreenshot = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -229,6 +232,7 @@ fun CardEditorScreen(
                 null -> Unit
             }
             scan = if (receipt == null) ScanResult.NotFound else ScanResult.Found(receipt)
+            haptics.play(if (receipt == null) Haptic.REJECT else Haptic.CONFIRM)
         }
     }
 
@@ -698,8 +702,10 @@ fun CardEditorScreen(
                     // само прокручивается в видимую часть.
                     if (invalid()) {
                         showErrors = true
+                        haptics.play(Haptic.REJECT)
                     } else {
                         val result = build()
+                        haptics.play(Haptic.CONFIRM)
                         close { onSave(result) }
                     }
                 },
@@ -759,6 +765,7 @@ fun CardEditorScreen(
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
+                    haptics.play(Haptic.THUD)
                     close(onDelete)
                 }) { Text(stringResource(R.string.delete), style = type.bodyStrong, color = colors.danger) }
             },

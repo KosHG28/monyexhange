@@ -66,7 +66,9 @@ import app.dirhamrub.ui.components.finishCascadeOnTouch
 import app.dirhamrub.ui.components.rememberCascade
 import app.dirhamrub.ui.currency.CountryScreen
 import app.dirhamrub.ui.theme.AppTheme
+import app.dirhamrub.ui.theme.Haptic
 import app.dirhamrub.ui.theme.LocalReduceMotion
+import app.dirhamrub.ui.theme.rememberHaptics
 import kotlinx.coroutines.launch
 
 private const val STEPS = 3
@@ -105,6 +107,13 @@ fun OnboardingScreen(
     val scope = rememberCoroutineScope()
     fun go(page: Int) {
         scope.launch { if (reduceMotion) pager.scrollToPage(page) else pager.animateScrollToPage(page) }
+    }
+    // Шаг сменился (свайпом или кнопкой) — щелчок шага.
+    val haptics = rememberHaptics()
+    var seenPage by remember { mutableStateOf(pager.settledPage) }
+    LaunchedEffect(pager.settledPage) {
+        if (pager.settledPage != seenPage) haptics.play(Haptic.STEP)
+        seenPage = pager.settledPage
     }
     var countryOpen by rememberSaveable { mutableStateOf(false) }
     BackHandler(enabled = pager.currentPage > 0 && !countryOpen) { go(pager.currentPage - 1) }

@@ -87,6 +87,8 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Observer
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import app.dirhamrub.ui.theme.Haptic
+import app.dirhamrub.ui.theme.rememberHaptics
 import app.dirhamrub.R
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.Wallet
@@ -353,6 +355,10 @@ private fun CameraContent(
 
     val frame = pipeline.frames.collectAsState()
     val nothingFound by remember { derivedStateOf { frame.value.labels.isEmpty() } }
+    // Новая цена в фокусе (не догадка) — еле заметный щелчок: «поймал». Чаще раза в 0,3 с не щёлкает.
+    val haptics = rememberHaptics()
+    val focusId by remember { derivedStateOf { frame.value.focus?.takeIf { !it.unsure }?.id } }
+    LaunchedEffect(focusId) { if (focusId != null) haptics.play(Haptic.CAMERA) }
     // Подсказка «удерживайте — оригинал»: один раз за сеанс камеры, на несколько секунд после первой цены.
     var holdHint by remember { mutableStateOf(false) }
     var holdHintShown by remember { mutableStateOf(false) }

@@ -22,6 +22,13 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import app.dirhamrub.ui.theme.Haptic
+import app.dirhamrub.ui.theme.rememberHaptics
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -228,10 +235,19 @@ internal fun SourceRow(
     }
 }
 
-/** Переключатель в цветах приложения; нажимается вся строка ([toggleable] у неё). */
+/**
+ * Переключатель в цветах приложения; нажимается вся строка ([toggleable] у неё). Включили / выключили —
+ * отклик «вкл» / «выкл» (при открытии экрана — тихо).
+ */
 @Composable
 internal fun AppSwitch(checked: Boolean) {
     val colors = AppTheme.colors
+    val haptics = rememberHaptics()
+    var seen by remember { mutableStateOf(checked) }
+    LaunchedEffect(checked) {
+        if (checked != seen) haptics.play(if (checked) Haptic.TOGGLE_ON else Haptic.TOGGLE_OFF)
+        seen = checked
+    }
     Switch(
         checked = checked,
         onCheckedChange = null,

@@ -1,6 +1,5 @@
 package app.dirhamrub.ui.main
 
-import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -36,7 +35,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -51,7 +49,8 @@ import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.Key
 import app.dirhamrub.ui.theme.AppTheme
-import app.dirhamrub.ui.theme.LocalKeyHaptics
+import app.dirhamrub.ui.theme.Haptic
+import app.dirhamrub.ui.theme.rememberHaptics
 import app.dirhamrub.ui.theme.LocalReduceMotion
 
 /** Высота клавиш: на коротких экранах ниже, чтобы сумма и подсказки не уходили под прокрутку. */
@@ -91,7 +90,7 @@ fun Keypad(
         val ops = colors.surface2
         Column(verticalArrangement = Arrangement.spacedBy(KEY_GAP)) {
             Row(horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
-                KeyBase(stringResource(R.string.key_clear), ops, Modifier.size(w, h), onClick = { onKey(Key.Clear) }) {
+                KeyBase(stringResource(R.string.key_clear), ops, Modifier.size(w, h), tap = Haptic.THUD, onClick = { onKey(Key.Clear) }) {
                     Text("C", style = AppTheme.type.key.copy(fontSize = 19.sp, fontWeight = FontWeight.SemiBold), color = colors.muted)
                 }
                 IconKey(R.drawable.ic_times, stringResource(R.string.key_times), ops, Modifier.size(w, h)) { onKey(Key.Times) }
@@ -125,6 +124,7 @@ fun Keypad(
                         Modifier.size(w, tall),
                         onLongClick = { onKey(Key.Equals) },
                         longClickLabel = stringResource(R.string.key_equals),
+                        longTap = Haptic.CONFIRM,
                     ) { onKey(Key.Plus) }
                     CameraKey(Modifier.size(w, tall), onCamera, onCameraPlaced)
                 }
@@ -140,11 +140,13 @@ private fun KeyBase(
     modifier: Modifier,
     onLongClick: (() -> Unit)? = null,
     longClickLabel: String? = null,
+    /** Отклик на нажатие: цифры — тонкий [Haptic.KEY], действия — щелчок, «C» — «бум». */
+    tap: Haptic = Haptic.TICK,
+    longTap: Haptic = Haptic.THUD,
     onClick: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    val view = LocalView.current
-    val haptics = LocalKeyHaptics.current
+    val haptics = rememberHaptics()
     // Клавиша «проседает» при нажатии: даже короткий тап доигрывает нажатие, потом пружинит обратно.
     val source = remember { MutableInteractionSource() }
     val press = remember { Animatable(1f) }
@@ -172,12 +174,12 @@ private fun KeyBase(
                 indication = LocalIndication.current,
                 onLongClickLabel = longClickLabel,
                 onClick = {
-                    if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    haptics.play(tap)
                     onClick()
                 },
                 onLongClick = onLongClick?.let { action ->
                     {
-                        if (haptics) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        haptics.play(longTap)
                         action()
                     }
                 },
@@ -201,7 +203,7 @@ private fun KeyBase(
 @Composable
 private fun TextKey(label: String, description: String, modifier: Modifier, onClick: () -> Unit) {
     val colors = AppTheme.colors
-    KeyBase(description, colors.surface, modifier, onClick = onClick) {
+    KeyBase(description, colors.surface, modifier, tap = Haptic.KEY, onClick = onClick) {
         Text(label, style = AppTheme.type.key, color = colors.ink)
     }
 }
@@ -215,9 +217,10 @@ private fun IconKey(
     modifier: Modifier,
     onLongClick: (() -> Unit)? = null,
     longClickLabel: String? = null,
+    longTap: Haptic = Haptic.THUD,
     onClick: () -> Unit,
 ) {
-    KeyBase(description, background, modifier, onLongClick = onLongClick, longClickLabel = longClickLabel, onClick = onClick) {
+    KeyBase(description, background, modifier, onLongClick = onLongClick, longClickLabel = longClickLabel, longTap = longTap, onClick = onClick) {
         Icon(painterResource(icon), contentDescription = null, tint = AppTheme.colors.ink, modifier = Modifier.size(24.dp))
     }
 }

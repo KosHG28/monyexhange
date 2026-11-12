@@ -34,8 +34,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -86,6 +89,8 @@ import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.approximate
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.CardPalette
+import app.dirhamrub.ui.theme.Haptic
+import app.dirhamrub.ui.theme.rememberHaptics
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import java.math.BigDecimal
 import java.time.Instant
@@ -444,6 +449,14 @@ private fun PayList(state: MainUiState, cards: List<BankCard>, onSelect: (String
     val quote = state.quote
     val best = quote.best?.takeIf { quote.quotes.size > 1 }
     val selectedId = state.selectedCard?.id
+    val haptics = rememberHaptics()
+    // Самая выгодная сменилась (другая валюта, новый чек) — короткое нарастание и щелчок. При открытии — тихо.
+    val bestId = best?.card?.id
+    var seenBest by remember { mutableStateOf(bestId) }
+    LaunchedEffect(bestId) {
+        if (bestId != null && seenBest != null && bestId != seenBest) haptics.play(Haptic.BEST)
+        seenBest = bestId
+    }
     Column(Modifier.fillMaxWidth().selectableGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (card in cards) {
             val q = quote.of(card.id)
@@ -454,8 +467,18 @@ private fun PayList(state: MainUiState, cards: List<BankCard>, onSelect: (String
                 q = q,
                 best = best,
                 selected = selected,
-                onClick = { if (selected) onEdit(card) else onSelect(card.id) },
-                onLongClick = { onEdit(card) },
+                onClick = {
+                    if (selected) {
+                        onEdit(card)
+                    } else {
+                        haptics.play(Haptic.SELECT)
+                        onSelect(card.id)
+                    }
+                },
+                onLongClick = {
+                    haptics.play(Haptic.TICK)
+                    onEdit(card)
+                },
             )
         }
     }

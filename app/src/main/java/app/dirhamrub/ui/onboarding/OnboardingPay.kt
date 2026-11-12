@@ -56,6 +56,8 @@ import app.dirhamrub.ui.cards.ScreenshotButton
 import app.dirhamrub.ui.components.CurrencyDropdown
 import app.dirhamrub.ui.main.BankCardView
 import app.dirhamrub.ui.theme.AppTheme
+import app.dirhamrub.ui.theme.Haptic
+import app.dirhamrub.ui.theme.rememberHaptics
 import java.time.LocalDate
 
 /** Частые валюты карт: в «Списали» у валютной карты (кроме итоговой и валюты трат). */
@@ -88,6 +90,7 @@ internal fun ColumnScope.SetupStep(
     val colors = AppTheme.colors
     val type = AppTheme.type
     val template = remember { newCard() }
+    val haptics = rememberHaptics()
     var way by rememberSaveable { mutableStateOf(PayWay.HOME_CARD) }
     var cardCurrency by rememberSaveable { mutableStateOf(CARD_CURRENCIES.first { it != home && it != spend }) }
     var sentCurrency by rememberSaveable { mutableStateOf(home) }
@@ -122,7 +125,10 @@ internal fun ColumnScope.SetupStep(
                 stringResource(if (hasReceipt) R.string.onboarding_start else R.string.onboarding_without_receipt),
                 enter(6),
                 soft = !hasReceipt,
-            ) { onFinish(draft) }
+            ) {
+                haptics.play(if (hasReceipt) Haptic.CONFIRM else Haptic.TICK)
+                onFinish(draft)
+            }
         },
     ) {
         Title(stringResource(R.string.onboarding_setup_title), enter(0))

@@ -29,7 +29,7 @@ import app.dirhamrub.domain.ThemeMode
 /** true, если в системе отключены анимации («уменьшить анимацию»). */
 val LocalReduceMotion = staticCompositionLocalOf { false }
 
-/** Вибрация при нажатии клавиш калькулятора (настройка «Вибрация клавиш»). */
+/** Виброотклик в приложении (настройка «Виброотклик»): клавиши, выбор карты, камера, скриншоты — см. [Haptics]. */
 val LocalKeyHaptics = staticCompositionLocalOf { true }
 
 object AppTheme {

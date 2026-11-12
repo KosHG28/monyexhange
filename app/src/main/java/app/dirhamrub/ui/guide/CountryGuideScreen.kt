@@ -339,7 +339,7 @@ private fun flagBitmap(flag: String): ImageBitmap? {
 }
 
 private const val FLAG_BITMAP_PX = 256
-private val FLAG_BLUR = 2.dp
+private val FLAG_BLUR = 3.dp
 
 private val FLAG_SIZE = 280.dp
 

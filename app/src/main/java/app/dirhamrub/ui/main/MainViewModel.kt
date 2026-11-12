@@ -1,5 +1,6 @@
 package app.dirhamrub.ui.main
 
+import app.dirhamrub.domain.wallet.DeletedCard
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -296,9 +297,17 @@ class MainViewModel(
         refreshReceiptRates()
     }
 
-    fun deleteCard(id: String) = _state.update { s ->
-        val wallet = s.wallet.remove(id)
-        s.copy(wallet = wallet)
+    /** Удалить карту; что удалили — для «Вернуть». */
+    fun deleteCard(id: String): DeletedCard? {
+        val deleted = _state.value.wallet.deleted(id)
+        _state.update { s -> s.copy(wallet = s.wallet.remove(id)) }
+        return deleted
+    }
+
+    /** «Вернуть» после удаления: карта на прежнем месте. */
+    fun restoreCard(deleted: DeletedCard) {
+        _state.update { s -> s.copy(wallet = s.wallet.restore(deleted)) }
+        refreshReceiptRates()
     }
 
     /** Пустая карта для редактора: валюта трат по умолчанию — первая, которой ещё нет среди карт. */

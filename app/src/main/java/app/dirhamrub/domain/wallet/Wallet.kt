@@ -209,6 +209,20 @@ data class Wallet(
         return copy(cards = next, selectedId = selectedId?.takeIf { it != id })
     }
 
+    /** Удалённая карта [id] — чтобы вернуть её кнопкой «Вернуть»: сама карта, место в списке, была ли выбрана. */
+    fun deleted(id: String): DeletedCard? {
+        val i = cards.indexOfFirst { it.id == id }
+        if (i < 0) return null
+        return DeletedCard(cards[i], i, selectedId == id)
+    }
+
+    /** Вернуть удалённую карту на прежнее место (и выбор, если она была выбрана); уже есть — ничего. */
+    fun restore(deleted: DeletedCard): Wallet {
+        if (cards.any { it.id == deleted.card.id }) return this
+        val next = cards.toMutableList().apply { add(deleted.index.coerceIn(0, size), deleted.card) }
+        return copy(cards = next, selectedId = if (deleted.selected) deleted.card.id else selectedId)
+    }
+
     /** Свободный номер оформления для новой карты. */
     fun nextStyle(): Int = (0 until CARD_STYLES).firstOrNull { s -> cards.none { it.style == s } } ?: cards.size % CARD_STYLES
 
@@ -217,3 +231,6 @@ data class Wallet(
         const val RECENT = 6
     }
 }
+
+/** Только что удалённая карта: [index] — место в списке, [selected] — была ли выбрана. */
+data class DeletedCard(val card: BankCard, val index: Int, val selected: Boolean)

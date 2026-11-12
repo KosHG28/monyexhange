@@ -1,5 +1,22 @@
 package app.dirhamrub.ui.main
 
+import app.dirhamrub.ui.components.WavyProgress
+import kotlinx.coroutines.delay
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.AnimatedVisibility
+import app.dirhamrub.ui.components.TypingText
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.animation.core.Animatable
+import app.dirhamrub.ui.theme.topLight
+import app.dirhamrub.ui.theme.Springs
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.animateFloatAsState
 import app.dirhamrub.ui.components.flightOrigin
 import app.dirhamrub.ui.theme.sheen
 import androidx.compose.animation.core.RepeatMode
@@ -126,6 +143,9 @@ fun MainScreen(
     onEditCard: (BankCard) -> Unit,
     onAddReceipt: (BankCard) -> Unit,
     onAddCard: () -> Unit,
+    /** Меню «＋ Добавить»: наличные и карта сразу со скриншота банка. */
+    onAddCash: () -> Unit = onAddCard,
+    onAddFromScreenshot: () -> Unit = onAddCard,
     /** Касание итога — ввод в другой валюте (рубли ↔ валюта трат). */
     onSelectLine: (Line) -> Unit,
     /** Касание страны в шапке — полноэкранный выбор страны. */
@@ -190,7 +210,7 @@ fun MainScreen(
                 PayList(state, cards, onSelectCard, onEditCard)
             }
             CbrLine(state, onRefreshRates)
-            AddButton(onAddCard)
+            AddButton(onAddCard, onAddCash, onAddFromScreenshot)
             Spacer(Modifier.height(4.dp))
         }
         Column(Modifier.padding(horizontal = 16.dp)) {
@@ -302,6 +322,14 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
     val a11y = stringResource(R.string.hero_a11y, (if (approx) "≈ " else "") + number, currency.mark)
     val switchLabel = stringResource(if (homeInput) R.string.hero_switch_spend else R.string.hero_switch_home, state.wallet.spend.code)
     val maxSize = if (short) 72f else 92f
+    // Сумма сменилась — цифры на миг «наливаются»: становятся плотнее и возвращаются к тонким.
+    val pour = remember { Animatable(0f) }
+    val reducePour = LocalReduceMotion.current
+    LaunchedEffect(number) {
+        if (empty || reducePour) return@LaunchedEffect
+        pour.animateTo(1f, tween(POUR_IN_MS))
+        pour.animateTo(0f, Springs.effects())
+    }
     Box(
         Modifier
             .fillMaxWidth()
@@ -329,7 +357,7 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
                     HeroPart("≈", style, size * SIGN_SCALE, colors.muted)
                     Spacer(Modifier.width((size * 0.12f).dp))
                 }
-                HeroPart(number, style, size, colors.ink)
+                HeroPart(number, style, size, colors.ink, pour = pour.value)
                 Spacer(Modifier.width((size * 0.12f).dp))
                 HeroPart(sign, style, size * SIGN_SCALE, if (empty) colors.ink else colors.muted)
             }
@@ -341,19 +369,24 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
 private const val SIGN_SCALE = 0.6f
 
 @Composable
-private fun HeroPart(text: String, style: TextStyle, sizeSp: Float, color: androidx.compose.ui.graphics.Color) {
-    Text(
-        text,
-        style = style.copy(
-            fontSize = sizeSp.sp,
-            lineHeight = sizeSp.sp,
-            lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
-        ),
-        color = color,
-        maxLines = 1,
-        softWrap = false,
+private fun HeroPart(text: String, style: TextStyle, sizeSp: Float, color: androidx.compose.ui.graphics.Color, pour: Float = 0f) {
+    val partStyle = style.copy(
+        fontSize = sizeSp.sp,
+        lineHeight = sizeSp.sp,
+        lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
     )
+    Box {
+        Text(text, style = partStyle, color = color, maxLines = 1, softWrap = false)
+        // «Наливается»: поверх — те же цифры обводкой того же начертания; ширина обводки — до 3 % кегля.
+        if (pour > 0.01f) {
+            val width = with(LocalDensity.current) { (sizeSp * POUR_STROKE * pour).sp.toPx() }
+            Text(text, style = partStyle.copy(drawStyle = Stroke(width = width)), color = color, maxLines = 1, softWrap = false)
+        }
+    }
 }
+
+private const val POUR_IN_MS = 90
+private const val POUR_STROKE = 0.03f
 
 /** Размер шрифта, при котором [text] помещается в одну строку по ширине: от [maxSp] вниз до [minSp]. */
 @Composable
@@ -400,7 +433,8 @@ private fun PriceField(state: MainUiState, covered: Boolean) {
             else -> 32.sp
         }
         Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
-            Text(value, style = type.number.copy(fontSize = size, lineHeight = size * 1.2f), color = colors.ink, maxLines = 1, softWrap = false)
+            // Набранная цифра «впрыгивает» с пружинкой, стёртая сжимается и гаснет (Material 3 Expressive).
+            TypingText(value, style = type.number.copy(fontSize = size, lineHeight = size * 1.2f), color = colors.ink)
             Caret(size.value, paused = covered)
             Spacer(Modifier.width(6.dp))
             Text(currency.code, style = type.bodyStrong.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium), color = colors.muted, maxLines = 1)
@@ -558,12 +592,26 @@ private fun PayRow(
     }
     val a11y = stringResource(R.string.pay_row_a11y, card.name, sub, right)
     val editLabel = stringResource(R.string.card_edit_a11y)
+    // Выбранный способ пружинисто «приподнимается»: чуть крупнее, с мягкой тенью (Material 3 Expressive).
+    val lift by animateFloatAsState(
+        if (selected) 1f else 0f,
+        if (LocalReduceMotion.current) snap() else Springs.fastSpatial(),
+        label = "payLift",
+    )
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 58.dp)
+            .graphicsLayer {
+                val s = 1f + LIFT_SCALE * lift
+                scaleX = s
+                scaleY = s
+                shadowElevation = LIFT_SHADOW.toPx() * lift.coerceIn(0f, 1f)
+                this.shape = shape
+            }
             .clip(shape)
             .background(bg)
+            .topLight()
             // Синяя обводка — только у выбранного вручную; лучший и так выделен зелёным.
             .then(if (selected && !isBest) Modifier.border(1.5.dp, colors.accent, shape) else Modifier)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = editLabel)
@@ -703,6 +751,7 @@ private fun CbrLine(state: MainUiState, onRefresh: () -> Unit) {
             .clickable(role = Role.Button, onClickLabel = refresh, onClick = onRefresh)
             .padding(vertical = 8.dp),
     )
+    if (state.ratesLoading) WavyProgress(Modifier.padding(horizontal = 48.dp))
 }
 
 /** «сегодня 09:40», «вчера 18:02», «3 ноя»; ещё не скачивали — null. */
@@ -725,21 +774,90 @@ internal fun rateSides(homePerUnit: BigDecimal, spend: Currency, home: Currency)
     return "${Numbers.moneyWhole(unit)} ${spend.code}" to "${Numbers.rateShort(homePerUnit.multiply(unit, MC))} ${home.mark}"
 }
 
-/** Призрачная кнопка «＋ Добавить карту или наличные» — без рамки и подложки. */
+/**
+ * «＋ Добавить» (Material 3 Expressive): призрачная кнопка раскрывается веером из трёх плиток — «Карта»,
+ * «Наличные», «Из скриншота банка»; плюс поворачивается в крестик, плитки выпрыгивают пружиной по очереди.
+ */
 @Composable
-private fun AddButton(onAdd: () -> Unit) {
+private fun AddButton(onCard: () -> Unit, onCash: () -> Unit, onScreenshot: () -> Unit) {
     val colors = AppTheme.colors
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(role = Role.Button, onClick = onAdd),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(painterResource(R.drawable.ic_plus), contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(stringResource(R.string.money_add_short), style = AppTheme.type.bodyStrong.copy(fontWeight = FontWeight.Medium), color = colors.accent)
+    val reduceMotion = LocalReduceMotion.current
+    var open by remember { mutableStateOf(false) }
+    val turn by animateFloatAsState(if (open) 45f else 0f, if (reduceMotion) snap() else Springs.fastSpatial(), label = "addTurn")
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .clickable(role = Role.Button, onClickLabel = stringResource(if (open) R.string.add_menu_close else R.string.add_menu_open)) { open = !open },
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_plus),
+                contentDescription = null,
+                tint = colors.accent,
+                modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = turn },
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(R.string.money_add_short), style = AppTheme.type.bodyStrong.copy(fontWeight = FontWeight.Medium), color = colors.accent)
+        }
+        AnimatedVisibility(
+            visible = open,
+            enter = if (reduceMotion) EnterTransition.None else expandVertically(Springs.spatial()) + fadeIn(Springs.effects()),
+            exit = if (reduceMotion) ExitTransition.None else shrinkVertically(Springs.exit()) + fadeOut(Springs.fastEffects()),
+        ) {
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val items = listOf(
+                    Triple(R.drawable.ic_card, R.string.add_menu_card, onCard),
+                    Triple(R.drawable.ic_cash, R.string.add_menu_cash, onCash),
+                    Triple(R.drawable.ic_scan, R.string.add_menu_screenshot, onScreenshot),
+                )
+                items.forEachIndexed { i, (icon, label, action) ->
+                    val appear = remember { Animatable(if (reduceMotion) 1f else 0f) }
+                    LaunchedEffect(Unit) {
+                        if (!reduceMotion) {
+                            delay(i * ADD_STAGGER_MS)
+                            appear.animateTo(1f, Springs.fastSpatial())
+                        }
+                    }
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .graphicsLayer {
+                                val a = appear.value
+                                scaleX = 0.6f + 0.4f * a
+                                scaleY = 0.6f + 0.4f * a
+                                alpha = a.coerceIn(0f, 1f)
+                            }
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(colors.accentSoft)
+                            .clickable(role = Role.Button) {
+                                open = false
+                                action()
+                            }
+                            .padding(vertical = 12.dp, horizontal = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Icon(painterResource(icon), contentDescription = null, tint = colors.accent, modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(label),
+                            style = AppTheme.type.caption.copy(fontSize = 12.5.sp, fontWeight = FontWeight.Medium),
+                            color = colors.accent,
+                            textAlign = TextAlign.Center,
+                            maxLines = 2,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
+
+private const val ADD_STAGGER_MS = 45L
+
+/** Насколько приподнимается выбранная строка способа оплаты. */
+private const val LIFT_SCALE = 0.015f
+private val LIFT_SHADOW = 6.dp

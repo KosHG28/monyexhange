@@ -1,5 +1,7 @@
 package app.dirhamrub.ui.cards
 
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -140,6 +142,8 @@ fun CardEditorScreen(
     rounding: Rounding = Rounding.WHOLE,
     /** Перелёт с главного: мини-карта строки вырастает в карточку-предпросмотр (null — экран выезжает снизу). */
     morph: CardMorph? = null,
+    /** Сразу открыть выбор скриншота банка (меню «＋ Добавить» → «Из скриншота банка»). */
+    startScan: Boolean = false,
 ) {
     val previewAmount = amount.takeIf { it.signum() > 0 } ?: PREVIEW_AMOUNT
     val colors = AppTheme.colors
@@ -208,6 +212,10 @@ fun CardEditorScreen(
     // Пополнение у новой карты — сначала заглушка с кнопкой «+ Добавить пополнение».
     var transferOpen by remember(card.id) { mutableStateOf(card.transfer != null || card.history.isNotEmpty() || kind == CardKind.CASH) }
     var confirmDelete by remember(card.id) { mutableStateOf(false) }
+    // Коснулись корзины коротко — подсказка «держите, чтобы удалить».
+    var holdHint by remember(card.id) { mutableStateOf(false) }
+    // Сохраняем: кнопка показывает «✓», потом экран закрывается с этой картой.
+    var pendingSave by remember(card.id) { mutableStateOf<BankCard?>(null) }
     // Нажали «Сохранить», а в чеке заполнена только одна сумма из двух — подсвечиваем вторую, шторку не закрываем.
     var showErrors by remember(card.id) { mutableStateOf(false) }
     var cardPicker by remember(card.id) { mutableStateOf(false) }
@@ -254,6 +262,9 @@ fun CardEditorScreen(
             scan = if (receipt == null) ScanResult.NotFound else ScanResult.Found(receipt)
             haptics.play(if (receipt == null) Haptic.REJECT else Haptic.CONFIRM)
         }
+    }
+    LaunchedEffect(card.id, startScan) {
+        if (startScan) pickScreenshot.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     }
 
     val defaultName = stringResource(if (cash) R.string.cash_default_name else R.string.card_default_name, currency.code)
@@ -321,6 +332,12 @@ fun CardEditorScreen(
 
     FullScreen(onDismissRequest = onDismiss, interceptBack = { dirty().also { if (it) confirmExit = true } }, morph = morph) {
       screen[0] = this
+      val saveReduce = LocalReduceMotion.current
+      LaunchedEffect(pendingSave) {
+          val result = pendingSave ?: return@LaunchedEffect
+          if (!saveReduce) delay(SAVE_HOLD_MS)
+          close { onSave(result) }
+      }
       Column(Modifier.fillMaxSize()) {
         ScreenBar(
             onBack = { back() },
@@ -334,17 +351,29 @@ fun CardEditorScreen(
             ),
         ) {
             if (!isNew) {
-                Icon(
-                    painterResource(R.drawable.ic_delete),
-                    contentDescription = stringResource(if (cash) R.string.editor_delete_cash else R.string.editor_delete),
-                    tint = colors.muted,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .clickable(role = Role.Button) { confirmDelete = true }
-                        .padding(12.dp),
+                // Удаление удержанием: держите корзину 1 с; TalkBack — через окно подтверждения.
+                HoldDeleteButton(
+                    description = stringResource(if (cash) R.string.editor_delete_cash else R.string.editor_delete),
+                    onDelete = { close(onDelete) },
+                    onTapHint = { holdHint = true },
+                    onAccessibleDelete = { confirmDelete = true },
                 )
             }
+        }
+        if (holdHint) {
+            LaunchedEffect(Unit) {
+                delay(HINT_MS)
+                holdHint = false
+            }
+            Text(
+                stringResource(R.string.delete_hold_hint),
+                style = type.caption.copy(fontSize = 13.sp),
+                color = colors.muted,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp)
+                    .semantics { liveRegion = LiveRegionMode.Polite },
+            )
         }
         // Блоки редактора появляются каскадом.
         val cascade = rememberCascade()
@@ -730,25 +759,20 @@ fun CardEditorScreen(
                 )
                 Spacer(Modifier.height(8.dp))
             }
-            Button(
+            // «Сохранить» (Material 3 Expressive): нажали — кнопка сжимается в круг с «✓», чуть держит его и
+            // только потом экран закрывается: видно, что сохранилось. Ошибки — подсвечиваем, кнопку не блокируем.
+            SaveButton(
+                saving = pendingSave != null,
                 onClick = {
-                    // Не блокируем кнопку (серая не объясняет, что не так): подсвечиваем ошибки, поле с первой
-                    // само прокручивается в видимую часть.
                     if (invalid()) {
                         showErrors = true
                         haptics.play(Haptic.REJECT)
                     } else {
-                        val result = build()
                         haptics.play(Haptic.CONFIRM)
-                        close { onSave(result) }
+                        pendingSave = build()
                     }
                 },
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = colors.accent, contentColor = colors.onAccent),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 52.dp),
-            ) { Text(stringResource(R.string.save), style = type.bodyStrong.copy(fontSize = 16.sp)) }
+            )
         }
       }
     }
@@ -827,6 +851,12 @@ private val EXCHANGE_FROM = listOf(Currency.RUB, Currency.USD, Currency.EUR, Cur
 private const val EDITOR_CHIPS = 4
 
 /** Карточка-предпросмотр в редакторе. */
+/** Сколько «✓» на кнопке держится перед закрытием экрана. */
+private const val SAVE_HOLD_MS = 450L
+
+/** Сколько видна подсказка «держите корзину». */
+private const val HINT_MS = 2200L
+
 private val PREVIEW_WIDTH = 190.dp
 private val PREVIEW_HEIGHT = 100.dp
 private val PREVIEW_AMOUNT = BigDecimal(100)

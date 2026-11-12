@@ -1,5 +1,11 @@
 package app.dirhamrub.ui.cards
 
+import app.dirhamrub.ui.components.WavyProgress
+import app.dirhamrub.ui.theme.Springs
+import app.dirhamrub.ui.theme.LocalReduceMotion
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.animateFloatAsState
 import app.dirhamrub.ui.components.ButtonGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -269,6 +275,7 @@ internal fun ScreenshotButton(result: ScanResult?, card: Currency, onClick: (() 
             )
         }
     }
+    if (result == ScanResult.Reading) WavyProgress(Modifier.padding(top = 6.dp))
     if (message != null) {
         Text(
             text = message,
@@ -354,6 +361,41 @@ internal fun NfcHint(result: NfcRead?) {
         )
     }
 }
+
+/**
+ * «Сохранить»: во всю ширину; [saving] — сжимается в круг 52 dp с «✓» (пружиной), нажать больше нельзя.
+ */
+@Composable
+internal fun SaveButton(saving: Boolean, onClick: () -> Unit) {
+    val colors = AppTheme.colors
+    val reduceMotion = LocalReduceMotion.current
+    val shrink by animateFloatAsState(if (saving) 1f else 0f, if (reduceMotion) snap() else Springs.spatial(), label = "save")
+    BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        val full = maxWidth
+        val k = shrink.coerceIn(0f, 1.05f)
+        val width = full - (full - SAVE_HEIGHT) * k
+        val label = stringResource(R.string.save)
+        val done = stringResource(R.string.saved_a11y)
+        Box(
+            Modifier
+                .width(width.coerceAtLeast(SAVE_HEIGHT))
+                .height(SAVE_HEIGHT)
+                .clip(RoundedCornerShape(14.dp + (SAVE_HEIGHT / 2 - 14.dp) * k.coerceAtMost(1f)))
+                .background(colors.accent)
+                .clickable(enabled = !saving, role = Role.Button, onClick = onClick)
+                .semantics { contentDescription = if (saving) done else label },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (shrink < 0.5f) {
+                Text(label, style = AppTheme.type.bodyStrong.copy(fontSize = 16.sp), color = colors.onAccent, maxLines = 1)
+            } else {
+                Text("✓", style = AppTheme.type.bodyStrong.copy(fontSize = 22.sp), color = colors.onAccent)
+            }
+        }
+    }
+}
+
+private val SAVE_HEIGHT = 52.dp
 
 @Composable
 internal fun Hint(text: String) {

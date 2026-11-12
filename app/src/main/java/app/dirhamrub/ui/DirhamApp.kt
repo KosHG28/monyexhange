@@ -1,5 +1,7 @@
 package app.dirhamrub.ui
 
+import app.dirhamrub.ui.components.UndoBar
+import app.dirhamrub.domain.wallet.DeletedCard
 import app.dirhamrub.ui.theme.Springs
 import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.ui.components.LocalCardFlight
@@ -33,6 +35,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -81,6 +84,8 @@ private data class Editing(
     val addPurchase: Currency? = null,
     /** Перелёт карты из строки главного в настройку (null — экран выезжает снизу). */
     val morph: CardMorph? = null,
+    /** Сразу открыть выбор скриншота банка («＋ Добавить» → «Из скриншота банка»). */
+    val scan: Boolean = false,
 )
 
 /** Страна сотовой сети («KZ»); без SIM, в авиарежиме или на планшете — null. Интернет не нужен. */
@@ -138,6 +143,8 @@ fun DirhamApp(
     val context = LocalContext.current
     // Где на главном мини-карты строк — из них карта «перелетает» в настройку.
     val cardFlight = LocalCardFlight.current
+    // Только что удалённая карта — для «Вернуть» (5 секунд).
+    var undo by remember { mutableStateOf<DeletedCard?>(null) }
     // Страну сети перечитываем при каждом возвращении в приложение: прилетели — подсказка уже на месте.
     var country by remember { mutableStateOf<String?>(null) }
     // Страну сети уже прочитали (null после этого — российская SIM или её нет).
@@ -225,6 +232,8 @@ fun DirhamApp(
         },
         onAddReceipt = { editing = Editing(it, isNew = false, addPurchase = state.wallet.spend) },
         onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
+        onAddCash = { editing = Editing(vm.newCard().copy(kind = CardKind.CASH, currency = state.wallet.spend), isNew = true) },
+        onAddFromScreenshot = { editing = Editing(vm.newCard(), isNew = true, scan = true) },
         onSelectLine = vm::setActive,
         onOpenCountries = { currenciesOpen = true },
         onOpenPlace = { guideOpen = true },
@@ -367,6 +376,16 @@ fun DirhamApp(
             )
         }
     }
+    UndoBar(
+        visible = undo != null,
+        text = stringResource(if (undo?.card?.kind == CardKind.CASH) R.string.undo_cash_deleted else R.string.undo_card_deleted),
+        action = stringResource(R.string.undo_action),
+        onUndo = {
+            undo?.let(vm::restoreCard)
+            undo = null
+        },
+        onTimeout = { undo = null },
+    )
     editing?.let { e ->
       key(e) {
         CardEditorScreen(
@@ -383,7 +402,7 @@ fun DirhamApp(
                 cardFlight.flying = null
             },
             onDelete = {
-                vm.deleteCard(e.card.id)
+                undo = vm.deleteCard(e.card.id)
                 editing = null
                 cardFlight.flying = null
             },
@@ -395,6 +414,7 @@ fun DirhamApp(
             amount = state.totals.spend,
             rounding = state.settings.rounding,
             morph = e.morph,
+            startScan = e.scan,
         )
       }
     }

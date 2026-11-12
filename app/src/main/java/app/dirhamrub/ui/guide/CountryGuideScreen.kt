@@ -1,5 +1,6 @@
 package app.dirhamrub.ui.guide
 
+import app.dirhamrub.ui.theme.topLight
 import android.content.Intent
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
@@ -423,7 +424,8 @@ private fun Group(content: @Composable () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(AppTheme.colors.surface),
+            .background(AppTheme.colors.surface)
+            .topLight(),
     ) { content() }
 }
 

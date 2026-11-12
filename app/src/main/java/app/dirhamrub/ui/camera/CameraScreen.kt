@@ -574,13 +574,9 @@ private fun CameraContent(
             TopControls(
                 wallet = wallet,
                 viaUnionPay = quote.viaUnionPay,
-                torch = torch,
-                paused = paused,
                 embedded = embedded,
                 onBack = onBack,
                 onSelectCard = onSelectCard,
-                onTorch = { torch = !torch },
-                onPause = { paused = !paused },
                 onToggleMode = {
                     onEmbeddedChange(!embedded)
                     modeToast = !embedded
@@ -610,16 +606,17 @@ private fun CameraContent(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (!paused) {
-                ZoomChips(
-                    zoom,
-                    onZoom = {
-                        userZoomed = true
-                        camera.setZoomRatio(it)
-                    },
-                    modifier = Modifier.align(Alignment.End),
-                )
-            }
+            CameraToolbar(
+                zoom = zoom,
+                onZoom = {
+                    userZoomed = true
+                    camera.setZoomRatio(it)
+                },
+                torch = torch,
+                paused = paused,
+                onTorch = { torch = !torch },
+                onPause = { paused = !paused },
+            )
             // Подробности — у одной цены, ближайшей к центру: на самом кадре только короткие плашки.
             // Карточка выезжает снизу с лёгкой пружинкой; пока уезжает — показывает последнюю цену.
             val reduceMotion = LocalReduceMotion.current

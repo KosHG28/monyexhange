@@ -263,7 +263,9 @@ private const val HEADER_SP = 40f
 private fun FlagBackdrop(flag: String, modifier: Modifier = Modifier) {
     val dark = AppTheme.colors.isDark
     val size = FLAG_SIZE
-    val fontSize = with(LocalDensity.current) { (size * 0.82f).toSp() }
+    // Глиф эмодзи — обычного размера, растягивается слоем: огромный шрифт (сотни sp) тяжёл для отрисовки,
+    // а для растворённого фона лёгкая размытость при увеличении даже к лучшему.
+    val fontSize = with(LocalDensity.current) { (size * 0.82f / FLAG_SCALE).toSp() }
     Box(
         modifier
             .offset(x = size * 0.32f, y = -size * 0.25f)
@@ -289,11 +291,22 @@ private fun FlagBackdrop(flag: String, modifier: Modifier = Modifier) {
             },
         contentAlignment = Alignment.Center,
     ) {
-        Text(flag, fontSize = fontSize, lineHeight = fontSize, maxLines = 1, softWrap = false)
+        Text(
+            flag,
+            fontSize = fontSize,
+            lineHeight = fontSize,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.graphicsLayer {
+                scaleX = FLAG_SCALE
+                scaleY = FLAG_SCALE
+            },
+        )
     }
 }
 
 private val FLAG_SIZE = 280.dp
+private const val FLAG_SCALE = 4f
 
 /** «Сообщить о неточности» / «Подсказать, что добавить»: задача в GitHub с готовым текстом. */
 @Composable

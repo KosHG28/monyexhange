@@ -98,7 +98,6 @@ shot 26-onb-4-currencies --es screen onboarding --ei step 3
 shot 27-onb-5-pay --es screen onboarding --ei step 4
 # «Карты и наличные» (из настроек).
 shot 31-cards --es screen money
-# Шторку страны «Чем платить» (флаг фоном — крупный эмодзи) эмулятор CI не тянет: отключается — её не снимаем.
 shot 41-main-amd --es spend AMD
 # Марокко: валютой платят и в Западной Сахаре — в шапке страна, а не валюта.
 shot 42-main-mad --es spend MAD
@@ -144,6 +143,16 @@ sleep 12
   sleep 3
   adb shell dumpsys gfxinfo "$PKG" | grep -E "Total frames|Janky frames|percentile|Number"
 } | tee "$OUT/jank.txt"
+
+# Экран страны «Чем платить» — в конце: флаг фоном рисуется маленькой картинкой с размытием
+# (крупный эмодзи отключал эмулятор); если эмулятор всё же отключится, остальные снимки уже сделаны.
+adb shell cmd uimode night yes
+shot 30-guide --es screen guide
+shot 40-guide-amd --es spend AMD --es screen guide
+adb shell cmd uimode night no
+shot 46-guide-jpy-light --es spend JPY --es screen guide
+shot 47-guide-byn-light --es spend BYN --es screen guide
+adb shell cmd uimode night yes
 
 # Первый запуск: данные стёрты — знакомство.
 adb shell pm clear "$PKG"

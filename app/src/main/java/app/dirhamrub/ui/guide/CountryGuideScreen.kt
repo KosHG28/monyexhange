@@ -3,6 +3,16 @@ package app.dirhamrub.ui.guide
 import android.content.Intent
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
+import android.os.Build
+import kotlin.math.roundToInt
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.foundation.Canvas
 import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.ui.components.FullScreen
 import app.dirhamrub.ui.components.ScreenBar
@@ -15,9 +25,7 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.runtime.remember
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -256,43 +264,82 @@ private fun Header(country: String, currency: Currency) {
 private const val HEADER_SP = 40f
 
 /**
- * Флаг страны фоном: крупный, уходит за правый и верхний край, растворяется радиальной маской от угла
- * (35 % → 0 к середине экрана — текст слева всегда на чистом фоне). В светлой теме — наложение «умножение»:
- * белые поля флага (Япония, Кипр) пропадают на светлом фоне, а не становятся пятном.
+ * Флаг страны фоном: мягкое цветное пятно в правом верхнем углу экрана, растворяется радиальной маской от угла
+ * (35 % → 0 к середине — текст слева всегда на чистом фоне). Эмодзи — маленькая картинка (~136 px), растянутая
+ * текстом на полэкрана она рассыпается на пиксели (и тяжела для отрисовки). Поэтому флаг рисуется маленьким,
+ * обрезается по самому флагу и растягивается со сглаживанием и размытием: это цветовой фон, а не рисунок.
+ * В светлой теме — наложение «умножение»: белые поля флага (Япония, Кипр) пропадают на светлом фоне.
  */
 @Composable
 private fun FlagBackdrop(flag: String, modifier: Modifier = Modifier) {
     val dark = AppTheme.colors.isDark
-    val size = FLAG_SIZE
-    val fontSize = with(LocalDensity.current) { (size * 0.82f).toSp() }
-    Box(
+    val image = remember(flag) { flagBitmap(flag) } ?: return
+    val blur = with(LocalDensity.current) { FLAG_BLUR.toPx() }
+    Canvas(
         modifier
-            .offset(x = size * 0.2f, y = -size * 0.04f)
-            .size(size)
+            .size(FLAG_SIZE)
             .clearAndSetSemantics { }
             .graphicsLayer {
                 compositingStrategy = CompositingStrategy.Offscreen
                 if (!dark) blendMode = BlendMode.Multiply
-            }
-            .drawWithContent {
-                drawContent()
-                drawRect(
-                    brush = Brush.radialGradient(
-                        0f to Color.Black.copy(alpha = 0.35f),
-                        0.28f to Color.Black.copy(alpha = 0.30f),
-                        0.5f to Color.Black.copy(alpha = 0.12f),
-                        0.68f to Color.Transparent,
-                        center = Offset(this.size.width, 0f),
-                        radius = this.size.maxDimension,
-                    ),
-                    blendMode = BlendMode.DstIn,
-                )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) renderEffect = BlurEffect(blur, blur, TileMode.Clamp)
             },
-        contentAlignment = Alignment.Center,
     ) {
-        Text(flag, fontSize = fontSize, lineHeight = fontSize, maxLines = 1, softWrap = false)
+        // Флаг «накрывает» угол: по высоте чуть больше квадрата, правым краем — за край экрана.
+        val h = size.height * 1.05f
+        val w = h * image.width / image.height
+        drawImage(
+            image,
+            dstOffset = IntOffset((size.width - w * 0.82f).roundToInt(), (-size.height * 0.08f).roundToInt()),
+            dstSize = IntSize(w.roundToInt(), h.roundToInt()),
+            filterQuality = FilterQuality.High,
+        )
+        drawRect(
+            brush = Brush.radialGradient(
+                0f to Color.Black.copy(alpha = 0.35f),
+                0.3f to Color.Black.copy(alpha = 0.30f),
+                0.55f to Color.Black.copy(alpha = 0.12f),
+                0.78f to Color.Transparent,
+                center = Offset(size.width, 0f),
+                radius = size.width,
+            ),
+            blendMode = BlendMode.DstIn,
+        )
     }
 }
+
+/** Эмодзи флага, нарисованный маленьким и обрезанный по непрозрачной части (без полей шрифта); null — пусто. */
+private fun flagBitmap(flag: String): ImageBitmap? {
+    val px = FLAG_BITMAP_PX
+    val full = android.graphics.Bitmap.createBitmap(px, px, android.graphics.Bitmap.Config.ARGB_8888)
+    val paint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = px * 0.75f
+        textAlign = android.graphics.Paint.Align.CENTER
+    }
+    val metrics = paint.fontMetrics
+    android.graphics.Canvas(full).drawText(flag, px / 2f, px / 2f - (metrics.ascent + metrics.descent) / 2f, paint)
+    var left = px
+    var top = px
+    var right = -1
+    var bottom = -1
+    val row = IntArray(px)
+    for (y in 0 until px) {
+        full.getPixels(row, 0, px, 0, y, px, 1)
+        for (x in 0 until px) {
+            if ((row[x] ushr 24) > 40) {
+                if (x < left) left = x
+                if (x > right) right = x
+                if (y < top) top = y
+                if (y > bottom) bottom = y
+            }
+        }
+    }
+    if (right < left || bottom < top) return null
+    return android.graphics.Bitmap.createBitmap(full, left, top, right - left + 1, bottom - top + 1).asImageBitmap()
+}
+
+private const val FLAG_BITMAP_PX = 96
+private val FLAG_BLUR = 6.dp
 
 private val FLAG_SIZE = 280.dp
 

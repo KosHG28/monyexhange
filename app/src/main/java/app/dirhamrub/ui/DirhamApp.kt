@@ -1,5 +1,12 @@
 package app.dirhamrub.ui
 
+import kotlinx.coroutines.delay
+import app.dirhamrub.widget.QuoteWidget
+import app.dirhamrub.ui.pro.ProScreen
+import app.dirhamrub.domain.AppIcon
+import app.dirhamrub.data.StubProBilling
+import app.dirhamrub.data.ReceiptShots
+import app.dirhamrub.data.ProFeatures
 import app.dirhamrub.ui.theme.Springs
 import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.ui.components.LocalCardFlight
@@ -81,6 +88,8 @@ private data class Editing(
     val addPurchase: Currency? = null,
     /** Перелёт карты из строки главного в настройку (null — экран выезжает снизу). */
     val morph: CardMorph? = null,
+    /** Сразу открыть выбор скриншота банка (Pro: ярлык «Чек из скриншота»). */
+    val scan: Boolean = false,
 )
 
 /** Страна сотовой сети («KZ»); без SIM, в авиарежиме или на планшете — null. Интернет не нужен. */
@@ -109,6 +118,8 @@ fun DirhamApp(
     startScreen: String? = null,
     startCard: String? = null,
     startStep: Int = 0,
+    /** Ярлык «Вернуться в …» (Pro): код валюты трат. */
+    startCurrency: String? = null,
     vm: MainViewModel = viewModel(factory = MainViewModel.Factory),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -119,12 +130,22 @@ fun DirhamApp(
     var currenciesOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CURRENCIES) }
     var cameraOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CAMERA) }
     var settingsOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_SETTINGS) }
+    // «Курс по чеку Pro» — из настроек, из закрытых Pro-строк и с виджета без Pro.
+    var proOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_PRO) }
     // Снимки CI: знакомство поверх демо-данных, с нужного шага.
     var onboardingForced by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_ONBOARDING) }
     // Знакомство открыли повторно из настроек: валюту трат по стране сети уже не подставляем.
     var onboardingReshown by rememberSaveable { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Editing?>(null) }
     var cameraOrigin by remember { mutableStateOf<Offset?>(null) }
+    // Pro: ярлыки «Чек из скриншота» и «Вернуться в …» — сразу после загрузки.
+    LaunchedEffect(state.loaded) {
+        if (!state.loaded || !state.settings.pro) return@LaunchedEffect
+        when (startScreen) {
+            MainActivity.SCREEN_SCAN -> editing = Editing(vm.newCard(), isNew = true, scan = true)
+            MainActivity.SCREEN_SPEND -> Currency.entries.firstOrNull { it.code == startCurrency }?.let { vm.setSpend(it) }
+        }
+    }
     // Скриншоты CI: сразу редактор выбранной карты.
     LaunchedEffect(state.loaded) {
         if (state.loaded && startScreen == MainActivity.SCREEN_EDITOR) {
@@ -297,6 +318,10 @@ fun DirhamApp(
                     vm.restartOnboarding()
                 },
                 onCards = { moneyOpen = true },
+                onOpenPro = { proOpen = true },
+                proPrice = StubProBilling.price,
+                onDynamicColor = vm::setDynamicColor,
+                onAppIcon = vm::setAppIcon,
             ),
         )
     }
@@ -384,6 +409,7 @@ fun DirhamApp(
             },
             onDelete = {
                 vm.deleteCard(e.card.id)
+                ReceiptShots.deleteCard(context, e.card.id)
                 editing = null
                 cardFlight.flying = null
             },
@@ -395,8 +421,35 @@ fun DirhamApp(
             amount = state.totals.spend,
             rounding = state.settings.rounding,
             morph = e.morph,
+            pro = state.settings.pro,
+            startScan = e.scan,
         )
       }
+    }
+    if (proOpen) {
+        ProScreen(
+            pro = state.settings.pro,
+            billing = StubProBilling,
+            onBought = { vm.setPro(true) },
+            onReset = { vm.setPro(false) },
+            onDismiss = { proOpen = false },
+        )
+    }
+    // Pro вне экрана: значок на рабочем столе, ярлыки на нём, виджет. Без Pro — всё по-обычному.
+    if (state.loaded) {
+        val pro = state.settings.pro
+        LaunchedEffect(pro, state.settings.appIcon) {
+            ProFeatures.applyAppIcon(context, if (pro) state.settings.appIcon else AppIcon.CLASSIC)
+        }
+        LaunchedEffect(pro, state.wallet.spend, state.wallet.recent) {
+            ProFeatures.updateShortcuts(context, pro, state.wallet.spend, state.wallet.recent)
+        }
+        LaunchedEffect(pro, state.wallet, state.reference) {
+            // Кошелёк сохраняется чуть позже — виджет перечитывает его после паузы.
+            delay(WIDGET_REFRESH_DELAY_MS)
+            QuoteWidget.refresh(context)
+        }
+        LaunchedEffect(Unit) { ReceiptShots.cleanup(context, state.wallet.cards.map { it.id }.toSet()) }
     }
 }
 
@@ -408,3 +461,6 @@ private class CircleReveal(private val center: Offset, private val radius: Float
 
 /** Камера начинает раскрываться с круга размером с палец. */
 private val START_RADIUS = 24.dp
+
+/** Через сколько после изменения кошелька обновить виджет (кошелёк к этому времени сохранён). */
+private const val WIDGET_REFRESH_DELAY_MS = 1500L

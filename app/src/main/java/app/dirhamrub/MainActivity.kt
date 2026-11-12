@@ -50,13 +50,15 @@ class MainActivity : ComponentActivity() {
             val motion by remember { derivedStateOf { state.value.settings.motion } }
             val keyHaptics by remember { derivedStateOf { state.value.settings.keyHaptics } }
             val pureBlack by remember { derivedStateOf { state.value.settings.pureBlack } }
-            DirhamTheme(theme = theme, motion = motion, keyHaptics = keyHaptics, pureBlack = pureBlack) {
+            val dynamicColor by remember { derivedStateOf { state.value.settings.let { it.pro && it.dynamicColor } } }
+            DirhamTheme(theme = theme, motion = motion, keyHaptics = keyHaptics, pureBlack = pureBlack, dynamicColor = dynamicColor) {
                 // Наклон телефона — для блика на картах (флагманы, Android 13+).
                 ProvideTilt {
                     DirhamApp(
                         startScreen = screen,
                         startCard = intent?.getStringExtra(EXTRA_CARD),
                         startStep = intent?.getIntExtra(EXTRA_STEP, 0) ?: 0,
+                        startCurrency = intent?.getStringExtra(EXTRA_CURRENCY),
                         vm = vm,
                     )
                 }
@@ -82,6 +84,16 @@ class MainActivity : ComponentActivity() {
         const val SCREEN_SETTINGS = "settings"
         const val SCREEN_GUIDE = "guide"
         const val SCREEN_MONEY = "money"
+
+        /** Pro: ярлык «Чек из скриншота» — новая карта и сразу выбор скриншота банка. */
+        const val SCREEN_SCAN = "scan"
+
+        /** Pro: ярлык «Вернуться в …» — валюта трат [EXTRA_CURRENCY]. */
+        const val SCREEN_SPEND = "spend"
+        const val EXTRA_CURRENCY = "currency"
+
+        /** Экран Pro (касание виджета без Pro). */
+        const val SCREEN_PRO = "pro"
 
         /** Знакомство поверх демо-данных — для снимков CI; [EXTRA_STEP] — с какого шага. */
         const val SCREEN_ONBOARDING = "onboarding"

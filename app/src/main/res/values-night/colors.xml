@@ -2,4 +2,9 @@
 <resources>
     <color name="bg">#0D1217</color>
     <color name="accent">#FF5C5C</color>
+    <!-- Виджет на рабочем столе (Pro): цвета из AppColors — RemoteViews не умеют тему Compose. -->
+    <color name="widget_bg">#1B222A</color>
+    <color name="widget_ink">#EEF2F6</color>
+    <color name="widget_muted">#9AA6B2</color>
+    <color name="widget_good">#5CCB92</color>
 </resources>

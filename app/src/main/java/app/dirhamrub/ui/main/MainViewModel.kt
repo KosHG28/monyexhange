@@ -1,5 +1,6 @@
 package app.dirhamrub.ui.main
 
+import app.dirhamrub.domain.AppIcon
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -418,6 +419,15 @@ class MainViewModel(
     fun setKeyHaptics(value: Boolean) = updateSettings { it.copy(keyHaptics = value) }
 
     fun setPureBlack(value: Boolean) = updateSettings { it.copy(pureBlack = value) }
+
+    /** Pro куплена (или тестовая покупка отменена). Функции Pro без неё выключаются. */
+    fun setPro(value: Boolean) = updateSettings {
+        if (value) it.copy(pro = true) else it.copy(pro = false, dynamicColor = false, appIcon = AppIcon.CLASSIC)
+    }
+
+    fun setDynamicColor(value: Boolean) = updateSettings { it.copy(dynamicColor = value && it.pro) }
+
+    fun setAppIcon(value: AppIcon) = updateSettings { it.copy(appIcon = if (it.pro) value else AppIcon.CLASSIC) }
 
     /** «Показать знакомство снова». */
     fun restartOnboarding() {

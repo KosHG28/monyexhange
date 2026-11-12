@@ -1,5 +1,7 @@
 package app.dirhamrub.ui.settings
 
+import android.os.Build
+import app.dirhamrub.domain.AppIcon
 import app.dirhamrub.ui.components.rememberCollapsingTitle
 import app.dirhamrub.ui.components.LargeTitle
 import app.dirhamrub.ui.components.CollapsingBar
@@ -101,6 +103,11 @@ class SettingsActions(
     val onOnboarding: () -> Unit,
     /** «Карты и наличные» — все способы оплаты (на главном — только те, что подходят к валюте трат). */
     val onCards: () -> Unit,
+    /** Экран «Курс по чеку Pro» и цена для строки. */
+    val onOpenPro: () -> Unit,
+    val proPrice: String,
+    val onDynamicColor: (Boolean) -> Unit,
+    val onAppIcon: (AppIcon) -> Unit,
 )
 
 /**
@@ -148,6 +155,13 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
                         stringResource(R.string.settings_cards_link_sub),
                         state.wallet.cards.size.takeIf { it > 0 }?.toString(),
                         onClick = actions.onCards,
+                    )
+                    Divider()
+                    LinkRow(
+                        stringResource(R.string.pro_row),
+                        stringResource(R.string.pro_row_sub),
+                        if (state.settings.pro) stringResource(R.string.pro_row_bought) else actions.proPrice,
+                        onClick = actions.onOpenPro,
                     )
                 }
             }
@@ -389,6 +403,32 @@ private fun LookSection(state: MainUiState, actions: SettingsActions) {
             state.settings.pureBlack,
             actions.onPureBlack,
         )
+        Divider()
+        // Pro: цвета из обоев (Android 12+) и значок. Без Pro строки ведут на экран покупки.
+        val pro = state.settings.pro
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (pro) {
+                SwitchRow(
+                    stringResource(R.string.settings_dynamic_color),
+                    stringResource(R.string.settings_dynamic_color_sub),
+                    state.settings.dynamicColor,
+                    actions.onDynamicColor,
+                )
+            } else {
+                LinkRow(stringResource(R.string.settings_dynamic_color), stringResource(R.string.settings_dynamic_color_locked), stringResource(R.string.pro_badge), actions.onOpenPro)
+            }
+            Divider()
+        }
+        if (pro) {
+            val icons = AppIcon.entries
+            ChoiceRow(
+                stringResource(R.string.settings_app_icon),
+                listOf(stringResource(R.string.app_icon_classic), stringResource(R.string.app_icon_dark), stringResource(R.string.app_icon_gold)),
+                icons.indexOf(state.settings.appIcon),
+            ) { actions.onAppIcon(icons[it]) }
+        } else {
+            LinkRow(stringResource(R.string.settings_app_icon), stringResource(R.string.pro_f_icon_sub), stringResource(R.string.pro_badge), actions.onOpenPro)
+        }
         Divider()
         val motions = MotionMode.entries
         ChoiceRow(

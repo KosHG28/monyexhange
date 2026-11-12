@@ -1,5 +1,6 @@
 package app.dirhamrub.ui.cards
 
+import app.dirhamrub.data.ReceiptShots
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.graphicsLayer
@@ -142,6 +143,10 @@ fun CardEditorScreen(
     rounding: Rounding = Rounding.WHOLE,
     /** Перелёт с главного: мини-карта строки вырастает в карточку-предпросмотр (null — экран выезжает снизу). */
     morph: CardMorph? = null,
+    /** Pro: скриншот банка сохраняется при чеке. */
+    pro: Boolean = false,
+    /** Сразу открыть выбор скриншота банка (Pro: ярлык «Чек из скриншота»). */
+    startScan: Boolean = false,
 ) {
     val previewAmount = amount.takeIf { it.signum() > 0 } ?: PREVIEW_AMOUNT
     val colors = AppTheme.colors
@@ -233,6 +238,8 @@ fun CardEditorScreen(
             haptics.play(Haptic.REJECT)
         }
     }
+    // Pro: сохранённые скриншоты чеков этой карты (новые первыми).
+    var shots by remember(card.id) { mutableStateOf(if (pro) ReceiptShots.list(context, card.id) else emptyList()) }
     val pickScreenshot = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scan = ScanResult.Reading
@@ -257,7 +264,18 @@ fun CardEditorScreen(
             }
             scan = if (receipt == null) ScanResult.NotFound else ScanResult.Found(receipt)
             haptics.play(if (receipt == null) Haptic.REJECT else Haptic.CONFIRM)
+            // Pro: копия скриншота к чеку — видно, откуда взялись суммы.
+            if (pro && receipt != null) {
+                val kind = when (receipt) {
+                    is ScannedReceipt.Purchase -> ReceiptShots.purchaseKind(receipt.spend.code)
+                    is ScannedReceipt.Transfer -> ReceiptShots.TRANSFER_KIND
+                }
+                if (ReceiptShots.save(context, uri, card.id, kind) != null) shots = ReceiptShots.list(context, card.id)
+            }
         }
+    }
+    LaunchedEffect(card.id, startScan) {
+        if (startScan) pickScreenshot.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     }
 
     val defaultName = stringResource(if (cash) R.string.cash_default_name else R.string.card_default_name, currency.code)
@@ -499,6 +517,7 @@ fun CardEditorScreen(
                             card = currency,
                             onClick = { pickScreenshot.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                         )
+                        if (pro && shots.isNotEmpty()) ReceiptShotRow(shots)
                     }
                     val pick = stringResource(R.string.editor_pick_currency)
                     // Наличные — из обменника или из банкомата (снятие с одной из карт).

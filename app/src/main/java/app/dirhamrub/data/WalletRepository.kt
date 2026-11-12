@@ -1,5 +1,6 @@
 package app.dirhamrub.data
 
+import app.dirhamrub.domain.AppIcon
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -128,6 +129,9 @@ class WalletRepository(
                 motion = MotionMode.entries.firstOrNull { it.name == p[SET_MOTION] } ?: MotionMode.SYSTEM,
                 keyHaptics = p[SET_KEY_HAPTICS] ?: true,
                 pureBlack = p[SET_PURE_BLACK] ?: false,
+                pro = p[SET_PRO] ?: false,
+                dynamicColor = p[SET_DYNAMIC_COLOR] ?: false,
+                appIcon = AppIcon.entries.firstOrNull { it.name == p[SET_APP_ICON] } ?: AppIcon.CLASSIC,
                 wifiOnly = p[SET_WIFI_ONLY] ?: false,
                 rounding = Rounding.entries.firstOrNull { it.name == p[SET_ROUNDING] } ?: Rounding.WHOLE,
             ),
@@ -143,6 +147,9 @@ class WalletRepository(
             p[SET_MOTION] = settings.motion.name
             p[SET_KEY_HAPTICS] = settings.keyHaptics
             p[SET_PURE_BLACK] = settings.pureBlack
+            p[SET_PRO] = settings.pro
+            p[SET_DYNAMIC_COLOR] = settings.dynamicColor
+            p[SET_APP_ICON] = settings.appIcon.name
             p[SET_WIFI_ONLY] = settings.wifiOnly
             p[SET_ROUNDING] = settings.rounding.name
         }
@@ -335,6 +342,9 @@ class WalletRepository(
         val SET_ROUNDING = stringPreferencesKey("settings_rounding")
         val SET_KEY_HAPTICS = booleanPreferencesKey("settings_key_haptics")
         val SET_PURE_BLACK = booleanPreferencesKey("settings_pure_black")
+        val SET_PRO = booleanPreferencesKey("settings_pro")
+        val SET_DYNAMIC_COLOR = booleanPreferencesKey("settings_dynamic_color")
+        val SET_APP_ICON = stringPreferencesKey("settings_app_icon")
         val SELECTION_AUTO = booleanPreferencesKey("selection_auto")
         val UNIONPAY = stringPreferencesKey("unionpay_rates")
         val UNIONPAY_AT = longPreferencesKey("unionpay_fetched_at")

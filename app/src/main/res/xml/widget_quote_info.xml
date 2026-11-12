@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Виджет «Курс по чеку» (Pro): 3×1, обновляется, когда меняются карты, страна или курсы в приложении. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_desc"
+    android:initialLayout="@layout/widget_quote"
+    android:minWidth="180dp"
+    android:minHeight="80dp"
+    android:previewLayout="@layout/widget_quote"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="3"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

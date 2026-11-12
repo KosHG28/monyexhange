@@ -48,6 +48,9 @@ app/src/main/java/app/dirhamrub/
     price/PriceParser, PriceCurrency      цены из OCR-строк для каждой валюты трат
     price/PriceTracker                    стабилизация меток между кадрами
   data/              WalletRepository (DataStore + перенос с 0.x), CbrClient и UnionPayClient (сеть)
+                     Pro: ProBilling (покупка, пока заглушка), ProFeatures (значок, ярлыки), ReceiptShots
+  widget/            виджет «Курс по чеку» на рабочем столе (Pro, RemoteViews)
+  ui/pro/            экран «Курс по чеку Pro»
   ui/theme/          цвета, шрифты, тема, оформления карт, виброотклик (Haptics)
   ui/main/           единственный главный экран (MainScreen: итог, поле цены, карточки способов, курс ЦБ;
                      Keypad 4 × 5; PlaceSheet — шторка страны; Banners, EmptyRate) + MainViewModel

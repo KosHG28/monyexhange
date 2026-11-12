@@ -1,5 +1,7 @@
 package app.dirhamrub.ui.theme
 
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
 import android.os.PowerManager
 import android.content.Context
 import android.app.Activity
@@ -58,6 +60,8 @@ fun DirhamTheme(
     keyHaptics: Boolean = true,
     /** Тёмная тема на чисто чёрном фоне ([BlackColors]); в светлой ничего не меняет. */
     pureBlack: Boolean = false,
+    /** Pro: синий акцент — из цветов обоев (Android 12+); цвета карт, «лучшая» и предупреждения — свои. */
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val systemDark = isSystemInDarkTheme()
@@ -72,7 +76,12 @@ fun DirhamTheme(
         dark -> DarkColors
         else -> LightColors
     }
-    val colors = base
+    val colors = if (dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val wall = if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        base.copy(accent = wall.primary, accentSoft = wall.primaryContainer, onAccent = wall.onPrimary)
+    } else {
+        base
+    }
     // Анимации выключены в системе или включено энергосбережение — без анимаций (слабые устройства).
     val systemReduce = remember(context) {
         Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f ||

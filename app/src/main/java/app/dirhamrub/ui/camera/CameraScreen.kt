@@ -1,6 +1,9 @@
 package app.dirhamrub.ui.camera
 
 import android.app.Activity
+import android.app.ActivityManager
+import android.content.Context
+import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import android.util.Size
@@ -162,6 +165,25 @@ private const val REVEAL_DELAY_MS = 220L
 private const val HOLD_HINT_MS = 4000L
 private const val MODE_TOAST_MS = 1600L
 
+/** Цена «далеко»: высота цифр меньше этой доли кадра. */
+private const val TINY_PRICE = 0.022f
+/** Автоприближение: до скольки и через сколько миллисекунд мелких цен подряд. */
+private const val AUTO_ZOOM = 2f
+private const val AUTO_ZOOM_AFTER_MS = 1500L
+
+/**
+ * Мощный телефон: класс производительности медиа Android 13+ (Pixel 6+, Galaxy S22+ и подобные) или, если
+ * производитель его не заявил, 8 ГБ памяти и больше на Android 12+.
+ */
+private fun isFlagship(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false
+    if (Build.VERSION.MEDIA_PERFORMANCE_CLASS >= Build.VERSION_CODES.TIRAMISU) return true
+    val am = context.getSystemService(ActivityManager::class.java) ?: return false
+    if (am.isLowRamDevice) return false
+    val info = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
+    return info.totalMem >= 7_500_000_000L
+}
+
 /** Высота затемнения под верхними кнопками (без системной панели). */
 private val TOP_SCRIM = 96.dp
 
@@ -265,10 +287,12 @@ private fun CameraContent(
         LifecycleCameraController(context).apply {
             setEnabledUseCases(CameraController.IMAGE_ANALYSIS)
             imageAnalysisBackpressureStrategy = ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST
+            // Мощный телефон — кадры для распознавания в 1080p: мелкие и далёкие ценники читаются лучше.
+            val analysisSize = if (isFlagship(context)) Size(1920, 1080) else Size(1280, 720)
             imageAnalysisResolutionSelector = ResolutionSelector.Builder()
                 .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
                 .setResolutionStrategy(
-                    ResolutionStrategy(Size(1280, 720), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER),
+                    ResolutionStrategy(analysisSize, ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER),
                 )
                 .build()
             previewResolutionSelector = ResolutionSelector.Builder()
@@ -319,14 +343,34 @@ private fun CameraContent(
     }
 
     var torch by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(torch) { camera.enableTorch(torch) }
 
-    // Текущий зум — для кнопок 1× 2× 4× (щипок тоже его меняет).
+    // Текущий зум — для кнопок 1× 2× 4× (щипок тоже его меняет). Есть зум — камера уже подключена.
     var zoom by remember { mutableStateOf<ZoomState?>(null) }
     DisposableEffect(camera, lifecycleOwner) {
         val observer = Observer<ZoomState> { zoom = it }
         camera.zoomState.observe(lifecycleOwner, observer)
         onDispose { camera.zoomState.removeObserver(observer) }
+    }
+    val bound = zoom != null
+    // Фонарик и ночной режим камеры (Android 15, где телефон его умеет: в темноте кадр ярче за счёт выдержки)
+    // вместе не работают: с фонариком ночной режим выключаем, без него — включаем.
+    LaunchedEffect(torch, bound) {
+        val control = camera.cameraControl
+        val lowLight = bound && runCatching { camera.cameraInfo?.isLowLightBoostSupported == true }.getOrDefault(false)
+        if (torch) {
+            if (lowLight) runCatching { control?.enableLowLightBoostAsync(false) }
+            camera.enableTorch(true)
+        } else {
+            camera.enableTorch(false)
+            if (lowLight) runCatching { control?.enableLowLightBoostAsync(true) }
+        }
+    }
+    // Зум меняли сами (кнопки, щипок) — автоприближение больше не вмешивается.
+    var userZoomed by rememberSaveable { mutableStateOf(false) }
+    var autoZoomed by rememberSaveable { mutableStateOf(false) }
+    // Несколько объективов за одной камерой (флагман с телевиком): при 2× телефон сам переключится на него.
+    val multiLens = remember(bound) {
+        bound && runCatching { (camera.cameraInfo?.physicalCameraInfos?.size ?: 0) > 1 }.getOrDefault(false)
     }
 
     // Название режима коротко всплывает под кнопками после переключения.
@@ -413,6 +457,29 @@ private fun CameraContent(
                 pipeline.setViewport(overlaySize.width.toFloat(), overlaySize.height.toFloat(), topReserve, bottomReserve)
             }
         }
+        // Ценники далеко: все найденные цены мельче 2,2 % высоты кадра полторы секунды подряд при 1× —
+        // один раз плавно приближаем до 2× (на флагмане это телеобъектив). Сами меняли зум — не трогаем.
+        val reduceMotionHere = LocalReduceMotion.current
+        val tiny by remember {
+            derivedStateOf {
+                val labels = frame.value.labels
+                val h = overlaySize.height
+                h > 0 && labels.isNotEmpty() && labels.all { it.box.height() < h * TINY_PRICE }
+            }
+        }
+        LaunchedEffect(tiny, multiLens, paused) {
+            val zs = zoom ?: return@LaunchedEffect
+            if (!tiny || !multiLens || paused || autoZoomed || userZoomed) return@LaunchedEffect
+            if (zs.zoomRatio > 1.4f || zs.maxZoomRatio < AUTO_ZOOM) return@LaunchedEffect
+            delay(AUTO_ZOOM_AFTER_MS)
+            autoZoomed = true
+            val from = zs.zoomRatio
+            val steps = if (reduceMotionHere) 1 else 12
+            for (i in 1..steps) {
+                camera.setZoomRatio(from + (AUTO_ZOOM - from) * i / steps)
+                if (steps > 1) delay(22)
+            }
+        }
         if (!paused) Reticle(topReserve, bottomReserve)
         PriceOverlay(
             frame = frame,
@@ -428,6 +495,7 @@ private fun CameraContent(
                                 val zs = camera.zoomState.value
                                 val min = zs?.minZoomRatio ?: 1f
                                 val max = zs?.maxZoomRatio ?: 1f
+                                userZoomed = true
                                 camera.setZoomRatio(((zs?.zoomRatio ?: 1f) * zoom).coerceIn(min, max))
                             }
                         }
@@ -543,7 +611,14 @@ private fun CameraContent(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (!paused) {
-                ZoomChips(zoom, onZoom = { camera.setZoomRatio(it) }, modifier = Modifier.align(Alignment.End))
+                ZoomChips(
+                    zoom,
+                    onZoom = {
+                        userZoomed = true
+                        camera.setZoomRatio(it)
+                    },
+                    modifier = Modifier.align(Alignment.End),
+                )
             }
             // Подробности — у одной цены, ближайшей к центру: на самом кадре только короткие плашки.
             // Карточка выезжает снизу с лёгкой пружинкой; пока уезжает — показывает последнюю цену.

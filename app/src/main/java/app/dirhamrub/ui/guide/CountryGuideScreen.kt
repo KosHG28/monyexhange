@@ -338,8 +338,8 @@ private fun flagBitmap(flag: String): ImageBitmap? {
     return android.graphics.Bitmap.createBitmap(full, left, top, right - left + 1, bottom - top + 1).asImageBitmap()
 }
 
-private const val FLAG_BITMAP_PX = 160
-private val FLAG_BLUR = 3.dp
+private const val FLAG_BITMAP_PX = 256
+private val FLAG_BLUR = 2.dp
 
 private val FLAG_SIZE = 280.dp
 

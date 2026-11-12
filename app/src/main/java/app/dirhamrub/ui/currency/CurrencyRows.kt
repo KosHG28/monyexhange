@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
+import app.dirhamrub.domain.wallet.noun
 import app.dirhamrub.domain.wallet.Country
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.OfficialRates
@@ -171,7 +172,8 @@ internal fun HereCard(country: Country, selected: Boolean, home: Currency, offic
     val colors = AppTheme.colors
     val type = AppTheme.type
     val c = country.currency
-    val sub = listOfNotNull(c.nameRu, rateText(c, home, official)).joinToString(" · ")
+    // Страна уже написана — у валюты короткое название: «Драм», а не «Армянский драм».
+    val sub = listOfNotNull(c.noun, rateText(c, home, official)).joinToString(" · ")
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -221,7 +223,7 @@ internal fun CountryRow(
     val c = country.currency
     val rate = rateText(c, home, official)
     val note = unionPayLabel.takeIf { rate != null && official?.viaUnionPay(c, home) == true }
-    val sub = "${c.nameRu} · ${label(c)}"
+    val sub = "${c.noun} · ${label(c)}"
     PickRow(
         flag = country.flag,
         title = country.nameRu,

@@ -3,21 +3,17 @@ package app.dirhamrub.ui.guide
 import android.content.Intent
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
-import kotlin.math.roundToInt
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.foundation.Canvas
 import app.dirhamrub.ui.components.sheetScroll
 import app.dirhamrub.domain.wallet.noun
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -266,53 +262,36 @@ private const val HEADER_SP = 40f
 @Composable
 private fun FlagBackdrop(flag: String, modifier: Modifier = Modifier) {
     val dark = AppTheme.colors.isDark
-    // Флаг рисуется один раз в маленькую картинку и растягивается при выводе: огромный глиф эмодзи (сотни sp,
-    // в том числе через увеличение слоя — текст там перерисовывается в итоговом размере) тяжёл для отрисовки,
-    // а для растворённого фона мягкость при увеличении даже к лучшему.
-    val image = remember(flag) { flagBitmap(flag) }
-    Canvas(
+    val size = FLAG_SIZE
+    val fontSize = with(LocalDensity.current) { (size * 0.82f).toSp() }
+    Box(
         modifier
-            .offset(x = FLAG_SIZE * 0.32f, y = -FLAG_SIZE * 0.25f)
-            .size(FLAG_SIZE)
+            .offset(x = size * 0.32f, y = -size * 0.25f)
+            .size(size)
             .clearAndSetSemantics { }
             .graphicsLayer {
                 compositingStrategy = CompositingStrategy.Offscreen
                 if (!dark) blendMode = BlendMode.Multiply
+            }
+            .drawWithContent {
+                drawContent()
+                drawRect(
+                    brush = Brush.radialGradient(
+                        0f to Color.Black.copy(alpha = 0.35f),
+                        0.28f to Color.Black.copy(alpha = 0.30f),
+                        0.5f to Color.Black.copy(alpha = 0.12f),
+                        0.68f to Color.Transparent,
+                        center = Offset(this.size.width, 0f),
+                        radius = this.size.maxDimension,
+                    ),
+                    blendMode = BlendMode.DstIn,
+                )
             },
+        contentAlignment = Alignment.Center,
     ) {
-        drawImage(
-            image,
-            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-            filterQuality = FilterQuality.Low,
-        )
-        drawRect(
-            brush = Brush.radialGradient(
-                0f to Color.Black.copy(alpha = 0.35f),
-                0.28f to Color.Black.copy(alpha = 0.30f),
-                0.5f to Color.Black.copy(alpha = 0.12f),
-                0.68f to Color.Transparent,
-                center = Offset(size.width, 0f),
-                radius = size.maxDimension,
-            ),
-            blendMode = BlendMode.DstIn,
-        )
+        Text(flag, fontSize = fontSize, lineHeight = fontSize, maxLines = 1, softWrap = false)
     }
 }
-
-/** Эмодзи флага в квадратной картинке [FLAG_BITMAP_PX] — по центру, почти во всю ширину. */
-private fun flagBitmap(flag: String): ImageBitmap {
-    val px = FLAG_BITMAP_PX
-    val bitmap = android.graphics.Bitmap.createBitmap(px, px, android.graphics.Bitmap.Config.ARGB_8888)
-    val paint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = px * 0.8f
-        textAlign = android.graphics.Paint.Align.CENTER
-    }
-    val metrics = paint.fontMetrics
-    android.graphics.Canvas(bitmap).drawText(flag, px / 2f, px / 2f - (metrics.ascent + metrics.descent) / 2f, paint)
-    return bitmap.asImageBitmap()
-}
-
-private const val FLAG_BITMAP_PX = 160
 
 private val FLAG_SIZE = 280.dp
 

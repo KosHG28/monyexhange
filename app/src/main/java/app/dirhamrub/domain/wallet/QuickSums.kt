@@ -3,7 +3,7 @@ package app.dirhamrub.domain.wallet
 import java.math.BigDecimal
 
 /**
- * Быстрые суммы и строки шпаргалки в валюте трат. У самых частых валют — подобраны вручную
+ * Быстрые суммы в валюте трат (пример суммы в знакомстве и демо). У самых частых валют — подобраны вручную
  * (у дирхама 22 — проезд в метро), у остальных — «круглые» суммы от размера валюты:
  * у рупии ([Currency.magnitude] = 4) 10K…1M, у песо (1) 10…1000.
  */
@@ -18,15 +18,6 @@ object QuickSums {
         else -> null
     }?.map { BigDecimal(it) } ?: scaled(c, CHIPS)
 
-    fun cheat(c: Currency): List<BigDecimal> = when (c) {
-        Currency.AED, Currency.CNY -> listOf(1, 5, 10, 20, 50, 100, 200, 500, 1000)
-        Currency.TRY, Currency.THB -> listOf(10, 50, 100, 200, 500, 1000, 2000, 5000, 10000)
-        Currency.KZT, Currency.AMD -> listOf(100, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000)
-        Currency.VND -> listOf(1000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000)
-        Currency.USD, Currency.EUR, Currency.GEL -> listOf(1, 2, 5, 10, 20, 50, 100, 200, 500)
-        else -> null
-    }?.map { BigDecimal(it) } ?: scaled(c, CHEAT)
-
     /** Ряд 1-2-5, умноженный на 10^[Currency.magnitude] (примерно столько единиц за доллар). */
     private fun scaled(c: Currency, base: List<Int>): List<BigDecimal> {
         val unit = BigDecimal.TEN.pow(c.magnitude)
@@ -34,5 +25,4 @@ object QuickSums {
     }
 
     private val CHIPS = listOf(1, 2, 5, 10, 20, 50, 100)
-    private val CHEAT = listOf(1, 5, 10, 20, 50, 100, 200, 500, 1000)
 }

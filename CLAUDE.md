@@ -55,7 +55,6 @@ app/src/main/java/app/dirhamrub/
   ui/onboarding/     знакомство при первом запуске
   ui/cards/          редактор карты и чеков
   ui/currency/       выбор валюты трат и итоговой
-  ui/cheat/          шпаргалка
   ui/settings/       настройки: карты и наличные, курсы (когда и откуда), обновление, UnionPay, камера, тема
   ui/components/     бумажный чек, поля, выбор валюты
   ui/camera/         AR-камера: CameraX + ML Kit, оверлей на Canvas

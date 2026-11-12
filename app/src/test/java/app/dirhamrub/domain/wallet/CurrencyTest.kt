@@ -129,14 +129,12 @@ class CurrencyTest {
     }
 
     @Test
-    fun `быстрые суммы и шпаргалка от размера валюты`() {
+    fun `быстрые суммы от размера валюты`() {
         fun list(vararg v: Long) = v.map { BigDecimal(it) }
         assertEquals(list(5, 10, 22, 50, 100, 200, 500), QuickSums.chips(Currency.AED))
         assertEquals(list(10_000, 20_000, 50_000, 100_000, 200_000, 500_000, 1_000_000), QuickSums.chips(Currency.IDR))
         assertEquals(list(100, 200, 500, 1000, 2000, 5000, 10_000), QuickSums.chips(Currency.LKR))
         assertEquals(list(1, 2, 5, 10, 20, 50, 100), QuickSums.chips(Currency.KWD))
-        assertEquals(9, QuickSums.cheat(Currency.MXN).size)
-        assertEquals(BigDecimal(10), QuickSums.cheat(Currency.MXN).first())
     }
 
     @Test

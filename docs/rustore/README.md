@@ -86,7 +86,7 @@ RuStore просит от 3 до 10 вертикальных скриншото�
 3. `store-2-why.png` — зачем: курс банка ≠ курс ЦБ.
 4. `store-3-how.png` — как считаем.
 5. `store-4-editor.png` — карта и чек.
-6. `store-5-cheat.png` — шпаргалка.
+6. `store-5-guide.png` — «Чем платить» в стране.
 7. `store-6-main-light.png` — светлая тема.
 8. `store-7-settings.png` — курсы ЦБ и UnionPay, настройки.
 

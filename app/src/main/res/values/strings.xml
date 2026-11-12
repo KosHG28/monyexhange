@@ -60,11 +60,8 @@
     <string name="price_tag_a11y">Камера: суммы поверх ценников</string>
 
     <!-- Шпаргалка -->
-    <string name="cheat_title">Шпаргалка</string>
-    <string name="cheat_subtitle">%1$s → %2$s по каждой карте и по курсу ЦБ</string>
     <string name="cheat_official">ЦБ</string>
     <string name="cheat_unionpay">UnionPay</string>
-    <string name="cheat_subtitle_unionpay">%1$s → %2$s по каждой карте и по курсу UnionPay</string>
 
     <!-- Редактор карты -->
     <string name="scan_button">Заполнить из скриншота банка</string>
@@ -338,7 +335,6 @@
     <string name="network_visa_foreign">Зарубежные Visa и Mastercard</string>
     <string name="guide_net_visa_ru">Visa/MC из РФ</string>
     <string name="guide_net_visa_foreign">Зарубежная Visa/MC</string>
-    <string name="guide_title">%1$s: чем платить</string>
     <string name="guide_your_cards">Ваши карты здесь</string>
     <string name="guide_card_unknown">Укажите платёжную систему в карте — подскажем, примут ли её</string>
     <string name="guide_card_no_data">Нет сведений об этой платёжной системе</string>
@@ -346,6 +342,8 @@
     <string name="guide_cash">Наличные</string>
     <string name="guide_atm">Банкоматы</string>
     <string name="guide_tips">Советы</string>
+    <string name="guide_empty">Сведений о том, чем здесь платить, пока нет.</string>
+    <string name="guide_suggest">Подсказать, что добавить ›</string>
     <string name="guide_export">Ввоз и вывоз денег</string>
     <string name="guide_notes">Купюры</string>
     <string name="guide_updated">Обновлено: %1$s</string>
@@ -366,15 +364,6 @@
     <string name="transfer_history">Прежние пополнения</string>
     <string name="transfer_remove">Удалить пополнение</string>
     <string name="transfer_new">+ Новое пополнение</string>
-    <string name="cards_page_cheat_sub">Ходовые суммы по всем картам и ЦБ</string>
-    <string name="guide_mark_yes">принимают</string>
-    <string name="guide_mark_partial">принимают не везде</string>
-    <string name="guide_mark_no">не принимают</string>
-    <string name="guide_mark_unknown">нет сведений</string>
-    <string name="trip_guide_updated">обновлено %1$s</string>
-    <string name="place_currency">%1$s (%2$s · %3$s)</string>
-    <string name="place_currency_code">%1$s (%2$s)</string>
-    <string name="guide_cash_other">Здесь не платят — поменяйте в обменнике</string>
     <string name="guide_cash_local">Принимают везде</string>
     <string name="guide_cash_exchange">Меняют везде; иногда принимают и напрямую</string>
     <!-- Пересчёт (главный экран) -->
@@ -386,8 +375,6 @@
     <string name="money_topped_up">пополнение %1$s</string>
     <string name="money_exchanged">обмен %1$s</string>
     <string name="money_add">＋ Добавить карту или наличные</string>
-    <string name="money_guide">Какие карты здесь принимают</string>
-    <string name="money_cheat">Шпаргалка цен</string>
     <!-- Главный экран (вариант Б) -->
     <string name="place_a11y">Где тратите: %1$s. Сменить страну</string>
     <string name="hero_a11y">Итог: %1$s %2$s</string>
@@ -419,7 +406,7 @@
     <string name="cards_title">Карты и наличные</string>
     <string name="settings_cards_link">Карты и наличные</string>
     <string name="settings_cards_link_sub">Все способы оплаты, в том числе наличные в других валютах</string>
-    <string name="place_tools_a11y">О стране %1$s: какие карты принимают, обменники, шпаргалка</string>
+    <string name="place_tools_a11y">О стране %1$s: чем платить, ввоз и вывоз денег, купюры</string>
     <string name="country_title">Где вы тратите?</string>
     <string name="settings_section_main">Основные</string>
     <string name="settings_wifi_only">Только по Wi-Fi</string>

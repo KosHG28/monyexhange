@@ -8,9 +8,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import app.dirhamrub.ui.theme.LocalReduceMotion
@@ -36,12 +33,6 @@ fun Modifier.cascade(clock: State<Float>, index: Int): Modifier = graphicsLayer 
     translationY = (1f - p) * RISE.toPx()
 }
 
-/** Подсветка, пробегающая слева направо, когда появится элемент [index] (текущая строка шпаргалки). */
-fun Modifier.sweep(clock: State<Float>, index: Int, color: Color): Modifier = drawBehind {
-    val p = progress(clock.value, startOf(index) + ITEM_MS / 2f, SWEEP_MS)
-    if (p > 0f) drawRect(color, size = Size(size.width * p, size.height))
-}
-
 private fun startOf(index: Int): Float = DELAY_MS + minOf(index, MAX_INDEX) * STEP_MS
 
 /** Доля пройденного отрезка [start, start + duration] с замедлением к концу. */
@@ -54,7 +45,6 @@ private fun progress(now: Float, start: Float, duration: Float): Float {
 private const val DELAY_MS = 110f
 private const val STEP_MS = 32f
 private const val ITEM_MS = 240f
-private const val SWEEP_MS = 320f
 private const val MAX_INDEX = 16
 private val RISE = 14.dp
-private const val CASCADE_TOTAL_MS = DELAY_MS + MAX_INDEX * STEP_MS + ITEM_MS + SWEEP_MS
+private const val CASCADE_TOTAL_MS = DELAY_MS + MAX_INDEX * STEP_MS + ITEM_MS

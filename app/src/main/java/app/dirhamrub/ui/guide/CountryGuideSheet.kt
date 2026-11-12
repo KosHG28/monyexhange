@@ -47,6 +47,8 @@ import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.CardNetwork
 import app.dirhamrub.domain.wallet.Countries
+import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.sign
 import app.dirhamrub.domain.wallet.CountryGuide
 import app.dirhamrub.domain.wallet.GuideItem
 import app.dirhamrub.ui.theme.AppTheme
@@ -104,15 +106,24 @@ private fun networkShort(n: CardNetwork): String = stringResource(
 )
 
 /**
- * Шторка «Чем платить в стране»: ваши карты здесь, платёжные системы, наличные, банкоматы, советы; внизу — дата обновления и «Сообщить о неточности» (GitHub с готовым текстом).
+ * Шторка страны (ⓘ в шапке главного) — сразу «Чем платить». Сверху: страна мелко, валюта крупно, код и знак.
+ * Ниже — ваши карты здесь, платёжные системы, наличные, ввоз и вывоз, купюры, банкоматы, советы; внизу — дата
+ * и «Сообщить о неточности». Справочника по стране нет ([guide] == null) — шапка и «подсказать, что добавить».
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CountryGuideSheet(guide: CountryGuide, cards: List<BankCard>, onDismiss: () -> Unit) {
+fun CountryGuideSheet(
+    guide: CountryGuide?,
+    /** Флаг и название страны — как в шапке главного. */
+    place: Pair<String, String>,
+    /** Страна (ISO) — для письма о неточности, если справочника нет. */
+    iso: String?,
+    currency: Currency,
+    cards: List<BankCard>,
+    onDismiss: () -> Unit,
+) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    val context = LocalContext.current
-    val local = Countries.byIso(guide.iso)?.currency
     AppSheet(onDismissRequest = onDismiss) {
         Column(
             Modifier
@@ -121,36 +132,40 @@ fun CountryGuideSheet(guide: CountryGuide, cards: List<BankCard>, onDismiss: () 
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 20.dp),
         ) {
-            Text(
-                countryFlag(guide.iso) + " " + stringResource(R.string.guide_title, countryName(guide.iso)),
-                style = type.title,
-                color = colors.ink,
-                modifier = Modifier.semantics { heading() },
-            )
-            if (local != null && cards.isNotEmpty()) {
+            Header(place, currency)
+            if (guide == null) {
+                Spacer(Modifier.height(16.dp))
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(colors.surface)
+                        .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 4.dp),
+                ) {
+                    Text(stringResource(R.string.guide_empty), style = type.body, color = colors.ink)
+                    ReportLink(stringResource(R.string.guide_suggest), iso, place.second, null)
+                }
+                return@Column
+            }
+            val local = Countries.byIso(guide.iso)?.currency
+            // Наличные в чужой валюте здесь не платят — это и так понятно, строку не показываем.
+            val shown = cards.filterNot { local != null && it.kind == CardKind.CASH && guide.verdict(it, local) == null }
+            if (local != null && shown.isNotEmpty()) {
                 Section(stringResource(R.string.guide_your_cards))
                 Group {
-                    cards.forEachIndexed { i, card ->
+                    shown.forEachIndexed { i, card ->
                         if (i > 0) Divider()
                         val verdict = guide.verdict(card, local)
                         val network = card.paymentNetwork
                         val note = network?.let { guide.networks[it]?.text }
-                        // Наличные в чужой валюте здесь не платят — их меняют: значок обмена, а не «?».
-                        val foreignCash = card.kind == CardKind.CASH && verdict == null
                         val sub = when {
-                            foreignCash -> stringResource(R.string.guide_cash_other)
                             card.kind == CardKind.CASH && verdict == Acceptance.PARTIAL -> stringResource(R.string.guide_cash_exchange)
                             card.kind == CardKind.CASH -> stringResource(R.string.guide_cash_local)
                             network == null -> stringResource(R.string.guide_card_unknown)
                             note == null -> networkShort(network) + " · " + stringResource(R.string.guide_card_no_data)
                             else -> networkShort(network) + " · " + lower(note)
                         }
-                        Line(
-                            if (foreignCash) R.drawable.ic_exchange else acceptanceIcon(verdict),
-                            acceptanceColor(verdict),
-                            card.name,
-                            sub,
-                        )
+                        Line(acceptanceIcon(verdict), acceptanceColor(verdict), card.name, sub)
                     }
                 }
             }
@@ -168,7 +183,7 @@ fun CountryGuideSheet(guide: CountryGuide, cards: List<BankCard>, onDismiss: () 
             Items(stringResource(R.string.guide_export), R.drawable.ic_alert, colors.warn, guide.export)
             // Ходовые купюры: номиналы и код валюты — чтобы узнавать деньги в руках.
             guide.notes?.let { n ->
-                val code = Countries.byIso(guide.iso)?.currency?.code.orEmpty()
+                val code = local?.code.orEmpty()
                 Items(stringResource(R.string.guide_notes), R.drawable.ic_cash, colors.muted, listOf(GuideItem("${n.title} $code", n.text)))
             }
             Items(stringResource(R.string.guide_atm), R.drawable.ic_atm, colors.muted, guide.atm)
@@ -187,26 +202,59 @@ fun CountryGuideSheet(guide: CountryGuide, cards: List<BankCard>, onDismiss: () 
                 color = colors.muted,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
             )
-            val report = stringResource(R.string.guide_report)
-            val issueTitle = stringResource(R.string.guide_report_title, countryName(guide.iso))
-            val issueBody = stringResource(R.string.guide_report_body, countryName(guide.iso), guide.iso, guide.updated.toString())
-            Box(
-                Modifier
-                    .padding(top = 6.dp)
-                    .heightIn(min = 48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable(role = Role.Button) {
-                        val url = REPORT_URL +
-                            "?title=" + URLEncoder.encode(issueTitle, "UTF-8") +
-                            "&body=" + URLEncoder.encode(issueBody, "UTF-8")
-                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
-                    }
-                    .padding(horizontal = 4.dp),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                Text(report, style = type.bodyStrong, color = colors.accent)
-            }
+            ReportLink(stringResource(R.string.guide_report), guide.iso, countryName(guide.iso), guide.updated)
         }
+    }
+}
+
+/** Шапка: «🇹🇯 Таджикистан» мелко, «Таджикский сомони» крупно, «TJS · смн» серым. */
+@Composable
+private fun Header(place: Pair<String, String>, currency: Currency) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    Text(
+        place.first + "  " + place.second,
+        style = type.body.copy(fontSize = 15.sp),
+        color = colors.ink,
+        modifier = Modifier.padding(start = 4.dp),
+    )
+    Text(
+        currency.nameRu,
+        style = type.title.copy(fontSize = 26.sp, lineHeight = 31.sp),
+        color = colors.ink,
+        modifier = Modifier
+            .padding(start = 4.dp, top = 6.dp)
+            .semantics { heading() },
+    )
+    Text(
+        if (currency.sign == currency.code) currency.code else currency.code + " · " + currency.sign,
+        style = type.body.copy(fontSize = 13.5.sp),
+        color = colors.muted,
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+    )
+}
+
+/** «Сообщить о неточности» / «Подсказать, что добавить»: задача в GitHub с готовым текстом. */
+@Composable
+private fun ReportLink(text: String, iso: String?, country: String, updated: LocalDate?) {
+    val context = LocalContext.current
+    val issueTitle = stringResource(R.string.guide_report_title, country)
+    val issueBody = stringResource(R.string.guide_report_body, country, iso.orEmpty(), updated?.toString() ?: "—")
+    Box(
+        Modifier
+            .padding(top = 6.dp)
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button) {
+                val url = REPORT_URL +
+                    "?title=" + URLEncoder.encode(issueTitle, "UTF-8") +
+                    "&body=" + URLEncoder.encode(issueBody, "UTF-8")
+                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
+            }
+            .padding(horizontal = 4.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Text(text, style = AppTheme.type.bodyStrong, color = AppTheme.colors.accent)
     }
 }
 

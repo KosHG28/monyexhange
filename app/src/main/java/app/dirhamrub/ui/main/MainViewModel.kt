@@ -31,7 +31,6 @@ import app.dirhamrub.domain.wallet.CountryGuideParser
 import app.dirhamrub.domain.wallet.CountryGuides
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.OfficialRates
-import app.dirhamrub.domain.wallet.QuickSums
 import app.dirhamrub.domain.wallet.RateEngine
 import app.dirhamrub.domain.wallet.ReceiptAge
 import app.dirhamrub.domain.wallet.StaleReceipt
@@ -515,10 +514,6 @@ class MainViewModel(
                 )
             }
         }
-
-
-        /** Строки шпаргалки: девять сумм, от мелкой покупки до крупной. */
-        fun cheat(c: Currency): List<BigDecimal> = QuickSums.cheat(c)
     }
 }
 

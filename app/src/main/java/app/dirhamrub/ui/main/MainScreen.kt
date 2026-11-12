@@ -69,7 +69,6 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.ui.components.fadingScroll
-import app.dirhamrub.ui.components.underSheet
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.MC
@@ -414,12 +413,12 @@ private fun PriceField(state: MainUiState, covered: Boolean) {
 }
 
 /**
- * Мигающий курсор сразу за последней цифрой; без анимаций и под шторкой — просто черта (мигание под
- * шторкой каждый кадр заново размывало бы весь экран). Прозрачность меняется в слое — без рекомпозиций.
+ * Мигающий курсор сразу за последней цифрой; без анимаций и под закрывающим главный экраном — просто черта.
+ * Прозрачность меняется в слое — без рекомпозиций.
  */
 @Composable
 private fun Caret(fontSp: Float, paused: Boolean) {
-    val still = paused || LocalReduceMotion.current || underSheet()
+    val still = paused || LocalReduceMotion.current
     val blink = if (still) {
         null
     } else {

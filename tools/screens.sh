@@ -46,7 +46,7 @@ scrolled() {
 adb shell cmd uimode night yes
 adb shell settings put system font_scale 1.0
 WAIT=15 shot 01-main
-shot 02-cheat --es screen cheat
+shot 02-guide --es screen guide
 shot 03-currencies --es screen currencies
 WAIT=12 shot 04-editor --es screen editor
 WAIT=10 shot 05-camera --es screen camera
@@ -70,7 +70,7 @@ adb shell wm size reset
 adb shell cmd uimode night no
 adb shell wm density 450
 shot 11-main-narrow
-shot 12-cheat-narrow --es screen cheat
+shot 12-guide-narrow --es screen guide
 WAIT=12 shot 13-editor-narrow --es screen editor
 shot 14-currencies-narrow --es screen currencies
 adb shell wm density reset
@@ -83,7 +83,7 @@ shot 15-main-idr --es spend IDR
 shot 16-main-lkr --es spend LKR
 shot 17-currencies-idr --es spend IDR --es screen currencies
 WAIT=12 shot 18-editor-lkr --es spend LKR --es screen editor
-shot 19-cheat-lkr --es spend LKR --es screen cheat
+shot 19-guide-lkr --es spend LKR --es screen guide
 shot 20-currencies-lkr --es spend LKR --es screen currencies
 shot 21-settings --es screen settings
 WAIT=12 shot 22-cash-editor --es screen editor --es card demo-aed-cash
@@ -102,13 +102,13 @@ shot 27-onb-5-pay --es screen onboarding --ei step 4
 # Справочник «Чем платить» (шторка ОАЭ), шторка страны и «Карты и наличные» (из настроек).
 shot 30-guide --es screen guide
 shot 31-cards --es screen money
-shot 35-place --es screen place
 # Армения: строка валюты страны (AMD · ֏), значки справочника, суммы с кодом.
-shot 39-place-amd --es spend AMD --es screen place
+shot 39-guide-amd-top --es spend AMD --es screen guide
 shot 40-guide-amd --es spend AMD --es screen guide
 shot 41-main-amd --es spend AMD
 # Марокко: валютой платят и в Западной Сахаре — в шапке страна, а не валюта.
-shot 42-place-mad --es spend MAD --es screen place
+# Страна без справочника: шапка и «Подсказать, что добавить».
+shot 42-guide-clp --es spend CLP --es screen guide
 shot 43-guide-mad --es spend MAD --es screen guide
 # Иран: «Мир» принимают, зарубежные Visa/MC — нет.
 shot 44-guide-irr --es spend IRR --es screen guide
@@ -130,7 +130,7 @@ WAIT=10 shot store-1-main
 shot store-2-why --es screen onboarding --ei step 0
 shot store-3-how --es screen onboarding --ei step 1
 WAIT=12 shot store-4-editor --es screen editor
-shot store-5-cheat --es screen cheat
+shot store-5-guide --es screen guide
 adb shell cmd uimode night no
 shot store-6-main-light
 adb shell cmd uimode night yes

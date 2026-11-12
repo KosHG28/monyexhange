@@ -54,13 +54,11 @@ import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.ui.camera.CameraScreen
 import app.dirhamrub.ui.cards.CardEditorSheet
-import app.dirhamrub.ui.cheat.CheatSheet
 import app.dirhamrub.ui.currency.CountryScreen
 import app.dirhamrub.ui.guide.CountryGuideSheet
 import app.dirhamrub.ui.main.CountryOffer
 import app.dirhamrub.ui.main.MainScreen
 import app.dirhamrub.ui.main.MainViewModel
-import app.dirhamrub.ui.main.PlaceSheet
 import app.dirhamrub.ui.main.placeOf
 import app.dirhamrub.ui.money.MoneyActions
 import app.dirhamrub.ui.money.MoneyScreen
@@ -105,10 +103,8 @@ fun DirhamApp(
     val state by vm.state.collectAsStateWithLifecycle()
     // «Карты и наличные» — экран из настроек.
     var moneyOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_MONEY) }
-    // Шторка страны (касание страны в шапке).
-    var placeOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_PLACE) }
+    // Шторка страны «Чем платить» (ⓘ рядом со страной в шапке).
     var guideOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_GUIDE) }
-    var cheatOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CHEAT) }
     var currenciesOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CURRENCIES) }
     var cameraOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CAMERA) }
     var settingsOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_SETTINGS) }
@@ -182,7 +178,6 @@ fun DirhamApp(
 
     // Плитка «Ценник» в шторке: предлагаем один раз, после первого знакомства с камерой (Android 13+).
     val tileOffer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && state.cameraUsed && !state.tileOffered
-    // Справочник «Чем платить»: по валюте трат и стране сотовой сети.
     // Справочник — той страны, что в шапке (выбранная, страна сети или главная страна валюты): у евро их много.
     val placeIso = Countries.placeFor(state.wallet.spend, state.wallet.place, country)?.iso
     val guide = placeIso?.let { state.guides?.countries?.get(it) } ?: state.guides?.forSpend(state.wallet.spend, country)
@@ -203,7 +198,7 @@ fun DirhamApp(
         onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
         onSelectLine = vm::setActive,
         onOpenCountries = { currenciesOpen = true },
-        onOpenPlace = { placeOpen = true },
+        onOpenPlace = { guideOpen = true },
         onOpenSettings = { settingsOpen = true },
         onCountry = { accept -> offer?.let { vm.handleCountry(it.iso, if (accept) it.currency else null) } },
         onRefreshRates = vm::refreshRates,
@@ -212,33 +207,14 @@ fun DirhamApp(
         covered = settingsOpen || moneyOpen || currenciesOpen || cameraOpen,
     )
     val reduceMotion = LocalReduceMotion.current
-    if (placeOpen) {
-        PlaceSheet(
-            state = state,
-            place = place,
+    if (guideOpen) {
+        CountryGuideSheet(
             guide = guide,
-            onGuide = {
-                placeOpen = false
-                guideOpen = true
-            },
-            onCheat = {
-                placeOpen = false
-                cheatOpen = true
-            },
-            onDismiss = { placeOpen = false },
-        )
-    }
-    if (guideOpen && guide != null) {
-        CountryGuideSheet(guide, state.wallet.cards, onDismiss = { guideOpen = false })
-    }
-    if (cheatOpen) {
-        CheatSheet(
-            quote = state.quote,
-            spend = state.wallet.spend,
-            home = state.wallet.home,
-            selectedId = state.selectedCard?.id,
-            amount = state.totals.spend,
-            onDismiss = { cheatOpen = false },
+            place = place,
+            iso = placeIso,
+            currency = state.wallet.spend,
+            cards = state.wallet.cards,
+            onDismiss = { guideOpen = false },
         )
     }
     // «Где вы тратите?» — полноэкранный выбор страны, въезжает снизу.

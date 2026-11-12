@@ -62,7 +62,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
-import app.dirhamrub.ui.components.fadingScroll
+import app.dirhamrub.ui.components.sheetScroll
 import app.dirhamrub.ui.components.AppSheet
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
@@ -284,7 +284,7 @@ fun CardEditorSheet(
                 .weight(1f, fill = false)
                 .fillMaxWidth()
                 .pointerInput(Unit) { detectTapGestures(onTap = { focus.clearFocus() }) }
-                .fadingScroll(rememberScrollState())
+                .sheetScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 12.dp),
         ) {

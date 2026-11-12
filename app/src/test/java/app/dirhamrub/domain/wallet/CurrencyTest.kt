@@ -207,4 +207,25 @@ class CurrencyTest {
         // Знак для показа есть у каждой валюты.
         for (c in Currency.entries) assertTrue(c.code, c.sign != c.code)
     }
+
+    @Test
+    fun `короткое название валюты без прилагательных и страны`() {
+        assertEquals("Драм", Currency.AMD.noun)
+        assertEquals("Лира", Currency.TRY.noun)
+        assertEquals("Дирхам", Currency.AED.noun)
+        assertEquals("Доллар", Currency.USD.noun)
+        assertEquals("Евро", Currency.EUR.noun)
+        assertEquals("Шекель", Currency.ILS.noun)
+        assertEquals("Злотый", Currency.PLN.noun)
+        assertEquals("Сомони", Currency.TJS.noun)
+        assertEquals("Фунт стерлингов", Currency.GBP.noun)
+        assertEquals("Марка", Currency.BAM.noun)
+        assertEquals("Эскудо", Currency.CVE.noun)
+        // У каждой валюты — одно слово с заглавной (кроме фунта стерлингов), без прилагательных.
+        for (c in Currency.entries) {
+            val n = c.noun
+            assertTrue(c.code + ": " + n, n.isNotBlank() && n[0].isUpperCase())
+            if (c != Currency.GBP) assertTrue(c.code + ": " + n, ' ' !in n)
+        }
+    }
 }

@@ -3,6 +3,20 @@ package app.dirhamrub.ui.guide
 import android.content.Intent
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
+import app.dirhamrub.ui.components.sheetScroll
+import app.dirhamrub.domain.wallet.noun
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,7 +53,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import app.dirhamrub.R
-import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.ui.components.AppSheet
 import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.wallet.Acceptance
@@ -88,7 +101,6 @@ private fun networkName(n: CardNetwork): String = stringResource(
         CardNetwork.UNIONPAY -> R.string.network_unionpay_ru
         CardNetwork.UNIONPAY_FOREIGN -> R.string.network_unionpay_foreign
         CardNetwork.MIR -> R.string.network_mir
-        CardNetwork.VISA_MC_RU -> R.string.network_visa_ru
         CardNetwork.VISA_MC_FOREIGN -> R.string.network_visa_foreign
     },
 )
@@ -100,7 +112,6 @@ private fun networkShort(n: CardNetwork): String = stringResource(
         CardNetwork.UNIONPAY -> R.string.guide_net_unionpay_ru
         CardNetwork.UNIONPAY_FOREIGN -> R.string.guide_net_unionpay_foreign
         CardNetwork.MIR -> R.string.network_mir
-        CardNetwork.VISA_MC_RU -> R.string.guide_net_visa_ru
         CardNetwork.VISA_MC_FOREIGN -> R.string.guide_net_visa_foreign
     },
 )
@@ -125,14 +136,17 @@ fun CountryGuideSheet(
     val colors = AppTheme.colors
     val type = AppTheme.type
     AppSheet(onDismissRequest = onDismiss) {
+      // Флаг страны — фоном в правом верхнем углу, под содержимым; прокручивается только содержимое.
+      Box(Modifier.fillMaxWidth()) {
+        FlagBackdrop(place.first, Modifier.align(Alignment.TopEnd))
         Column(
             Modifier
                 .fillMaxWidth()
-                .fadingScroll(rememberScrollState())
+                .sheetScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 20.dp),
         ) {
-            Header(place, currency)
+            Header(place.second, currency)
             if (guide == null) {
                 Spacer(Modifier.height(16.dp))
                 Column(
@@ -204,35 +218,82 @@ fun CountryGuideSheet(
             )
             ReportLink(stringResource(R.string.guide_report), guide.iso, countryName(guide.iso), guide.updated)
         }
+      }
     }
 }
 
-/** Шапка: «🇹🇯 Таджикистан» мелко, «Таджикский сомони» крупно, «TJS · смн» серым. */
+/**
+ * Шапка: «Армения» мелко серым, «Драм» очень крупно, «AMD · ֏» мелко серым — по одной левой линии.
+ * Длинное название («Фунт стерлингов» на узком экране) уменьшается до 80 %, дальше — переносится.
+ */
 @Composable
-private fun Header(place: Pair<String, String>, currency: Currency) {
+private fun Header(country: String, currency: Currency) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    Text(
-        place.first + "  " + place.second,
-        style = type.body.copy(fontSize = 15.sp),
-        color = colors.ink,
-        modifier = Modifier.padding(start = 4.dp),
-    )
-    Text(
-        currency.nameRu,
-        style = type.title.copy(fontSize = 26.sp, lineHeight = 31.sp),
-        color = colors.ink,
-        modifier = Modifier
-            .padding(start = 4.dp, top = 6.dp)
-            .semantics { heading() },
-    )
-    Text(
-        if (currency.sign == currency.code) currency.code else currency.code + " · " + currency.sign,
-        style = type.body.copy(fontSize = 13.5.sp),
-        color = colors.muted,
-        modifier = Modifier.padding(start = 4.dp, top = 4.dp),
-    )
+    Column(Modifier.padding(start = 4.dp, top = 18.dp)) {
+        Text(country, style = type.body.copy(fontSize = 14.sp), color = colors.muted, maxLines = 1)
+        val title = currency.noun
+        val base = type.title.copy(fontSize = HEADER_SP.sp, lineHeight = (HEADER_SP * 1.12f).sp, fontWeight = FontWeight.SemiBold)
+        BoxWithConstraints(Modifier.padding(top = 2.dp)) {
+            val measurer = rememberTextMeasurer()
+            val limit = constraints.maxWidth
+            val style = remember(title, limit, base) {
+                val fits = measurer.measure(title, base, maxLines = 1, softWrap = false).size.width <= limit
+                if (fits) base else base.copy(fontSize = (HEADER_SP * 0.8f).sp, lineHeight = (HEADER_SP * 0.8f * 1.12f).sp)
+            }
+            Text(title, style = style, color = colors.ink, maxLines = 2, modifier = Modifier.semantics { heading() })
+        }
+        Text(
+            if (currency.sign == currency.code) currency.code else currency.code + " · " + currency.sign,
+            style = type.body.copy(fontSize = 13.5.sp),
+            color = colors.muted,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
 }
+
+private const val HEADER_SP = 40f
+
+/**
+ * Флаг страны фоном: крупный, уходит за правый и верхний край, растворяется радиальной маской от угла
+ * (35 % → 0 к середине экрана — текст слева всегда на чистом фоне). В светлой теме — наложение «умножение»:
+ * белые поля флага (Япония, Кипр) пропадают на светлом фоне, а не становятся пятном.
+ */
+@Composable
+private fun FlagBackdrop(flag: String, modifier: Modifier = Modifier) {
+    val dark = AppTheme.colors.isDark
+    val size = FLAG_SIZE
+    val fontSize = with(LocalDensity.current) { (size * 0.82f).toSp() }
+    Box(
+        modifier
+            .offset(x = size * 0.32f, y = -size * 0.25f)
+            .size(size)
+            .clearAndSetSemantics { }
+            .graphicsLayer {
+                compositingStrategy = CompositingStrategy.Offscreen
+                if (!dark) blendMode = BlendMode.Multiply
+            }
+            .drawWithContent {
+                drawContent()
+                drawRect(
+                    brush = Brush.radialGradient(
+                        0f to Color.Black.copy(alpha = 0.35f),
+                        0.28f to Color.Black.copy(alpha = 0.30f),
+                        0.5f to Color.Black.copy(alpha = 0.12f),
+                        0.68f to Color.Transparent,
+                        center = Offset(this.size.width, 0f),
+                        radius = this.size.maxDimension,
+                    ),
+                    blendMode = BlendMode.DstIn,
+                )
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(flag, fontSize = fontSize, lineHeight = fontSize, maxLines = 1, softWrap = false)
+    }
+}
+
+private val FLAG_SIZE = 280.dp
 
 /** «Сообщить о неточности» / «Подсказать, что добавить»: задача в GitHub с готовым текстом. */
 @Composable

@@ -106,12 +106,11 @@ internal fun KindSwitch(kind: CardKind, onChange: (CardKind) -> Unit) {
 /** Чипы платёжных систем по рядам: российская и зарубежная — рядом. */
 private val NETWORK_ROWS = listOf(
     listOf(CardNetwork.UNIONPAY, CardNetwork.UNIONPAY_FOREIGN),
-    listOf(CardNetwork.VISA_MC_RU, CardNetwork.VISA_MC_FOREIGN),
-    listOf(CardNetwork.MIR),
+    listOf(CardNetwork.VISA_MC_FOREIGN, CardNetwork.MIR),
 )
 
 /**
- * Платёжная система карты: UnionPay РФ / зарубежная, Visa/MC РФ / зарубежная, МИР; повторное касание снимает выбор. Нужна справочнику «Чем платить»
+ * Платёжная система карты: UnionPay РФ / зарубежная, Visa/MC зарубежная, МИР; повторное касание снимает выбор. Нужна справочнику «Чем платить»
  * (примут ли карту в стране); UnionPay включает и пересчёт покупок по курсу UnionPay.
  */
 @Composable
@@ -140,7 +139,6 @@ internal fun NetworkChips(network: CardNetwork?, onChange: (CardNetwork?) -> Uni
                                     CardNetwork.UNIONPAY -> R.string.network_short_unionpay_ru
                                     CardNetwork.UNIONPAY_FOREIGN -> R.string.network_short_unionpay_foreign
                                     CardNetwork.MIR -> R.string.network_mir
-                                    CardNetwork.VISA_MC_RU -> R.string.network_short_visa_ru
                                     CardNetwork.VISA_MC_FOREIGN -> R.string.network_short_visa_foreign
                                 },
                             ),

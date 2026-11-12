@@ -76,7 +76,7 @@ data class CountryGuides(val version: LocalDate, val countries: Map<String, Coun
  * mir=no|Не принимают
  * cash=Лучше везти доллары|Курс к дирхаму фиксирован…
  * ```
- * Платёжные системы — `unionpay`, `mir`, `visa_ru`, `visa`: «yes|partial|no» и пояснение.
+ * Платёжные системы — `unionpay`, `unionpay_foreign`, `mir`, `visa` (`visa_ru` старых копий пропускается): «yes|partial|no» и пояснение.
  * Строки разделов — `cash`, `atm`, `exchange`, `tip`: «заголовок|пояснение», ключ можно повторять.
  * Неизвестные ключи и строки с ошибками пропускаются: файл правят руками, старое приложение не должно падать.
  */
@@ -136,7 +136,7 @@ object CountryGuideParser {
         fun put(key: String, value: String) {
             when (key) {
                 "updated" -> updated = date(value)
-                "unionpay", "unionpay_foreign", "mir", "visa_ru", "visa" -> {
+                "unionpay", "unionpay_foreign", "mir", "visa" -> {
                     val (status, text) = pair(value) ?: return
                     val acceptance = when (status.lowercase()) {
                         "yes" -> Acceptance.YES
@@ -148,7 +148,6 @@ object CountryGuideParser {
                         "unionpay" -> CardNetwork.UNIONPAY
                         "unionpay_foreign" -> CardNetwork.UNIONPAY_FOREIGN
                         "mir" -> CardNetwork.MIR
-                        "visa_ru" -> CardNetwork.VISA_MC_RU
                         else -> CardNetwork.VISA_MC_FOREIGN
                     }
                     networks[network] = NetworkNote(acceptance, text)

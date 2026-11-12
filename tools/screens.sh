@@ -114,6 +114,11 @@ shot 43-guide-mad --es spend MAD --es screen guide
 shot 44-guide-irr --es spend IRR --es screen guide
 # Тунис: динары вывозить нельзя, купюры.
 shot 45-guide-tnd --es spend TND --es screen guide
+# Белый флаг в светлой теме (наложение «умножение»).
+adb shell cmd uimode night no
+shot 46-guide-jpy-light --es spend JPY --es screen guide
+shot 47-guide-amd-light --es spend AMD --es screen guide
+adb shell cmd uimode night yes
 scrolled 45-guide-tnd-low --es spend TND --es screen guide
 # Пересчёт: выбран не лучший способ (карта в юанях), ввод в рублях, кошелёк без карт.
 shot 33-main-other --es card demo-cny

@@ -68,7 +68,6 @@ class CountryGuideTest {
             BankCard("x", "x", currency, 0, kind = kind, unionPay = unionPay, network = network)
         assertEquals(Acceptance.PARTIAL, ae.verdict(card(unionPay = true), Currency.AED))
         assertEquals(Acceptance.NO, ae.verdict(card(CardNetwork.MIR), Currency.AED))
-        assertNull(ae.verdict(card(CardNetwork.VISA_MC_RU), Currency.AED))
         assertNull(ae.verdict(card(), Currency.AED))
         assertEquals(Acceptance.YES, ae.verdict(card(kind = CardKind.CASH, currency = Currency.AED), Currency.AED))
         assertEquals(Acceptance.PARTIAL, ae.verdict(card(kind = CardKind.CASH, currency = Currency.USD), Currency.AED))

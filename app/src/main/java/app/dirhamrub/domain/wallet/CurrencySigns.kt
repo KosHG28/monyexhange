@@ -25,3 +25,22 @@ private val LOCAL_SIGNS: Map<Currency, String> = mapOf(
 
 /** Знак для показа: местный, если есть, иначе [Currency.symbol] (у валют без знака — код). */
 val Currency.sign: String get() = LOCAL_SIGNS[this] ?: symbol
+
+/** Окончания прилагательных в названиях валют: «Армянский», «Турецкая», «Новый». */
+private val ADJECTIVE = Regex("(?:ск|цк|н|в|ш)?(?:ий|ый|ой|ая|ое)$")
+
+/**
+ * Короткое название валюты для шапки шторки страны: без прилагательных и страны — страна написана над ним.
+ * «Армянский драм» → «Драм», «Дирхам ОАЭ» → «Дирхам», «Доллар Фиджи» → «Доллар», «Евро» → «Евро».
+ */
+val Currency.noun: String
+    get() {
+        NOUNS[this]?.let { return it }
+        var words = nameRu.split(' ')
+        // Последнее слово — само название, даже если похоже на прилагательное («Польский злотый»).
+        while (words.size > 1 && words[0].lowercase().contains(ADJECTIVE)) words = words.drop(1)
+        return words.first().replaceFirstChar { it.uppercase() }
+    }
+
+/** Где первого слова мало. */
+private val NOUNS: Map<Currency, String> = mapOf(Currency.GBP to "Фунт стерлингов")

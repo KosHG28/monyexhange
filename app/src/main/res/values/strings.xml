@@ -331,9 +331,7 @@
     <string name="network_unionpay_foreign">Зарубежная UnionPay</string>
     <string name="guide_net_unionpay_ru">UnionPay РФ</string>
     <string name="guide_net_unionpay_foreign">Зарубежная UnionPay</string>
-    <string name="network_visa_ru">Visa и Mastercard из РФ</string>
     <string name="network_visa_foreign">Зарубежные Visa и Mastercard</string>
-    <string name="guide_net_visa_ru">Visa/MC из РФ</string>
     <string name="guide_net_visa_foreign">Зарубежная Visa/MC</string>
     <string name="guide_your_cards">Ваши карты здесь</string>
     <string name="guide_card_unknown">Укажите платёжную систему в карте — подскажем, примут ли её</string>
@@ -356,7 +354,6 @@
     <string name="editor_network_hint">Нужна справочнику: подскажем, примут ли карту в стране</string>
     <string name="network_short_unionpay_ru">UnionPay РФ</string>
     <string name="network_short_unionpay_foreign">UnionPay зарубежная</string>
-    <string name="network_short_visa_ru">Visa/MC РФ</string>
     <string name="network_short_visa_foreign">Visa/MC зарубежная</string>
     <string name="transfer_mode_last">По последнему</string>
     <string name="transfer_mode_average">В среднем</string>

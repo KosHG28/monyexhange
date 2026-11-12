@@ -63,6 +63,16 @@
     <string name="cheat_unionpay">UnionPay</string>
 
     <!-- Редактор карты -->
+    <string name="nfc_title">Приложите карту к задней панели</string>
+    <string name="nfc_sub">Определим платёжную систему и валюту карты. Номер карты не читаем и не сохраняем.</string>
+    <string name="nfc_found">Карта прочитана: %1$s · %2$s</string>
+    <string name="nfc_found_no_currency">Карта прочитана: %1$s, валюту карта не сообщила</string>
+    <string name="nfc_failed">Не удалось прочитать — подержите карту у телефона чуть дольше</string>
+    <string name="nfc_brand_visa">Visa</string>
+    <string name="nfc_brand_mastercard">Mastercard</string>
+    <string name="nfc_brand_unionpay">UnionPay</string>
+    <string name="nfc_brand_mir">МИР</string>
+    <string name="nfc_brand_other">другая система</string>
     <string name="scan_button">Заполнить из скриншота банка</string>
     <string name="scan_hint">Уведомление или операция — суммы найдём сами</string>
     <string name="scan_reading">Читаем скриншот…</string>

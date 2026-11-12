@@ -44,10 +44,11 @@ app/src/main/java/app/dirhamrub/
     wallet/OfficialRates, CbrParser       курсы ЦБ РФ (XML и JSON-зеркало), справочный курс с UnionPay
     wallet/UnionPay                       курсы UnionPay: разбор файла, валюты расчёта
     wallet/WalletCodec                    хранение кошелька и курсов (Properties)
+    wallet/Emv                            разбор ответов банковской карты по NFC (система, страна банка, валюта)
     price/PriceParser, PriceCurrency      цены из OCR-строк для каждой валюты трат
     price/PriceTracker                    стабилизация меток между кадрами
   data/              WalletRepository (DataStore + перенос с 0.x), CbrClient и UnionPayClient (сеть)
-  ui/theme/          цвета, шрифты, тема, оформления карт
+  ui/theme/          цвета, шрифты, тема, оформления карт, виброотклик (Haptics)
   ui/main/           единственный главный экран (MainScreen: итог, поле цены, карточки способов, курс ЦБ;
                      Keypad 4 × 5; PlaceSheet — шторка страны; Banners, EmptyRate) + MainViewModel
   ui/money/          «Карты и наличные» (из настроек): все способы оплаты

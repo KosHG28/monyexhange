@@ -209,6 +209,19 @@ fun CardEditorScreen(
     val context = LocalContext.current
     val haptics = rememberHaptics()
     var scan by remember(card.id) { mutableStateOf<ScanResult?>(null) }
+    // Карта, приложенная к телефону: система и валюта сразу в поля.
+    var nfc by remember(card.id) { mutableStateOf<NfcRead?>(null) }
+    val nfcAvailable = remember { nfcReady(context) }
+    NfcCardReader(enabled = nfcAvailable && kind == CardKind.CARD) { result ->
+        nfc = result
+        if (result is NfcRead.Found) {
+            result.info.currency?.let { currency = it }
+            network = result.info.network
+            haptics.play(Haptic.CONFIRM)
+        } else {
+            haptics.play(Haptic.REJECT)
+        }
+    }
     val pickScreenshot = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scan = ScanResult.Reading
@@ -375,6 +388,10 @@ fun CardEditorScreen(
 
             // Блок 1. Основное: название, валюта, платёжная система.
             EditorBlock(stringResource(R.string.editor_block_main), Modifier.cascade(cascade, 0)) {
+                if (!cash && nfcAvailable) {
+                    NfcHint(nfc)
+                    Spacer(Modifier.height(12.dp))
+                }
                 FieldLabel(stringResource(R.string.editor_name))
                 BasicTextField(
                     value = name,

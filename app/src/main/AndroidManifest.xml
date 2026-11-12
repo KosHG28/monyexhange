@@ -6,7 +6,13 @@
         android:name="android.hardware.camera.any"
         android:required="false" />
 
+    <!-- NFC — по желанию: приложить карту в настройке карты (платёжная система и валюта). -->
+    <uses-feature
+        android:name="android.hardware.nfc"
+        android:required="false" />
+
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.NFC" />
     <!-- Виброотклик на флагманах: композиции примитивов через вибромотор (обычное разрешение, без запроса). -->
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Только для курсов ЦБ РФ; всё остальное работает офлайн. -->

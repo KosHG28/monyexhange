@@ -54,6 +54,7 @@ import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.CardNetwork
 import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.EmvBrand
 import app.dirhamrub.domain.wallet.ScannedReceipt
 import app.dirhamrub.domain.wallet.TransferMode
 import app.dirhamrub.domain.wallet.TransferReceipt
@@ -319,6 +320,59 @@ internal fun ReceiptRate(rate: String, whole: Boolean = false) {
         color = AppTheme.colors.good,
         modifier = Modifier.padding(start = 2.dp, top = 6.dp),
     )
+}
+
+/**
+ * Приложить карту: строка со значком «бесконтактно» и подсказкой; ниже — что прочитали (зелёным) или что не вышло
+ * (красным). Само чтение идёт всё время, пока открыта настройка карты ([NfcCardReader]).
+ */
+@Composable
+internal fun NfcHint(result: NfcRead?) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.surface2)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(R.drawable.ic_nfc), contentDescription = null, tint = colors.accent, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.nfc_title), style = type.bodyStrong, color = colors.ink)
+            Text(stringResource(R.string.nfc_sub), style = type.caption, color = colors.muted)
+        }
+    }
+    val message = when (result) {
+        null -> null
+        NfcRead.Failed -> stringResource(R.string.nfc_failed)
+        is NfcRead.Found -> {
+            val brand = stringResource(
+                when (result.info.brand) {
+                    EmvBrand.VISA -> R.string.nfc_brand_visa
+                    EmvBrand.MASTERCARD -> R.string.nfc_brand_mastercard
+                    EmvBrand.UNIONPAY -> R.string.nfc_brand_unionpay
+                    EmvBrand.MIR -> R.string.nfc_brand_mir
+                    EmvBrand.OTHER -> R.string.nfc_brand_other
+                },
+            )
+            result.info.currency?.let { stringResource(R.string.nfc_found, brand, it.code) }
+                ?: stringResource(R.string.nfc_found_no_currency, brand)
+        }
+    }
+    if (message != null) {
+        Text(
+            message,
+            style = type.caption.copy(fontSize = 13.sp),
+            color = if (result is NfcRead.Found) colors.good else colors.danger,
+            modifier = Modifier
+                .padding(start = 2.dp, top = 6.dp)
+                .semantics { liveRegion = LiveRegionMode.Polite },
+        )
+    }
 }
 
 @Composable

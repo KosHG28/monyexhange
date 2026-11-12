@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Курс по чеку — Reels</title>
+<style>
+@font-face { font-family: "Inter Tight"; font-weight: 300; src: url("../../app/src/main/res/font/inter_tight_light.ttf"); }
+@font-face { font-family: "Inter Tight"; font-weight: 400; src: url("../../app/src/main/res/font/inter_tight_regular.ttf"); }
+@font-face { font-family: "Inter Tight"; font-weight: 500; src: url("../../app/src/main/res/font/inter_tight_medium.ttf"); }
+@font-face { font-family: "Inter Tight"; font-weight: 600; src: url("../../app/src/main/res/font/inter_tight_semibold.ttf"); }
+/* Тёмная тема приложения 1.24+: DarkColors из ui/theme/Color.kt */
+:root {
+  --bg: #0D1217; --surface: #151D25; --surface2: #212B35; --ink: #E7ECF1; --muted: #B8C3CE; --line: #27323D;
+  --accent: #4C8DFF; --accent-soft: #172B4D; --good: #5CCB92; --good-soft: #15301F; --warn: #E9B949; --danger: #FF6B6B;
+  --cam: #2F6BFF;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1080px; height: 1920px; overflow: hidden; background: var(--bg); }
+body { font-family: "Inter Tight", "Inter", "DejaVu Sans", sans-serif; color: var(--ink);
+       font-feature-settings: "tnum"; -webkit-font-smoothing: antialiased; position: relative; }
+.abs { position: absolute; }
+.scene { position: absolute; inset: 0; display: none; }
+
+/* Подпись сцены — сверху, вне зон интерфейса Reels */
+.cap { position: absolute; left: 64px; width: 952px; top: 236px; }
+.kicker { font-size: 38px; font-weight: 500; color: var(--accent); margin-bottom: 20px; }
+.headline { font-size: 84px; line-height: 1.08; font-weight: 600; letter-spacing: -2px; }
+.word { display: inline-block; }
+
+/* Флаги (CSS, упрощённые) */
+.flag { display: inline-block; width: 52px; height: 36px; border-radius: 6px; overflow: hidden; vertical-align: middle; flex: none; }
+.f-AE { background: linear-gradient(90deg, #EF3340 0 28%, transparent 28%), linear-gradient(180deg, #00843D 0 33.3%, #fff 33.3% 66.6%, #111 66.6%); }
+.f-AM { background: linear-gradient(180deg, #D90012 0 33.3%, #0033A0 33.3% 66.6%, #F2A800 66.6%); }
+.f-TH { background: linear-gradient(180deg, #A51931 0 16.6%, #F4F5F8 16.6% 33.3%, #2D2A4A 33.3% 66.6%, #F4F5F8 66.6% 83.3%, #A51931 83.3%); }
+.f-ID { background: linear-gradient(180deg, #CE1126 0 50%, #fff 50%); }
+.f-MA { background: #C1272D; }
+.f-MA::after { content: "★"; display: block; text-align: center; color: #006233; font-size: 26px; line-height: 36px; }
+
+/* Камера */
+.vf { position: absolute; left: 40px; top: 590px; width: 1000px; height: 900px; border-radius: 56px; overflow: hidden;
+      background: #15100d; box-shadow: 0 0 0 2px #1c252e; }
+.world { position: absolute; inset: -40px; }
+.wall { position: absolute; inset: 0;
+  background:
+    radial-gradient(circle at 16% 18%, rgba(255, 196, 120, 0.30) 0 50px, transparent 150px),
+    radial-gradient(circle at 84% 12%, rgba(255, 230, 190, 0.22) 0 40px, transparent 130px),
+    radial-gradient(circle at 90% 70%, rgba(120, 190, 255, 0.12) 0 60px, transparent 170px),
+    radial-gradient(circle at 6% 80%, rgba(255, 150, 90, 0.18) 0 60px, transparent 170px),
+    linear-gradient(180deg, #4a3a2e 0%, #2b211b 55%, #17120f 100%); }
+.goods { position: absolute; border-radius: 18px 18px 6px 6px; opacity: 0.9; }
+.shelf { position: absolute; left: 0; right: 0; height: 38px;
+  background: linear-gradient(180deg, #c9ced3 0%, #8c949b 60%, #5d646a 100%); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5); }
+.tag { position: absolute; width: 300px; background: #fbfaf6; border-radius: 10px; overflow: hidden; color: #1b1b1b;
+       box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45); font-family: "Inter", "DejaVu Sans", sans-serif; font-feature-settings: normal; }
+.tag .band { background: #ffd54a; font-weight: 800; letter-spacing: 3px; text-align: center; font-size: 19px; padding: 6px 0; }
+.tag .was { font-size: 26px; font-weight: 600; color: #555; padding: 12px 0 0 22px; }
+.tag .price { font-weight: 800; letter-spacing: -1.5px; line-height: 1; white-space: nowrap; font-size: 64px; padding: 16px 0 0 22px; }
+.tag .price small { font-size: 26px; font-weight: 700; letter-spacing: 0; margin-left: 6px; }
+.tag .name { font-weight: 600; color: #555; letter-spacing: 0.5px; font-size: 18px; padding: 18px 0 16px 22px; }
+.embed-patch { position: absolute; background: #fbfaf6; border-radius: 6px; box-shadow: 0 0 8px 5px #fbfaf6; }
+.embed-text { position: absolute; font-family: "Inter", sans-serif; font-weight: 800; letter-spacing: -1.5px; color: #1b1b1b; white-space: nowrap; line-height: 1; }
+.embed-mark { position: absolute; height: 6px; background: var(--cam); border-radius: 2px; }
+.corner { position: absolute; width: 28px; height: 28px; border: 0 solid var(--cam); }
+.ctrl { position: absolute; top: 28px; left: 28px; right: 28px; display: flex; align-items: center; gap: 14px; }
+.rb { width: 96px; height: 96px; border-radius: 50%; background: rgba(13, 18, 23, 0.62); display: flex; align-items: center; justify-content: center; }
+.rb svg { width: 44px; height: 44px; }
+.chip-card { height: 96px; border-radius: 48px; background: rgba(13, 18, 23, 0.62); display: flex; align-items: center; gap: 14px; padding: 0 30px;
+             font-size: 34px; font-weight: 600; color: #fff; }
+.hint { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; color: #fff; font-weight: 600; font-size: 33px;
+        padding: 18px 34px; border-radius: 999px; background: rgba(13, 18, 23, 0.66); display: flex; align-items: center; gap: 12px; }
+.zoom { position: absolute; right: 40px; bottom: 130px; display: flex; gap: 6px; padding: 8px; border-radius: 50px; background: rgba(13, 18, 23, 0.55); }
+.zoom span { width: 76px; height: 76px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 600; color: #fff; }
+.zoom .on { background: rgba(255, 255, 255, 0.22); color: #FFE08A; }
+.focus { position: absolute; left: 24px; right: 24px; bottom: 24px; background: var(--surface); border-radius: 40px; padding: 26px 34px 24px; }
+.focus .h { font-size: 30px; color: var(--muted); }
+.focus .big { font-size: 74px; font-weight: 400; letter-spacing: -1px; line-height: 1.12; }
+.focus .d { font-size: 29px; color: var(--muted); }
+.focus .sep { height: 2px; background: var(--line); margin: 16px 0 14px; }
+.focus .cmp { font-size: 28px; color: var(--muted); }
+
+/* Иконка: ic_launcher_foreground.xml на #141A20 */
+.icon { border-radius: 24%; overflow: hidden; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5), 0 0 0 2px #222c36; }
+.icon svg { display: block; width: 100%; height: 100%; }
+
+/* Экран приложения в натуральную величину (1080 px), уменьшен целиком */
+.screen { position: absolute; left: 0; top: 0; width: 1080px; transform-origin: 0 0; }
+.hdr { position: absolute; left: 30px; right: 30px; top: 0; height: 96px; display: flex; align-items: center; gap: 18px; font-size: 40px; font-weight: 500; }
+.hdr .chev { color: var(--muted); font-size: 30px; margin-left: -4px; }
+.hdr .info { width: 52px; height: 52px; border-radius: 50%; border: 3.5px solid var(--ink); display: flex; align-items: center; justify-content: center;
+             font-size: 30px; font-weight: 600; margin-left: 36px; }
+.hdr .set { margin-left: auto; width: 56px; }
+.big { position: absolute; left: 0; width: 1080px; text-align: center; font-weight: 300; letter-spacing: -6px; line-height: 1; white-space: nowrap; }
+.big .m { color: var(--muted); font-size: 0.6em; letter-spacing: 0; }
+/* Знак перекатывающегося числа: ширина задана явно и меняется плавно; обрезка — clip-path, чтобы не сбить базовую линию. */
+.c { display: inline-block; position: relative; white-space: pre; clip-path: inset(0 -6px 0 -6px); }
+.c > .ph { visibility: hidden; }
+.c > .o, .c > .n { position: absolute; left: 0; top: 0; width: 100%; text-align: center; }
+.field { position: absolute; left: 42px; width: 996px; height: 190px; border-radius: 56px; border: 4px solid var(--accent); background: var(--bg); }
+.field .lb { position: absolute; left: 36px; top: 26px; font-size: 30px; color: var(--muted); }
+.field .v { position: absolute; right: 40px; bottom: 26px; display: flex; align-items: baseline; gap: 0; white-space: nowrap; }
+.field .v b { font-size: 96px; font-weight: 300; letter-spacing: -1px; }
+.field .v .caret { display: inline-block; width: 5px; height: 86px; background: var(--accent); margin: 0 14px 0 8px; align-self: center; transform: translateY(8px); }
+.field .v i { font-style: normal; font-size: 46px; color: var(--muted); }
+.mth { position: absolute; left: 42px; width: 996px; height: 150px; border-radius: 46px; background: var(--surface); display: flex; align-items: center; padding: 0 40px 0 28px; }
+.mth.best { background: var(--good-soft); }
+.mth .ico { width: 100px; height: 68px; border-radius: 12px; position: relative; flex: none; margin-right: 26px; }
+.mth .ico .chip { position: absolute; left: 14px; top: 13px; width: 24px; height: 17px; border-radius: 4px; background: #E9D7A6; }
+.mth .ico b { position: absolute; right: 9px; bottom: 6px; font-size: 19px; font-weight: 700; color: #fff; }
+.mth .cash { width: 100px; height: 68px; flex: none; margin-right: 26px; display: flex; align-items: center; justify-content: center; }
+.mth .t1 { font-size: 39px; font-weight: 500; white-space: nowrap; }
+.mth .t2 { font-size: 31px; color: var(--muted); white-space: nowrap; margin-top: 2px; }
+.mth.best .t2 { color: var(--good); }
+.mth .amt { margin-left: auto; font-size: 46px; font-weight: 400; white-space: nowrap; }
+.mth.best .amt { color: var(--good); }
+.sel { position: absolute; left: 42px; width: 996px; height: 150px; border-radius: 46px; border: 4px solid var(--accent); }
+.cbl { position: absolute; left: 0; width: 1080px; text-align: center; font-size: 31px; color: var(--muted); white-space: nowrap; }
+.tap { position: absolute; width: 110px; height: 110px; border-radius: 50%; background: rgba(231, 236, 241, 0.30); border: 3px solid rgba(231, 236, 241, 0.6); }
+
+/* Экран страны «Чем платить» */
+.gflag { position: absolute; right: -170px; top: 470px; width: 600px; height: 400px; filter: blur(80px); opacity: 0.45; border-radius: 120px; }
+.g-country { position: absolute; left: 50px; top: 40px; display: flex; align-items: center; gap: 18px; font-size: 38px; font-weight: 500; }
+.g-cur { position: absolute; left: 50px; top: 104px; font-size: 76px; font-weight: 600; letter-spacing: -2px; }
+.g-code { position: absolute; left: 52px; top: 200px; font-size: 36px; color: var(--muted); }
+.g-sec { position: absolute; left: 52px; font-size: 32px; font-weight: 600; color: var(--muted); letter-spacing: 1px; }
+.g-blk { position: absolute; left: 40px; width: 1000px; border-radius: 46px; background: var(--surface); padding: 10px 0; }
+.g-row { display: flex; gap: 30px; padding: 22px 40px 22px 38px; position: relative; }
+.g-row + .g-row::before { content: ""; position: absolute; left: 116px; right: 0; top: 0; height: 2px; background: var(--line); }
+.g-row .gi { width: 48px; flex: none; font-size: 40px; font-weight: 700; line-height: 46px; text-align: center; }
+.g-row .gt { font-size: 39px; line-height: 1.15; }
+.g-row .gs { font-size: 31px; color: var(--muted); line-height: 1.25; margin-top: 4px; }
+
+/* Финал */
+.final { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 240px; }
+.final .ttl { font-size: 146px; font-weight: 600; letter-spacing: -4px; margin-top: 50px; line-height: 1.05; }
+.final .sub { font-size: 46px; color: var(--muted); margin-top: 24px; }
+</style>
+</head>
+<body>
+
+<template id="iconTpl">
+  <svg viewBox="0 0 108 108" aria-hidden="true">
+    <rect width="108" height="108" fill="#141A20"/>
+    <g transform="translate(0 2) translate(54 54) scale(0.667) translate(-54 -54)">
+      <path fill="#FFFFFF" d="M32,22H76A4,4 0,0 1,80 26V80L73.5,75L67,80L60.5,75L54,80L47.5,75L41,80L34.5,75L28,80V26A4,4 0,0 1,32 22Z"/>
+      <path fill="#D5DCE3" d="M38.5,31h17a1.5,1.5 0,0 1,0 3h-17a1.5,1.5 0,0 1,0 -3zM39.5,64h29a1.5,1.5 0,0 1,0 3h-29a1.5,1.5 0,0 1,0 -3z"/>
+      <path fill="#C8272D" d="M55.8 49.72H44.27V46.44H55.71Q57.1 46.44 57.99 46Q58.89 45.57 59.32 44.78Q59.76 43.99 59.74 42.94Q59.76 41.92 59.32 41.1Q58.89 40.28 58.02 39.79Q57.14 39.31 55.8 39.31H51.48V58H47.52V36H55.8Q58.36 36 60.13 36.92Q61.9 37.85 62.81 39.4Q63.73 40.96 63.73 42.91Q63.73 44.92 62.8 46.45Q61.87 47.99 60.1 48.85Q58.33 49.7 55.8 49.72ZM56.29 51.34V54.62H44.27V51.34Z"/>
+    </g>
+  </svg>
+</template>
+<template id="setTpl"><svg viewBox="0 0 24 24" width="56" height="56"><path d="M4 8h9M17 8h3M4 16h3M11 16h9" stroke="#E7ECF1" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="8" r="2.2" fill="none" stroke="#E7ECF1" stroke-width="1.8"/><circle cx="9" cy="16" r="2.2" fill="none" stroke="#E7ECF1" stroke-width="1.8"/></svg></template>
+<template id="cashTpl"><svg viewBox="0 0 34 24" width="62" height="44"><rect x="2" y="3" width="30" height="18" rx="3.5" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="17" cy="12" r="3.6" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="8" cy="12" r="1.3" fill="currentColor"/><circle cx="26" cy="12" r="1.3" fill="currentColor"/></svg></template>
+
+<!-- Камера (сцены 1–2) -->
+<div class="scene" id="cam">
+  <div class="vf" id="vf">
+    <div class="world" id="world">
+      <div class="wall"></div>
+      <div class="goods" style="left:80px; top:30px; width:250px; height:210px; background:linear-gradient(180deg,#2f6a8a,#173547);"></div>
+      <div class="goods" style="left:405px; top:10px; width:250px; height:230px; background:linear-gradient(180deg,#c7a24a,#6a5320);"></div>
+      <div class="goods" style="left:730px; top:40px; width:250px; height:200px; background:linear-gradient(180deg,#7a4a2a,#3b2414);"></div>
+      <div class="shelf" style="top:240px;"></div>
+      <div class="tag" style="left:66px; top:300px;">
+        <div class="band">PRICE</div>
+        <div class="price"><span id="dA">12.50</span><small id="cA">AED</small></div>
+        <div class="name">ARABIC COFFEE</div>
+      </div>
+      <div class="tag" style="left:390px; top:266px;">
+        <div class="band" style="background:#e8453c; color:#fff;">OFFER</div>
+        <div class="was">WAS <span id="dW" style="text-decoration:line-through; text-decoration-thickness:3px;">45.00</span></div>
+        <div class="price" style="padding-top:6px;"><span id="dB">35.00</span><small id="cB">AED</small></div>
+        <div class="name">SAFFRON 5 G</div>
+      </div>
+      <div class="tag" style="left:714px; top:300px;">
+        <div class="band">PRICE</div>
+        <div class="price"><span id="dC">89.00</span><small id="cC">AED</small></div>
+        <div class="name">MEDJOOL DATES</div>
+      </div>
+      <div id="emb" class="abs" style="inset:0;"></div>
+    </div>
+    <div class="ctrl">
+      <div class="rb"><svg viewBox="0 0 24 24"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20z" fill="#fff"/></svg></div>
+      <div class="chip-card">Наличные AED <span style="font-size:26px; opacity:0.8">⌄</span></div>
+      <div style="flex:1"></div>
+      <div class="rb"><svg viewBox="0 0 24 24"><path d="M21.4 11.6l-9-9C12.1 2.2 11.6 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .6.2 1.1.6 1.4l9 9c.4.4.9.6 1.4.6s1-.2 1.4-.6l7-7c.4-.4.6-.9.6-1.4s-.2-1-.6-1.4zM12.9 20L4 11V4h7l9 9-7.1 7zM6.5 5C5.7 5 5 5.7 5 6.5S5.7 8 6.5 8 8 7.3 8 6.5 7.3 5 6.5 5z" fill="#fff"/></svg></div>
+      <div class="rb"><svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l3-8z" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg></div>
+      <div class="rb"><svg viewBox="0 0 24 24"><path d="M7 5h3v14H7zM14 5h3v14h-3z" fill="#fff"/></svg></div>
+    </div>
+    <div class="zoom" id="zoom"><span class="on">1×</span><span>2×</span><span>4×</span></div>
+    <div class="hint" id="hint" style="bottom:40px;">Наведите на ценник · <span class="flag f-AE" style="width:40px;height:27px;"></span> AED</div>
+    <div class="focus" id="focus">
+      <div class="h">89 AED · Наличные AED</div>
+      <div class="big" style="position:static; width:auto; text-align:left; font-weight:400; letter-spacing:-1px;">1 975 <span style="color:var(--muted)">₽</span></div>
+      <div class="d">ЦБ 1 955 ₽</div>
+      <div class="sep"></div>
+      <div class="cmp"><span style="color:var(--good); font-weight:600;">✓ </span>Выгоднее всего · «Карта в юанях» — 1 998 ₽</div>
+    </div>
+  </div>
+</div>
+
+<!-- 1: хук -->
+<div class="scene" id="s1"><div class="cap"><div class="kicker">Камера «Ценник»</div><div class="headline" id="h1"></div></div></div>
+
+<!-- 2: раскрытие -->
+<div class="scene" id="s2">
+  <div class="cap">
+    <div style="display:flex; align-items:center; gap:34px;">
+      <div class="icon" id="ic2" style="width:132px; height:132px; flex:none;"></div>
+      <div class="headline" id="t2" style="font-size:112px; letter-spacing:-3.5px;">Курс по чеку</div>
+    </div>
+    <div class="headline" id="h2" style="font-size:52px; font-weight:500; letter-spacing:-0.6px; color:var(--muted); margin-top:30px; line-height:1.16;"></div>
+  </div>
+</div>
+
+<!-- 3 и 5: главный экран -->
+<div class="scene" id="s3">
+  <div class="cap"><div class="kicker" id="k3"></div><div class="headline" id="h3"></div></div>
+  <div class="screen" id="main">
+    <div class="hdr" id="hdr"><span class="flag" id="hflag"></span><span id="hname"></span><span class="chev">⌄</span><span class="info">i</span><span class="set" id="hset"></span></div>
+    <div class="big" id="big" style="top:120px; font-size:240px;"><span id="bigN"></span> <span class="m">₽</span></div>
+    <div class="field" id="field" style="top:420px;"><div class="lb">Цена на ценнике</div><div class="v"><b id="fv"></b><span class="caret" id="caret"></span><i id="fc"></i></div></div>
+    <div id="list"></div>
+    <div class="sel" id="selbox"></div>
+    <div class="cbl" id="cbl"></div>
+    <div class="tap" id="tap"></div>
+  </div>
+</div>
+
+<!-- 4: Чем платить в стране -->
+<div class="scene" id="s4">
+  <div class="cap"><div class="kicker">Справочник · 90 стран</div><div class="headline" id="h4"></div></div>
+  <div class="gflag f-AE" id="gflag"></div>
+  <div class="screen" id="guide" style="height:1260px; overflow:hidden;">
+    <div class="g-country" id="g0"><span class="flag f-AE"></span>ОАЭ</div>
+    <div class="g-cur" id="g1">Дирхам ОАЭ</div>
+    <div class="g-code" id="g2">AED · د.إ</div>
+    <div class="g-sec" id="g3" style="top:300px;">ВАШИ КАРТЫ ЗДЕСЬ</div>
+    <div class="g-blk" id="g4" style="top:362px;">
+      <div class="g-row"><span class="gi" style="color:var(--good)">✓</span><div><div class="gt">Карта в тенге</div><div class="gs">Зарубежная Visa/MC · принимают почти везде</div></div></div>
+      <div class="g-row"><span class="gi" style="color:var(--warn)">≈</span><div><div class="gt">Карта в юанях</div><div class="gs">UnionPay РФ · принимают во многих магазинах, отелях и такси, но часть терминалов отклоняет карты из РФ</div></div></div>
+      <div class="g-row"><span class="gi" style="color:var(--good)">✓</span><div><div class="gt">Наличные AED</div><div class="gs">Принимают везде</div></div></div>
+    </div>
+    <div class="g-sec" id="g5" style="top:890px;">КАРТЫ</div>
+    <div class="g-blk" id="g6" style="top:952px;">
+      <div class="g-row"><span class="gi" style="color:var(--good)">✓</span><div><div class="gt">Зарубежная UnionPay</div><div class="gs">Принимают во многих магазинах и банкоматах</div></div></div>
+      <div class="g-row"><span class="gi" style="color:var(--danger)">✕</span><div><div class="gt">МИР</div><div class="gs">Здесь не принимают</div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 6: финал -->
+<div class="scene" id="s6">
+  <div class="final">
+    <div class="icon" id="ic6" style="width:240px; height:240px;"></div>
+    <div class="ttl" id="t6">Курс по чеку</div>
+    <div class="sub" id="u6">Android · APK на GitHub</div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const prog = (t, s, d) => clamp((t - s) / d);
+const eo = (x) => 1 - Math.pow(1 - x, 3);
+const eio = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+/* Material 3 Emphasized Decelerate — кривая каскада в приложении (1.32). */
+const emph = (x) => 1 - Math.pow(1 - x, 4.2);
+const eb = (x) => { const c1 = 1.4, c3 = c1 + 1; return x <= 0 ? 0 : 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const spring = (x, damp = 5.2, freq = 11) => (x <= 0 ? 0 : x >= 1.6 ? 1 : 1 - Math.exp(-damp * x) * Math.cos(freq * x));
+const lerp = (a, b, k) => a + (b - a) * k;
+
+for (const id of ["ic2", "ic6"]) $(id).appendChild($("iconTpl").content.cloneNode(true));
+$("hset").appendChild($("setTpl").content.cloneNode(true));
+
+function words(el, text) {
+  el.innerHTML = "";
+  const out = [];
+  text.split(" ").forEach((w, i, arr) => {
+    if (w === "\n") { el.appendChild(document.createElement("br")); return; }
+    const s = document.createElement("span");
+    s.className = "word"; s.textContent = w; el.appendChild(s); out.push(s);
+    if (i < arr.length - 1 && arr[i + 1] !== "\n") el.appendChild(document.createTextNode(" "));
+  });
+  return out;
+}
+const W1 = words($("h1"), "Цены в рублях — \n прямо на ценниках");
+const W2 = words($("h2"), "Сколько покупка стоит \n на самом деле");
+const W4 = words($("h4"), "Какие карты \n здесь примут");
+let W3 = [];
+function showWords(ws, t, start, step = 0.06) {
+  ws.forEach((w, i) => {
+    const k = eo(prog(t, start + i * step, 0.35));
+    w.style.opacity = k;
+    w.style.transform = `translateY(${(1 - k) * 34}px)`;
+  });
+}
+function rise(el, t, start, dist = 30, dur = 0.4, ease = eo) {
+  const k = ease(prog(t, start, dur));
+  el.style.opacity = k;
+  el.style.transform = `translateY(${(1 - k) * dist}px)`;
+}
+/* Каскад приложения: блоки выплывают снизу по очереди (+24 dp, шаг 40 мс, 280 мс на блок). У нас ×1,6 — для видео. */
+function cascade(els, t, start, step = 0.065, dur = 0.45, dist = 63) {
+  els.forEach((el, i) => rise(el, t, start + Math.min(i, 16) * step, dist, dur, emph));
+}
+function sceneEnv(el, t, start, end, outDur = 0.25) {
+  const vis = t >= start - 1e-3 && t < end;
+  el.style.display = vis ? "block" : "none";
+  if (!vis) return false;
+  const k = eio(prog(t, end - outDur, outDur));
+  el.style.opacity = 1 - k;
+  el.style.transform = `translateY(${-k * 24}px)`;
+  return true;
+}
+
+/* RollingText: меняются только изменившиеся знаки (сопоставление справа). Старый плавно уходит вверх на полстроки
+   и гаснет, новый поднимается снизу и проявляется; ширина знака меняется вместе с ним — число не прыгает.
+   type: ввод — новый знак «впрыгивает» с пружинкой (TypingText), без прокрутки. */
+const SCALE = 0.78; // экраны приложения уменьшены целиком
+const WCACHE = {};
+function charW(el, key, ch) {
+  const id = key + "|" + ch;
+  if (WCACHE[id] != null) return WCACHE[id];
+  const sp = document.createElement("span");
+  sp.style.cssText = "position:absolute; visibility:hidden; white-space:pre;";
+  sp.textContent = ch;
+  el.appendChild(sp);
+  const w = sp.getBoundingClientRect().width / SCALE;
+  sp.remove();
+  return (WCACHE[id] = w);
+}
+function rollInto(el, key, from, to, t, start, opt = {}) {
+  const { stagger = 0.045, dur = 0.5, travel = 0.5, type = false } = opt;
+  // Ввод дописывает справа: знаки сопоставляются слева, пустое поле «0» — как пустая строка.
+  if (type && from === "0") from = "";
+  const n = Math.max(from.length, to.length);
+  const a = type ? from.padEnd(n, "\0") : from.padStart(n, "\0");
+  const b = type ? to.padEnd(n, "\0") : to.padStart(n, "\0");
+  const h = opt.h || 100;
+  const cells = [];
+  let order = 0;
+  for (let i = n - 1; i >= 0; i--) {
+    const ca = a[i], cb = b[i];
+    if (ca === cb) { cells.unshift(`<span class="c" style="width:${charW(el, key, cb)}px">${cb}</span>`); continue; }
+    const k = eio(prog(t, start + order++ * stagger, dur));
+    const wa = ca === "\0" ? 0 : charW(el, key, ca), wb = cb === "\0" ? 0 : charW(el, key, cb);
+    if (k >= 1 && cb !== "\0") { cells.unshift(`<span class="c" style="width:${wb}px">${cb}</span>`); continue; }
+    if (k >= 1) continue;
+    const ph = cb !== "\0" ? cb : ca;
+    let o = "", nw = "";
+    if (ca !== "\0") o = `<span class="o" style="transform:translateY(${-k * travel * h}px); opacity:${Math.pow(1 - k, 1.6)}">${ca}</span>`;
+    if (cb !== "\0") {
+      if (type) {
+        const sk = spring(prog(t, start, 0.45), 6, 12);
+        nw = `<span class="n" style="transform:scale(${0.55 + 0.45 * sk}); transform-origin:50% 70%; opacity:${clamp(sk * 1.6)}">${cb}</span>`;
+      } else {
+        nw = `<span class="n" style="transform:translateY(${(1 - k) * travel * h}px); opacity:${Math.pow(k, 1.2)}">${cb}</span>`;
+      }
+    }
+    const w = type && ca === "\0" ? wb * eo(prog(t, start, 0.2)) : lerp(wa, wb, k);
+    cells.unshift(`<span class="c" style="width:${w}px"><span class="ph">${ph}</span>${o}${nw}</span>`);
+  }
+  el.innerHTML = cells.join("");
+}
+/* Последнее состояние из последовательности [{at, ...}] и предыдущее. */
+function stateAt(seq, t) {
+  let i = 0;
+  for (let j = 0; j < seq.length; j++) if (t >= seq[j].at) i = j;
+  return [seq[Math.max(0, i - 1)], seq[i], i];
+}
+
+/* ---------- Камера: суммы вписываются в ценники (PriceOverlay.drawEmbedded) ---------- */
+function relRect(el, host) {
+  const a = el.getBoundingClientRect(), b = host.getBoundingClientRect();
+  return { x: a.left - b.left, y: a.top - b.top, w: a.width, h: a.height };
+}
+function makeEmbed(digitsId, currencyId, text, opt = {}) {
+  const host = $("emb"), world = $("world");
+  const d = relRect($(digitsId), world);
+  const right = currencyId ? relRect($(currencyId), world) : d;
+  const ext = { x: d.x - 4, y: d.y + d.h * 0.1, w: right.x + right.w - d.x + 8, h: d.h * 0.82 };
+  const patch = document.createElement("div"); patch.className = "embed-patch"; host.appendChild(patch);
+  const tx = document.createElement("div"); tx.className = "embed-text"; tx.textContent = text; host.appendChild(tx);
+  tx.style.fontSize = getComputedStyle($(digitsId)).fontSize;
+  if (opt.ink) tx.style.color = opt.ink;
+  const tw = tx.offsetWidth;
+  const pw = Math.max(ext.w, tw + 12);
+  Object.assign(patch.style, { left: ext.x + "px", top: ext.y + "px", width: pw + "px", height: ext.h + "px" });
+  Object.assign(tx.style, { left: d.x + "px", top: d.y + d.h / 2 - tx.offsetHeight / 2 + "px" });
+  const mark = document.createElement("div"); mark.className = "embed-mark"; host.appendChild(mark);
+  const markTop = opt.old ? d.y + d.h * 0.5 - 2 : ext.y + ext.h + 2;
+  Object.assign(mark.style, { left: d.x + "px", top: markTop + "px", width: tw + "px", height: opt.old ? "3px" : "6px",
+    background: opt.old ? "#555" : "var(--cam)" });
+  const E = { patch, tx, mark, corners: [] };
+  if (opt.focus) {
+    E.box = { x: ext.x - 14, y: ext.y - 14, w: pw + 28, h: ext.h + 38 };
+    E.corners = [0, 1, 2, 3].map((i) => {
+      const el = document.createElement("div"); el.className = "corner";
+      const cx = i % 2, cy = i >> 1;
+      el.style[cy ? "borderBottomWidth" : "borderTopWidth"] = "5px";
+      el.style[cx ? "borderRightWidth" : "borderLeftWidth"] = "5px";
+      host.appendChild(el);
+      return { el, cx, cy };
+    });
+  }
+  return E;
+}
+function drawEmbed(E, t, revealAt, dur = 0.6, lockAt = null) {
+  if (E.box) {
+    const lk = eo(prog(t, lockAt, 0.45));
+    const grow = 1 + 0.25 * (1 - lk);
+    const b = E.box, cx = b.x + b.w / 2, cy = b.y + b.h / 2, hw = b.w / 2 * grow, hh = b.h / 2 * grow;
+    for (const { el, cx: x1, cy: y1 } of E.corners) {
+      el.style.left = (x1 ? cx + hw - 28 : cx - hw) + "px";
+      el.style.top = (y1 ? cy + hh - 28 : cy - hh) + "px";
+      el.style.opacity = prog(t, lockAt, 0.15);
+    }
+  }
+  const r = prog(t, revealAt, dur);
+  const wipe = eo(clamp(r / 0.7));
+  E.patch.style.clipPath = `inset(-20px ${(1 - wipe) * 100}% -20px -20px)`;
+  E.patch.style.opacity = r > 0 ? 1 : 0;
+  E.tx.style.opacity = clamp((r - 0.3) / 0.45);
+  E.mark.style.clipPath = `inset(0 ${(1 - eo(clamp((r - 0.5) / 0.5))) * 100}% 0 0)`;
+}
+let EA, EB, EC, EW;
+
+/* ---------- Главный экран: состояния (снимки CI + демо-данные) ---------- */
+const TENGE = { kind: "card", g: ["#14B3A6", "#0B5C6E"], net: "V/MC", name: "Карта в тенге", net2: "Visa/MC" };
+const YUAN = { kind: "card", g: ["#8E1B22", "#3E0A0F"], net: "UP", name: "Карта в юанях", net2: "UnionPay" };
+const CASH_AED = { kind: "cash", name: "Наличные AED" };
+const CASH_THB = { kind: "cash", name: "Наличные THB" };
+const m = (who, amt, dearer) => ({ who, amt, dearer });
+// Сцена «Пересчёт»: ОАЭ, набор 1 → 16 → 167, затем касание карты в юанях.
+const UAE = [
+  { at: 10.0, field: "0", big: "0", list: [m(CASH_AED, "0 ₽"), m(YUAN, "0 ₽"), m(TENGE, "0 ₽")], dim: true },
+  { at: 10.75, field: "1", big: "22", list: [m(CASH_AED, "22 ₽"), m(YUAN, "22 ₽"), m(TENGE, "23 ₽", "1 ₽")] },
+  { at: 11.0, field: "16", big: "355", list: [m(CASH_AED, "355 ₽"), m(YUAN, "359 ₽", "4 ₽"), m(TENGE, "372 ₽", "17 ₽")] },
+  { at: 11.25, field: "167", big: "3 706", list: [m(CASH_AED, "3 706 ₽"), m(YUAN, "3 749 ₽", "43 ₽"), m(TENGE, "3 881 ₽", "175 ₽")] },
+  { at: 13.0, field: "167", big: "3 749", list: [m(CASH_AED, "3 706 ₽"), m(YUAN, "3 749 ₽", "43 ₽"), m(TENGE, "3 881 ₽", "175 ₽")], sel: 1 },
+];
+const COUNTRIES = [
+  { at: 0.0, flag: "AM", name: "Армения", field: "10 000", code: "AMD", big: "≈ 2 211", cb: "Курс ЦБ: 100 AMD = 20,90 ₽ · сегодня 11:01",
+    list: [m(TENGE, "≈ 2 211 ₽"), m(YUAN, "≈ 2 251 ₽", "40 ₽")] },
+  { at: 1.0, flag: "TH", name: "Таиланд", field: "1 000", code: "THB", big: "≈ 2 592", cb: "Курс ЦБ: 1 THB = 2,45 ₽ · сегодня 11:02",
+    list: [m(TENGE, "≈ 2 592 ₽"), m(YUAN, "≈ 2 639 ₽", "47 ₽"), m(CASH_THB, "2 718 ₽", "126 ₽")] },
+  { at: 2.0, flag: "MA", name: "Марокко", field: "20", code: "MAD", big: "≈ 175", cb: "Курс UnionPay: 1 MAD = 8,30 ₽ · сегодня 11:01",
+    list: [m(TENGE, "≈ 175 ₽"), m(YUAN, "≈ 179 ₽", "4 ₽")] },
+  { at: 3.0, flag: "ID", name: "Индонезия", field: "200 000", code: "IDR", big: "≈ 1 047", cb: "Курс ЦБ: 10 000 IDR = 49,50 ₽ · сегодня 10:58",
+    list: [m(TENGE, "≈ 1 047 ₽"), m(YUAN, "≈ 1 066 ₽", "19 ₽")] },
+];
+const LIST_TOP = 640, ROW = 168;
+
+function methodHTML(x, best) {
+  const w = x.who;
+  const ico = w.kind === "cash"
+    ? `<span class="cash" style="color:${best ? "var(--good)" : "var(--muted)"}">${$("cashTpl").innerHTML}</span>`
+    : `<span class="ico" style="background:linear-gradient(135deg, ${w.g[0]}, ${w.g[1]})"><span class="chip"></span><b>${w.net}</b></span>`;
+  return `${ico}<div><div class="t1">${w.name}</div><div class="t2"></div></div><div class="amt"></div>`;
+}
+function subText(x, best) {
+  return best ? "выгоднее всего" : [x.who.net2, x.dearer ? `на ${x.dearer} дороже` : null].filter(Boolean).join(" · ");
+}
+const rows = [0, 1, 2].map(() => {
+  const d = document.createElement("div"); d.className = "mth"; $("list").appendChild(d); return d;
+});
+
+let scene3Mode = null;
+function setupMain(mode) {
+  if (scene3Mode === mode) return;
+  scene3Mode = mode;
+  $("k3").textContent = mode === "uae" ? "Пересчёт" : "150 валют";
+  W3 = words($("h3"), mode === "uae" ? "Сразу видно, \n чем платить дешевле" : "Сколько это в рублях — \n в любой стране");
+}
+
+/* ---------- Сцена «Чем платить» ---------- */
+const guideBlocks = ["g0", "g1", "g2", "g3", "g4", "g5", "g6"].map($);
+const guideRows = [...$("g4").children, ...$("g6").children];
+
+var ready = false;
+async function init() {
+  await document.fonts.ready;
+  await Promise.all([...document.fonts].map((f) => f.load().catch(() => {})));
+  for (const id of ["cam", "s1", "s2", "s3", "s4", "s6"]) $(id).style.display = "block";
+  EA = makeEmbed("dA", "cA", "277 ₽");
+  EB = makeEmbed("dB", "cB", "777 ₽");
+  EC = makeEmbed("dC", "cC", "1 975 ₽", { focus: true });
+  EW = makeEmbed("dW", null, "999 ₽", { old: true, ink: "#555" });
+  // Экраны приложения: натуральная ширина 1080 px, уменьшены под подпись сверху.
+  for (const id of ["main", "guide"]) Object.assign($(id).style, { transform: "scale(0.78)", left: "119px", top: "530px" });
+  ready = true;
+  render(0);
+}
+
+function drawMain(t, seq, sceneStart, mode) {
+  setupMain(mode);
+  showWords(W3, t, mode === "uae" ? sceneStart + 0.05 : 0.0, 0.07);
+  // В начале ролика подпись стран уступает место названию приложения.
+  $("s3").querySelector(".cap").style.opacity = mode === "uae" ? 1 : 1 - eio(prog(t, 3.75, 0.25));
+  const [prev, cur] = stateAt(seq, t);
+  const changed = prev !== cur;
+  const k = prog(t, cur.at, 0.36);
+  // Шапка: флаг переворачивается, название перекатывается (смена страны).
+  const flagNow = mode === "uae" ? "AE" : (k < 0.5 && changed ? prev.flag : cur.flag);
+  $("hflag").className = `flag f-${flagNow}`;
+  $("hflag").style.transform = mode !== "uae" && changed && t < cur.at + 0.36 ? `rotateX(${k < 0.5 ? k * 180 : (k - 1) * 180}deg)` : "";
+  if (mode === "uae") $("hname").textContent = "ОАЭ";
+  else rollInto($("hname"), "hname", changed ? prev.name : cur.name, cur.name, t, cur.at, { h: 48, stagger: 0.025 });
+  // Итог: перекатываются изменившиеся цифры; пустой — тусклый.
+  rollInto($("bigN"), "big", changed ? prev.big : cur.big, cur.big, t, cur.at, { h: 240 });
+  $("big").style.color = cur.dim ? "rgba(231,236,241,0.25)" : "";
+  // Поле ввода: при наборе цифра впрыгивает, при смене страны — перекатывается.
+  const typing = mode === "uae";
+  rollInto($("fv"), "fv", changed ? prev.field : cur.field, cur.field, t, cur.at, { h: 116, type: typing, stagger: 0.03 });
+  if (mode === "uae") $("fc").textContent = "AED";
+  else rollInto($("fc"), "fc", changed ? prev.code : cur.code, cur.code, t, cur.at, { h: 56, stagger: 0.03 });
+  $("caret").style.opacity = Math.floor(t * 2) % 2 ? 0.25 : 1;
+  // Способы оплаты: тот же способ остаётся на месте и перекатывает сумму; новый выплывает, исчезнувший гаснет.
+  rows.forEach((r, i) => {
+    const x = cur.list[i], px = changed ? prev.list[i] : null;
+    const shown = x || px;
+    r.style.display = shown ? "flex" : "none";
+    if (!shown) return;
+    const best = i === 0 && !cur.dim;
+    if (r.dataset.who !== shown.who.name || r.dataset.best !== String(best)) {
+      r.innerHTML = methodHTML(shown, best);
+      r.dataset.who = shown.who.name;
+      r.dataset.best = String(best);
+    }
+    r.className = "mth" + (best ? " best" : "");
+    r.style.top = LIST_TOP + i * ROW + "px";
+    const same = px && x && px.who === x.who;
+    const ak = same ? px.amt : (x || px).amt, bk = (x || px).amt;
+    rollInto(r.querySelector(".amt"), "amt" + (best ? "b" : ""), same ? px.amt : bk, bk, t, cur.at, { h: 56, stagger: 0.035, dur: 0.45 });
+    rollInto(r.querySelector(".t2"), "t2" + (best ? "b" : ""), same ? subText(px, best) : subText(x || px, best), subText(x || px, best), t, cur.at, { h: 38, stagger: 0.03, dur: 0.4 });
+    // Новая строка — выплывает; пропавшая — гаснет.
+    r.dataset.fade = !x ? 1 - eio(prog(t, cur.at, 0.3)) : (changed && !px && cur.at > 0 ? eo(prog(t, cur.at + 0.1, 0.45)) : "");
+  });
+  // Строка курса ЦБ съезжает за списком плавно, текст меняется растворением.
+  const topOf = (st) => LIST_TOP + st.list.length * ROW + 34;
+  const ck = eio(prog(t, cur.at, 0.45));
+  $("cbl").style.top = lerp(changed ? topOf(prev) : topOf(cur), topOf(cur), ck) + "px";
+  $("cbl").textContent = mode === "uae" ? "Курс ЦБ: 1 AED = 21,97 ₽ · сегодня 14:31" : cur.cb;
+  $("cbl").dataset.fade = changed && cur.at > 0 && mode !== "uae" ? 0.35 + 0.65 * eio(prog(t, cur.at + 0.1, 0.35)) : "";
+  // Выбор способа: синяя обводка, итог по нему.
+  const sk = cur.sel != null ? spring(prog(t, cur.at, 0.5), 6, 10) : 0;
+  Object.assign($("selbox").style, { top: LIST_TOP + ROW + "px", opacity: cur.sel != null ? clamp(prog(t, cur.at, 0.12)) : 0,
+    transform: `scale(${lerp(1.04, 1, sk)})` });
+}
+
+function render(t) {
+  /* Камера: 6,5–10 (внутри — время сцены tc) */
+  if (sceneEnv($("cam"), t, 6.5, 10.0)) {
+    const tc = t - 6.5;
+    const sway = 0.4 + 0.6 * (1 - eo(prog(tc, 0.3, 0.9)));
+    const zoom = 1;
+    $("world").style.transform = `translate(${Math.sin(tc * 1.7) * 7 * sway}px, ${Math.cos(tc * 1.3) * 5 * sway}px) rotate(${Math.sin(tc * 1.1) * 0.4 * sway}deg) scale(${zoom})`;
+    drawEmbed(EA, tc, 0.75);
+    drawEmbed(EC, tc, 1.0, 0.6, 0.375);
+    drawEmbed(EB, tc, 1.25);
+    drawEmbed(EW, tc, 1.375);
+    $("hint").style.opacity = 1 - eo(prog(tc, 1.5, 0.25));
+    $("zoom").style.opacity = 1 - eo(prog(tc, 1.5, 0.25));
+    const fk = spring(prog(tc, 1.75, 0.75));
+    $("focus").style.transform = `translateY(${(1 - fk) * 360}px)`;
+    $("focus").style.opacity = clamp(prog(tc, 1.75, 0.12));
+  }
+  if (sceneEnv($("s1"), t, 6.5, 10.0)) showWords(W1, t, 6.55, 0.07);
+  if (sceneEnv($("s2"), t, 4.0, 6.5)) {
+    const ik = prog(t, 4.0, 0.5);
+    $("ic2").style.opacity = clamp(ik * 3);
+    $("ic2").style.transform = `scale(${0.4 + 0.6 * eb(ik)}) rotate(${(1 - eo(ik)) * -12}deg)`;
+    rise($("t2"), t, 4.12, 40);
+    showWords(W2, t, 4.35, 0.06);
+  }
+
+  /* Страны 0–6,5 (под названием приложения с 4,0) и пересчёт (ОАЭ) 10–14,5 — один и тот же экран */
+  const inUae = t >= 10.0 && t < 14.5, inCountries = t < 6.5;
+  const s3 = $("s3");
+  if (inUae) sceneEnv(s3, t, 10.0, 14.5);
+  else if (inCountries) sceneEnv(s3, t, 0, 6.5);
+  else s3.style.display = "none";
+  if (inUae || inCountries) {
+    const start = inUae ? 10.0 : 0.0;
+    drawMain(t, inUae ? UAE : COUNTRIES, start, inUae ? "uae" : "world");
+    // Каскад при входе; при смене страны список способов собирается заново.
+    cascade([$("hdr"), $("big"), $("field")], t, inUae ? start : -1, 0.065);
+    cascade([...rows, $("cbl")], t, inUae ? start + 0.2 : -1, 0.065);
+    for (const el of [...rows, $("cbl")]) {
+      if (el.dataset.fade === "" || el.dataset.fade == null) continue;
+      const f = parseFloat(el.dataset.fade);
+      el.style.opacity = f;
+      if (el !== $("cbl")) el.style.transform = `translateY(${(1 - f) * 24}px)`;
+    }
+    // Касание карточки «Карта в юанях».
+    const tp = $("tap");
+    const tk = prog(t, 12.85, 0.45);
+    Object.assign(tp.style, { left: 760 + "px", top: LIST_TOP + ROW + 20 + "px", opacity: inUae && t >= 12.85 ? (1 - tk) * 0.9 : 0,
+      transform: `scale(${0.6 + 0.6 * eo(tk)})` });
+  }
+
+  /* 4: Чем платить, 10–14 */
+  if (sceneEnv($("s4"), t, 14.5, 18.0)) {
+    showWords(W4, t, 14.55, 0.07);
+    const gk = eo(prog(t, 14.5, 0.6));
+    $("gflag").style.opacity = 0.45 * gk;
+    // Шапка и подзаголовок — сразу; пять строк — по одной на каждую долю; блок «Карты» — с четвёртой строкой.
+    cascade([$("g0"), $("g1"), $("g2"), $("g3")], t, 14.6, 0.07);
+    const ROWS_AT = [15.0, 15.5, 16.0, 16.5, 17.0];
+    rise($("g4"), t, ROWS_AT[0] - 0.05, 40, 0.45, emph);
+    rise($("g5"), t, ROWS_AT[3] - 0.1, 40, 0.45, emph);
+    rise($("g6"), t, ROWS_AT[3] - 0.05, 40, 0.45, emph);
+    guideRows.forEach((r, i) => rise(r, t, ROWS_AT[i], 36, 0.45, emph));
+  }
+
+  /* 6: финал, 18–21 */
+  if (sceneEnv($("s6"), t, 18.0, 21.5)) {
+    const ik = prog(t, 18.0, 0.5);
+    $("ic6").style.opacity = clamp(ik * 3);
+    $("ic6").style.transform = `scale(${0.4 + 0.6 * eb(ik)}) rotate(${(1 - eo(ik)) * -12}deg)`;
+    rise($("t6"), t, 18.15, 40);
+    rise($("u6"), t, 18.35, 30);
+  }
+}
+init();
+</script>
+</body>
+</html>

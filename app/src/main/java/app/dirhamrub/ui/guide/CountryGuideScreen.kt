@@ -13,6 +13,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.foundation.Canvas
+import app.dirhamrub.ui.theme.LocalTilt
+import app.dirhamrub.ui.theme.parallaxOf
 import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.ui.components.finishCascadeOnTouch
 import app.dirhamrub.ui.components.rememberCascade
@@ -287,6 +289,9 @@ private fun FlagBackdrop(flag: String, modifier: Modifier = Modifier) {
     val dark = AppTheme.colors.isDark
     val image = remember(flag) { flagBitmap(flag) } ?: return
     val blur = with(LocalDensity.current) { FLAG_BLUR.toPx() }
+    // Наклон телефона: флаг «глубже» экрана — отстаёт от наклона, а угловая маска стоит на месте.
+    val tilt = LocalTilt.current
+    val depth = with(LocalDensity.current) { FLAG_DEPTH.toPx() }
     Canvas(
         modifier
             .size(FLAG_SIZE)
@@ -302,7 +307,10 @@ private fun FlagBackdrop(flag: String, modifier: Modifier = Modifier) {
         val w = h * image.width / image.height
         drawImage(
             image,
-            dstOffset = IntOffset((size.width - w * 0.82f).roundToInt(), (-size.height * 0.08f).roundToInt()),
+            dstOffset = IntOffset(
+                (size.width - w * 0.82f + parallaxOf(tilt, depth)).roundToInt(),
+                (-size.height * 0.08f).roundToInt(),
+            ),
             dstSize = IntSize(w.roundToInt(), h.roundToInt()),
             filterQuality = FilterQuality.High,
         )
@@ -352,6 +360,9 @@ private fun flagBitmap(flag: String): ImageBitmap? {
 
 private const val FLAG_BITMAP_PX = 256
 private val FLAG_BLUR = 3.dp
+
+/** На сколько флаг отстаёт от наклона телефона (на полном наклоне, ±20°). */
+private val FLAG_DEPTH = 14.dp
 
 private val FLAG_SIZE = 280.dp
 

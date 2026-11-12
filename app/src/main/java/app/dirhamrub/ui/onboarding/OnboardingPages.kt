@@ -1,5 +1,7 @@
 package app.dirhamrub.ui.onboarding
 
+import app.dirhamrub.ui.theme.glowSupported
+import app.dirhamrub.ui.theme.softGlow
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -90,9 +92,10 @@ internal fun ColumnScope.ValueStep(official: OfficialRates?, enter: (Int) -> Mod
         Column(
             enter(2)
                 .fillMaxWidth()
+                .softGlow(colors.accent.copy(alpha = if (colors.isDark) 0.45f else 0.28f), radius = 14.dp, corner = 18.dp)
                 .clip(RoundedCornerShape(18.dp))
                 .background(colors.surface)
-                .border(1.5.dp, colors.accent, RoundedCornerShape(18.dp))
+                .border(if (glowSupported) 1.dp else 1.5.dp, colors.accent.copy(alpha = if (glowSupported) 0.35f else 1f), RoundedCornerShape(18.dp))
                 .padding(horizontal = 16.dp, vertical = 10.dp)
                 .semantics(mergeDescendants = true) {},
         ) {

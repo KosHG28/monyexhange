@@ -1,8 +1,5 @@
 package app.dirhamrub.ui.currency
 
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -88,17 +85,7 @@ internal fun Tabs(homeTab: Boolean, onChange: (Boolean) -> Unit) {
 
 /** Поле поиска; системная клавиатура — только после касания поля. */
 @Composable
-internal fun SearchField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    hint: String,
-    /** Поле получило или потеряло фокус (разворачивающийся поиск). */
-    onFocus: (Boolean) -> Unit = {},
-    /** Поиск развёрнут: слева «←» вместо лупы — свернуть. */
-    onExit: (() -> Unit)? = null,
-    focusRequester: FocusRequester? = null,
-    background: Color = AppTheme.colors.surface,
-) {
+internal fun SearchField(value: String, onValueChange: (String) -> Unit, hint: String) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val focus = LocalFocusManager.current
@@ -107,27 +94,12 @@ internal fun SearchField(
             .fillMaxWidth()
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(24.dp))
-            .background(background)
-            .padding(start = if (onExit != null) 2.dp else 14.dp, end = 2.dp),
+            .background(colors.surface)
+            .padding(start = 14.dp, end = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (onExit != null) {
-            val back = stringResource(R.string.settings_back)
-            Icon(
-                painterResource(R.drawable.ic_arrow_back),
-                contentDescription = back,
-                tint = colors.ink,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .clickable(role = Role.Button, onClickLabel = back, onClick = onExit)
-                    .padding(11.dp),
-            )
-            Spacer(Modifier.width(2.dp))
-        } else {
-            Icon(painterResource(R.drawable.ic_search), contentDescription = null, tint = colors.muted, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(10.dp))
-        }
+        Icon(painterResource(R.drawable.ic_search), contentDescription = null, tint = colors.muted, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             if (value.isEmpty()) Text(hint, style = type.body, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             BasicTextField(
@@ -140,8 +112,6 @@ internal fun SearchField(
                 keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-                    .onFocusChanged { onFocus(it.isFocused) }
                     .semantics { contentDescription = hint },
             )
         }

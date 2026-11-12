@@ -1,5 +1,9 @@
 package app.dirhamrub.ui.main
 
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.Path
+import androidx.compose.foundation.Canvas
 import app.dirhamrub.ui.theme.fieldGlow
 import app.dirhamrub.ui.components.TypingText
 import androidx.compose.ui.platform.LocalDensity
@@ -576,11 +580,7 @@ private fun PayRow(
         }
     }
     val shape = RoundedCornerShape(16.dp)
-    val bg = when {
-        isBest -> colors.goodSoft
-        selected -> colors.accentSoft
-        else -> colors.surface
-    }
+    val bg = if (isBest) colors.goodSoft else colors.surface
     val a11y = stringResource(R.string.pay_row_a11y, card.name, sub, right)
     val editLabel = stringResource(R.string.card_edit_a11y)
     // Выбранный способ пружинисто «приподнимается»: чуть крупнее, с мягкой тенью (Material 3 Expressive).
@@ -603,8 +603,6 @@ private fun PayRow(
             .clip(shape)
             .background(bg)
             .topLight()
-            // Синяя обводка — только у выбранного вручную; лучший и так выделен зелёным.
-            .then(if (selected && !isBest) Modifier.border(1.5.dp, colors.accent, shape) else Modifier)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = editLabel)
             .clearAndSetSemantics {
                 contentDescription = a11y
@@ -623,6 +621,13 @@ private fun PayRow(
             }
         }
         Spacer(Modifier.width(10.dp))
+        // Связь строки с крупным итогом: у выбранного способа (по нему итог сверху) — галочка и сумма плотным цветом
+        // (синим, у самого выгодного — зелёным); у остальных — сумма серая, обычным начертанием.
+        val mark = if (isBest) colors.good else colors.accent
+        if (selected) {
+            SelectedMark(mark)
+            Spacer(Modifier.width(6.dp))
+        }
         Column(horizontalAlignment = Alignment.End) {
             // Длинная сумма (донги, рупии) — мельче, чтобы не прилипать к краю.
             val size = when {
@@ -632,13 +637,28 @@ private fun PayRow(
             }
             Text(
                 right,
-                style = type.number.copy(fontSize = size, lineHeight = size * 1.2f, fontWeight = if (isBest) FontWeight.Medium else FontWeight.Normal),
-                color = if (isBest) colors.good else colors.ink,
+                style = type.number.copy(fontSize = size, lineHeight = size * 1.2f, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal),
+                color = if (selected) mark else colors.muted,
                 maxLines = 1,
                 softWrap = false,
             )
             rightSub?.let { Text(it, style = type.caption, color = colors.muted, maxLines = 1) }
         }
+    }
+}
+
+/** Галочка выбранного способа: кружок цвета суммы с белой «✓». */
+@Composable
+private fun SelectedMark(color: androidx.compose.ui.graphics.Color) {
+    Canvas(Modifier.size(18.dp)) {
+        drawCircle(color)
+        val w = size.width
+        val path = Path().apply {
+            moveTo(w * 0.27f, w * 0.52f)
+            lineTo(w * 0.44f, w * 0.69f)
+            lineTo(w * 0.74f, w * 0.34f)
+        }
+        drawPath(path, androidx.compose.ui.graphics.Color.White, style = Stroke(width = w * 0.12f, cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
 }
 

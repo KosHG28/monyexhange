@@ -137,7 +137,7 @@ fun Modifier.sheen(halfWidth: Dp = 44.dp): Modifier = composed {
             val end = center + DIRECTION * half
             drawRect(
                 Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = strength), Color.Transparent), start, end),
-                blendMode = BlendMode.SoftLight,
+                blendMode = BlendMode.Softlight,
             )
             // Яркая сердцевина — только когда блик «поймал свет».
             if (strength > 0.4f) {

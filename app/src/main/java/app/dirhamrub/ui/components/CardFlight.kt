@@ -56,9 +56,10 @@ class CardMorph(val origin: Rect, val cardId: String) {
     var card by mutableStateOf<(@Composable (textAlpha: () -> Float) -> Unit)?>(null)
     internal val progress = Animatable(0f)
     internal var closing by mutableStateOf(false)
+    internal var settled by mutableStateOf(false)
 
     /** Летит (туда или обратно): настоящее превью на экране спрятано. */
-    val flying: Boolean get() = progress.value < 0.999f || closing
+    val flying: Boolean get() = !settled || closing
 
     /** Фон экрана проявляется быстрее карты, содержимое — во второй половине полёта. */
     internal val backgroundAlpha: Float get() = (progress.value * 1.4f).coerceAtMost(1f)
@@ -70,6 +71,7 @@ class CardMorph(val origin: Rect, val cardId: String) {
 internal fun CardMorphOverlay(morph: CardMorph) {
     val target = morph.target ?: return
     val card = morph.card ?: return
+    if (!morph.flying) return
     val flight = LocalCardFlight.current
     DisposableEffect(morph) {
         flight.flying = morph.cardId

@@ -422,7 +422,7 @@ fun CardEditorScreen(
                 Box(
                     Modifier
                         .onGloballyPositioned { if (morph != null) morph.target = it.boundsInWindow() }
-                        .graphicsLayer { if (morph != null && !saveReduce) alpha = 0f },
+                        .graphicsLayer { if (morph?.flying == true && !saveReduce) alpha = 0f },
                 ) { preview { 1f } }
             }
             Spacer(Modifier.height(8.dp))

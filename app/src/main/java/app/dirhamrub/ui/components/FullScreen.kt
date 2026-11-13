@@ -98,7 +98,11 @@ fun FullScreen(
         // Туда — как только экран знает, где у него превью; обратно — по close(), потом закрываемся.
         val targetKnown = flight.target != null
         LaunchedEffect(targetKnown) {
-            if (targetKnown && !flight.closing) flight.progress.animateTo(1f, Springs.spatial())
+            if (targetKnown && !flight.closing) {
+                flight.progress.animateTo(1f, Springs.spatial())
+                // Передаём карту превью ровно один раз, когда пружина окончательно остановилась.
+                flight.settled = true
+            }
         }
         LaunchedEffect(flight.closing) {
             if (flight.closing) {

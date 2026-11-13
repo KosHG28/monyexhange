@@ -1,0 +1,79 @@
+name: Actions storage
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/actions-storage.yml']
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_run:
+    workflows: [Android]
+    types: [completed]
+
+permissions:
+  actions: write
+
+concurrency:
+  group: actions-storage-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # No checkout or execution of PR code in the privileged workflow_run context.
+      - name: Удалить дубли APK и прежние временные отчёты
+        id: cleanup
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+            const temporaryNames = new Set(['dirhamrub-apk', 'reports']);
+            const list = () => github.paginate(github.rest.actions.listArtifactsForRepo, { ...repo, per_page: 100 });
+            const artifacts = await list();
+            const runStates = new Map();
+            let deleted = 0, bytes = 0, active = 0;
+            for (const artifact of artifacts) {
+              if (!temporaryNames.has(artifact.name)) continue;
+              const runId = artifact.workflow_run?.id;
+              if (!runId) { core.warning(`Нет исходного запуска у artifact ${artifact.id}; оставлен`); continue; }
+              if (!runStates.has(runId)) {
+                try {
+                  const run = await github.rest.actions.getWorkflowRun({ ...repo, run_id: runId });
+                  runStates.set(runId, run.data.status);
+                } catch (error) {
+                  if (error.status !== 404) throw error;
+                  runStates.set(runId, 'deleted');
+                }
+              }
+              if (!['completed', 'deleted'].includes(runStates.get(runId))) { active++; continue; }
+              try {
+                await github.rest.actions.deleteArtifact({ ...repo, artifact_id: artifact.id });
+                deleted++; bytes += artifact.size_in_bytes;
+                core.info(`Удалён ${artifact.name} (${artifact.id}): ${(artifact.size_in_bytes / 1e6).toFixed(2)} МБ`);
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                core.info(`Artifact ${artifact.id} уже удалён`);
+              }
+            }
+            const remaining = (await list()).filter(a => !a.expired);
+            const remainingBytes = remaining.reduce((sum, a) => sum + a.size_in_bytes, 0);
+            core.setOutput('deleted', deleted);
+            core.setOutput('deleted_mb', (bytes / 1e6).toFixed(2));
+            core.setOutput('remaining_mb', (remainingBytes / 1e6).toFixed(2));
+            core.notice(`Удалено ${deleted} артефактов (${(bytes / 1e6).toFixed(2)} МБ); осталось в репозитории ${(remainingBytes / 1e6).toFixed(2)} МБ`);
+            await core.summary.addHeading('Хранилище Actions этого репозитория')
+              .addTable([
+                [{data: 'Показатель', header: true}, {data: 'Значение', header: true}],
+                ['Удалено временных артефактов', String(deleted)],
+                ['Удалено, МБ', (bytes / 1e6).toFixed(2)],
+                ['Осталось неистёкших артефактов', String(remaining.length)],
+                ['Осталось, МБ', (remainingBytes / 1e6).toFixed(2)],
+                ['Пропущено артефактов активных запусков', String(active)],
+              ])
+              .addRaw('APK и снимки в Releases, чужие имена артефактов и биллинг не изменялись. Учёт GitHub обновляется с задержкой.')
+              .write();
+      - name: 'Удалено ${{ steps.cleanup.outputs.deleted }} файлов (${{ steps.cleanup.outputs.deleted_mb }} МБ), осталось ${{ steps.cleanup.outputs.remaining_mb }} МБ'
+        run: echo "Очистка завершена; APK для установки находятся в Releases."

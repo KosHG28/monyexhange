@@ -26,6 +26,10 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.CompositionLocalProvider
 import app.dirhamrub.ui.components.LocalTripSharedTransition
 import app.dirhamrub.ui.components.TripSharedTransition
+import app.dirhamrub.ui.components.TRIP_DURATION
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -198,13 +202,16 @@ fun DirhamApp(
 
     val showOnboarding = (!state.onboardingDone || onboardingForced) && !cameraOpen
     val navigation = androidx.compose.animation.core.updateTransition(showOnboarding, label = "tripNavigation")
+    navigation.animateFloat(transitionSpec = {
+        if (reduceWelcome || !initialState || targetState) snap() else tween(TRIP_DURATION, easing = LinearEasing)
+    }, label = "tripOneSecondClock") { if (it) 0f else 1f }
     androidx.compose.animation.SharedTransitionLayout {
     val sharedScope = this
     Box(Modifier.fillMaxSize().background(AppTheme.colors.bg)) {
     navigation.AnimatedContent(
         transitionSpec = {
-            (if (reduceWelcome) EnterTransition.None else fadeIn(tween(160))) togetherWith
-                (if (reduceWelcome) ExitTransition.None else fadeOut(tween(130))) using SizeTransform(clip = false)
+            (if (reduceWelcome) EnterTransition.None else fadeIn(tween(if (initialState && !targetState) 350 else 160))) togetherWith
+                (if (reduceWelcome || initialState && !targetState) ExitTransition.None else fadeOut(tween(130))) using SizeTransform(clip = false)
         },
     ) { onboarding ->
     CompositionLocalProvider(LocalTripSharedTransition provides TripSharedTransition(sharedScope, this, completionCardId)) {
@@ -285,7 +292,7 @@ fun DirhamApp(
         onRefreshRates = vm::refreshRates,
         onOpenCamera = { cameraOpen = true },
         onCameraPlaced = { cameraOrigin = it },
-        covered = settingsOpen || moneyOpen || currenciesOpen || cameraOpen,
+        covered = settingsOpen || moneyOpen || currenciesOpen || cameraOpen || navigation.isRunning,
     )
     val reduceMotion = LocalReduceMotion.current
     if (guideOpen) {

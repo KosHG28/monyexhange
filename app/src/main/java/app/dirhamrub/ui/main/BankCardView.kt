@@ -1,5 +1,7 @@
 package app.dirhamrub.ui.main
 
+import app.dirhamrub.ui.components.*
+
 import app.dirhamrub.ui.theme.sheen
 import app.dirhamrub.ui.theme.parallaxOf
 import app.dirhamrub.ui.theme.LocalTilt
@@ -90,6 +92,7 @@ internal fun BankCardView(
     flipOnChange: Boolean = true,
     /** Насколько видны надписи (перелёт карты: на мини-карте их нет, проявляются по пути). */
     textAlpha: () -> Float = { 1f },
+    tripPreview: Boolean = false,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
@@ -163,9 +166,8 @@ internal fun BankCardView(
                         )
                     }
                 }
-                .clip(CARD_SHAPE)
-                .background(Brush.linearGradient(listOf(style.start, style.end)))
-                .sheen(halfWidth = 46.dp)
+                .then(if (tripPreview) Modifier else Modifier.clip(CARD_SHAPE)
+                    .background(Brush.linearGradient(listOf(style.start, style.end))).sheen(halfWidth = 46.dp))
                 .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = editLabel)
                 .clearAndSetSemantics {
                     contentDescription = a11y
@@ -173,6 +175,8 @@ internal fun BankCardView(
                     role = Role.RadioButton
                 },
         ) {
+            if (tripPreview) Box(Modifier.matchParentSize().tripSharedBounds(TRIP_CARD)
+                .clip(CARD_SHAPE).background(Brush.linearGradient(listOf(style.start, style.end))).sheen(halfWidth = 46.dp))
             // Водяной знак валюты карты: при наклоне отстаёт на 6 dp — будто глубже в пластике.
             val mark = card.currency.mark
             val tilt = LocalTilt.current
@@ -183,6 +187,7 @@ internal fun BankCardView(
                 maxLines = 1,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
+                    .then(if (tripPreview) Modifier.tripExit(TripExit.DECORATION) else Modifier)
                     .offset(x = 6.dp, y = if (mark.length > 2) 4.dp else 24.dp)
                     .graphicsLayer {
                         translationX = parallaxOf(tilt, 6.dp.toPx())
@@ -202,7 +207,7 @@ internal fun BankCardView(
                         color = CardPalette.onCard.copy(alpha = 0.92f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).then(if (tripPreview) Modifier.tripSharedBounds(TRIP_TITLE) else Modifier),
                     )
                     // Звезду лучшей карты рисует ряд: при смене лучшей она перелетает к другой карте.
                     if (best != null) Spacer(Modifier.width(STAR_SLOT))
@@ -210,7 +215,7 @@ internal fun BankCardView(
                 Spacer(Modifier.weight(1f))
                 // Сумма меняется на каждом нажатии — перекатываются только изменившиеся цифры.
                 val sumStyle = type.number.copy(fontSize = sumSize, lineHeight = sumSize * 1.15f, fontWeight = FontWeight.Medium, letterSpacing = 0.sp)
-                Row {
+                Row(if (tripPreview) Modifier.tripSharedBounds(TRIP_HERO) else Modifier) {
                     if (sum != null) {
                         if (approx.isNotEmpty()) Text(approx, style = sumStyle, color = CardPalette.onCard, maxLines = 1, softWrap = false)
                         RollingText(sum, style = sumStyle, color = CardPalette.onCard)
@@ -229,7 +234,7 @@ internal fun BankCardView(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         autoSize = TextAutoSize.StepBased(minFontSize = RATE_MIN_SP, maxFontSize = 11.5.sp, stepSize = 0.25.sp),
-                        modifier = m,
+                        modifier = m.then(if (tripPreview) Modifier.tripSharedBounds(TRIP_RATE) else Modifier),
                     )
                 }
                 val vsChip: @Composable () -> Unit = {
@@ -244,6 +249,7 @@ internal fun BankCardView(
                             },
                             maxLines = 1,
                             modifier = Modifier
+                                .then(if (tripPreview) Modifier.tripExit(TripExit.DECORATION) else Modifier)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(CardPalette.chipScrim)
                                 .padding(horizontal = 5.dp, vertical = 1.dp),

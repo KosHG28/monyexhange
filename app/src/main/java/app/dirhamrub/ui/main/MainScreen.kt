@@ -186,7 +186,7 @@ fun MainScreen(
                 countryOffer != null -> CountryBanner(countryOffer, onCountry)
                 tileOffer -> TileBanner(onTileOffer)
             }
-            Box(Modifier.tripMainEnter()) { Hero(state, short, onSelectLine) }
+            Hero(state, short, onSelectLine)
             PriceField(state, covered)
         }
         Column(
@@ -216,11 +216,11 @@ fun MainScreen(
             } else {
                 PayList(state, cards, onSelectCard, onEditCard)
             }
-            Box(Modifier.tripMainEnter()) { CbrLine(state, onRefreshRates) }
-            Box(Modifier.tripMainEnter()) { AddButton(onAddCard) }
+            CbrLine(state, onRefreshRates)
+            Box(Modifier.tripMainEnter(TripEnter.ADD)) { AddButton(onAddCard) }
             Spacer(Modifier.height(4.dp))
         }
-        Column(Modifier.padding(horizontal = 16.dp).tripMainEnter(keypad = true)) {
+        Column(Modifier.padding(horizontal = 16.dp)) {
             Spacer(Modifier.height(6.dp))
             Keypad(onKey = onKey, onCamera = onOpenCamera, onCameraPlaced = onCameraPlaced)
             Spacer(Modifier.height(8.dp))
@@ -277,6 +277,7 @@ private fun Header(place: Pair<String, String>, onCountries: () -> Unit, onPlace
             Box(
                 Modifier
                     .size(48.dp)
+                    .tripMainEnter(TripEnter.HEADER, 0)
                     .clip(CircleShape)
                     .clickable(role = Role.Button, onClickLabel = tools, onClick = onPlace)
                     .semantics { contentDescription = tools },
@@ -289,6 +290,7 @@ private fun Header(place: Pair<String, String>, onCountries: () -> Unit, onPlace
         Box(
             Modifier
                 .size(48.dp)
+                .tripMainEnter(TripEnter.HEADER, 1)
                 .clip(CircleShape)
                 .clickable(role = Role.Button, onClickLabel = settings, onClick = onSettings)
                 .semantics { contentDescription = settings },
@@ -360,7 +362,7 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
         FitSize(text, style, maxSize, 40f) { size ->
             // «≈» и «₽» — по центру высоты цифр, а не по базовой линии: строки обрезаны до высоты шрифта
             // и выровнены по центру ряда.
-            Row(Modifier.alpha(if (empty) 0.25f else 1f), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.then(if (LocalTripSharedTransition.current?.primaryCardId != null) Modifier.tripSharedBounds(TRIP_HERO) else Modifier.tripMainEnter()).alpha(if (empty) 0.25f else 1f), verticalAlignment = Alignment.CenterVertically) {
                 if (approx) {
                     HeroPart("≈", style, size * SIGN_SCALE, colors.muted)
                     Spacer(Modifier.width((size * 0.12f).dp))
@@ -437,13 +439,13 @@ private fun PriceField(state: MainUiState, covered: Boolean) {
             .padding(start = 16.dp, end = 18.dp, top = 10.dp, bottom = 10.dp)
             .clearAndSetSemantics { contentDescription = a11y },
     ) {
-        Text(label, style = type.caption, color = colors.muted, maxLines = 1)
+        Text(label, style = type.caption, color = colors.muted, maxLines = 1, modifier = Modifier.tripMainEnter(TripEnter.PRICE_LABEL))
         val size = when {
             value.length > 13 -> 20.sp
             value.length > 10 -> 25.sp
             else -> 32.sp
         }
-        Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.align(Alignment.End).tripSharedBounds(TRIP_VALUE), verticalAlignment = Alignment.CenterVertically) {
             // Набранная цифра «впрыгивает» с пружинкой, стёртая сжимается и гаснет (Material 3 Expressive).
             TypingText(value, style = type.number.copy(fontSize = size, lineHeight = size * 1.2f), color = colors.ink)
             Caret(size.value, paused = covered)
@@ -505,7 +507,7 @@ private fun PayList(state: MainUiState, cards: List<BankCard>, onSelect: (String
         seenBest = bestId
     }
     Column(Modifier.fillMaxWidth().selectableGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (card in cards) {
+        for ((ordinal, card) in cards.withIndex()) {
             val q = quote.of(card.id)
             val selected = card.id == selectedId
             key(card.id) { PayRow(
@@ -514,6 +516,7 @@ private fun PayList(state: MainUiState, cards: List<BankCard>, onSelect: (String
                 q = q,
                 best = best,
                 selected = selected,
+                entranceIndex = cards.take(ordinal).count { it.id != LocalTripSharedTransition.current?.primaryCardId },
                 onClick = {
                     if (selected) {
                         onEdit(card)
@@ -539,12 +542,14 @@ private fun PayRow(
     q: CardQuote?,
     best: CardQuote?,
     selected: Boolean,
+    entranceIndex: Int,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val wallet = state.wallet
+    val isPrimary = card.id == LocalTripSharedTransition.current?.primaryCardId
     val isBest = best != null && best.card.id == card.id
     val homeInput = state.active == Line.HOME
     val amount = state.totals.spend
@@ -620,7 +625,7 @@ private fun PayRow(
             .fillMaxWidth()
             .heightIn(min = 58.dp)
             .zIndex(if (selected) 1f else 0f)
-            .tripMainEnter()
+            .tripMainEnter(if (isPrimary) TripEnter.PRIMARY_DETAILS else TripEnter.PAYMENT, entranceIndex)
             .graphicsLayer {
                 val s = 1f + LIFT_SCALE * lift
                 scaleX = s
@@ -645,7 +650,8 @@ private fun PayRow(
         PayIcon(card, isBest, flight = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(card.name, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(card.name, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = if (isPrimary) Modifier.tripSharedBounds(TRIP_TITLE) else Modifier)
             if (sub.isNotEmpty()) {
                 Text(sub, style = type.caption, color = if (isBest && hasAmount) colors.good else colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -734,7 +740,7 @@ internal fun PayIcon(card: BankCard, best: Boolean, flight: Boolean = false) {
                 color = CardPalette.onCard,
                 maxLines = 1,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 3.dp, bottom = 2.dp)
-                    .then(if (shared) Modifier.tripMainEnter(badge = true) else Modifier),
+                    .then(if (shared) Modifier.tripMainEnter(TripEnter.BADGE) else Modifier),
             )
         }
     }
@@ -792,6 +798,7 @@ private fun CbrLine(state: MainUiState, onRefresh: () -> Unit) {
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
+            .then(if (LocalTripSharedTransition.current?.primaryCardId != null) Modifier.tripSharedBounds(TRIP_RATE) else Modifier.tripMainEnter())
             .padding(top = 8.dp)
             .fillMaxWidth()
             .heightIn(min = 32.dp)

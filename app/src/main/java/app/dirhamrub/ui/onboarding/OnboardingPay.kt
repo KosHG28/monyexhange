@@ -129,7 +129,7 @@ internal fun ColumnScope.SetupStep(
                 selected = true, best = null, onClick = {}, onLongClick = {},
                 width = PREVIEW_WIDTH, height = PREVIEW_HEIGHT,
                 needsReceipt = official?.cross(spend, home) == null,
-                flipOnChange = false, textAlpha = textAlpha,
+                flipOnChange = false, textAlpha = textAlpha, tripPreview = true,
             )
         }
     }
@@ -138,7 +138,7 @@ internal fun ColumnScope.SetupStep(
         button = {
             PrimaryButton(
                 stringResource(if (hasReceipt) R.string.onboarding_start else R.string.onboarding_without_receipt),
-                enter(6).tripOutgoing(),
+                enter(6).tripExit(TripExit.FOOTER),
                 soft = false,
             ) {
                 haptics.play(if (hasReceipt) Haptic.CONFIRM else Haptic.TICK)
@@ -146,21 +146,19 @@ internal fun ColumnScope.SetupStep(
             }
         },
     ) {
-        Title(stringResource(R.string.onboarding_setup_title), enter(0).tripOutgoing())
-        Lead(stringResource(R.string.onboarding_setup_lead), enter(1).tripOutgoing())
+        Title(stringResource(R.string.onboarding_setup_title), enter(0).tripExit(TripExit.TITLE))
+        Lead(stringResource(R.string.onboarding_setup_lead), enter(1).tripExit(TripExit.TITLE))
         CountryCard(place, spend, enter(2), onCountry)
-        Label(stringResource(R.string.onboarding_setup_way), enter(3).tripOutgoing())
+        Label(stringResource(R.string.onboarding_setup_way), enter(3).tripExit(TripExit.TITLE))
         Column(
-            enter(4).tripOutgoing()
+            enter(4).tripOutgoing(320)
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(18.dp))
                 .background(colors.surface)
                 .padding(12.dp),
         ) {
             Box(Modifier.fillMaxWidth().clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
-                Box(Modifier.tripSharedBounds(TRIP_CARD)) {
-                    preview(tripCardTextAlpha())
-                }
+                preview { 1f }
             }
             Spacer(Modifier.height(10.dp))
             TypeSwitch(way, home) {
@@ -176,12 +174,12 @@ internal fun ColumnScope.SetupStep(
                 PayWay.HOME_CARD, PayWay.NOTHING -> if (spend == home) {
                     Note(stringResource(R.string.onboarding_pay_same))
                 } else {
-                    draft?.let { d -> ScreenshotButton(null, home) { onOpenEditor(d) } }
+                    draft?.let { d -> Box(Modifier.tripExit(TripExit.SCREENSHOT)) { ScreenshotButton(null, home) { onOpenEditor(d) } } }
                     Spacer(Modifier.height(10.dp))
                     PurchaseFields(first, { first = it }, second, { second = it }, spend) { FieldSuffix(home.mark) }
                 }
                 PayWay.CURRENCY_CARD -> {
-                    draft?.let { d -> ScreenshotButton(null, cardCurrency) { onOpenEditor(d) } }
+                    draft?.let { d -> Box(Modifier.tripExit(TripExit.SCREENSHOT)) { ScreenshotButton(null, cardCurrency) { onOpenEditor(d) } } }
                     Spacer(Modifier.height(10.dp))
                     val pick = stringResource(R.string.onboarding_pay_card_currency)
                     PurchaseFields(first, { first = it }, second, { second = it }, spend, selectable = true) {
@@ -255,7 +253,7 @@ internal fun ColumnScope.SetupStep(
             stringResource(R.string.onboarding_setup_later),
             style = type.caption.copy(fontSize = 12.5.sp, lineHeight = 17.sp),
             color = colors.muted,
-            modifier = enter(5).tripOutgoing().padding(start = 2.dp, end = 2.dp, top = 10.dp),
+            modifier = enter(5).tripExit(TripExit.FOOTER).padding(start = 2.dp, end = 2.dp, top = 10.dp),
         )
     }
 }
@@ -269,7 +267,7 @@ private fun CountryCard(place: Pair<String, String>, spend: Currency, modifier: 
     val a11y = stringResource(R.string.onboarding_country_a11y, place.second, sub)
     Row(
         modifier
-            .tripSharedBounds(TRIP_COUNTRY)
+            .tripOutgoing(200)
             .fillMaxWidth()
             .heightIn(min = 64.dp)
             .clip(RoundedCornerShape(16.dp))
@@ -279,14 +277,16 @@ private fun CountryCard(place: Pair<String, String>, spend: Currency, modifier: 
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(place.first, fontSize = 26.sp)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(place.second, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1)
-            Text(sub, style = type.caption.copy(fontSize = 12.5.sp), color = colors.muted, maxLines = 1, modifier = Modifier.tripOutgoing(100))
+        Row(Modifier.weight(1f).tripSharedBounds(TRIP_COUNTRY), verticalAlignment = Alignment.CenterVertically) {
+            Text(place.first, fontSize = 26.sp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(place.second, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1)
+                Text(sub, style = type.caption.copy(fontSize = 12.5.sp), color = colors.muted, maxLines = 1, modifier = Modifier.tripOutgoing(200))
+            }
         }
         Spacer(Modifier.width(8.dp))
-        Text(stringResource(R.string.onboarding_country_change), style = type.bodyStrong, color = colors.accent, modifier = Modifier.tripOutgoing(100))
+        Text(stringResource(R.string.onboarding_country_change), style = type.bodyStrong, color = colors.accent, modifier = Modifier.tripOutgoing(200))
     }
 }
 
@@ -304,8 +304,8 @@ private fun PurchaseFields(
     val price = stringResource(R.string.onboarding_pay_price)
     val paid = stringResource(R.string.onboarding_pay_paid)
     FieldPair(
-        first = { m -> AmountField(price, first, onFirst, price, m.tripSharedBounds(TRIP_PRICE), imeAction = ImeAction.Next, trailing = { FieldSuffix(spend.mark) }) },
-        second = { m -> AmountField(paid, second, onSecond, paid, m, trailing = trailing, selectable = selectable) },
+        first = { m -> AmountField(price, first, onFirst, price, m, imeAction = ImeAction.Next, trailing = { FieldSuffix(spend.code) }, tripPrice = true) },
+        second = { m -> AmountField(paid, second, onSecond, paid, m.tripExit(TripExit.SCREENSHOT), trailing = trailing, selectable = selectable) },
     )
 }
 
@@ -327,6 +327,7 @@ private fun TypeSwitch(way: PayWay, home: Currency, onChange: (PayWay) -> Unit) 
         selected = ways.indexOf(if (way == PayWay.NOTHING) PayWay.HOME_CARD else way),
         onSelect = { onChange(ways[it]) },
         textStyle = AppTheme.type.body.copy(fontSize = 14.sp),
+        optionModifier = { Modifier.tripExit(TripExit.CHIPS, it) },
     )
 }
 

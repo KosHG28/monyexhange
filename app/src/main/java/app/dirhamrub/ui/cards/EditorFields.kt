@@ -1,5 +1,8 @@
 package app.dirhamrub.ui.cards
 
+import app.dirhamrub.ui.components.*
+import androidx.compose.foundation.layout.RowScope
+
 import app.dirhamrub.ui.theme.topLight
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -119,6 +122,7 @@ internal fun AmountField(
     trailing: (@Composable () -> Unit)? = null,
     selectable: Boolean = false,
     big: Boolean = false,
+    tripPrice: Boolean = false,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
@@ -133,17 +137,8 @@ internal fun AmountField(
         else -> 17.sp
     }
     Column(modifier.bringIntoViewRequester(bring)) {
-        if (label != null) FieldLabel(label)
-        val shape = RoundedCornerShape(12.dp)
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .heightIn(min = if (big) 56.dp else 48.dp)
-                .clip(shape)
-                .background(colors.surface2)
-                .then(if (error != null) Modifier.border(1.5.dp, colors.danger, shape) else Modifier),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        if (label != null) Box(if (tripPrice) Modifier.tripOutgoing(180) else Modifier) { FieldLabel(label) }
+        val input: @Composable RowScope.() -> Unit = {
             BasicTextField(
                 value = value,
                 onValueChange = { onValueChange(Numbers.cleanInput(it)) },
@@ -160,8 +155,8 @@ internal fun AmountField(
                     .semantics { contentDescription = description },
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.CenterStart) {
-                        if (value.isEmpty() && placeholder != null) {
-                            Text(placeholder, style = type.number.copy(fontSize = size), color = colors.muted.copy(alpha = 0.6f), maxLines = 1, softWrap = false)
+                        if (value.isEmpty() && (placeholder != null || tripPrice)) {
+                            Text(placeholder ?: "0", style = type.number.copy(fontSize = size), color = colors.muted.copy(alpha = 0.6f), maxLines = 1, softWrap = false)
                         }
                         inner()
                     }
@@ -178,6 +173,17 @@ internal fun AmountField(
                 }
                 Box(Modifier.padding(horizontal = if (selectable) 4.dp else 14.dp), contentAlignment = Alignment.Center) { trailing() }
             }
+        }
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = if (big) 56.dp else 48.dp)
+                .then(if (tripPrice) Modifier.tripSharedBounds(TRIP_PRICE) else Modifier)
+                .clip(RoundedCornerShape(12.dp)).background(colors.surface2)
+                .then(if (error != null) Modifier.border(1.5.dp, colors.danger, RoundedCornerShape(12.dp)) else Modifier),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (tripPrice) Row(Modifier.fillMaxWidth().tripSharedBounds(TRIP_VALUE), verticalAlignment = Alignment.CenterVertically, content = input)
+            else input()
+
         }
         if (error != null) {
             Text(

@@ -1,5 +1,8 @@
 package app.dirhamrub.ui.main
 
+import app.dirhamrub.ui.components.TripEnter
+import app.dirhamrub.ui.components.tripMainEnter
+
 import kotlinx.coroutines.launch
 import app.dirhamrub.ui.theme.Springs
 import androidx.compose.animation.core.Animatable
@@ -91,7 +94,7 @@ fun Keypad(
         val tall = h * 2 + KEY_GAP
         val ops = colors.surface2
         Column(verticalArrangement = Arrangement.spacedBy(KEY_GAP)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
+            Row(Modifier.tripMainEnter(TripEnter.KEYPAD, 0), horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
                 KeyBase(stringResource(R.string.key_clear), ops, Modifier.size(w, h), onClick = { onKey(Key.Clear) }) {
                     Text("C", style = AppTheme.type.key.copy(fontSize = 19.sp, fontWeight = FontWeight.SemiBold), color = colors.muted)
                 }
@@ -107,12 +110,12 @@ fun Keypad(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
                 Column(verticalArrangement = Arrangement.spacedBy(KEY_GAP)) {
-                    for (row in listOf(listOf(7, 8, 9), listOf(4, 5, 6), listOf(1, 2, 3))) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
+                    for ((index, row) in listOf(listOf(7, 8, 9), listOf(4, 5, 6), listOf(1, 2, 3)).withIndex()) {
+                        Row(Modifier.tripMainEnter(TripEnter.KEYPAD, index + 1), horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
                             for (d in row) TextKey(d.toString(), d.toString(), Modifier.size(w, h)) { onKey(Key.Digit(d)) }
                         }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
+                    Row(Modifier.tripMainEnter(TripEnter.KEYPAD, 4), horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
                         TextKey("0", "0", Modifier.size(w * 2 + KEY_GAP, h)) { onKey(Key.Digit(0)) }
                         TextKey(",", stringResource(R.string.key_comma), Modifier.size(w, h)) { onKey(Key.Comma) }
                     }
@@ -123,12 +126,12 @@ fun Keypad(
                         R.drawable.ic_plus,
                         stringResource(R.string.key_plus),
                         ops,
-                        Modifier.size(w, tall),
+                        Modifier.size(w, tall).tripMainEnter(TripEnter.KEYPAD, 1),
                         onLongClick = { onKey(Key.Equals) },
                         longClickLabel = stringResource(R.string.key_equals),
                         longTap = Haptic.CONFIRM,
                     ) { onKey(Key.Plus) }
-                    CameraKey(Modifier.size(w, tall), onCamera, onCameraPlaced)
+                    CameraKey(Modifier.size(w, tall).tripMainEnter(TripEnter.KEYPAD, 3), onCamera, onCameraPlaced)
                 }
             }
         }

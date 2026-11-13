@@ -1,6 +1,7 @@
 package app.dirhamrub.ui.onboarding
 
-import app.dirhamrub.ui.components.tripOutgoing
+import app.dirhamrub.ui.components.tripExit
+import app.dirhamrub.ui.components.TripExit
 import java.math.BigDecimal
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -132,7 +133,7 @@ fun OnboardingScreen(
 
     Box(Modifier.fillMaxSize().background(colors.bg)) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            Box(Modifier.tripOutgoing()) {
+            Box(Modifier.tripExit(TripExit.HEADER)) {
                 Header(pager.currentPage, onBack = { go(pager.currentPage - 1) }, onSkip = { onFinish(null, null) })
             }
             // Шаги листаются свайпом и кнопками; появившийся шаг собирается каскадом — блоки выплывают

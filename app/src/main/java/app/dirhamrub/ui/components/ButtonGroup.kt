@@ -51,6 +51,7 @@ fun ButtonGroup(
     role: Role = Role.RadioButton,
     minHeight: Dp = 48.dp,
     textStyle: TextStyle = AppTheme.type.bodyStrong,
+    optionModifier: @Composable (Int) -> Modifier = { Modifier },
 ) {
     val colors = AppTheme.colors
     val reduceMotion = LocalReduceMotion.current
@@ -80,6 +81,7 @@ fun ButtonGroup(
             Box(
                 Modifier
                     .weight(weight.coerceAtLeast(0.2f))
+                    .then(optionModifier(i))
                     .heightIn(min = minHeight)
                     .graphicsLayer {
                         val full = size.height / 2f

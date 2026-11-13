@@ -77,9 +77,9 @@ fun Modifier.finishCascadeOnTouch(cascade: CascadeState): Modifier = pointerInpu
 }
 
 /** Элемент номер [index] каскада: проявляется (0 → 100 %) и поднимается на место снизу ([CascadeTiming.rise]). */
-fun Modifier.cascade(clock: State<Float>, index: Int, timing: CascadeTiming = CascadeTiming.Screen): Modifier = graphicsLayer {
+fun Modifier.cascade(clock: State<Float>, index: Int, timing: CascadeTiming = CascadeTiming.Screen, fade: Boolean = true): Modifier = graphicsLayer {
     val p = progress(clock.value, timing.delayMs + minOf(index, MAX_INDEX) * timing.stepMs, timing.itemMs)
-    alpha = p
+    alpha = if (fade) p else 1f
     translationY = (1f - p) * timing.rise.toPx()
 }
 

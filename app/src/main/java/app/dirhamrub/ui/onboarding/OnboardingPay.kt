@@ -1,5 +1,9 @@
 package app.dirhamrub.ui.onboarding
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+
 import app.dirhamrub.ui.components.ButtonGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -84,13 +88,14 @@ internal fun ColumnScope.SetupStep(
     unionPay: UnionPayRates?,
     newCard: () -> BankCard,
     onCountry: () -> Unit,
-    onFinish: (BankCard?) -> Unit,
+    onFinish: (BankCard?, Offset?) -> Unit,
     onOpenEditor: (BankCard) -> Unit,
     enter: (Int) -> Modifier,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val template = remember { newCard() }
+    var previewCenter by remember { mutableStateOf<Offset?>(null) }
     val haptics = rememberHaptics()
     var way by rememberSaveable { mutableStateOf(PayWay.HOME_CARD) }
     var cardCurrency by rememberSaveable { mutableStateOf(CARD_CURRENCIES.first { it != home && it != spend }) }
@@ -125,10 +130,10 @@ internal fun ColumnScope.SetupStep(
             PrimaryButton(
                 stringResource(if (hasReceipt) R.string.onboarding_start else R.string.onboarding_without_receipt),
                 enter(6),
-                soft = !hasReceipt,
+                soft = false,
             ) {
                 haptics.play(if (hasReceipt) Haptic.CONFIRM else Haptic.TICK)
-                onFinish(draft)
+                onFinish(draft, previewCenter)
             }
         },
     ) {
@@ -148,7 +153,8 @@ internal fun ColumnScope.SetupStep(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .clearAndSetSemantics { },
+                    .clearAndSetSemantics { }
+                    .onGloballyPositioned { previewCenter = it.boundsInWindow().center },
                 contentAlignment = Alignment.Center,
             ) {
                 if (draft != null) {

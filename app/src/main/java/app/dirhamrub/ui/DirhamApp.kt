@@ -42,6 +42,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -122,6 +127,16 @@ fun DirhamApp(
     vm: MainViewModel = viewModel(factory = MainViewModel.Factory),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    var welcome by remember { mutableStateOf<WelcomeReveal?>(null) }
+    val reduceWelcome = app.dirhamrub.ui.theme.LocalReduceMotion.current
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(welcome, reduceWelcome) {
+        val reveal = welcome ?: return@LaunchedEffect
+        if (!reduceWelcome) reveal.progress.animateTo(1f, tween(460, easing = FastOutSlowInEasing))
+        welcome = null
+    }
+
     // «Карты и наличные» — экран из настроек.
     var moneyOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_MONEY) }
     // Шторка страны «Чем платить» (ⓘ рядом со страной в шапке).
@@ -183,13 +198,16 @@ fun DirhamApp(
             ?.let { CountryOffer(iso, it) }
     }
 
-    if ((!state.onboardingDone || onboardingForced) && !cameraOpen) {
+    val showOnboarding = (!state.onboardingDone || onboardingForced) && !cameraOpen
+    Box(Modifier.fillMaxSize()) {
+    if (showOnboarding || welcome != null) {
         fun finish() {
             onboardingForced = false
             vm.finishOnboarding()
             // Валюту трат только что выбрали сами — плашку «вы в другой стране» сразу не показываем.
             country?.takeIf { Currency.forCountry(it) != null }?.let { vm.handleCountry(it, accept = null) }
         }
+        Box(Modifier.then(if (welcome != null) Modifier.clearAndSetSemantics { } else Modifier)) {
         OnboardingScreen(
             startStep = startStep,
             spend = state.wallet.spend,
@@ -208,18 +226,38 @@ fun DirhamApp(
             unionPay = state.activeUnionPay,
             onSpend = vm::setSpend,
             newCard = vm::newCard,
-            onFinish = { card ->
-                card?.let(vm::saveCard)
-                finish()
+            onFinish = { card, center ->
+                if (welcome == null) {
+                    focus.clearFocus(force = true)
+                    keyboard?.hide()
+                    card?.let { vm.saveCard(it); vm.selectCard(it.id) }
+                    if (card != null && !reduceWelcome) welcome = WelcomeReveal(center)
+                    finish()
+                }
             },
             onOpenEditor = { card ->
                 finish()
                 editing = Editing(card, isNew = true)
             },
         )
-        return
+        }
     }
 
+    if (!showOnboarding || welcome != null) {
+    Box(Modifier.fillMaxSize()
+        .graphicsLayer {
+            val reveal = welcome
+            clip = reveal != null
+            if (reveal != null) {
+                val center = reveal.origin ?: Offset(size.width / 2f, size.height * 0.4f)
+                val dx = maxOf(center.x, size.width - center.x)
+                val dy = maxOf(center.y, size.height - center.y)
+                shape = CircleReveal(center, kotlin.math.sqrt(dx * dx + dy * dy) * reveal.progress.value)
+                clip = true
+            }
+        }
+        .then(if (welcome != null) Modifier.clearAndSetSemantics { } else Modifier)
+    ) {
     // Плитка «Ценник» в шторке: предлагаем один раз, после первого знакомства с камерой (Android 13+).
     val tileOffer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && state.cameraUsed && !state.tileOffered
     // Справочник — той страны, что в шапке (выбранная, страна сети или главная страна валюты): у евро их много.
@@ -446,6 +484,24 @@ fun DirhamApp(
         }
         LaunchedEffect(Unit) { ReceiptShots.cleanup(context, state.wallet.cards.map { it.id }.toSet()) }
     }
+    }
+    }
+    if (welcome != null) {
+        BackHandler { }
+        // Короткий переход не принимает касаний и не даёт повторно сохранить ту же карту.
+        Box(Modifier.fillMaxSize().pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+            }
+        })
+    }
+    }
+
+}
+
+/** Прогресс создаётся в момент нажатия с нуля: первый кадр не может показать весь главный экран. */
+private class WelcomeReveal(val origin: Offset?) {
+    val progress = Animatable(0f)
 }
 
 /** Круг с центром [center] и радиусом [radius] — форма раскрытия камеры. */

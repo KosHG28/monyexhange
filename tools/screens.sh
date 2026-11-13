@@ -65,12 +65,15 @@ shot 22-onboarding-receipts --es screen onboarding --ei step 1
 shot 23-onboarding-setup --es screen onboarding --ei step 2
 WAIT=8 shot 24-new-card --es screen editor --es card new
 
+# Настоящие нажатия: третий шаг до/во время/после перехода, сохранение первой карты и выбор строки.
+python3 tools/ui-transitions.py
+
 # Проверяем PNG средствами стандартной библиотеки: обрезанный файл не должен считаться снимком.
 python3 - <<'PY'
 from pathlib import Path
 import struct, zlib
 files = sorted(Path('screens').glob('*.png'))
-assert len(files) == 24, f'Ожидалось 24 снимка, получено {len(files)}'
+assert len(files) == 34, f'Ожидалось 34 снимка, получено {len(files)}'
 for path in files:
     data = path.read_bytes()
     assert data[:8] == b'\x89PNG\r\n\x1a\n', path
@@ -86,7 +89,7 @@ for path in files:
             finished = True
             break
     assert finished, path
-print('Проверены 24 целых PNG; содержимое требует визуального просмотра.')
+print('Проверены 34 целых PNG; содержимое требует визуального просмотра.')
 PY
 
 adb logcat -d -b crash > "$OUT/crash.txt"

@@ -48,6 +48,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.runtime.key
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -492,7 +493,7 @@ private fun PayList(state: MainUiState, cards: List<BankCard>, onSelect: (String
         for (card in cards) {
             val q = quote.of(card.id)
             val selected = card.id == selectedId
-            PayRow(
+            key(card.id) { PayRow(
                 state = state,
                 card = card,
                 q = q,
@@ -510,7 +511,7 @@ private fun PayList(state: MainUiState, cards: List<BankCard>, onSelect: (String
                     haptics.play(Haptic.TICK)
                     onEdit(card)
                 },
-            )
+            ) }
         }
     }
 }
@@ -597,6 +598,7 @@ private fun PayRow(
                 val s = 1f + LIFT_SCALE * lift
                 scaleX = s
                 scaleY = s
+                translationY = -1.dp.toPx() * lift
                 shadowElevation = LIFT_SHADOW.toPx() * lift.coerceIn(0f, 1f)
                 this.shape = shape
             }
@@ -625,7 +627,7 @@ private fun PayRow(
         // (синим, у самого выгодного — зелёным); у остальных — сумма серая, обычным начертанием.
         val mark = if (isBest) colors.good else colors.accent
         if (selected) {
-            SelectedMark(mark)
+            SelectedMark(mark, lift)
             Spacer(Modifier.width(6.dp))
         }
         Column(horizontalAlignment = Alignment.End) {
@@ -649,8 +651,12 @@ private fun PayRow(
 
 /** Галочка выбранного способа: кружок цвета суммы с белой «✓». */
 @Composable
-private fun SelectedMark(color: androidx.compose.ui.graphics.Color) {
-    Canvas(Modifier.size(18.dp)) {
+private fun SelectedMark(color: androidx.compose.ui.graphics.Color, progress: Float) {
+    Canvas(Modifier.size(18.dp).graphicsLayer {
+        scaleX = progress
+        scaleY = progress
+        alpha = progress.coerceIn(0f, 1f)
+    }) {
         drawCircle(color)
         val w = size.width
         val path = Path().apply {
@@ -804,5 +810,5 @@ private fun AddButton(onAdd: () -> Unit) {
 }
 
 /** Насколько приподнимается выбранная строка способа оплаты. */
-private const val LIFT_SCALE = 0.015f
+private const val LIFT_SCALE = 0.008f
 private val LIFT_SHADOW = 6.dp

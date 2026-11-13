@@ -219,4 +219,9 @@ jobs:
           if [ -s screens/crash.txt ]; then
             gh release upload screens screens/crash.txt --clobber
           fi
+          for report in screens/transition-error.txt screens/transition-ui.xml; do
+            if [ -s "$report" ]; then
+              gh release upload screens "$report" --clobber
+            fi
+          done
           gh release edit screens --notes "Снимки экранов сборки ${GITHUB_SHA::7} (${GITHUB_REF_NAME}), обновляются автоматически."

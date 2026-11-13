@@ -1,5 +1,6 @@
 package app.dirhamrub.ui.onboarding
 
+import androidx.compose.ui.geometry.Offset
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -97,7 +98,7 @@ fun OnboardingScreen(
     unionPay: UnionPayRates?,
     onSpend: (Currency, String?) -> Unit,
     newCard: () -> BankCard,
-    onFinish: (BankCard?) -> Unit,
+    onFinish: (BankCard?, Offset?) -> Unit,
     onOpenEditor: (BankCard) -> Unit,
     /** С какого шага начать (снимки CI). */
     startStep: Int = 0,
@@ -130,7 +131,7 @@ fun OnboardingScreen(
 
     Box(Modifier.fillMaxSize().background(colors.bg)) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            Header(pager.currentPage, onBack = { go(pager.currentPage - 1) }, onSkip = { onFinish(null) })
+            Header(pager.currentPage, onBack = { go(pager.currentPage - 1) }, onSkip = { onFinish(null, null) })
             // Шаги листаются свайпом и кнопками; появившийся шаг собирается каскадом — блоки выплывают
             // снизу друг за другом (страница заново входит в композицию — волна заново).
             HorizontalPager(
@@ -139,7 +140,7 @@ fun OnboardingScreen(
                 verticalAlignment = Alignment.Top,
             ) { step ->
                 val wave = rememberCascade(CascadeTiming.Step)
-                val enter: (Int) -> Modifier = { Modifier.cascade(wave, it, CascadeTiming.Step) }
+                val enter: (Int) -> Modifier = { Modifier.cascade(wave, it, CascadeTiming.Step, fade = step != STEPS - 1) }
                 Column(
                     Modifier
                         .fillMaxSize()

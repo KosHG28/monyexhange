@@ -54,7 +54,10 @@ internal fun SeasonalCountryHeader(country: String, currency: Currency, iso: Str
         Column {
             Header(country, currency) {
                 Text(
-                    event.symbol,
+                    if (iso == "AE") {
+                        if (colors.isDark) "🌙" else "☀️"
+                    } else event.symbol,
+                    color = colors.ink,
                     fontSize = 22.sp,
                     modifier = Modifier.size(48.dp).clip(RoundedCornerShape(24.dp))
                         .clickable(role = Role.Button, onClickLabel = stringResource(R.string.season_open, stringResource(copy.first))) {

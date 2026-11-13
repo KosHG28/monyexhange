@@ -67,11 +67,9 @@ class Haptics internal constructor(private val view: View, private val enabled: 
 
     fun play(event: Haptic) {
         if (!enabled || !systemTouchHaptics()) return
-        // Клавиатуре нужен только LOW_TICK: отсутствие других примитивов не лишает её мягкого отклика.
-        if (event == Haptic.KEY && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-            vibrator?.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK) == true
-        ) {
-            playRich(event)
+        // Системный отклик клавиатуры: настройки силы и мотор выбирает Android, без своей амплитуды.
+        if (event == Haptic.KEY) {
+            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             return
         }
         if (event == Haptic.CAMERA) {
@@ -91,7 +89,7 @@ class Haptics internal constructor(private val view: View, private val enabled: 
     private fun playRich(event: Haptic) {
         val c = VibrationEffect.startComposition()
         when (event) {
-            Haptic.KEY -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.8f)
+            Haptic.KEY -> return // Обрабатывается системным KEYBOARD_TAP в play().
             Haptic.TICK -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.6f)
             Haptic.THUD -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 0.6f)
             Haptic.SELECT -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.5f)
@@ -137,7 +135,7 @@ class Haptics internal constructor(private val view: View, private val enabled: 
         }
         val u = Build.VERSION_CODES.UPSIDE_DOWN_CAKE
         return when (event) {
-            Haptic.KEY -> HapticFeedbackConstants.KEYBOARD_TAP
+            Haptic.KEY -> if (sdk >= u) HapticFeedbackConstants.SEGMENT_FREQUENT_TICK else HapticFeedbackConstants.KEYBOARD_TAP
             Haptic.TICK -> HapticFeedbackConstants.KEYBOARD_TAP
             Haptic.THUD -> HapticFeedbackConstants.LONG_PRESS
             Haptic.SELECT -> HapticFeedbackConstants.CLOCK_TICK

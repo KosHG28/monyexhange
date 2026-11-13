@@ -52,10 +52,35 @@ import app.dirhamrub.ui.theme.AppTheme
 /** «Где тратите | Итог считать в». */
 @Composable
 internal fun Tabs(homeTab: Boolean, onChange: (Boolean) -> Unit) {
-    app.dirhamrub.ui.components.ExpressiveSegments(
-        listOf(stringResource(R.string.currency_sheet_spend), stringResource(R.string.currency_sheet_home)),
-        if (homeTab) 1 else 0, { onChange(it == 1) }, Modifier.fillMaxWidth(),
-    )
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.surface)
+            .padding(4.dp),
+    ) {
+        for (tab in listOf(false, true)) {
+            val selected = tab == homeTab
+            Box(
+                Modifier
+                    .weight(1f)
+                    .heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (selected) colors.accentSoft else Color.Transparent)
+                    .selectable(selected = selected, role = Role.Tab) { onChange(tab) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    stringResource(if (tab) R.string.currency_sheet_home else R.string.currency_sheet_spend),
+                    style = type.bodyStrong,
+                    color = if (selected) colors.accent else colors.muted,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
 }
 
 /** Поле поиска; системная клавиатура — только после касания поля. */

@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
                     selected = intent.getStringExtra(EXTRA_CARD).takeIf { screen == null },
                     noCards = intent.getBooleanExtra(EXTRA_NO_CARDS, false),
                     noAmount = intent.getBooleanExtra(EXTRA_NO_AMOUNT, false),
+                    amount = intent.getStringExtra(EXTRA_AMOUNT),
                 )
             }
         }
@@ -105,6 +106,8 @@ class MainActivity : ComponentActivity() {
 
         /** Только для снимков CI: ничего не набрано (пустой экран). */
         const val EXTRA_NO_AMOUNT = "noamount"
+        /** Только в debug-демо: сумма для проверки длинных чисел на снимках. */
+        const val EXTRA_AMOUNT = "amount"
 
     }
 }

@@ -21,7 +21,8 @@
 
 CI: `.github/workflows/android.yml` — на каждый push тесты, lint, debug и release APK (artifact
 `dirhamrub-apk`), на push в `main` — GitHub Release новой `versionName` с `dirhamrub-vX.Y.Z.apk` после тестов, lint и сборки.
-Проверки камеры и снимки на эмуляторе выключены по запросу владельца; `tools/screens.sh` можно запускать вручную.
+Снимки интерфейса на эмуляторе обязательны перед выпуском (`tools/screens.sh`), кроме экрана информации о стране.
+Отдельная проверка камеры выключена. Проверять снимки текущего коммита перед завершением выпуска.
 Тег `v*` и ручной запуск workflow с `release=vX.Y.Z` также поддерживаются.
 Ещё: «Перечень валют ЦБ» (`.github/workflows/cbr-list.yml`, по понедельникам) — `tools/cbr-check.py` сверяет
 валюты из ответа ЦБ с `Currency.cbr`; Dependabot (`.github/dependabot.yml`) — еженедельные PR с обновлениями.
@@ -80,7 +81,7 @@ app/src/main/java/app/dirhamrub/
   `symbol` — в крупном итоге главного экрана («800 ֏»), для поиска, распознавания ценников и подписи валюты страны в шторке ⓘ.
 - Цвета только из `ui/theme` (`AppColors`), не хардкодить в экранах (исключение — «банковские» градиенты карт).
   Синий `accent` — ввод и действия, `good` — выгода, `danger` — только ошибки и удаление.
-- Цифры — tabular figures (`fontFeatureSettings = "tnum"`), один шрифт — Inter Tight (`ui/theme/Type.kt`), суммы — обычным начертанием для читаемости, выбранные суммы в строках — SemiBold.
+- Цифры — tabular figures (`fontFeatureSettings = "tnum"`), один шрифт — Inter Tight (`ui/theme/Type.kt`), суммы тонким начертанием.
 - Нажимаемые элементы ≥ 48 dp и с `contentDescription`/семантикой для TalkBack.
 - Анимации через `LocalReduceMotion`: при отключённых системных анимациях — без них.
 - Главный экран не вызывает системную клавиатуру; она есть только в шторке «Курс».

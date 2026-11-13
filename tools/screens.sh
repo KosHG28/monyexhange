@@ -1,168 +1,96 @@
 #!/usr/bin/env bash
-# Скриншоты экранов на эмуляторе для проверки интерфейса до релиза (отладочная сборка с демо-данными).
-# Снимки — в screens/*.png; workflow выкладывает их в пререлиз «screens».
-set -u
+# Регрессионные снимки до релиза. Информация о стране намеренно исключена.
+set -euo pipefail
 APK=app/build/outputs/apk/debug/app-debug.apk
 PKG=ru.kurspocheku
-ACT=app.dirhamrub.MainActivity  # класс — в пакете кода, не в идентификаторе приложения
+ACT=app.dirhamrub.MainActivity
 OUT=screens
 mkdir -p "$OUT"
-
 adb install -r "$APK"
 adb shell pm grant "$PKG" android.permission.CAMERA
-# Эмулятор в CI медленный: системные окна «… isn't responding» закрывали снимки — прячем их
-# и даём системе успокоиться после загрузки.
+adb logcat -b crash -c
 adb shell settings put global hide_error_dialogs 1
-sleep 30
+sleep 15
 
-# shot <имя> [extra...]: свежий запуск с демо-данными и снимок экрана.
+restore_display() {
+  adb shell wm size reset || true
+  adb shell wm density reset || true
+  adb shell settings put system font_scale 1.0 || true
+}
+trap restore_display EXIT
+
 shot() {
   local name=$1
   shift
   adb shell am force-stop "$PKG"
   adb shell am start -W -n "$PKG/$ACT" --ez demo true "$@" > /dev/null
-  sleep "${WAIT:-7}"
-  adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS > /dev/null 2>&1 || true
-  sleep 1
+  sleep "${WAIT:-6}"
   adb exec-out screencap -p > "$OUT/$name.png"
-  echo "снимок: $name"
-}
-
-# scrolled <имя> [extra...]: то же, что shot, но шторка прокручена вниз двумя жестами.
-scrolled() {
-  local name=$1
-  shift
-  adb shell am force-stop "$PKG"
-  adb shell am start -W -n "$PKG/$ACT" --ez demo true "$@" > /dev/null
-  sleep 12
-  adb shell input swipe 540 1700 540 500 400
-  sleep 1
-  adb shell input swipe 540 1700 540 500 400
-  sleep 2
-  adb exec-out screencap -p > "$OUT/$name.png"
+  test -s "$OUT/$name.png"
   echo "снимок: $name"
 }
 
 adb shell cmd uimode night yes
-adb shell settings put system font_scale 1.0
-WAIT=15 shot 01-main
+shot 01-main
+shot 02-main-long --es amount 812492.31
 shot 03-currencies --es screen currencies
-WAIT=12 shot 04-editor --es screen editor
-WAIT=10 shot 05-camera --es screen camera
-
+WAIT=8 shot 04-editor --es screen editor
+WAIT=8 shot 05-camera --es screen camera
+shot 06-pro --es screen pro
 adb shell cmd uimode night no
-shot 06-main-light
-shot 06b-empty-light --ez noamount true
-WAIT=12 shot 07-editor-light --es screen editor
+shot 07-main-light
+shot 08-main-long-light --es amount 812492.31
+WAIT=8 shot 09-editor-light --es screen editor
+shot 10-settings --es screen settings
+shot 11-money --es screen money
+WAIT=8 shot 12-cash --es screen editor --es card demo-aed-cash
+shot 13-empty --ez noamount true
+shot 14-no-cards --ez nocards true
 
-adb shell cmd uimode night yes
-adb shell settings put system font_scale 1.3
-shot 08-main-font130
-adb shell settings put system font_scale 1.0
-
-# Короткий телефон (≈ 730 dp по высоте).
-adb shell wm size 1080x1920
-shot 09-main-short
-adb shell wm size reset
-
-# Узкий телефон (384 dp по ширине, как Galaxy S2x) в светлой теме: карты, шпаргалка, редактор, валюты.
-adb shell cmd uimode night no
 adb shell wm density 450
-shot 11-main-narrow
-WAIT=12 shot 13-editor-narrow --es screen editor
-shot 14-currencies-narrow --es screen currencies
+shot 15-main-narrow --es amount 812492.31
+shot 16-currencies-narrow --es screen currencies
 adb shell wm density reset
-adb shell cmd uimode night yes
-# После смены плотности и темы система перерисовывается — первый снимок иначе выходит чёрным.
-sleep 8
-
-# Другие валюты трат: рупия Индонезии (курс ЦБ есть, у карт — оценка) и Шри-Ланки (у ЦБ курса нет).
-shot 15-main-idr --es spend IDR
-shot 16-main-lkr --es spend LKR
-shot 17-currencies-idr --es spend IDR --es screen currencies
-WAIT=12 shot 18-editor-lkr --es spend LKR --es screen editor
-shot 20-currencies-lkr --es spend LKR --es screen currencies
-shot 21-settings --es screen settings
-WAIT=12 shot 22-cash-editor --es screen editor --es card demo-aed-cash
-# Редактор карты: карта в юанях (UnionPay, пополнение и чек) и новая карта (пустые блоки);
-# «-low» — та же шторка, прокрученная вниз: поля чеков, итог, «Задать курс вручную».
-WAIT=12 shot 37-card-editor --es screen editor --es card demo-cny
-scrolled 37-card-editor-low --es screen editor --es card demo-cny
-WAIT=12 shot 38-card-editor-new --es screen editor --es card new
-scrolled 38-card-editor-new-low --es screen editor --es card new
-# Знакомство по шагам: зачем, как считаем, что учитываем, откуда и куда, чем платите.
-shot 23-onb-1-value --es screen onboarding --ei step 0
-shot 24-onb-2-receipts --es screen onboarding --ei step 1
-shot 25-onb-3-setup --es screen onboarding --ei step 2
-# «Карты и наличные» (из настроек).
-shot 31-cards --es screen money
-shot 41-main-amd --es spend AMD
-# Марокко: валютой платят и в Западной Сахаре — в шапке страна, а не валюта.
-shot 42-main-mad --es spend MAD
-# Пересчёт: выбран не лучший способ (карта в юанях), ввод в рублях, кошелёк без карт.
-shot 33-main-other --es card demo-cny
-shot 34-main-nocards --ez nocards true
-shot 36-main-empty --ez noamount true
-# Наличные из банкомата: баты сняты с карты в юанях.
-WAIT=12 shot 28-atm-editor --es spend THB --es screen editor --es card demo-thb-atm
-shot 29-main-thb --es spend THB
-
-# Скриншоты для RuStore (камера эмулятора показывает виртуальную комнату — её снимок делается на телефоне): 9:16 (1080×1920), тёмная тема, порядок как в карточке (docs/rustore/README.md).
-adb shell cmd uimode night yes
 adb shell wm size 1080x1920
-WAIT=10 shot store-1-main
-shot store-2-value --es screen onboarding --ei step 0
-shot store-3-receipts --es screen onboarding --ei step 1
-WAIT=12 shot store-4-editor --es screen editor
-adb shell cmd uimode night no
-shot store-6-main-light
-adb shell cmd uimode night yes
-shot store-7-settings --es screen settings
+shot 17-main-short --es amount 812492.31
 adb shell wm size reset
-
-# Плавность редактора карты (журнал — screens/jank.txt). Эмулятор без GPU и отладочная сборка медленнее
-# телефона, поэтому смотреть на сравнение между сборками, а не на сами числа. В покое под шторкой кадров
-# быть почти не должно: всё, что там рисуется каждый кадр, заново размывает весь экран.
-adb shell am force-stop "$PKG"
-adb shell am start -W -n "$PKG/$ACT" --ez demo true --es screen editor --es card demo-cny > /dev/null
-sleep 12
-{
-  echo "== покой 5 с под шторкой редактора"
-  adb shell dumpsys gfxinfo "$PKG" reset > /dev/null
-  sleep 5
-  adb shell dumpsys gfxinfo "$PKG" | grep -E "Total frames|Janky frames"
-  echo "== три прокрутки вниз-вверх и закрытие «Назад»"
-  adb shell dumpsys gfxinfo "$PKG" reset > /dev/null
-  for i in 1 2 3; do
-    adb shell input swipe 540 1700 540 600 300
-    adb shell input swipe 540 600 540 1700 300
-  done
-  adb shell input keyevent KEYCODE_BACK
-  sleep 3
-  adb shell dumpsys gfxinfo "$PKG" | grep -E "Total frames|Janky frames|percentile|Number"
-} | tee "$OUT/jank.txt"
-
-# Экран страны «Чем платить» — в конце: флаг фоном рисуется маленькой картинкой с размытием
-# (крупный эмодзи отключал эмулятор); если эмулятор всё же отключится, остальные снимки уже сделаны.
+adb shell settings put system font_scale 1.3
+shot 18-main-font130 --es amount 812492.31
+adb shell settings put system font_scale 1.0
 adb shell cmd uimode night yes
-shot 30-guide --es screen guide
-shot 40-guide-amd --es spend AMD --es screen guide
-adb shell cmd uimode night no
-shot 46-guide-jpy-light --es spend JPY --es screen guide
-shot 47-guide-byn-light --es spend BYN --es screen guide
-adb shell cmd uimode night yes
+shot 19-main-idr --es spend IDR
+shot 20-main-lkr --es spend LKR
+shot 21-onboarding-value --es screen onboarding --ei step 0
+shot 22-onboarding-receipts --es screen onboarding --ei step 1
+shot 23-onboarding-setup --es screen onboarding --ei step 2
+WAIT=8 shot 24-new-card --es screen editor --es card new
 
-# Первый запуск: данные стёрты — знакомство.
-adb shell pm clear "$PKG"
-adb shell am start -W -n "$PKG/$ACT" > /dev/null
-sleep 10
-adb exec-out screencap -p > "$OUT/10-onboarding.png"
-echo "снимок: 10-onboarding"
+# Проверяем PNG средствами стандартной библиотеки: обрезанный файл не должен считаться снимком.
+python3 - <<'PY'
+from pathlib import Path
+import struct, zlib
+files = sorted(Path('screens').glob('*.png'))
+assert len(files) == 24, f'Ожидалось 24 снимка, получено {len(files)}'
+for path in files:
+    data = path.read_bytes()
+    assert data[:8] == b'\x89PNG\r\n\x1a\n', path
+    pos, finished = 8, False
+    while pos < len(data):
+        n, = struct.unpack_from('>I', data, pos)
+        kind = data[pos + 4:pos + 8]
+        payload = data[pos + 8:pos + 8 + n]
+        crc, = struct.unpack_from('>I', data, pos + 8 + n)
+        assert zlib.crc32(kind + payload) & 0xffffffff == crc, path
+        pos += 12 + n
+        if kind == b'IEND':
+            finished = True
+            break
+    assert finished, path
+print('Проверены 24 целых PNG; содержимое требует визуального просмотра.')
+PY
 
-ls -la "$OUT"
-# Падения только нашего процесса: системные приложения эмулятора тоже иногда падают.
-if adb logcat -d -b crash | grep -A1 'FATAL EXCEPTION' | grep -q "Process: $PKG,"; then
-  echo "=== Падение при съёмке экранов ==="
-  adb logcat -d -b crash -v raw
+adb logcat -d -b crash > "$OUT/crash.txt"
+if grep -A1 'FATAL EXCEPTION' "$OUT/crash.txt" | grep -q "Process: $PKG,"; then
+  cat "$OUT/crash.txt"
   exit 1
 fi

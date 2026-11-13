@@ -30,7 +30,7 @@ import java.time.LocalDate
 object Demo {
     fun allowed(context: Context): Boolean = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
-    suspend fun seed(repository: WalletRepository, spendCode: String? = null, selected: String? = null, noCards: Boolean = false, noAmount: Boolean = false) {
+    suspend fun seed(repository: WalletRepository, spendCode: String? = null, selected: String? = null, noCards: Boolean = false, noAmount: Boolean = false, amount: String? = null) {
         val spend = Currency.byCode(spendCode) ?: Currency.AED
         val today = LocalDate.now()
         val day = today.minusDays(3)
@@ -101,7 +101,7 @@ object Demo {
             weekAgo = weekAgo,
             unionPay = unionPay(now, today),
             expression = if (noAmount) Expression() else Expression.of(
-                when (spend) {
+                amount?.takeIf { it.length <= 16 }?.toBigDecimalOrNull()?.takeIf { it.signum() >= 0 } ?: when (spend) {
                     Currency.AED -> bd("167")
                     Currency.LKR -> bd("2500")
                     else -> QuickSums.chips(spend)[4]

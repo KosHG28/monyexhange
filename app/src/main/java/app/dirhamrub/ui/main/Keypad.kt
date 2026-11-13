@@ -152,6 +152,11 @@ private fun KeyBase(
     // Живая клавиша (Material 3 Expressive): при нажатии чуть проседает и её углы скругляются почти до круга;
     // отпустили — пружиной обратно с лёгким перелётом. Долгое нажатие — круг держится, пока держите.
     val source = remember { MutableInteractionSource() }
+    LaunchedEffect(source, haptics, tap) {
+        source.interactions.collect { interaction ->
+            if (interaction is PressInteraction.Press) haptics.play(tap)
+        }
+    }
     val press = remember { Animatable(1f) }
     val round = remember { Animatable(0f) }
     val reduceMotion = LocalReduceMotion.current
@@ -187,7 +192,6 @@ private fun KeyBase(
                 hapticFeedbackEnabled = false,
                 onLongClickLabel = longClickLabel,
                 onClick = {
-                    haptics.play(tap)
                     onClick()
                 },
                 onLongClick = onLongClick?.let { action ->

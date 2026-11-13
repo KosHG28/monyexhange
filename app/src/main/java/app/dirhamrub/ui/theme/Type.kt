@@ -25,11 +25,11 @@ private const val TNUM = "tnum"
 @Immutable
 data class AppType(
     /** Главное число экрана. */
-    val hero: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Normal, fontSize = 60.sp, lineHeight = 66.sp, letterSpacing = (-1.2).sp, fontFeatureSettings = TNUM),
+    val hero: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Light, fontSize = 60.sp, lineHeight = 66.sp, letterSpacing = (-1.2).sp, fontFeatureSettings = TNUM),
     /** Значение поля ввода и крупные суммы. */
     val number: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Normal, fontSize = 30.sp, lineHeight = 36.sp, letterSpacing = (-0.3).sp, fontFeatureSettings = TNUM),
     val title: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, lineHeight = 24.sp, fontFeatureSettings = TNUM),
-    val key: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Medium, fontSize = 26.sp, lineHeight = 30.sp, fontFeatureSettings = TNUM),
+    val key: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Normal, fontSize = 26.sp, lineHeight = 30.sp, fontFeatureSettings = TNUM),
     val body: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 20.sp, fontFeatureSettings = TNUM),
     val bodyStrong: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp, fontFeatureSettings = TNUM),
     val label: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 16.sp, fontFeatureSettings = TNUM),

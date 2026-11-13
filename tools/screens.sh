@@ -9,6 +9,10 @@ OUT=screens
 mkdir -p "$OUT"
 adb install -r "$APK"
 adb shell pm grant "$PKG" android.permission.CAMERA
+# Для SwiftShader используем полную перерисовку кадров: частичные обновления давали обрезанные слои в PNG.
+adb shell setprop debug.hwui.renderer skiagl
+adb shell setprop debug.hwui.use_buffer_age false
+adb shell setprop debug.hwui.swap_with_damage false
 adb logcat -b crash -c
 adb shell settings put global hide_error_dialogs 1
 sleep 15

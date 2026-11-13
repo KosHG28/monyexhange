@@ -214,7 +214,7 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_6
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back emulated
+          emulator-options: -no-window -gpu swiftshader_indirect -feature -Vulkan -noaudio -no-boot-anim -camera-back emulated
           disk-size: 4096M
           disable-animations: true
           script: ./tools/screens.sh

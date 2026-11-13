@@ -124,12 +124,21 @@ def search_hit_targets():
 def twelve_digits():
     launch(amount='0', spend='IRR')
     nine = find(lambda n: n.get('content-desc') == '9')
-    for _ in range(13):
-        tap(nine)
-    field = find(lambda n: '999999999999' in re.sub(r'\s+', '', n.get('content-desc', '')) and 'IRR' in n.get('content-desc', ''))
-    assert '9999999999999' not in re.sub(r'\s+', '', field.get('content-desc', '')), '13-я цифра принята'
-    capture('42-irr-keypad-limit')
-    time.sleep(1)
+    recorder = subprocess.Popen(['adb', 'shell', 'screenrecord', '--size', '540x1200', '--bit-rate', '2000000',
+                                 '--time-limit', '8', '/sdcard/irr-keypad.mp4'],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    try:
+        time.sleep(0.3)
+        for _ in range(13):
+            tap(nine)
+        field = find(lambda n: '999999999999' in re.sub(r'\s+', '', n.get('content-desc', '')) and 'IRR' in n.get('content-desc', ''))
+        assert '9999999999999' not in re.sub(r'\s+', '', field.get('content-desc', '')), '13-я цифра принята'
+        time.sleep(1)
+        capture('42-irr-keypad-limit')
+    finally:
+        _, errors = recorder.communicate(timeout=10)
+        assert recorder.returncode == 0, errors.decode(errors='replace')
+        adb('pull', '/sdcard/irr-keypad.mp4', str(OUT / 'irr-keypad.mp4'))
     launch(demo=False)
     find(lambda n: '999999999999' in re.sub(r'\s+', '', n.get('content-desc', '')) and 'IRR' in n.get('content-desc', ''))
 

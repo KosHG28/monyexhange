@@ -7,6 +7,8 @@ PKG=ru.kurspocheku
 ACT=app.dirhamrub.MainActivity
 OUT=screens
 mkdir -p "$OUT"
+exec > >(tee "$OUT/scenario.log") 2>&1
+trap 'printf "Ошибка на строке %s: %s\n" "$LINENO" "$BASH_COMMAND" >&2' ERR
 adb install -r "$APK"
 adb shell pm grant "$PKG" android.permission.CAMERA
 # Для SwiftShader используем полную перерисовку кадров: частичные обновления давали обрезанные слои в PNG.

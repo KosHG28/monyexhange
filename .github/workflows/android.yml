@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 env:
   SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
@@ -49,7 +50,6 @@ jobs:
             core.info(`Удалено артефактов: ${removed}, ${(bytes / 1e6).toFixed(0)} МБ`);
 
   build:
-    needs: screens
     runs-on: ubuntu-latest
     env:
       LC_ALL: C.UTF-8
@@ -117,10 +117,28 @@ jobs:
             app/build/test-results/
           if-no-files-found: ignore
 
+      - name: Результат проверки экранов
+        if: ${{ !contains(github.event.head_commit.message, '[phone-check]') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in $(seq 1 180); do
+            screens_state=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" \
+              --jq '.jobs[] | select(.name == "screens") | .conclusion // "pending"')
+            case "$screens_state" in
+              success) echo "Снимки и сценарии прошли"; exit 0 ;;
+              failure|cancelled|timed_out|skipped|action_required|neutral)
+                echo "::error::проверка экранов завершилась: $screens_state"; exit 1 ;;
+            esac
+            sleep 5
+          done
+          echo "::error::проверка экранов не завершилась вовремя"
+          exit 1
+
       # Снимки должен проверить агент до публикации, а не только после зелёного UI-сценария.
       # Лёгкий тег ui-reviewed-<SHA> ставится на этот же коммит после просмотра PNG и записи перехода.
       - name: Визуальная проверка текущего коммита
-        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || startsWith(github.ref, 'refs/tags/v') || startsWith(github.event.inputs.release, 'v')
+        if: ((github.event_name == 'push' && github.ref == 'refs/heads/main') || startsWith(github.ref, 'refs/tags/v') || startsWith(github.event.inputs.release, 'v')) && !contains(github.event.head_commit.message, '[phone-check]')
         run: |
           for attempt in $(seq 1 120); do
             REVIEWED=$(git ls-remote origin "refs/tags/ui-reviewed-$GITHUB_SHA" | awk '{print $1}')
@@ -164,6 +182,8 @@ jobs:
 
   # Перед выпуском — снимки только изменённых экранов. Информация о стране исключена.
   screens:
+    # Только по прямому запросу владельца: APK проверяется на его телефоне.
+    if: ${{ !contains(github.event.head_commit.message, '[phone-check]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -223,18 +243,32 @@ jobs:
           disable-animations: true
           script: ./tools/screens.sh
 
+      - name: Диагностика сбоя эмулятора
+        if: failure()
+        run: |
+          mkdir -p screens
+          {
+            date -u
+            df -h "$RUNNER_TEMP"
+            timeout 15s adb devices || true
+            timeout 15s adb shell getprop sys.boot_completed || true
+            timeout 15s adb logcat -d -b crash || true
+          } > screens/emulator-health.txt 2>&1
+
       - name: Скриншоты в пререлиз «screens»
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ls screens/*.png > /dev/null 2>&1 || { echo "снимков нет"; exit 0; }
+          mkdir -p screens
           echo "$GITHUB_SHA $GITHUB_REF_NAME" > screens/commit.txt
           gh release view screens > /dev/null 2>&1 || gh release create screens --prerelease --target "$GITHUB_SHA" \
             --title "Скриншоты CI" --notes "Снимки экранов последней сборки, обновляются автоматически."
           # Пустой crash.txt нельзя загружать как release asset: GitHub отклоняет файлы нулевого размера.
           # PNG уже проверены; метку коммита отправляем отдельно от диагностических журналов.
-          gh release upload screens screens/*.png --clobber
+          if ls screens/*.png > /dev/null 2>&1; then
+            gh release upload screens screens/*.png --clobber
+          fi
           for video in screens/*.mp4; do
             if [ -s "$video" ]; then
               gh release upload screens "$video" --clobber
@@ -244,7 +278,7 @@ jobs:
           if [ -s screens/crash.txt ]; then
             gh release upload screens screens/crash.txt --clobber
           fi
-          for report in screens/transition-error.txt screens/transition-ui.xml screens/font130-ui.xml; do
+          for report in screens/transition-error.txt screens/transition-ui.xml screens/font130-ui.xml screens/scenario.log screens/emulator-health.txt; do
             if [ -s "$report" ]; then
               gh release upload screens "$report" --clobber
             fi

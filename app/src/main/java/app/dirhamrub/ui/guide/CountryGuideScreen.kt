@@ -31,6 +31,9 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.clickable
@@ -147,6 +150,7 @@ fun CountryGuideScreen(
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
+    var olivePlay by remember(iso) { mutableIntStateOf(0) }
     // Флаг страны — фоном в правом верхнем углу экрана (и под строкой состояния — без резкого среза сверху);
     // прокручивается только содержимое.
     FullScreen(onDismissRequest = onDismiss, backdrop = { FlagBackdrop(place.first, Modifier.align(Alignment.TopEnd)) }) {
@@ -163,7 +167,7 @@ fun CountryGuideScreen(
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 20.dp),
         ) {
-            SeasonalCountryHeader(place.second, currency, iso)
+            SeasonalCountryHeader(place.second, currency, iso, onOliveOpen = { olivePlay++ })
             if (guide == null) {
                 Spacer(Modifier.height(16.dp))
                 Column(
@@ -242,6 +246,7 @@ fun CountryGuideScreen(
             ReportLink(stringResource(R.string.guide_report), guide.iso, countryName(guide.iso), guide.updated)
         }
         }
+        if (iso == "GR") OliveLeafFall(olivePlay, Modifier.matchParentSize())
       }
     }
 }

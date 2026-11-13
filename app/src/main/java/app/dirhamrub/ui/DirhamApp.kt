@@ -335,7 +335,6 @@ fun DirhamApp(
         enter = if (reduceMotion) EnterTransition.None else Springs.screenIn,
         exit = if (reduceMotion) ExitTransition.None else Springs.screenOut,
     ) {
-        BackHandler { currenciesOpen = false }
         CountryScreen(
             spend = state.wallet.spend,
             home = state.wallet.home,

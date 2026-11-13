@@ -8,6 +8,13 @@ import app.dirhamrub.ui.theme.fieldGlow
 import app.dirhamrub.ui.components.TypingText
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.ui.zIndex
+import app.dirhamrub.ui.theme.payRowSurface
+import app.dirhamrub.ui.theme.PayRowShadow
 import androidx.compose.animation.core.Animatable
 import app.dirhamrub.ui.theme.topLight
 import app.dirhamrub.ui.theme.Springs
@@ -31,13 +38,16 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -127,6 +137,7 @@ fun placeOf(spend: Currency, chosen: String?, networkIso: String?): Pair<String,
  * способу, без подписей); поле «Цена на ценнике»; карточки способов оплаты (касание — выбрать);
  * курс ЦБ; «＋ Добавить»; клавиатура с камерой. Считается на лету.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MainScreen(
     state: MainUiState,
@@ -163,7 +174,7 @@ fun MainScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.bg)
-            .windowInsetsPadding(WindowInsets.safeDrawing),
+            .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility.union(WindowInsets.displayCutout)),
     ) {
         Header(place, onOpenCountries, onOpenPlace, onOpenSettings)
         // Итог и поле цены всегда на месте; прокручивается только то, что ниже (карточки, курс ЦБ),
@@ -581,30 +592,39 @@ private fun PayRow(
         }
     }
     val shape = RoundedCornerShape(16.dp)
-    val bg = if (isBest) colors.goodSoft else colors.surface
+    val reduce = LocalReduceMotion.current
+    val bg by animateColorAsState(
+        colors.payRowSurface(selected, isBest),
+        if (reduce) snap() else tween(180), label = "paySurface",
+    )
+    val elevation by animateDpAsState(
+        if (selected && !colors.isDark) 6.dp else 0.dp,
+        if (reduce) snap() else tween(180), label = "payElevation",
+    )
     val a11y = stringResource(R.string.pay_row_a11y, card.name, sub, right)
     val editLabel = stringResource(R.string.card_edit_a11y)
     // Выбранный способ пружинисто «приподнимается»: чуть крупнее, с мягкой тенью (Material 3 Expressive).
     val lift by animateFloatAsState(
         if (selected) 1f else 0f,
-        if (LocalReduceMotion.current) snap() else Springs.fastSpatial(),
+        if (reduce) snap() else spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
         label = "payLift",
     )
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 58.dp)
+            .zIndex(if (selected) 1f else 0f)
             .graphicsLayer {
                 val s = 1f + LIFT_SCALE * lift
                 scaleX = s
                 scaleY = s
-                translationY = -1.dp.toPx() * lift
-                shadowElevation = LIFT_SHADOW.toPx() * lift.coerceIn(0f, 1f)
+                shadowElevation = if (colors.isDark) 0f else elevation.toPx()
+                spotShadowColor = PayRowShadow.spot
+                ambientShadowColor = PayRowShadow.ambient
                 this.shape = shape
             }
             .clip(shape)
             .background(bg)
-            .topLight()
             .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = editLabel)
             .clearAndSetSemantics {
                 contentDescription = a11y
@@ -810,5 +830,4 @@ private fun AddButton(onAdd: () -> Unit) {
 }
 
 /** Насколько приподнимается выбранная строка способа оплаты. */
-private const val LIFT_SCALE = 0.008f
-private val LIFT_SHADOW = 6.dp
+private const val LIFT_SCALE = 0.022f

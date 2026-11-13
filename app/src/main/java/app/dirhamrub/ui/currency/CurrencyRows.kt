@@ -85,12 +85,13 @@ internal fun Tabs(homeTab: Boolean, onChange: (Boolean) -> Unit) {
 
 /** Поле поиска; системная клавиатура — только после касания поля. */
 @Composable
-internal fun SearchField(value: String, onValueChange: (String) -> Unit, hint: String) {
+internal fun SearchField(value: String, onValueChange: (String) -> Unit, hint: String, enabled: Boolean = true) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val focus = LocalFocusManager.current
     BasicTextField(
         value = value,
+        enabled = enabled,
         onValueChange = { onValueChange(it.take(40)) },
         singleLine = true,
         textStyle = type.body.copy(color = colors.ink),
@@ -121,7 +122,7 @@ internal fun SearchField(value: String, onValueChange: (String) -> Unit, hint: S
                         contentDescription = stringResource(R.string.currency_search_clear),
                         tint = colors.muted,
                         modifier = Modifier.size(48.dp).clip(CircleShape)
-                            .clickable(role = Role.Button) { onValueChange("") }.padding(14.dp),
+                            .clickable(enabled = enabled, role = Role.Button) { onValueChange("") }.padding(14.dp),
                     )
                 } else Spacer(Modifier.width(12.dp))
             }

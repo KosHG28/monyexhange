@@ -1,13 +1,16 @@
 package app.dirhamrub.ui.guide
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -17,67 +20,83 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.CountrySeasons
 import app.dirhamrub.domain.SeasonalEffect
 import app.dirhamrub.domain.wallet.Currency
-import app.dirhamrub.ui.theme.blossom
-import app.dirhamrub.ui.theme.blossomSoft
-import app.dirhamrub.ui.theme.AppTheme
-import app.dirhamrub.ui.theme.LocalReduceMotion
+import app.dirhamrub.ui.theme.*
 import java.time.LocalDate
 
 @Composable
-internal fun SeasonalCountryHeader(country: String, currency: Currency, iso: String?) {
+internal fun SeasonalCountryHeader(
+    country: String,
+    currency: Currency,
+    iso: String?,
+    onOliveOpen: () -> Unit = {},
+) {
     val event = CountrySeasons.current(iso, LocalDate.now())
     val copy = seasonalCopy[iso]
     if (event == null || copy == null) { Header(country, currency); return }
     var expanded by rememberSaveable(iso, event.symbol) { mutableStateOf(false) }
     var play by remember(iso) { mutableIntStateOf(0) }
     val reduce = LocalReduceMotion.current
+    val olive = iso == "GR"
     val progress = remember(iso) { Animatable(1f) }
     LaunchedEffect(play, reduce) {
-        if (play == 0 || reduce) { progress.snapTo(1f); return@LaunchedEffect }
+        if (play == 0 || reduce || olive) { progress.snapTo(1f); return@LaunchedEffect }
         progress.snapTo(0f)
         progress.animateTo(1f, tween(1100))
+    }
+    fun toggle() {
+        expanded = !expanded
+        if (expanded) {
+            if (olive) onOliveOpen() else play++
+        }
     }
     val colors = AppTheme.colors
     val type = AppTheme.type
     Box {
         Column {
             Header(country, currency) {
-                Text(
-                    if (iso == "AE") {
-                        if (colors.isDark) "🌙" else "☀️"
-                    } else event.symbol,
-                    color = colors.ink,
-                    fontSize = 22.sp,
-                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(24.dp))
-                        .clickable(role = Role.Button, onClickLabel = stringResource(R.string.season_open, stringResource(copy.first))) {
-                            expanded = !expanded
-                            if (expanded) play++
-                        }.wrapContentSize(),
-                )
+                if (olive) {
+                    OliveBadge(expanded, stringResource(copy.first), ::toggle)
+                } else {
+                    Text(
+                        if (iso == "AE") { if (colors.isDark) "🌙" else "☀️" } else event.symbol,
+                        color = colors.ink, fontSize = 22.sp,
+                        modifier = Modifier.size(48.dp).clip(CircleShape)
+                            .clickable(role = Role.Button,
+                                onClickLabel = stringResource(R.string.season_open, stringResource(copy.first)), onClick = ::toggle)
+                            .wrapContentSize(),
+                    )
+                }
             }
-            AnimatedVisibility(expanded, enter = if (reduce) androidx.compose.animation.EnterTransition.None else androidx.compose.animation.fadeIn(), exit = if (reduce) androidx.compose.animation.ExitTransition.None else androidx.compose.animation.fadeOut()) {
+            AnimatedVisibility(
+                visible = expanded,
+                enter = if (reduce) EnterTransition.None else if (olive)
+                    expandVertically(tween(240, easing = FastOutSlowInEasing), expandFrom = Alignment.Top) + fadeIn(tween(200, delayMillis = 40))
+                    else fadeIn(),
+                exit = if (reduce) ExitTransition.None else if (olive)
+                    shrinkVertically(tween(220, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Top) + fadeOut(tween(150))
+                    else fadeOut(),
+            ) {
                 Column(Modifier.padding(top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp))
-                    .background(if (event.effect == SeasonalEffect.FLOWER) colors.blossomSoft else colors.accentSoft)
+                    .background(if (olive) colors.oliveSoft else if (event.effect == SeasonalEffect.FLOWER) colors.blossomSoft else colors.accentSoft)
                     .padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite }) {
                     Text(stringResource(copy.first), style = type.title, color = colors.ink)
                     Text(stringResource(copy.second), style = type.body, color = colors.ink, modifier = Modifier.padding(top = 6.dp))
-                    Text(stringResource(R.string.season_hide), style = type.bodyStrong, color = colors.accent,
-                        modifier = Modifier.heightIn(min = 48.dp).clickable(role = Role.Button) { expanded = false }.wrapContentHeight())
+                    SeasonHide(olive) { expanded = false }
                 }
             }
         }
-        if (!reduce && progress.value < 1f) {
+        // Греция рисует листья в корневом Box справочника, не в маленькой области заголовка.
+        if (!olive && !reduce && progress.value < 1f) {
             val tint = if (event.effect == SeasonalEffect.FLOWER) colors.blossom else colors.accent
             Canvas(Modifier.fillMaxWidth().height(110.dp)) {
                 val p = progress.value
@@ -96,6 +115,46 @@ internal fun SeasonalCountryHeader(country: String, currency: Currency, iso: Str
             }
         }
     }
+}
+
+@Composable
+private fun OliveBadge(expanded: Boolean, title: String, onClick: () -> Unit) {
+    val colors = AppTheme.colors
+    val reduce = LocalReduceMotion.current
+    val interactions = remember { MutableInteractionSource() }
+    val pressed by interactions.collectIsPressedAsState()
+    val background by animateColorAsState(
+        if (pressed) OliveColors.badge.copy(alpha = 0.24f) else if (expanded) OliveColors.badge.copy(alpha = 0.15f) else colors.seasonBadgeBackground,
+        if (reduce) snap() else tween(160), label = "oliveBadgeBackground",
+    )
+    val angle by animateFloatAsState(if (expanded) -14f else 0f,
+        if (reduce) snap() else spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = "oliveBadgeAngle")
+    val description = stringResource(R.string.season_badge_a11y, title)
+    val state = stringResource(if (expanded) R.string.season_tip_open else R.string.season_tip_closed)
+    val action = if (expanded) stringResource(R.string.season_hide) else stringResource(R.string.season_open, title)
+    Box(Modifier.size(48.dp).clip(CircleShape).background(background)
+        .clickable(interactionSource = interactions, indication = null, role = Role.Button,
+            onClickLabel = action, onClick = onClick)
+        .semantics { contentDescription = description; stateDescription = state }, contentAlignment = Alignment.Center) {
+        Icon(painterResource(R.drawable.ic_olive_branch), contentDescription = null, tint = OliveColors.badge,
+            modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = angle })
+    }
+}
+
+@Composable
+private fun SeasonHide(olive: Boolean, onClick: () -> Unit) {
+    val colors = AppTheme.colors
+    val interactions = remember { MutableInteractionSource() }
+    val pressed by interactions.collectIsPressedAsState()
+    val reduce = LocalReduceMotion.current
+    val background by animateColorAsState(
+        if (pressed) (if (olive) OliveColors.badge else colors.accent).copy(alpha = 0.18f) else colors.seasonBadgeBackground,
+        if (reduce) snap() else tween(160), label = "seasonHideBackground",
+    )
+    Text(stringResource(R.string.season_hide), style = AppTheme.type.bodyStrong, color = if (olive) colors.ink else colors.accent,
+        modifier = Modifier.padding(top = 8.dp).heightIn(min = 48.dp).clip(CircleShape).background(background)
+            .clickable(interactionSource = interactions, indication = null, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 14.dp).wrapContentHeight())
 }
 
 private val seasonalCopy = mapOf(

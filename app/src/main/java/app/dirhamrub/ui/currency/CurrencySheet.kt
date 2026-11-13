@@ -32,6 +32,17 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.foundation.layout.ime
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -160,6 +171,26 @@ fun CountryScreen(
     official: OfficialRates? = null,
 ) {
     val colors = AppTheme.colors
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focus = LocalFocusManager.current
+    val density = LocalDensity.current
+    val ime = WindowInsets.ime
+    val currentBack by rememberUpdatedState(onBack)
+    var closing by rememberSaveable { mutableStateOf(false) }
+    fun closeAfterKeyboard() {
+        if (closing) return
+        closing = true
+        focus.clearFocus(force = true)
+        keyboard?.hide()
+    }
+    LaunchedEffect(closing, density) {
+        if (!closing) return@LaunchedEffect
+        // Не таймер: ждём фактический конец скрытия IME перед уходом с выбора страны.
+        withFrameNanos { }
+        withTimeoutOrNull(1200) { snapshotFlow { ime.getBottom(density) }.first { it == 0 } }
+        currentBack()
+    }
+    BackHandler { closeAfterKeyboard() }
     var query by rememberSaveable { mutableStateOf("") }
     val cascade = rememberCascade()
     Column(
@@ -175,7 +206,7 @@ fun CountryScreen(
                 Modifier
                     .size(48.dp)
                     .clip(CircleShape)
-                    .clickable(role = Role.Button, onClickLabel = back, onClick = onBack),
+                    .clickable(role = Role.Button, onClickLabel = back, onClick = ::closeAfterKeyboard),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = back, tint = colors.ink, modifier = Modifier.size(22.dp))
@@ -189,7 +220,7 @@ fun CountryScreen(
             )
         }
         Spacer(Modifier.height(4.dp))
-        SearchField(value = query, onValueChange = { query = it }, hint = stringResource(R.string.currency_search_hint))
+        SearchField(value = query, onValueChange = { query = it }, hint = stringResource(R.string.currency_search_hint), enabled = !closing)
         Spacer(Modifier.height(4.dp))
         val texts = SheetTexts(
             here = stringResource(R.string.currency_here),
@@ -213,8 +244,10 @@ fun CountryScreen(
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {
             spendItems(query, spend, home, recent, country, official, cascade, texts) { c, iso ->
-                onSpend(c, iso)
-                onBack()
+                if (!closing) {
+                    onSpend(c, iso)
+                    closeAfterKeyboard()
+                }
             }
         }
     }

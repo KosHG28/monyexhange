@@ -67,6 +67,13 @@ class Haptics internal constructor(private val view: View, private val enabled: 
 
     fun play(event: Haptic) {
         if (!enabled || !systemTouchHaptics()) return
+        // Клавиатуре нужен только LOW_TICK: отсутствие других примитивов не лишает её мягкого отклика.
+        if (event == Haptic.KEY && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            vibrator?.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK) == true
+        ) {
+            playRich(event)
+            return
+        }
         if (event == Haptic.CAMERA) {
             val now = SystemClock.uptimeMillis()
             if (now - lastCamera < CAMERA_GAP_MS) return
@@ -84,7 +91,7 @@ class Haptics internal constructor(private val view: View, private val enabled: 
     private fun playRich(event: Haptic) {
         val c = VibrationEffect.startComposition()
         when (event) {
-            Haptic.KEY -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.7f)
+            Haptic.KEY -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.25f)
             Haptic.TICK -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.6f)
             Haptic.THUD -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 0.6f)
             Haptic.SELECT -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.5f)
@@ -130,7 +137,8 @@ class Haptics internal constructor(private val view: View, private val enabled: 
         }
         val u = Build.VERSION_CODES.UPSIDE_DOWN_CAKE
         return when (event) {
-            Haptic.KEY, Haptic.TICK -> HapticFeedbackConstants.KEYBOARD_TAP
+            Haptic.KEY -> if (sdk >= u) HapticFeedbackConstants.SEGMENT_FREQUENT_TICK else HapticFeedbackConstants.KEYBOARD_TAP
+            Haptic.TICK -> HapticFeedbackConstants.KEYBOARD_TAP
             Haptic.THUD -> HapticFeedbackConstants.LONG_PRESS
             Haptic.SELECT -> HapticFeedbackConstants.CLOCK_TICK
             Haptic.BEST, Haptic.CONFIRM -> HapticFeedbackConstants.CONFIRM

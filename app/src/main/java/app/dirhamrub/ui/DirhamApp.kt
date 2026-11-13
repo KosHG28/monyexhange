@@ -4,7 +4,6 @@ import kotlinx.coroutines.delay
 import app.dirhamrub.widget.QuoteWidget
 import app.dirhamrub.ui.pro.ProScreen
 import app.dirhamrub.domain.AppIcon
-import app.dirhamrub.data.StubProBilling
 import app.dirhamrub.data.ReceiptShots
 import app.dirhamrub.data.ProFeatures
 import app.dirhamrub.ui.theme.Springs
@@ -319,7 +318,6 @@ fun DirhamApp(
                 },
                 onCards = { moneyOpen = true },
                 onOpenPro = { proOpen = true },
-                proPrice = StubProBilling.price,
                 onDynamicColor = vm::setDynamicColor,
                 onAppIcon = vm::setAppIcon,
             ),
@@ -429,9 +427,7 @@ fun DirhamApp(
     if (proOpen) {
         ProScreen(
             pro = state.settings.pro,
-            billing = StubProBilling,
-            onBought = { vm.setPro(true) },
-            onReset = { vm.setPro(false) },
+            onActivate = vm::activatePro,
             onDismiss = { proOpen = false },
         )
     }

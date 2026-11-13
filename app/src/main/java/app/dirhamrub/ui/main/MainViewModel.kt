@@ -15,6 +15,7 @@ import app.dirhamrub.data.ratesDataStore
 import app.dirhamrub.data.settingsDataStore
 import app.dirhamrub.data.unionPayDataStore
 import app.dirhamrub.domain.AppSettings
+import app.dirhamrub.domain.ProPromo
 import app.dirhamrub.domain.Expression
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
@@ -420,9 +421,11 @@ class MainViewModel(
 
     fun setPureBlack(value: Boolean) = updateSettings { it.copy(pureBlack = value) }
 
-    /** Pro куплена (или тестовая покупка отменена). Функции Pro без неё выключаются. */
-    fun setPro(value: Boolean) = updateSettings {
-        if (value) it.copy(pro = true) else it.copy(pro = false, dynamicColor = false, appIcon = AppIcon.CLASSIC)
+    /** Проверка кода — до сохранения; состояние Pro переживает перезапуск через WalletRepository. */
+    fun activatePro(code: String): Boolean {
+        if (!ProPromo.accepts(code)) return false
+        updateSettings { ProPromo.activate(it, code) }
+        return true
     }
 
     fun setDynamicColor(value: Boolean) = updateSettings { it.copy(dynamicColor = value && it.pro) }

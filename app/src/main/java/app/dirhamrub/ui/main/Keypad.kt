@@ -92,7 +92,7 @@ fun Keypad(
         val ops = colors.surface2
         Column(verticalArrangement = Arrangement.spacedBy(KEY_GAP)) {
             Row(horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
-                KeyBase(stringResource(R.string.key_clear), ops, Modifier.size(w, h), tap = Haptic.THUD, onClick = { onKey(Key.Clear) }) {
+                KeyBase(stringResource(R.string.key_clear), ops, Modifier.size(w, h), onClick = { onKey(Key.Clear) }) {
                     Text("C", style = AppTheme.type.key.copy(fontSize = 19.sp, fontWeight = FontWeight.SemiBold), color = colors.muted)
                 }
                 IconKey(R.drawable.ic_times, stringResource(R.string.key_times), ops, Modifier.size(w, h)) { onKey(Key.Times) }
@@ -142,8 +142,8 @@ private fun KeyBase(
     modifier: Modifier,
     onLongClick: (() -> Unit)? = null,
     longClickLabel: String? = null,
-    /** Отклик на нажатие: цифры — тонкий [Haptic.KEY], действия — щелчок, «C» — «бум». */
-    tap: Haptic = Haptic.TICK,
+    /** Все короткие нажатия клавиатуры — одинаковый мягкий отклик. */
+    tap: Haptic = Haptic.KEY,
     longTap: Haptic = Haptic.THUD,
     onClick: () -> Unit,
     content: @Composable () -> Unit,
@@ -184,6 +184,7 @@ private fun KeyBase(
             .combinedClickable(
                 interactionSource = source,
                 indication = LocalIndication.current,
+                hapticFeedbackEnabled = false,
                 onLongClickLabel = longClickLabel,
                 onClick = {
                     haptics.play(tap)

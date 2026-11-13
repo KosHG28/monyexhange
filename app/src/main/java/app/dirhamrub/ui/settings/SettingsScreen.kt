@@ -103,9 +103,8 @@ class SettingsActions(
     val onOnboarding: () -> Unit,
     /** «Карты и наличные» — все способы оплаты (на главном — только те, что подходят к валюте трат). */
     val onCards: () -> Unit,
-    /** Экран «Курс по чеку Pro» и цена для строки. */
+    /** Экран «Курс по чеку Pro» с активацией промокодом. */
     val onOpenPro: () -> Unit,
-    val proPrice: String,
     val onDynamicColor: (Boolean) -> Unit,
     val onAppIcon: (AppIcon) -> Unit,
 )
@@ -160,7 +159,7 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
                     LinkRow(
                         stringResource(R.string.pro_row),
                         stringResource(R.string.pro_row_sub),
-                        if (state.settings.pro) stringResource(R.string.pro_row_bought) else actions.proPrice,
+                        stringResource(if (state.settings.pro) R.string.pro_row_bought else R.string.pro_promo_badge),
                         onClick = actions.onOpenPro,
                     )
                 }

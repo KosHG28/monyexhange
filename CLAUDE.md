@@ -21,8 +21,8 @@
 
 CI: `.github/workflows/android.yml` — на каждый push тесты, lint, debug и release APK (artifact
 `dirhamrub-apk`), дымовой тест камеры и скриншоты экранов на эмуляторе (пререлиз «screens»:
-`tools/screens.sh`, демо-данные — extra `demo` в отладочной сборке, экран — extra `screen`); на тег `v*` — GitHub Release с `dirhamrub-vX.Y.Z.apk`. Если тег не запушить
-(в облачном окружении пуш тегов запрещён), релиз создаёт ручной запуск workflow с `release=vX.Y.Z`.
+`tools/screens.sh`, демо-данные — extra `demo` в отладочной сборке, экран — extra `screen`); на push в `main` — GitHub Release новой `versionName` с `dirhamrub-vX.Y.Z.apk` после всех проверок.
+Тег `v*` и ручной запуск workflow с `release=vX.Y.Z` также поддерживаются.
 Ещё: «Перечень валют ЦБ» (`.github/workflows/cbr-list.yml`, по понедельникам) — `tools/cbr-check.py` сверяет
 валюты из ответа ЦБ с `Currency.cbr`; Dependabot (`.github/dependabot.yml`) — еженедельные PR с обновлениями.
 Подпись: ключ только из секретов репозитория (`KEYSTORE_BASE64` — ключ в base64, `SIGNING_*` — пароли); без них
@@ -48,7 +48,7 @@ app/src/main/java/app/dirhamrub/
     price/PriceParser, PriceCurrency      цены из OCR-строк для каждой валюты трат
     price/PriceTracker                    стабилизация меток между кадрами
   data/              WalletRepository (DataStore + перенос с 0.x), CbrClient и UnionPayClient (сеть)
-                     Pro: ProBilling (покупка, пока заглушка), ProFeatures (значок, ярлыки), ReceiptShots
+                     Pro: domain/ProPromo (активация промокодом), ProFeatures (значок, ярлыки), ReceiptShots
   widget/            виджет «Курс по чеку» на рабочем столе (Pro, RemoteViews)
   ui/pro/            экран «Курс по чеку Pro»
   ui/theme/          цвета, шрифты, тема, оформления карт, виброотклик (Haptics)

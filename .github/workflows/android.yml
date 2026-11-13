@@ -49,6 +49,9 @@ jobs:
             core.info(`Удалено артефактов: ${removed}, ${(bytes / 1e6).toFixed(0)} МБ`);
 
   build:
+    # Публикуем APK только после проверки камеры и снимков этого же коммита.
+    needs: [smoke, screens]
+    if: ${{ always() && needs.smoke.result == 'success' && (needs.screens.result == 'success' || needs.screens.result == 'skipped') }}
     runs-on: ubuntu-latest
     env:
       LC_ALL: C.UTF-8
@@ -116,14 +119,24 @@ jobs:
             app/build/test-results/
           if-no-files-found: ignore
 
-      # Релиз: по пушу тега v* или вручную (workflow_dispatch с release=vX.Y.Z) —
-      # во втором случае gh сам создаёт тег на собранном коммите.
+      # Push в main автоматически выпускает новую versionName после всех проверок.
+      # Теги и ручной workflow_dispatch также поддерживаются.
       - name: GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.event.inputs.release, 'v')
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || startsWith(github.ref, 'refs/tags/v') || startsWith(github.event.inputs.release, 'v')
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.inputs.release || github.ref_name }}
+          TAG: ${{ github.event.inputs.release || (startsWith(github.ref, 'refs/tags/v') && github.ref_name) || '' }}
         run: |
+          if [ -z "$TAG" ]; then
+            VERSION=$(sed -n 's/.*versionName = "\([0-9][0-9.]*\)".*/\1/p' app/build.gradle.kts)
+            [ -n "$VERSION" ] || { echo "::error::versionName не найдена"; exit 1; }
+            TAG="v$VERSION"
+            # Повторная сборка той же версии не заменяет уже выпущенный APK.
+            if gh release view "$TAG" > /dev/null 2>&1; then
+              echo "Релиз $TAG уже существует"
+              exit 0
+            fi
+          fi
           # Выпуск — только с ключом из секретов: APK с отладочным ключом поверх установленного не встанет.
           if [ -z "${SIGNING_KEYSTORE_FILE:-}" ]; then
             echo "::error::нет ключа подписи из секретов (KEYSTORE_BASE64, SIGNING_*) — выпуск отменён"
@@ -133,8 +146,7 @@ jobs:
           gh release create "$TAG" "out/dirhamrub-$TAG.apk" \
             --target "$GITHUB_SHA" \
             --title "Курс по чеку $TAG" \
-            --notes "APK для Android 8.0+. Как установить — см. README." \
-            || gh release upload "$TAG" "out/dirhamrub-$TAG.apk" --clobber
+            --notes "APK для Android 8.0+. Как установить — см. README."
 
   # Открывает камеру release-сборки на эмуляторе и ловит падения (стек — в логе шага).
   smoke:

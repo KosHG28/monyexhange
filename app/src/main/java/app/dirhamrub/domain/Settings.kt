@@ -40,7 +40,7 @@ data class AppSettings(
     /** Сами (без кнопки «Обновить») курсы скачиваются только по Wi-Fi и другим безлимитным сетям — роуминг дорогой. */
     val wifiOnly: Boolean = false,
     val rounding: Rounding = Rounding.WHOLE,
-    /** Куплена Pro-версия (разовая покупка; пока — тестовая заглушка без оплаты). */
+    /** Активирована Pro-версия (пока — по общему промокоду без оплаты). */
     val pro: Boolean = false,
     /** Pro: синий акцент — из цветов обоев (Android 12+). */
     val dynamicColor: Boolean = false,

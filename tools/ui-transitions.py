@@ -111,7 +111,8 @@ try:
     ]:
         adb('shell', 'cmd', 'uimode', 'night', theme)
         launch(onboarding=True)
-        price = find(lambda n: n.get('class') == 'android.widget.EditText' and n.get('content-desc') == 'Цена')
+        price = find(lambda n: n.get('class') == 'android.widget.EditText' and
+                     any(child.get('content-desc') == 'Цена' for child in n.iter('node')))
         tap(price)
         adb('shell', 'input', 'text', '1234.56')
         adb('shell', 'input', 'keyevent', '4')

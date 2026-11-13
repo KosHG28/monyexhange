@@ -73,6 +73,12 @@ def assert_home():
     assert not any('Настройте под поездку' in n.get('text', '') for n in tree().iter('node'))
 
 
+def video_frame(video, name, last=False):
+    seek = ['-sseof', '-0.2'] if last else ['-ss', '2.0']
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', *seek, '-i', str(OUT / video),
+                    '-frames:v', '1', str(OUT / f'{name}.png')], check=True, timeout=30)
+
+
 def finish_with_video(button, middle, after, theme):
     name = f'welcome-{theme}.mp4'
     recorder = subprocess.Popen(['adb', 'shell', 'screenrecord', '--size', '540x1200', '--bit-rate', '2000000',
@@ -81,16 +87,17 @@ def finish_with_video(button, middle, after, theme):
     try:
         time.sleep(0.5)
         tap(button)
-        time.sleep(0.20)
-        capture(middle)
         time.sleep(1)
         assert_home()
-        capture(after)
     finally:
-        _, errors = recorder.communicate(timeout=10)
+        _, errors = recorder.communicate(timeout=15)
         assert recorder.returncode == 0, errors.decode(errors='replace')
         adb('pull', f'/sdcard/{name}', str(OUT / name))
         assert (OUT / name).stat().st_size > 1000, 'Запись перехода пуста'
+    # Одновременный screencap и screenrecord на программном GPU портил композицию слоёв.
+    video_frame(name, middle)
+    video_frame(name, after, last=True)
+    assert_home()
 
 
 def search_hit_targets():
@@ -134,11 +141,11 @@ def twelve_digits():
         field = find(lambda n: '999999999999' in re.sub(r'\s+', '', n.get('content-desc', '')) and 'IRR' in n.get('content-desc', ''))
         assert '9999999999999' not in re.sub(r'\s+', '', field.get('content-desc', '')), '13-я цифра принята'
         time.sleep(1)
-        capture('42-irr-keypad-limit')
     finally:
         _, errors = recorder.communicate(timeout=10)
         assert recorder.returncode == 0, errors.decode(errors='replace')
         adb('pull', '/sdcard/irr-keypad.mp4', str(OUT / 'irr-keypad.mp4'))
+    video_frame('irr-keypad.mp4', '42-irr-keypad-limit', last=True)
     launch(demo=False)
     find(lambda n: '999999999999' in re.sub(r'\s+', '', n.get('content-desc', '')) and 'IRR' in n.get('content-desc', ''))
 

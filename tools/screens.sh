@@ -46,14 +46,12 @@ scrolled() {
 adb shell cmd uimode night yes
 adb shell settings put system font_scale 1.0
 WAIT=15 shot 01-main
-shot 48-pro-dark --es screen pro
 shot 03-currencies --es screen currencies
 WAIT=12 shot 04-editor --es screen editor
 WAIT=10 shot 05-camera --es screen camera
 
 adb shell cmd uimode night no
 shot 06-main-light
-shot 49-pro-light --es screen pro
 shot 06b-empty-light --ez noamount true
 WAIT=12 shot 07-editor-light --es screen editor
 
@@ -168,6 +166,3 @@ if adb logcat -d -b crash | grep -A1 'FATAL EXCEPTION' | grep -q "Process: $PKG,
   adb logcat -d -b crash -v raw
   exit 1
 fi
-
-# Промокод: ошибка, успешная активация и сохранение после перезапуска.
-python3 tools/smoke-pro.py

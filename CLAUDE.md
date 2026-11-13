@@ -20,8 +20,8 @@
 ```
 
 CI: `.github/workflows/android.yml` — на каждый push тесты, lint, debug и release APK (artifact
-`dirhamrub-apk`), дымовой тест камеры и скриншоты экранов на эмуляторе (пререлиз «screens»:
-`tools/screens.sh`, демо-данные — extra `demo` в отладочной сборке, экран — extra `screen`); на push в `main` — GitHub Release новой `versionName` с `dirhamrub-vX.Y.Z.apk` после всех проверок.
+`dirhamrub-apk`), на push в `main` — GitHub Release новой `versionName` с `dirhamrub-vX.Y.Z.apk` после тестов, lint и сборки.
+Проверки камеры и снимки на эмуляторе выключены по запросу владельца; `tools/screens.sh` можно запускать вручную.
 Тег `v*` и ручной запуск workflow с `release=vX.Y.Z` также поддерживаются.
 Ещё: «Перечень валют ЦБ» (`.github/workflows/cbr-list.yml`, по понедельникам) — `tools/cbr-check.py` сверяет
 валюты из ответа ЦБ с `Currency.cbr`; Dependabot (`.github/dependabot.yml`) — еженедельные PR с обновлениями.

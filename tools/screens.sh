@@ -13,6 +13,9 @@ adb shell pm grant "$PKG" android.permission.CAMERA
 adb shell setprop debug.hwui.renderer skiagl
 adb shell setprop debug.hwui.use_buffer_age false
 adb shell setprop debug.hwui.swap_with_damage false
+# 720/280 = 1080/420: та же ширина в dp при меньшей нагрузке программного GPU.
+adb shell wm size 720x1600
+adb shell wm density 280
 adb logcat -b crash -c
 adb shell settings put global hide_error_dialogs 1
 sleep 15
@@ -46,12 +49,12 @@ shot 08-main-long-light --es amount 812492.31
 shot 09-countries-light --es screen currencies
 shot 36-irr-max-light --es spend IRR --es amount 999999999999.99
 
-adb shell wm density 450
+adb shell wm density 300
 shot 15-main-narrow --es amount 812492.31
-adb shell wm density reset
-adb shell wm size 1080x1920
+adb shell wm density 280
+adb shell wm size 720x1280
 shot 17-main-short --es amount 812492.31
-adb shell wm size reset
+adb shell wm size 720x1600
 adb shell am force-stop "$PKG"
 adb shell settings put system font_scale 1.3
 sleep 2
@@ -59,10 +62,10 @@ WAIT=10 shot 18-main-font130 --es amount 812492.31
 adb shell uiautomator dump /sdcard/font130.xml > /dev/null
 adb exec-out cat /sdcard/font130.xml > "$OUT/font130-ui.xml"
 adb shell am force-stop "$PKG"
-adb shell wm density 450
+adb shell wm density 300
 sleep 2
 shot 37-irr-narrow-font130 --es spend IRR --es amount 999999999999.99
-adb shell wm density reset
+adb shell wm density 280
 adb shell settings put system font_scale 1.0
 adb shell cmd uimode night yes
 shot 23-onboarding-setup --es screen onboarding --ei step 2

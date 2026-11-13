@@ -6,6 +6,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.IntOffset
 import app.dirhamrub.ui.theme.LocalReduceMotion
 
@@ -54,6 +60,18 @@ internal data class TripSharedTransition(val shared: SharedTransitionScope, val 
 internal val LocalTripSharedTransition = staticCompositionLocalOf<TripSharedTransition?> { null }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
+private object UnclippedTripOverlay : SharedTransitionScope.OverlayClip {
+    override fun getClipPath(sharedContentState: SharedTransitionScope.SharedContentState, bounds: Rect,
+        layoutDirection: LayoutDirection, density: Density): Path? = null
+}
+
+@Composable
+internal fun Modifier.tripClip(shape: Shape): Modifier {
+    val moving = LocalTripSharedTransition.current?.visibility?.transition?.isRunning == true
+    return if (moving && !LocalReduceMotion.current) this else clip(shape)
+}
+
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 internal fun Modifier.tripSharedBounds(key: String): Modifier {
     val trip = LocalTripSharedTransition.current ?: return this
@@ -66,6 +84,7 @@ internal fun Modifier.tripSharedBounds(key: String): Modifier {
             resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(if (key == TRIP_CARD || key == TRIP_PRICE) ContentScale.FillBounds else ContentScale.Fit, Alignment.CenterStart),
             enter = when { text -> fadeIn(tween(300, delayMillis = 320)); key == TRIP_CARD -> fadeIn(tween(220, delayMillis = 720)); else -> fadeIn(tween(300)) },
             exit = when { text -> fadeOut(tween(300, delayMillis = 320)); key == TRIP_CARD -> fadeOut(tween(220, delayMillis = 720)); else -> fadeOut(tween(300)) },
+            clipInOverlayDuringTransition = UnclippedTripOverlay,
             zIndexInOverlay = when(key) { TRIP_TITLE -> 5f; TRIP_CARD -> 4f; TRIP_HERO, TRIP_VALUE -> 6f; else -> 3f },
         )
     }

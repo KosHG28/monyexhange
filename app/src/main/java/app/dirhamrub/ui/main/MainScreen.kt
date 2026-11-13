@@ -344,7 +344,7 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
         Modifier
             .fillMaxWidth()
             .height(if (short) 104.dp else 136.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .tripClip(RoundedCornerShape(20.dp))
             .clickable(role = Role.Button, onClickLabel = switchLabel) { onSelectLine(if (homeInput) Line.SPEND else Line.HOME) }
             .clearAndSetSemantics {
                 contentDescription = a11y

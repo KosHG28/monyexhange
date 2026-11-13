@@ -1,6 +1,7 @@
 package app.dirhamrub.ui.main
 
 import app.dirhamrub.ui.components.*
+import androidx.compose.foundation.layout.BoxScope
 
 import app.dirhamrub.ui.theme.sheen
 import app.dirhamrub.ui.theme.parallaxOf
@@ -180,6 +181,7 @@ internal fun BankCardView(
             // Водяной знак валюты карты: при наклоне отстаёт на 6 dp — будто глубже в пластике.
             val mark = card.currency.mark
             val tilt = LocalTilt.current
+            val watermark: @Composable BoxScope.() -> Unit = {
             Text(
                 text = mark,
                 style = type.hero.copy(fontSize = if (mark.length > 2) 40.sp else 88.sp, lineHeight = 92.sp, letterSpacing = 0.sp),
@@ -194,6 +196,8 @@ internal fun BankCardView(
                         alpha = textAlpha()
                     },
             )
+            }
+            if (tripPreview) Box(Modifier.matchParentSize().clip(CARD_SHAPE), content = watermark) else watermark()
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -228,14 +232,13 @@ internal fun BankCardView(
                 val rateStyle = type.caption.copy(fontSize = 11.5.sp, lineHeight = 14.sp, color = CardPalette.onCard.copy(alpha = 0.88f))
                 // Курс не сокращается многоточием: на узкой карте шрифт сам уменьшается, пока строка не влезет.
                 val rateText: @Composable (Modifier) -> Unit = { m ->
-                    BasicText(
-                        text = rate,
-                        style = rateStyle,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        autoSize = TextAutoSize.StepBased(minFontSize = RATE_MIN_SP, maxFontSize = 11.5.sp, stepSize = 0.25.sp),
-                        modifier = m.then(if (tripPreview) Modifier.tripSharedBounds(TRIP_RATE) else Modifier),
-                    )
+                    if (tripPreview) {
+                        Text(rate, style = rateStyle, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = m.tripSharedBounds(TRIP_RATE))
+                    } else {
+                        BasicText(text = rate, style = rateStyle, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            autoSize = TextAutoSize.StepBased(minFontSize = RATE_MIN_SP, maxFontSize = 11.5.sp, stepSize = 0.25.sp), modifier = m)
+                    }
                 }
                 val vsChip: @Composable () -> Unit = {
                     if (vs != null) {

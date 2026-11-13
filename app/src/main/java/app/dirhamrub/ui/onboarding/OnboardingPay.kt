@@ -153,8 +153,7 @@ internal fun ColumnScope.SetupStep(
         Column(
             enter(4).tripOutgoing(320)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(colors.surface)
+                .background(colors.surface, RoundedCornerShape(18.dp))
                 .padding(12.dp),
         ) {
             Box(Modifier.fillMaxWidth().clearAndSetSemantics { }, contentAlignment = Alignment.Center) {

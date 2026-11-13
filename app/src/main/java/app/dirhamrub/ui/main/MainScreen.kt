@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.foundation.Canvas
 import app.dirhamrub.ui.theme.fieldGlow
+import app.dirhamrub.ui.components.*
 import app.dirhamrub.ui.components.TypingText
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -15,6 +16,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.ui.zIndex
 import app.dirhamrub.ui.theme.payRowSurface
 import app.dirhamrub.ui.theme.PayRowShadow
+import app.dirhamrub.ui.theme.paymentRowShadow
 import androidx.compose.animation.core.Animatable
 import app.dirhamrub.ui.theme.topLight
 import app.dirhamrub.ui.theme.Springs
@@ -184,7 +186,7 @@ fun MainScreen(
                 countryOffer != null -> CountryBanner(countryOffer, onCountry)
                 tileOffer -> TileBanner(onTileOffer)
             }
-            Hero(state, short, onSelectLine)
+            Box(Modifier.tripMainEnter()) { Hero(state, short, onSelectLine) }
             PriceField(state, covered)
         }
         Column(
@@ -202,7 +204,7 @@ fun MainScreen(
             val cards = remember(wallet, quote) {
                 wallet.usable.sortedBy { quote.of(it.id)?.homePerUnit ?: BigDecimal(Long.MAX_VALUE) }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(16.dp))
             if (cards.isEmpty()) {
                 Text(
                     stringResource(R.string.nocards_text),
@@ -214,11 +216,11 @@ fun MainScreen(
             } else {
                 PayList(state, cards, onSelectCard, onEditCard)
             }
-            CbrLine(state, onRefreshRates)
-            AddButton(onAddCard)
+            Box(Modifier.tripMainEnter()) { CbrLine(state, onRefreshRates) }
+            Box(Modifier.tripMainEnter()) { AddButton(onAddCard) }
             Spacer(Modifier.height(4.dp))
         }
-        Column(Modifier.padding(horizontal = 16.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp).tripMainEnter(keypad = true)) {
             Spacer(Modifier.height(6.dp))
             Keypad(onKey = onKey, onCamera = onOpenCamera, onCameraPlaced = onCameraPlaced)
             Spacer(Modifier.height(8.dp))
@@ -242,6 +244,7 @@ private fun Header(place: Pair<String, String>, onCountries: () -> Unit, onPlace
             Row(
                 Modifier
                     .weight(1f, fill = false)
+                    .tripSharedBounds(TRIP_COUNTRY)
                     .heightIn(min = 48.dp)
                     .clip(RoundedCornerShape(50))
                     .clickable(role = Role.Button, onClick = onCountries)
@@ -424,6 +427,7 @@ private fun PriceField(state: MainUiState, covered: Boolean) {
     val shape = RoundedCornerShape(18.dp)
     Column(
         Modifier
+            .tripSharedBounds(TRIP_PRICE)
             .fillMaxWidth()
             // Мягкое свечение цветом заливки поля и тонкая нейтральная обводка — без синего.
             .fieldGlow(corner = 18.dp)
@@ -598,9 +602,11 @@ private fun PayRow(
         if (reduce) snap() else tween(180), label = "paySurface",
     )
     val elevation by animateDpAsState(
-        if (selected && !colors.isDark) 6.dp else 0.dp,
+        if (selected && !colors.isDark) 4.dp else 0.dp,
         if (reduce) snap() else tween(180), label = "payElevation",
     )
+    val shadowAlpha = animateFloatAsState(if (selected && !colors.isDark) 1f else 0f,
+        if (reduce) snap() else tween(180), label = "paySurroundShadow")
     val a11y = stringResource(R.string.pay_row_a11y, card.name, sub, right)
     val editLabel = stringResource(R.string.card_edit_a11y)
     // Выбранный способ пружинисто «приподнимается»: чуть крупнее, с мягкой тенью (Material 3 Expressive).
@@ -614,6 +620,7 @@ private fun PayRow(
             .fillMaxWidth()
             .heightIn(min = 58.dp)
             .zIndex(if (selected) 1f else 0f)
+            .then(if (card.id != LocalTripSharedTransition.current?.primaryCardId) Modifier.tripMainEnter() else Modifier)
             .graphicsLayer {
                 val s = 1f + LIFT_SCALE * lift
                 scaleX = s
@@ -623,6 +630,7 @@ private fun PayRow(
                 ambientShadowColor = PayRowShadow.ambient
                 this.shape = shape
             }
+            .paymentRowShadow(enabled = !colors.isDark, opacity = { shadowAlpha.value })
             .clip(shape)
             .background(bg)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = editLabel)
@@ -695,15 +703,17 @@ private fun SelectedMark(color: androidx.compose.ui.graphics.Color, progress: Fl
 @Composable
 internal fun PayIcon(card: BankCard, best: Boolean, flight: Boolean = false) {
     val colors = AppTheme.colors
+    val shared = flight && card.id == LocalTripSharedTransition.current?.primaryCardId
+    val sharedModifier = if (shared) Modifier.tripSharedBounds(TRIP_CARD) else Modifier
     if (card.kind == CardKind.CASH) {
-        Box(Modifier.then(if (flight) Modifier.flightOrigin(card.id) else Modifier).size(width = 38.dp, height = 26.dp), contentAlignment = Alignment.Center) {
+        Box(sharedModifier.then(if (flight) Modifier.flightOrigin(card.id) else Modifier).size(width = 38.dp, height = 26.dp), contentAlignment = Alignment.Center) {
             Icon(painterResource(R.drawable.ic_cash), contentDescription = null, tint = if (best) colors.good else colors.ink, modifier = Modifier.size(28.dp))
         }
         return
     }
     val style = CardPalette.style(card)
     Box(
-        Modifier
+        sharedModifier
             .then(if (flight) Modifier.flightOrigin(card.id) else Modifier)
             .size(width = 38.dp, height = 26.dp)
             .clip(RoundedCornerShape(5.dp))
@@ -717,13 +727,14 @@ internal fun PayIcon(card: BankCard, best: Boolean, flight: Boolean = false) {
                 .clip(RoundedCornerShape(1.5.dp))
                 .background(style.chip),
         )
-        networkMark(card.paymentNetwork)?.let { mark ->
+        (networkMark(card.paymentNetwork) ?: card.currency.code).let { mark ->
             Text(
                 mark,
                 style = AppTheme.type.caption.copy(fontSize = 7.sp, lineHeight = 8.sp, fontWeight = FontWeight.Bold),
                 color = CardPalette.onCard,
                 maxLines = 1,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 3.dp, bottom = 2.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 3.dp, bottom = 2.dp)
+                    .then(if (shared) Modifier.tripMainEnter(badge = true) else Modifier),
             )
         }
     }

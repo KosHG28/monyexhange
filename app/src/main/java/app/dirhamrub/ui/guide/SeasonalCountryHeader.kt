@@ -2,14 +2,14 @@ package app.dirhamrub.ui.guide
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -17,182 +17,77 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.domain.CountrySeasons
-import app.dirhamrub.domain.SeasonalEffect
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.ui.theme.*
 import java.time.LocalDate
 
 @Composable
-internal fun SeasonalCountryHeader(
-    country: String,
-    currency: Currency,
-    iso: String?,
-    onOliveOpen: () -> Unit = {},
-) {
+internal fun SeasonalCountryHeader(country: String, currency: Currency, iso: String?, onOpen: (CountryEasterEgg) -> Unit) {
     val event = CountrySeasons.current(iso, LocalDate.now())
-    val copy = seasonalCopy[iso]
-    if (event == null || copy == null) { Header(country, currency); return }
-    var expanded by rememberSaveable(iso, event.symbol) { mutableStateOf(false) }
-    var play by remember(iso) { mutableIntStateOf(0) }
+    val egg = countryEasterEggs[iso]
+    if (event == null || egg == null) { Header(country, currency); return }
+    var expanded by rememberSaveable(iso) { mutableStateOf(false) }
     val reduce = LocalReduceMotion.current
-    val olive = iso == "GR"
-    val progress = remember(iso) { Animatable(1f) }
-    LaunchedEffect(play, reduce) {
-        if (play == 0 || reduce || olive) { progress.snapTo(1f); return@LaunchedEffect }
-        progress.snapTo(0f)
-        progress.animateTo(1f, tween(1100))
-    }
-    fun toggle() {
-        expanded = !expanded
-        if (expanded) {
-            if (olive) onOliveOpen() else play++
-        }
-    }
     val colors = AppTheme.colors
-    val type = AppTheme.type
-    Box {
-        Column {
-            Header(country, currency) {
-                if (olive) {
-                    OliveBadge(expanded, stringResource(copy.first), ::toggle)
-                } else {
-                    Text(
-                        if (iso == "AE") { if (colors.isDark) "🌙" else "☀️" } else event.symbol,
-                        color = colors.ink, fontSize = 22.sp,
-                        modifier = Modifier.size(48.dp).clip(CircleShape)
-                            .clickable(role = Role.Button,
-                                onClickLabel = stringResource(R.string.season_open, stringResource(copy.first)), onClick = ::toggle)
-                            .wrapContentSize(),
-                    )
-                }
+    val palette = colors.easterEggPalette(egg.tone)
+    val haptics = rememberHaptics()
+    fun toggle(open: Boolean) {
+        if (expanded == open) return
+        expanded = open
+        haptics.play(Haptic.TICK)
+        if (open) onOpen(egg)
+    }
+    Column {
+        Header(country, currency, countryLabel = {
+            val title = stringResource(egg.titleRes)
+            val description = stringResource(R.string.season_badge_a11y, title)
+            val state = stringResource(if (expanded) R.string.season_tip_open else R.string.season_tip_closed)
+            val interactions = remember { MutableInteractionSource() }
+            val pressed by interactions.collectIsPressedAsState()
+            val background by animateColorAsState(
+                if (pressed) palette.icon.copy(alpha = 0.22f) else if (expanded) palette.icon.copy(alpha = 0.14f) else colors.seasonBadgeBackground,
+                if (reduce) snap() else tween(160), label = "seasonCapsuleBackground",
+            )
+            val rotation by animateFloatAsState(if (expanded) -12f else 0f,
+                if (reduce) snap() else spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = "seasonBadgeAngle")
+            Row(Modifier.widthIn(max = 360.dp).heightIn(min = 48.dp).clip(CircleShape).background(background)
+                .toggleable(value = expanded, interactionSource = interactions, indication = null, role = Role.Button, onValueChange = ::toggle)
+                .semantics(mergeDescendants = true) { contentDescription = description; stateDescription = state }
+                .padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(country, style = AppTheme.type.body.copy(fontSize = 14.sp), color = palette.icon,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Spacer(Modifier.width(7.dp))
+                Icon(painterResource(egg.iconRes), contentDescription = null, tint = palette.icon,
+                    modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = rotation })
             }
-            AnimatedVisibility(
-                visible = expanded,
-                enter = if (reduce) EnterTransition.None else if (olive)
-                    expandVertically(tween(240, easing = FastOutSlowInEasing), expandFrom = Alignment.Top) + fadeIn(tween(200, delayMillis = 40))
-                    else fadeIn(),
-                exit = if (reduce) ExitTransition.None else if (olive)
-                    shrinkVertically(tween(220, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Top) + fadeOut(tween(150))
-                    else fadeOut(),
-            ) {
-                Column(Modifier.padding(top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp))
-                    .background(if (olive) colors.oliveSoft else if (event.effect == SeasonalEffect.FLOWER) colors.blossomSoft else colors.accentSoft)
-                    .padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite }) {
-                    Text(stringResource(copy.first), style = type.title, color = colors.ink)
-                    Text(stringResource(copy.second), style = type.body, color = colors.ink, modifier = Modifier.padding(top = 6.dp))
-                    SeasonHide(olive) { expanded = false }
-                }
-            }
-        }
-        // Греция рисует листья в корневом Box справочника, не в маленькой области заголовка.
-        if (!olive && !reduce && progress.value < 1f) {
-            val tint = if (event.effect == SeasonalEffect.FLOWER) colors.blossom else colors.accent
-            Canvas(Modifier.fillMaxWidth().height(110.dp)) {
-                val p = progress.value
-                repeat(7) { i ->
-                    val x = size.width * (0.12f + i * 0.12f) + kotlin.math.sin(p * 6f + i) * 10.dp.toPx()
-                    val y = size.height * (p * 0.8f + (i % 3) * 0.06f)
-                    val c = tint.copy(alpha = (1f - p) * 0.8f)
-                    val r = (3 + i % 3).dp.toPx()
-                    when (event.effect) {
-                        SeasonalEffect.WATER -> drawArc(c, 0f, 180f, false, Offset(x, y), Size(r * 5, r * 2), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
-                        SeasonalEffect.FLOWER, SeasonalEffect.LEAF -> rotate(i * 43f + p * 90f, Offset(x, y)) { drawOval(c, Offset(x, y), Size(r * 1.5f, r * 3)) }
-                        SeasonalEffect.CONFETTI -> rotate(i * 35f + p * 180f, Offset(x, y)) { drawRect(c, Offset(x, y), Size(r, r * 2)) }
-                        else -> drawCircle(c, r, Offset(x, y))
-                    }
-                }
+        })
+        AnimatedVisibility(
+            visible = expanded,
+            enter = if (reduce) EnterTransition.None else expandVertically(tween(240, easing = FastOutSlowInEasing), expandFrom = Alignment.Top) + fadeIn(tween(200, delayMillis = 40)),
+            exit = if (reduce) ExitTransition.None else shrinkVertically(tween(220, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Top) + fadeOut(tween(150)),
+        ) {
+            Column(Modifier.padding(top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(palette.card)
+                .padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite }) {
+                Text(stringResource(egg.titleRes), style = AppTheme.type.title, color = palette.icon)
+                Text(stringResource(egg.descriptionRes), style = AppTheme.type.body, color = colors.ink, modifier = Modifier.padding(top = 6.dp))
+                val interactions = remember { MutableInteractionSource() }
+                val pressed by interactions.collectIsPressedAsState()
+                val background by animateColorAsState(if (pressed) palette.icon.copy(alpha = 0.18f) else colors.seasonBadgeBackground,
+                    if (reduce) snap() else tween(160), label = "seasonHideBackground")
+                Text(stringResource(R.string.season_hide), style = AppTheme.type.bodyStrong, color = palette.icon,
+                    modifier = Modifier.padding(top = 8.dp).heightIn(min = 48.dp).clip(CircleShape).background(background)
+                        .clickable(interactionSource = interactions, indication = null, role = Role.Button) { toggle(false) }
+                        .padding(horizontal = 14.dp).wrapContentHeight())
             }
         }
     }
 }
-
-@Composable
-private fun OliveBadge(expanded: Boolean, title: String, onClick: () -> Unit) {
-    val colors = AppTheme.colors
-    val reduce = LocalReduceMotion.current
-    val interactions = remember { MutableInteractionSource() }
-    val pressed by interactions.collectIsPressedAsState()
-    val background by animateColorAsState(
-        if (pressed) OliveColors.badge.copy(alpha = 0.24f) else if (expanded) OliveColors.badge.copy(alpha = 0.15f) else colors.seasonBadgeBackground,
-        if (reduce) snap() else tween(160), label = "oliveBadgeBackground",
-    )
-    val angle by animateFloatAsState(if (expanded) -14f else 0f,
-        if (reduce) snap() else spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = "oliveBadgeAngle")
-    val description = stringResource(R.string.season_badge_a11y, title)
-    val state = stringResource(if (expanded) R.string.season_tip_open else R.string.season_tip_closed)
-    val action = if (expanded) stringResource(R.string.season_hide) else stringResource(R.string.season_open, title)
-    Box(Modifier.size(48.dp).clip(CircleShape).background(background)
-        .clickable(interactionSource = interactions, indication = null, role = Role.Button,
-            onClickLabel = action, onClick = onClick)
-        .semantics { contentDescription = description; stateDescription = state }, contentAlignment = Alignment.Center) {
-        Icon(painterResource(R.drawable.ic_olive_branch), contentDescription = null, tint = OliveColors.badge,
-            modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = angle })
-    }
-}
-
-@Composable
-private fun SeasonHide(olive: Boolean, onClick: () -> Unit) {
-    val colors = AppTheme.colors
-    val interactions = remember { MutableInteractionSource() }
-    val pressed by interactions.collectIsPressedAsState()
-    val reduce = LocalReduceMotion.current
-    val background by animateColorAsState(
-        if (pressed) (if (olive) OliveColors.badge else colors.accent).copy(alpha = 0.18f) else colors.seasonBadgeBackground,
-        if (reduce) snap() else tween(160), label = "seasonHideBackground",
-    )
-    Text(stringResource(R.string.season_hide), style = AppTheme.type.bodyStrong, color = if (olive) colors.ink else colors.accent,
-        modifier = Modifier.padding(top = 8.dp).heightIn(min = 48.dp).clip(CircleShape).background(background)
-            .clickable(interactionSource = interactions, indication = null, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 14.dp).wrapContentHeight())
-}
-
-private val seasonalCopy = mapOf(
-    "RU" to (R.string.season_ru_title to R.string.season_ru_description),
-    "BY" to (R.string.season_by_title to R.string.season_by_description),
-    "KZ" to (R.string.season_kz_title to R.string.season_kz_description),
-    "KG" to (R.string.season_kg_title to R.string.season_kg_description),
-    "TJ" to (R.string.season_tj_title to R.string.season_tj_description),
-    "UZ" to (R.string.season_uz_title to R.string.season_uz_description),
-    "TM" to (R.string.season_tm_title to R.string.season_tm_description),
-    "AZ" to (R.string.season_az_title to R.string.season_az_description),
-    "AM" to (R.string.season_am_title to R.string.season_am_description),
-    "MD" to (R.string.season_md_title to R.string.season_md_description),
-    "GE" to (R.string.season_ge_title to R.string.season_ge_description),
-    "TR" to (R.string.season_tr_title to R.string.season_tr_description),
-    "AE" to (R.string.season_ae_title to R.string.season_ae_description),
-    "EG" to (R.string.season_eg_title to R.string.season_eg_description),
-    "OM" to (R.string.season_om_title to R.string.season_om_description),
-    "QA" to (R.string.season_qa_title to R.string.season_qa_description),
-    "TH" to (R.string.season_th_title to R.string.season_th_description),
-    "VN" to (R.string.season_vn_title to R.string.season_vn_description),
-    "ID" to (R.string.season_id_title to R.string.season_id_description),
-    "MY" to (R.string.season_my_title to R.string.season_my_description),
-    "IN" to (R.string.season_in_title to R.string.season_in_description),
-    "LK" to (R.string.season_lk_title to R.string.season_lk_description),
-    "MV" to (R.string.season_mv_title to R.string.season_mv_description),
-    "SC" to (R.string.season_sc_title to R.string.season_sc_description),
-    "CN" to (R.string.season_cn_title to R.string.season_cn_description),
-    "JP" to (R.string.season_jp_title to R.string.season_jp_description),
-    "KR" to (R.string.season_kr_title to R.string.season_kr_description),
-    "FR" to (R.string.season_fr_title to R.string.season_fr_description),
-    "IT" to (R.string.season_it_title to R.string.season_it_description),
-    "ES" to (R.string.season_es_title to R.string.season_es_description),
-    "GR" to (R.string.season_gr_title to R.string.season_gr_description),
-    "CY" to (R.string.season_cy_title to R.string.season_cy_description),
-    "ME" to (R.string.season_me_title to R.string.season_me_description),
-    "RS" to (R.string.season_rs_title to R.string.season_rs_description),
-    "NL" to (R.string.season_nl_title to R.string.season_nl_description),
-    "CZ" to (R.string.season_cz_title to R.string.season_cz_description),
-    "CA" to (R.string.season_ca_title to R.string.season_ca_description),
-)

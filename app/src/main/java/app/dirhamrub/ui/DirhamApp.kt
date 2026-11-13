@@ -1,15 +1,6 @@
 package app.dirhamrub.ui
 
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.first
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.withFrameNanos
-import app.dirhamrub.ui.components.CardMorphOverlay
-import app.dirhamrub.ui.components.OnboardingCardFlight
 import app.dirhamrub.widget.QuoteWidget
 import app.dirhamrub.ui.pro.ProScreen
 import app.dirhamrub.domain.AppIcon
@@ -27,6 +18,14 @@ import android.os.Build
 import android.telephony.TelephonyManager
 import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.togetherWith
+import androidx.compose.runtime.CompositionLocalProvider
+import app.dirhamrub.ui.components.LocalTripSharedTransition
+import app.dirhamrub.ui.components.TripSharedTransition
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -35,27 +34,22 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -126,6 +120,7 @@ private fun requestCameraTile(context: Context) {
 }
 
 /** Корень интерфейса: главный экран, камера и шторки. */
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun DirhamApp(
     startScreen: String? = null,
@@ -137,33 +132,10 @@ fun DirhamApp(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val cardFlight = LocalCardFlight.current
-    var welcome by remember { mutableStateOf<WelcomeReveal?>(null) }
-    val reduceWelcome = app.dirhamrub.ui.theme.LocalReduceMotion.current
+    var completionCardId by remember { mutableStateOf<String?>(null) }
+    val reduceWelcome = LocalReduceMotion.current
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
-    LaunchedEffect(welcome, reduceWelcome) {
-        val reveal = welcome ?: return@LaunchedEffect
-        if (!reduceWelcome) {
-            val source = reveal.flight
-            val destination = source?.let {
-                withTimeoutOrNull(600) { snapshotFlow { cardFlight.originOf(it.cardId) }.filterNotNull().first() }
-            }
-            if (source != null && destination != null) {
-                reveal.morph = CardMorph(destination, source.cardId, initialProgress = 1f).apply {
-                    target = source.bounds
-                    card = source.preview
-                    closing = true
-                }
-                // Сначала оверлей готов и скрывает оба оригинала; затем начинается движение.
-                withFrameNanos { }
-            }
-            coroutineScope {
-                launch { reveal.progress.animateTo(1f, tween(460, easing = FastOutSlowInEasing)) }
-                launch { reveal.morph?.progress?.animateTo(0f, Springs.spatial()) }
-            }
-        }
-        welcome = null
-    }
 
     // «Карты и наличные» — экран из настроек.
     var moneyOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_MONEY) }
@@ -225,15 +197,25 @@ fun DirhamApp(
     }
 
     val showOnboarding = (!state.onboardingDone || onboardingForced) && !cameraOpen
-    Box(Modifier.fillMaxSize()) {
-    if (showOnboarding || welcome != null) {
-        fun finish() {
+    val navigation = androidx.compose.animation.core.updateTransition(showOnboarding, label = "tripNavigation")
+    androidx.compose.animation.SharedTransitionLayout {
+    val sharedScope = this
+    Box(Modifier.fillMaxSize().background(AppTheme.colors.bg)) {
+    navigation.AnimatedContent(
+        transitionSpec = {
+            (if (reduceWelcome) EnterTransition.None else fadeIn(tween(160))) togetherWith
+                (if (reduceWelcome) ExitTransition.None else fadeOut(tween(130))) using SizeTransform(clip = false)
+        },
+    ) { onboarding ->
+    CompositionLocalProvider(LocalTripSharedTransition provides TripSharedTransition(sharedScope, this, completionCardId)) {
+    if (onboarding) {
+        fun finish(card: BankCard? = null, amount: java.math.BigDecimal? = null) {
             onboardingForced = false
-            vm.finishOnboarding()
+            vm.finishOnboarding(card, amount)
             // Валюту трат только что выбрали сами — плашку «вы в другой стране» сразу не показываем.
             country?.takeIf { Currency.forCountry(it) != null }?.let { vm.handleCountry(it, accept = null) }
         }
-        Box(Modifier.then(if (welcome != null) Modifier.clearAndSetSemantics { } else Modifier)) {
+        Box(Modifier.fillMaxSize().background(AppTheme.colors.bg)) {
         OnboardingScreen(
             startStep = startStep,
             spend = state.wallet.spend,
@@ -252,13 +234,12 @@ fun DirhamApp(
             unionPay = state.activeUnionPay,
             onSpend = vm::setSpend,
             newCard = vm::newCard,
-            onFinish = { card, flight ->
-                if (welcome == null) {
+            onFinish = { card, amount ->
+                if (showOnboarding) {
                     focus.clearFocus(force = true)
                     keyboard?.hide()
-                    card?.let { vm.saveCard(it); vm.selectCard(it.id) }
-                    if (card != null && !reduceWelcome) welcome = WelcomeReveal(flight)
-                    finish()
+                    completionCardId = card?.id
+                    finish(card, amount)
                 }
             },
             onOpenEditor = { card ->
@@ -269,21 +250,8 @@ fun DirhamApp(
         }
     }
 
-    if (!showOnboarding || welcome != null) {
-    Box(Modifier.fillMaxSize()
-        .graphicsLayer {
-            val reveal = welcome
-            clip = reveal != null
-            if (reveal != null) {
-                val center = reveal.origin ?: Offset(size.width / 2f, size.height * 0.4f)
-                val dx = maxOf(center.x, size.width - center.x)
-                val dy = maxOf(center.y, size.height - center.y)
-                shape = CircleReveal(center, kotlin.math.sqrt(dx * dx + dy * dy) * reveal.progress.value)
-                clip = true
-            }
-        }
-        .then(if (welcome != null) Modifier.clearAndSetSemantics { } else Modifier)
-    ) {
+    if (!onboarding) {
+    Box(Modifier.fillMaxSize().background(AppTheme.colors.bg)) {
     // Плитка «Ценник» в шторке: предлагаем один раз, после первого знакомства с камерой (Android 13+).
     val tileOffer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && state.cameraUsed && !state.tileOffered
     // Справочник — той страны, что в шапке (выбранная, страна сети или главная страна валюты): у евро их много.
@@ -375,6 +343,7 @@ fun DirhamApp(
                 onRounding = vm::setRounding,
                 onOnboarding = {
                     settingsOpen = false
+                    completionCardId = null
                     onboardingReshown = true
                     vm.restartOnboarding()
                 },
@@ -511,27 +480,18 @@ fun DirhamApp(
     }
     }
     }
-    welcome?.morph?.let { morph ->
-        Box(Modifier.clearAndSetSemantics { }) { CardMorphOverlay(morph) }
-    }
-    if (welcome != null) {
+    } // CompositionLocalProvider
+    } // AnimatedContent
+    if (navigation.isRunning) {
         BackHandler { }
-        // Короткий переход не принимает касаний и не даёт повторно сохранить ту же карту.
         Box(Modifier.fillMaxSize().pointerInput(Unit) {
             awaitPointerEventScope {
                 while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
             }
         })
     }
-    }
-
-}
-
-/** Прогресс создаётся в момент нажатия с нуля: первый кадр не может показать весь главный экран. */
-private class WelcomeReveal(val flight: OnboardingCardFlight?) {
-    val origin: Offset? get() = flight?.bounds?.center
-    val progress = Animatable(0f)
-    var morph by mutableStateOf<CardMorph?>(null)
+    } // root Box
+    } // SharedTransitionLayout
 }
 
 /** Круг с центром [center] и радиусом [radius] — форма раскрытия камеры. */

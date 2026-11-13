@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -150,7 +151,8 @@ fun CountryGuideScreen(
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    var olivePlay by remember(iso) { mutableIntStateOf(0) }
+    var seasonPlay by remember(iso) { mutableIntStateOf(0) }
+    var activeEgg by remember(iso) { mutableStateOf<CountryEasterEgg?>(null) }
     // Флаг страны — фоном в правом верхнем углу экрана (и под строкой состояния — без резкого среза сверху);
     // прокручивается только содержимое.
     FullScreen(onDismissRequest = onDismiss, backdrop = { FlagBackdrop(place.first, Modifier.align(Alignment.TopEnd)) }) {
@@ -167,7 +169,7 @@ fun CountryGuideScreen(
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 20.dp),
         ) {
-            SeasonalCountryHeader(place.second, currency, iso, onOliveOpen = { olivePlay++ })
+            SeasonalCountryHeader(place.second, currency, iso, onOpen = { activeEgg = it; seasonPlay++ })
             if (guide == null) {
                 Spacer(Modifier.height(16.dp))
                 Column(
@@ -246,7 +248,7 @@ fun CountryGuideScreen(
             ReportLink(stringResource(R.string.guide_report), guide.iso, countryName(guide.iso), guide.updated)
         }
         }
-        if (iso == "GR") OliveLeafFall(olivePlay, Modifier.matchParentSize())
+        activeEgg?.let { SeasonalParticles(it, seasonPlay, Modifier.matchParentSize()) }
       }
     }
 }
@@ -256,13 +258,13 @@ fun CountryGuideScreen(
  * Длинное название («Фунт стерлингов» на узком экране) уменьшается до 80 %, дальше — переносится.
  */
 @Composable
-internal fun Header(country: String, currency: Currency, decoration: @Composable () -> Unit = {}) {
+internal fun Header(country: String, currency: Currency, countryLabel: @Composable (() -> Unit)? = null) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     Column(Modifier.padding(start = 4.dp, top = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(country, style = type.body.copy(fontSize = 14.sp), color = colors.muted, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
-            decoration()
+            if (countryLabel != null) countryLabel() else
+                Text(country, style = type.body.copy(fontSize = 14.sp), color = colors.muted, maxLines = 1)
         }
         val title = currency.noun
         val base = type.title.copy(fontSize = HEADER_SP.sp, lineHeight = (HEADER_SP * 1.12f).sp, fontWeight = FontWeight.SemiBold)

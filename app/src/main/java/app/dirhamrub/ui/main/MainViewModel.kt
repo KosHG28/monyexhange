@@ -506,8 +506,10 @@ class MainViewModel(
     }
 
     /** Знакомство пройдено: больше не показываем. */
-    fun finishOnboarding() {
-        _state.update { it.copy(onboardingDone = true) }
+    fun finishOnboarding(card: BankCard? = null, spendAmount: BigDecimal? = null) {
+        // Одна публикация состояния: главный сразу получает карту, введённую цену и валюту ввода.
+        _state.update { it.withCompletedOnboarding(card, spendAmount) }
+        if (card != null) refreshReceiptRates()
         viewModelScope.launch { repository.saveOnboardingDone() }
     }
 

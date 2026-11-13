@@ -1,12 +1,8 @@
 package app.dirhamrub.ui.onboarding
 
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.graphicsLayer
-import app.dirhamrub.ui.components.LocalCardFlight
-import app.dirhamrub.ui.components.OnboardingCardFlight
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
 
+import app.dirhamrub.ui.components.*
+import java.math.BigDecimal
 import app.dirhamrub.ui.components.ButtonGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,27 +17,24 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
@@ -91,15 +84,13 @@ internal fun ColumnScope.SetupStep(
     unionPay: UnionPayRates?,
     newCard: () -> BankCard,
     onCountry: () -> Unit,
-    onFinish: (BankCard?, OnboardingCardFlight?) -> Unit,
+    onFinish: (BankCard?, BigDecimal?) -> Unit,
     onOpenEditor: (BankCard) -> Unit,
     enter: (Int) -> Modifier,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val template = remember { newCard() }
-    var previewBounds by remember { mutableStateOf<Rect?>(null) }
-    val flight = LocalCardFlight.current
     val haptics = rememberHaptics()
     var way by rememberSaveable { mutableStateOf(PayWay.HOME_CARD) }
     var cardCurrency by rememberSaveable { mutableStateOf(CARD_CURRENCIES.first { it != home && it != spend }) }
@@ -151,7 +142,7 @@ internal fun ColumnScope.SetupStep(
                 soft = false,
             ) {
                 haptics.play(if (hasReceipt) Haptic.CONFIRM else Haptic.TICK)
-                onFinish(draft, draft?.let { card -> previewBounds?.let { OnboardingCardFlight(card.id, it, preview) } })
+                onFinish(draft, Numbers.parse(first)?.takeIf { way != PayWay.CASH && it.signum() >= 0 })
             }
         },
     ) {
@@ -167,9 +158,8 @@ internal fun ColumnScope.SetupStep(
                 .padding(12.dp),
         ) {
             Box(Modifier.fillMaxWidth().clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
-                Box(Modifier.onGloballyPositioned { previewBounds = it.boundsInWindow() }
-                    .graphicsLayer { alpha = if (flight.flying == draft?.id) 0f else 1f }) {
-                    preview { 1f }
+                Box(Modifier.tripSharedBounds(TRIP_CARD)) {
+                    preview(tripCardTextAlpha())
                 }
             }
             Spacer(Modifier.height(10.dp))
@@ -279,6 +269,7 @@ private fun CountryCard(place: Pair<String, String>, spend: Currency, modifier: 
     val a11y = stringResource(R.string.onboarding_country_a11y, place.second, sub)
     Row(
         modifier
+            .tripSharedBounds(TRIP_COUNTRY)
             .fillMaxWidth()
             .heightIn(min = 64.dp)
             .clip(RoundedCornerShape(16.dp))
@@ -292,10 +283,10 @@ private fun CountryCard(place: Pair<String, String>, spend: Currency, modifier: 
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(place.second, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1)
-            Text(sub, style = type.caption.copy(fontSize = 12.5.sp), color = colors.muted, maxLines = 1)
+            Text(sub, style = type.caption.copy(fontSize = 12.5.sp), color = colors.muted, maxLines = 1, modifier = Modifier.tripOutgoing(100))
         }
         Spacer(Modifier.width(8.dp))
-        Text(stringResource(R.string.onboarding_country_change), style = type.bodyStrong, color = colors.accent)
+        Text(stringResource(R.string.onboarding_country_change), style = type.bodyStrong, color = colors.accent, modifier = Modifier.tripOutgoing(100))
     }
 }
 
@@ -313,7 +304,7 @@ private fun PurchaseFields(
     val price = stringResource(R.string.onboarding_pay_price)
     val paid = stringResource(R.string.onboarding_pay_paid)
     FieldPair(
-        first = { m -> AmountField(price, first, onFirst, price, m, imeAction = ImeAction.Next, trailing = { FieldSuffix(spend.mark) }) },
+        first = { m -> AmountField(price, first, onFirst, price, m.tripSharedBounds(TRIP_PRICE), imeAction = ImeAction.Next, trailing = { FieldSuffix(spend.mark) }) },
         second = { m -> AmountField(paid, second, onSecond, paid, m, trailing = trailing, selectable = selectable) },
     )
 }

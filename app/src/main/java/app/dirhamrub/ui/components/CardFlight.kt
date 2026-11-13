@@ -43,7 +43,7 @@ val LocalCardFlight = staticCompositionLocalOf { CardFlight() }
 fun Modifier.flightOrigin(id: String): Modifier = composed {
     val flight = LocalCardFlight.current
     this
-        // Главный во время знакомства ещё обрезан кругом нулевого радиуса; нужны полные координаты.
+        // Не обрезаем координаты границами прокрутки: они нужны для перелёта в редактор.
         .onGloballyPositioned { flight.place(id, it.boundsInWindow(clipBounds = false)) }
         .graphicsLayer { alpha = if (flight.flying == id) 0f else 1f }
 }
@@ -67,13 +67,6 @@ class CardMorph(val origin: Rect, val cardId: String, initialProgress: Float = 0
     internal val backgroundAlpha: Float get() = (progress.value * 1.4f).coerceAtMost(1f)
     internal val contentAlpha: Float get() = ((progress.value - 0.3f) / 0.7f).coerceIn(0f, 1f)
 }
-
-/** Снимок превью из знакомства: геометрия и содержимое фиксируются в момент продолжения. */
-class OnboardingCardFlight(
-    val cardId: String,
-    val bounds: Rect,
-    val preview: @Composable (textAlpha: () -> Float) -> Unit,
-)
 
 /** Летящая карта поверх экрана: от мини-карты к превью, надписи проявляются во второй половине пути. */
 @Composable

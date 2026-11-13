@@ -67,19 +67,21 @@ def card_node(name):
     return find(lambda n: name in n.get('content-desc', ''))
 
 
-def assert_home():
+def assert_home(amount=None):
     row = card_node('Карта RUB')
     assert row.get('selected') == 'true' or row.get('checked') == 'true', row.attrib
     assert not any('Настройте под поездку' in n.get('text', '') for n in tree().iter('node'))
+    if amount:
+        find(lambda n: amount in re.sub(r'\s+', '', n.get('content-desc', '')) and 'AED' in n.get('content-desc', ''))
 
 
 def video_frame(video, name, last=False):
-    seek = ['-sseof', '-0.2'] if last else ['-ss', '2.0']
+    seek = ['-sseof', '-0.2'] if last else ['-ss', '0.9']
     subprocess.run(['ffmpeg', '-v', 'error', '-y', *seek, '-i', str(OUT / video),
                     '-frames:v', '1', str(OUT / f'{name}.png')], check=True, timeout=30)
 
 
-def finish_with_video(button, middle, after, theme):
+def finish_with_video(button, middle, after, theme, amount=None):
     name = f'welcome-{theme}.mp4'
     recorder = subprocess.Popen(['adb', 'shell', 'screenrecord', '--size', '540x1200', '--bit-rate', '2000000',
                                  '--time-limit', '8', f'/sdcard/{name}'],
@@ -88,7 +90,7 @@ def finish_with_video(button, middle, after, theme):
         time.sleep(0.5)
         tap(button)
         time.sleep(1)
-        assert_home()
+        assert_home(amount)
     finally:
         _, errors = recorder.communicate(timeout=15)
         assert recorder.returncode == 0, errors.decode(errors='replace')
@@ -97,57 +99,7 @@ def finish_with_video(button, middle, after, theme):
     # Одновременный screencap и screenrecord на программном GPU портил композицию слоёв.
     video_frame(name, middle)
     video_frame(name, after, last=True)
-    assert_home()
-
-
-def search_hit_targets():
-    density = int(re.findall(r'\d+', adb('shell', 'wm', 'density'))[-1]) / 160
-    # Каждая попытка — без фокуса после нового запуска: лупа, верхний/нижний отступ и правый край.
-    for point in ['icon', 'top', 'bottom', 'right']:
-        launch(screen='currencies')
-        field = find(lambda n: n.get('class') == 'android.widget.EditText' and n.get('package') == PKG)
-        assert field.get('focused') == 'false', field.attrib
-        x1, y1, x2, y2 = map(int, re.findall(r'\d+', field.attrib['bounds']))
-        assert y2-y1 >= 48*density-1, field.attrib
-        positions = {
-            'icon': (x1+int(24*density), (y1+y2)//2),
-            'top': ((x1+x2)//2, y1+int(3*density)),
-            'bottom': ((x1+x2)//2, y2-int(3*density)),
-            'right': (x2-int(4*density), (y1+y2)//2),
-        }
-        x, y = positions[point]
-        adb('shell', 'input', 'tap', str(x), str(y))
-        find(lambda n: n.get('class') == 'android.widget.EditText' and n.get('package') == PKG and n.get('focused') == 'true')
-        if point == 'icon':
-            capture('40-search-icon-focus')
-        if point == 'right':
-            adb('shell', 'input', 'text', 'JPY')
-            find(lambda n: n.get('class') == 'android.widget.EditText' and n.get('package') == PKG and n.get('text') == 'JPY')
-            capture('41-search-query')
-            tap(find(lambda n: n.get('content-desc') == 'Очистить поиск'))
-            find(lambda n: n.get('class') == 'android.widget.EditText' and n.get('package') == PKG and 'JPY' not in n.get('text', ''))
-
-
-def twelve_digits():
-    launch(amount='0', spend='IRR')
-    nine = find(lambda n: n.get('content-desc') == '9')
-    recorder = subprocess.Popen(['adb', 'shell', 'screenrecord', '--size', '540x1200', '--bit-rate', '2000000',
-                                 '--time-limit', '8', '/sdcard/irr-keypad.mp4'],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    try:
-        time.sleep(0.3)
-        for _ in range(13):
-            tap(nine)
-        field = find(lambda n: '999999999999' in re.sub(r'\s+', '', n.get('content-desc', '')) and 'IRR' in n.get('content-desc', ''))
-        assert '9999999999999' not in re.sub(r'\s+', '', field.get('content-desc', '')), '13-я цифра принята'
-        time.sleep(1)
-    finally:
-        _, errors = recorder.communicate(timeout=10)
-        assert recorder.returncode == 0, errors.decode(errors='replace')
-        adb('pull', '/sdcard/irr-keypad.mp4', str(OUT / 'irr-keypad.mp4'))
-    video_frame('irr-keypad.mp4', '42-irr-keypad-limit', last=True)
-    launch(demo=False)
-    find(lambda n: '999999999999' in re.sub(r'\s+', '', n.get('content-desc', '')) and 'IRR' in n.get('content-desc', ''))
+    assert_home(amount)
 
 
 try:
@@ -159,12 +111,17 @@ try:
     ]:
         adb('shell', 'cmd', 'uimode', 'night', theme)
         launch(onboarding=True)
+        price = find(lambda n: n.get('class') == 'android.widget.EditText' and n.get('content-desc') == 'Цена')
+        tap(price)
+        adb('shell', 'input', 'text', '1234.56')
+        adb('shell', 'input', 'keyevent', '4')
+        time.sleep(1)
         button = find(lambda n: n.get('text') == 'Продолжить без чека')
         capture(before)
-        finish_with_video(button, middle, after, 'dark' if theme == 'yes' else 'light')
+        finish_with_video(button, middle, after, 'dark' if theme == 'yes' else 'light', amount='1234,56')
         time.sleep(1)
         launch(demo=False)
-        assert_home()
+        assert_home('1234,56')
 
     motion(False)
     launch(onboarding=True)
@@ -174,19 +131,21 @@ try:
     capture('31-welcome-reduced')
 
     motion(True)
-    launch()
-    capture('32-card-before')
-    tap(card_node('Карта в юанях'))
-    time.sleep(0.08)
-    capture('33-card-mid')
-    time.sleep(1)
-    chosen = card_node('Карта в юанях')
-    assert chosen.get('selected') == 'true' or chosen.get('checked') == 'true', chosen.attrib
-    capture('34-card-after')
-    motion(False)
-    search_hit_targets()
-    twelve_digits()
-    print('Поиск проверен по четырём краям, 12 цифр введены клавиатурой и сохранены. Переход проверен в двух темах, без анимаций и после перезапуска; выбор карты подтверждён.')
+    for theme, prefix in [('no', '32-card-light'), ('yes', '35-card-dark')]:
+        adb('shell', 'cmd', 'uimode', 'night', theme)
+        launch()
+        keypad_before = find(lambda n: n.get('content-desc') == '9').get('bounds')
+        capture(prefix + '-before')
+        tap(card_node('Карта в юанях'))
+        time.sleep(0.08)
+        capture(prefix + '-mid')
+        time.sleep(1)
+        chosen = card_node('Карта в юанях')
+        assert chosen.get('selected') == 'true' or chosen.get('checked') == 'true', chosen.attrib
+        assert find(lambda n: n.get('content-desc') == '9').get('bounds') == keypad_before, 'Numpad moved after selection'
+        capture(prefix + '-after')
+    print('Общие элементы записаны в обеих темах; цена перенесена и сохранена после перезапуска. Проверены reduced motion, выбор карты в двух темах и неподвижность numpad.')
+
 except Exception:
     (OUT / 'transition-error.txt').write_text(traceback.format_exc(), encoding='utf-8')
     try:

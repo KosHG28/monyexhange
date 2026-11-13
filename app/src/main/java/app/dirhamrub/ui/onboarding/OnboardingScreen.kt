@@ -1,6 +1,7 @@
 package app.dirhamrub.ui.onboarding
 
-import app.dirhamrub.ui.components.OnboardingCardFlight
+import app.dirhamrub.ui.components.tripOutgoing
+import java.math.BigDecimal
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -98,7 +99,7 @@ fun OnboardingScreen(
     unionPay: UnionPayRates?,
     onSpend: (Currency, String?) -> Unit,
     newCard: () -> BankCard,
-    onFinish: (BankCard?, OnboardingCardFlight?) -> Unit,
+    onFinish: (BankCard?, BigDecimal?) -> Unit,
     onOpenEditor: (BankCard) -> Unit,
     /** С какого шага начать (снимки CI). */
     startStep: Int = 0,
@@ -131,7 +132,9 @@ fun OnboardingScreen(
 
     Box(Modifier.fillMaxSize().background(colors.bg)) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            Header(pager.currentPage, onBack = { go(pager.currentPage - 1) }, onSkip = { onFinish(null, null) })
+            Box(Modifier.tripOutgoing()) {
+                Header(pager.currentPage, onBack = { go(pager.currentPage - 1) }, onSkip = { onFinish(null, null) })
+            }
             // Шаги листаются свайпом и кнопками; появившийся шаг собирается каскадом — блоки выплывают
             // снизу друг за другом (страница заново входит в композицию — волна заново).
             HorizontalPager(

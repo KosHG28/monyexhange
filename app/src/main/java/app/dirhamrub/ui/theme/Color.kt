@@ -117,11 +117,6 @@ object CardPalette {
     fun style(card: BankCard): CardStyle = if (card.kind == CardKind.CASH) cash else style(card.style)
 }
 
-/** Сезонные цветы: отдельные цвета темы для светлого и тёмного оформления. */
-val AppColors.blossom: Color get() = if (isDark) Color(0xFFF1A8C7) else Color(0xFFB64F80)
-val AppColors.blossomSoft: Color get() = if (isDark) Color(0xFF382430) else Color(0xFFF9EAF1)
-
-
 /** Выбор способа оплаты: в тёмной теме глубину создаёт только тон поверхности. */
 fun AppColors.payRowSurface(selected: Boolean, best: Boolean): Color = when {
     isDark && best -> if (selected) Color(0xFF173525) else Color(0xFF11261B)
@@ -131,14 +126,10 @@ fun AppColors.payRowSurface(selected: Boolean, best: Boolean): Color = when {
 }
 
 object PayRowShadow {
+    val surround = Color(0xFF101828).copy(alpha = 0.10f)
     val spot = Color(0xFF101828).copy(alpha = 0.12f)
     val ambient = Color(0xFF101828).copy(alpha = 0.06f)
 }
 
-object OliveColors {
-    val badge = Color(0xFF8FA86A)
-    val leaves = listOf(badge, Color(0xFF6E854E), Color(0xFFB2BEB0), Color(0xFF9AA898))
-}
-val AppColors.oliveSoft: Color get() = if (isDark) Color(0xFF242D22) else Color(0xFFEEF2E9)
 val AppColors.seasonBadgeBackground: Color get() =
     if (isDark) Color.White.copy(alpha = 0.06f) else Color.Black.copy(alpha = 0.05f)

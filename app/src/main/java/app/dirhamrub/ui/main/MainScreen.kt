@@ -651,7 +651,7 @@ private fun PayRow(
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(card.name, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = if (isPrimary) Modifier.tripSharedBounds(TRIP_TITLE) else Modifier)
+                modifier = if (isPrimary) Modifier.tripSharedTitle() else Modifier)
             if (sub.isNotEmpty()) {
                 Text(sub, style = type.caption, color = if (isBest && hasAmount) colors.good else colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -719,13 +719,12 @@ internal fun PayIcon(card: BankCard, best: Boolean, flight: Boolean = false) {
     }
     val style = CardPalette.style(card)
     Box(
-        sharedModifier
-            .then(if (flight) Modifier.flightOrigin(card.id) else Modifier)
-            .size(width = 38.dp, height = 26.dp)
-            .clip(RoundedCornerShape(5.dp))
-            .background(Brush.linearGradient(listOf(style.start, style.end)))
-            .sheen(halfWidth = 9.dp),
+        Modifier.then(if (flight) Modifier.flightOrigin(card.id) else Modifier)
+            .size(width = 38.dp, height = 26.dp),
     ) {
+        // Only the colored rectangle is shared. Chip and currency/network badge stay in the target slot.
+        Box(Modifier.matchParentSize().then(sharedModifier).clip(RoundedCornerShape(5.dp))
+            .background(Brush.linearGradient(listOf(style.start, style.end))).sheen(halfWidth = 9.dp))
         Box(
             Modifier
                 .padding(start = 5.dp, top = 6.dp)

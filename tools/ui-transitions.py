@@ -67,8 +67,8 @@ def card_node(name):
     return find(lambda n: name in n.get('content-desc', ''))
 
 
-def assert_home(amount=None):
-    row = card_node('Карта RUB')
+def assert_home(amount=None, card='Карта RUB'):
+    row = card_node(card)
     assert row.get('selected') == 'true' or row.get('checked') == 'true', row.attrib
     assert not any('Настройте под поездку' in n.get('text', '') for n in tree().iter('node'))
     if amount:
@@ -81,7 +81,7 @@ def video_frame(video, name, last=False):
                     '-frames:v', '1', str(OUT / f'{name}.png')], check=True, timeout=30)
 
 
-def finish_with_video(button, middle, after, theme, amount=None):
+def finish_with_video(button, middle, after, theme, amount=None, card='Карта RUB'):
     name = f'welcome-{theme}.mp4'
     recorder = subprocess.Popen(['adb', 'shell', 'screenrecord', '--size', '540x1200', '--bit-rate', '2000000',
                                  '--time-limit', '8', f'/sdcard/{name}'],
@@ -90,7 +90,7 @@ def finish_with_video(button, middle, after, theme, amount=None):
         time.sleep(0.5)
         tap(button)
         time.sleep(1)
-        assert_home(amount)
+        assert_home(amount, card)
     finally:
         _, errors = recorder.communicate(timeout=15)
         assert recorder.returncode == 0, errors.decode(errors='replace')
@@ -99,7 +99,7 @@ def finish_with_video(button, middle, after, theme, amount=None):
     # Одновременный screencap и screenrecord на программном GPU портил композицию слоёв.
     video_frame(name, middle)
     video_frame(name, after, last=True)
-    assert_home(amount)
+    assert_home(amount, card)
 
 
 try:
@@ -111,6 +111,7 @@ try:
     ]:
         adb('shell', 'cmd', 'uimode', 'night', theme)
         launch(onboarding=True)
+        tap(find(lambda n: n.get('text') == 'Валютная'))
         price = find(lambda n: n.get('class') == 'android.widget.EditText' and
                      any(child.get('content-desc') == 'Цена' for child in n.iter('node')))
         tap(price)
@@ -119,10 +120,10 @@ try:
         time.sleep(1)
         button = find(lambda n: n.get('text') == 'Продолжить без чека')
         capture(before)
-        finish_with_video(button, middle, after, 'dark' if theme == 'yes' else 'light', amount='1234,56')
+        finish_with_video(button, middle, after, 'dark' if theme == 'yes' else 'light', amount='1234,56', card='Карта USD')
         time.sleep(1)
         launch(demo=False)
-        assert_home('1234,56')
+        assert_home('1234,56', card='Карта USD')
 
     motion(False)
     launch(onboarding=True)

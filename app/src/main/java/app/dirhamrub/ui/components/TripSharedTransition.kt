@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.IntOffset
 import app.dirhamrub.ui.theme.LocalReduceMotion
 
 internal const val TRIP_DURATION = 1000
-internal const val TRIP_BOUNDS_DURATION = 950
+internal const val TRIP_BOUNDS_DURATION = 850
 internal val TripEasing = CubicBezierEasing(0.20f, 0.90f, 0.30f, 1.0f)
 internal const val TRIP_COUNTRY = "country_badge"
 internal const val TRIP_HERO = "hero_total_sum"
@@ -34,11 +34,11 @@ internal data class TripWindow(val delay: Int, val duration: Int) { val end: Int
 internal fun tripWindow(delay: Int, duration: Int) = TripWindow(delay.coerceIn(0, TRIP_DURATION), duration.coerceIn(0, TRIP_DURATION - delay.coerceIn(0, TRIP_DURATION)))
 internal fun tripEnterWindow(kind: TripEnter, index: Int = 0): TripWindow = when (kind) {
     TripEnter.HEADER -> tripWindow(320 + index.coerceIn(0, 1) * 70, 480)
-    TripEnter.PRIMARY_DETAILS -> tripWindow(650, 300)
-    TripEnter.PAYMENT -> tripWindow(420 + index.coerceIn(0, 2) * 90, 520)
-    TripEnter.ADD -> tripWindow(560, 450)
-    TripEnter.KEYPAD -> tripWindow(380 + (4 - index.coerceIn(0, 4)) * 55, 400)
-    TripEnter.BADGE -> tripWindow(720, 220)
+    TripEnter.PRIMARY_DETAILS -> tripWindow(280, 300)
+    TripEnter.PAYMENT -> tripWindow(280 + index.coerceIn(0, 2) * 80, 480)
+    TripEnter.ADD -> tripWindow(420, 380)
+    TripEnter.KEYPAD -> tripWindow(260 + (4 - index.coerceIn(0, 4)) * 55, 400)
+    TripEnter.BADGE -> tripWindow(650, 200)
     TripEnter.PRICE_LABEL -> tripWindow(480, 260)
     TripEnter.GENERIC -> tripWindow(320, 350)
 }
@@ -54,6 +54,9 @@ internal fun tripExitWindow(kind: TripExit, index: Int = 0): TripWindow {
     }
     return TripWindow(delay, minOf(requested, 450 - delay))
 }
+
+internal fun tripTextExitWindow(key: String) = TripWindow(0, if (key == TRIP_HERO || key == TRIP_RATE) 150 else 180)
+internal fun tripTextEnterWindow() = TripWindow(260, 240)
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 internal data class TripSharedTransition(val shared: SharedTransitionScope, val visibility: AnimatedVisibilityScope, val primaryCardId: String?)
@@ -76,17 +79,32 @@ internal fun Modifier.tripClip(shape: Shape): Modifier {
 internal fun Modifier.tripSharedBounds(key: String): Modifier {
     val trip = LocalTripSharedTransition.current ?: return this
     if (LocalReduceMotion.current) return this
-    val text = key in setOf(TRIP_HERO, TRIP_TITLE, TRIP_RATE, TRIP_VALUE)
+    val text = key in setOf(TRIP_HERO, TRIP_RATE, TRIP_VALUE)
+    val incoming = tripTextEnterWindow()
+    val outgoing = tripTextExitWindow(key)
     return with(trip.shared) {
         sharedBounds(
             sharedContentState = rememberSharedContentState(key), animatedVisibilityScope = trip.visibility,
             boundsTransform = { _, _ -> tween(TRIP_BOUNDS_DURATION, easing = TripEasing) },
             resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(if (key == TRIP_CARD || key == TRIP_PRICE) ContentScale.FillBounds else ContentScale.Fit, Alignment.CenterStart),
-            enter = when { text -> fadeIn(tween(300, delayMillis = 320)); key == TRIP_CARD -> fadeIn(tween(220, delayMillis = 720)); else -> fadeIn(tween(300)) },
-            exit = when { text -> fadeOut(tween(300, delayMillis = 320)); key == TRIP_CARD -> fadeOut(tween(220, delayMillis = 720)); else -> fadeOut(tween(300)) },
+            enter = when { text -> fadeIn(tween(incoming.duration, delayMillis = incoming.delay)); key == TRIP_CARD -> fadeIn(tween(200, delayMillis = 650)); else -> fadeIn(tween(300)) },
+            exit = when { text -> fadeOut(tween(outgoing.duration)); key == TRIP_CARD -> fadeOut(tween(200, delayMillis = 650)); else -> fadeOut(tween(300)) },
             clipInOverlayDuringTransition = UnclippedTripOverlay,
             zIndexInOverlay = when(key) { TRIP_TITLE -> 5f; TRIP_CARD -> 4f; TRIP_HERO, TRIP_VALUE -> 6f; else -> 3f },
         )
+    }
+}
+
+/** Exactly one rendered title, measured from its glyphs rather than the shrinking card surface. */
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+internal fun Modifier.tripSharedTitle(): Modifier {
+    val trip = LocalTripSharedTransition.current ?: return this
+    if (LocalReduceMotion.current) return this
+    return with(trip.shared) {
+        sharedElement(rememberSharedContentState(TRIP_TITLE), trip.visibility,
+            boundsTransform = { _, _ -> tween(TRIP_BOUNDS_DURATION, easing = TripEasing) },
+            clipInOverlayDuringTransition = UnclippedTripOverlay, zIndexInOverlay = 5f)
     }
 }
 

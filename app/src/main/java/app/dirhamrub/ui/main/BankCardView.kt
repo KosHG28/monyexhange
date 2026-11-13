@@ -2,6 +2,7 @@ package app.dirhamrub.ui.main
 
 import app.dirhamrub.ui.components.*
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.wrapContentSize
 
 import app.dirhamrub.ui.theme.sheen
 import app.dirhamrub.ui.theme.parallaxOf
@@ -211,7 +212,7 @@ internal fun BankCardView(
                         color = CardPalette.onCard.copy(alpha = 0.92f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f).then(if (tripPreview) Modifier.tripSharedBounds(TRIP_TITLE) else Modifier),
+                        modifier = Modifier.weight(1f).then(if (tripPreview) Modifier.wrapContentSize(Alignment.CenterStart).tripSharedTitle() else Modifier),
                     )
                     // Звезду лучшей карты рисует ряд: при смене лучшей она перелетает к другой карте.
                     if (best != null) Spacer(Modifier.width(STAR_SLOT))

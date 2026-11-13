@@ -4,7 +4,9 @@ on:
   push:
     branches: ['**']
     tags: ['v*']
+    paths-ignore: ['.github/workflows/actions-storage.yml']
   pull_request:
+    paths-ignore: ['.github/workflows/actions-storage.yml']
   workflow_dispatch:
     inputs:
       release:
@@ -26,29 +28,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Хранилище артефактов Actions — 0,5 ГБ на аккаунт: удаляем артефакты прошлых сборок старше суток
-  # (APK для установки — в GitHub Release, они в эту квоту не входят).
-  cleanup-artifacts:
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-    steps:
-      - uses: actions/github-script@v7
-        with:
-          script: |
-            const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
-            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
-              owner: context.repo.owner, repo: context.repo.repo, per_page: 100,
-            });
-            let removed = 0, bytes = 0;
-            for (const a of artifacts) {
-              if (a.expired || a.workflow_run?.id === context.runId) continue;
-              if (new Date(a.created_at).getTime() > dayAgo) continue;
-              await github.rest.actions.deleteArtifact({ owner: context.repo.owner, repo: context.repo.repo, artifact_id: a.id });
-              removed++; bytes += a.size_in_bytes;
-            }
-            core.info(`Удалено артефактов: ${removed}, ${(bytes / 1e6).toFixed(0)} МБ`);
-
   build:
     runs-on: ubuntu-latest
     env:
@@ -89,33 +68,34 @@ jobs:
       - name: Tests, lint, build
         run: ./gradlew --stacktrace testDebugUnitTest lintDebug assembleDebug assembleRelease
 
-      - name: Collect APKs
+      - name: Подготовить APK для Releases
         if: success()
         run: |
           mkdir -p out
-          cp app/build/outputs/apk/debug/app-debug.apk out/dirhamrub-debug.apk
           cp app/build/outputs/apk/release/app-release.apk out/dirhamrub-release.apk
 
-      # Квота хранилища артефактов общая на аккаунт (0,5 ГБ): APK сборки хранятся сутки — для установки
-      # есть GitHub Release. Если квота кончилась, сборка всё равно зелёная.
-      - uses: actions/upload-artifact@v5
-        if: success()
+      # APK храним только в Releases. Последний архив диагностики также не занимает квоту artifacts.
+      - name: Отчёты сбоя в пререлиз ci-reports
+        if: failure() && github.ref == 'refs/heads/main'
         continue-on-error: true
-        with:
-          name: dirhamrub-apk
-          path: out/*.apk
-          retention-days: 1
-
-      - uses: actions/upload-artifact@v5
-        if: failure()
-        continue-on-error: true
-        with:
-          retention-days: 3
-          name: reports
-          path: |
-            app/build/reports/
-            app/build/test-results/
-          if-no-files-found: ignore
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          report_paths=()
+          for path in app/build/reports app/build/test-results; do
+            if [ -d "$path" ]; then report_paths+=("$path"); fi
+          done
+          if [ "${#report_paths[@]}" -eq 0 ]; then
+            echo "Отчёты ещё не созданы; причина сбоя — в журнале Actions"
+            exit 0
+          fi
+          tar -czf "$RUNNER_TEMP/ci-reports.tar.gz" "${report_paths[@]}"
+          printf 'Commit: %s\nRun: %s/%s/actions/runs/%s\n' \
+            "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > "$RUNNER_TEMP/ci-reports-source.txt"
+          gh release view ci-reports > /dev/null 2>&1 || gh release create ci-reports --prerelease --target "$GITHUB_SHA" \
+            --title "Диагностика CI" --notes "Отчёты последней неуспешной сборки Android."
+          gh release upload ci-reports "$RUNNER_TEMP/ci-reports.tar.gz" "$RUNNER_TEMP/ci-reports-source.txt" --clobber
+          gh release edit ci-reports --notes "Отчёты сбоя сборки ${GITHUB_SHA::7}: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       - name: Результат проверки экранов
         if: ${{ !contains(github.event.head_commit.message, '[phone-check]') }}

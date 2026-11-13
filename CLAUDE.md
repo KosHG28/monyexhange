@@ -19,8 +19,7 @@
 ./gradlew -p tools/domain-check test
 ```
 
-CI: `.github/workflows/android.yml` — на каждый push тесты, lint, debug и release APK (artifact
-`dirhamrub-apk`), на push в `main` — GitHub Release новой `versionName` с `dirhamrub-vX.Y.Z.apk` после тестов, lint и сборки.
+CI: `.github/workflows/android.yml` — на каждый push тесты, lint, debug и release APK, на push в `main` — GitHub Release новой `versionName` с `dirhamrub-vX.Y.Z.apk` после тестов, lint и сборки.
 Снимки на эмуляторе перед выпуском (`tools/screens.sh`) делаем только для изменённых экранов.
 Матрицу снимков обновляем под состав изменений; экран информации о стране полностью исключён.
 Отдельная проверка камеры выключена. После просмотра снимков и записи перехода текущего коммита
@@ -30,6 +29,11 @@ CI ждёт этот тег до 10 минут перед публикацией
 По прямому запросу владельца собрать APK для самостоятельной проверки на телефоне используем
 `[phone-check]` в сообщении коммита: для этого выпуска пропускаются эмулятор и отметка просмотра,
 но тесты, lint, сборка и проверка подписи остаются обязательными.
+APK и снимки хранятся только в Releases, без дублирования в Actions artifacts. Отчёты последнего
+сбоя main — в пререлизе `ci-reports`; журнал Actions доступен и при раннем сбое/PR.
+`actions-storage.yml` удаляет только старые временные artifacts `dirhamrub-apk`/`reports` завершённых
+запусков этого репозитория: после Android CI, ежедневно и при обновлении самой очистки.
+Изменение только `actions-storage.yml` не запускает сборку приложения.
 Тег `v*` и ручной запуск workflow с `release=vX.Y.Z` также поддерживаются.
 Ещё: «Перечень валют ЦБ» (`.github/workflows/cbr-list.yml`, по понедельникам) — `tools/cbr-check.py` сверяет
 валюты из ответа ЦБ с `Currency.cbr`; Dependabot (`.github/dependabot.yml`) — еженедельные PR с обновлениями.

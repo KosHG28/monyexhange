@@ -91,7 +91,7 @@ class Haptics internal constructor(private val view: View, private val enabled: 
     private fun playRich(event: Haptic) {
         val c = VibrationEffect.startComposition()
         when (event) {
-            Haptic.KEY -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.25f)
+            Haptic.KEY -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.8f)
             Haptic.TICK -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.6f)
             Haptic.THUD -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, 0.6f)
             Haptic.SELECT -> c.addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.5f)
@@ -137,7 +137,7 @@ class Haptics internal constructor(private val view: View, private val enabled: 
         }
         val u = Build.VERSION_CODES.UPSIDE_DOWN_CAKE
         return when (event) {
-            Haptic.KEY -> if (sdk >= u) HapticFeedbackConstants.SEGMENT_FREQUENT_TICK else HapticFeedbackConstants.KEYBOARD_TAP
+            Haptic.KEY -> HapticFeedbackConstants.KEYBOARD_TAP
             Haptic.TICK -> HapticFeedbackConstants.KEYBOARD_TAP
             Haptic.THUD -> HapticFeedbackConstants.LONG_PRESS
             Haptic.SELECT -> HapticFeedbackConstants.CLOCK_TICK

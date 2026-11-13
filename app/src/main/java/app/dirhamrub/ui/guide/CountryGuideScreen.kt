@@ -163,7 +163,7 @@ fun CountryGuideScreen(
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 20.dp),
         ) {
-            Header(place.second, currency)
+            SeasonalCountryHeader(place.second, currency, iso)
             if (guide == null) {
                 Spacer(Modifier.height(16.dp))
                 Column(
@@ -251,11 +251,14 @@ fun CountryGuideScreen(
  * Длинное название («Фунт стерлингов» на узком экране) уменьшается до 80 %, дальше — переносится.
  */
 @Composable
-private fun Header(country: String, currency: Currency) {
+internal fun Header(country: String, currency: Currency, decoration: @Composable () -> Unit = {}) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     Column(Modifier.padding(start = 4.dp, top = 4.dp)) {
-        Text(country, style = type.body.copy(fontSize = 14.sp), color = colors.muted, maxLines = 1)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(country, style = type.body.copy(fontSize = 14.sp), color = colors.muted, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
+            decoration()
+        }
         val title = currency.noun
         val base = type.title.copy(fontSize = HEADER_SP.sp, lineHeight = (HEADER_SP * 1.12f).sp, fontWeight = FontWeight.SemiBold)
         BoxWithConstraints(Modifier.padding(top = 2.dp)) {

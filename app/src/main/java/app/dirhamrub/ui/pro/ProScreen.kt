@@ -1,5 +1,12 @@
 package app.dirhamrub.ui.pro
 
+import androidx.compose.animation.core.*
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
+import app.dirhamrub.ui.theme.LocalReduceMotion
+import app.dirhamrub.ui.theme.Springs
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
@@ -75,9 +82,21 @@ fun ProScreen(pro: Boolean, onActivate: (String) -> Boolean, onDismiss: () -> Un
     val focus = LocalFocusManager.current
     var code by rememberSaveable { mutableStateOf("") }
     var invalid by rememberSaveable { mutableStateOf(false) }
+    var celebrated by rememberSaveable { mutableStateOf(false) }
+    val reduce = LocalReduceMotion.current
+    val celebration = remember { Animatable(1f) }
+    LaunchedEffect(pro, celebrated, reduce) {
+        if (pro && celebrated && !reduce) {
+            celebration.snapTo(0f)
+            celebration.animateTo(1f, tween(700))
+        } else celebration.snapTo(1f)
+    }
+    val buttonFraction by animateFloatAsState(if (pro) 0.78f else 1f, if (reduce) snap() else Springs.fastSpatial(), label = "proButtonShape")
+    val buttonCorner by animateDpAsState(if (pro) 26.dp else 14.dp, if (reduce) snap() else spring(), label = "proCorner")
     val activate = {
         if (!pro && code.isNotBlank()) {
             if (onActivate(code)) {
+                celebrated = true
                 invalid = false
                 code = ""
                 keyboard?.hide()
@@ -100,12 +119,21 @@ fun ProScreen(pro: Boolean, onActivate: (String) -> Boolean, onDismiss: () -> Un
                     .fadingScroll(rememberScrollState())
                     .padding(horizontal = 16.dp),
             ) {
+                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(painterResource(R.drawable.ic_app_icon), contentDescription = null, tint = if (pro) colors.good else colors.accent,
+                        modifier = Modifier.size(34.dp).graphicsLayer {
+                            val p = celebration.value
+                            rotationZ = if (pro && celebrated) -12f * (1f - p) else 0f
+                            scaleX = 1f + if (pro && celebrated) kotlin.math.sin(p * Math.PI).toFloat() * 0.15f else 0f
+                            scaleY = scaleX
+                        })
                 Text(
                     stringResource(R.string.pro_title),
                     style = type.title.copy(fontSize = 30.sp, lineHeight = 36.sp),
                     color = colors.ink,
                     modifier = Modifier.cascade(wave, 0).padding(start = 4.dp).semantics { heading() },
                 )
+                }
                 Text(
                     stringResource(R.string.pro_lead),
                     style = type.body.copy(fontSize = 15.sp, lineHeight = 21.sp),
@@ -167,14 +195,21 @@ fun ProScreen(pro: Boolean, onActivate: (String) -> Boolean, onDismiss: () -> Un
                 }
                 Spacer(Modifier.height(16.dp))
             }
-            Column(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 16.dp)) {
+            Column(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 val label = stringResource(if (pro) R.string.pro_active else R.string.pro_promo_activate)
                 val enabled = !pro && code.isNotBlank()
                 Box(
                     Modifier
-                        .fillMaxWidth()
+                        .fillMaxWidth(buttonFraction)
                         .heightIn(min = 52.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(buttonCorner))
+                        .drawWithContent {
+                            drawContent()
+                            if (pro && celebrated && celebration.value < 1f) {
+                                val p = celebration.value
+                                drawRect(colors.good.copy(alpha = (1f - p) * 0.18f), topLeft = androidx.compose.ui.geometry.Offset(size.width * p - size.width / 4, 0f), size = androidx.compose.ui.geometry.Size(size.width / 4, size.height))
+                            }
+                        }
                         .background(if (pro) colors.goodSoft else if (enabled) colors.accent else colors.surface2)
                         .clickable(enabled = enabled, role = Role.Button, onClick = activate),
                     contentAlignment = Alignment.Center,

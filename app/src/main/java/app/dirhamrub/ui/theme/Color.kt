@@ -116,3 +116,7 @@ object CardPalette {
 
     fun style(card: BankCard): CardStyle = if (card.kind == CardKind.CASH) cash else style(card.style)
 }
+
+/** Сезонные цветы: отдельные цвета темы для светлого и тёмного оформления. */
+val AppColors.blossom: Color get() = if (isDark) Color(0xFFF1A8C7) else Color(0xFFB64F80)
+val AppColors.blossomSoft: Color get() = if (isDark) Color(0xFF382430) else Color(0xFFF9EAF1)

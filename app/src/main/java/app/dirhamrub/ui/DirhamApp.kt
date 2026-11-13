@@ -183,43 +183,6 @@ fun DirhamApp(
             ?.let { CountryOffer(iso, it) }
     }
 
-    if ((!state.onboardingDone || onboardingForced) && !cameraOpen) {
-        fun finish() {
-            onboardingForced = false
-            vm.finishOnboarding()
-            // Валюту трат только что выбрали сами — плашку «вы в другой стране» сразу не показываем.
-            country?.takeIf { Currency.forCountry(it) != null }?.let { vm.handleCountry(it, accept = null) }
-        }
-        OnboardingScreen(
-            startStep = startStep,
-            spend = state.wallet.spend,
-            home = state.wallet.home,
-            place = placeOf(state.wallet.spend, state.wallet.place, country),
-            country = country,
-            // Первый запуск: страна сотовой сети, а с российской SIM (или без неё) — Турция, самое частое
-            // направление. Знакомство из настроек страну не трогает.
-            suggested = if (onboardingReshown || onboardingForced || !countryRead) {
-                null
-            } else {
-                country?.let { iso -> Currency.forCountry(iso)?.let { it to iso } } ?: (Currency.TRY to "TR")
-            },
-            recent = state.wallet.recent,
-            official = state.reference,
-            unionPay = state.activeUnionPay,
-            onSpend = vm::setSpend,
-            newCard = vm::newCard,
-            onFinish = { card ->
-                card?.let(vm::saveCard)
-                finish()
-            },
-            onOpenEditor = { card ->
-                finish()
-                editing = Editing(card, isNew = true)
-            },
-        )
-        return
-    }
-
     // Плитка «Ценник» в шторке: предлагаем один раз, после первого знакомства с камерой (Android 13+).
     val tileOffer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && state.cameraUsed && !state.tileOffered
     // Справочник — той страны, что в шапке (выбранная, страна сети или главная страна валюты): у евро их много.
@@ -240,8 +203,7 @@ fun DirhamApp(
         onEditCard = { card ->
             // С главного карта «перелетает» из своей строки; наличные — экран снизу, как раньше.
             val origin = if (card.kind == CardKind.CARD) cardFlight.originOf(card.id) else null
-            if (origin != null) cardFlight.flying = card.id
-            editing = Editing(card, isNew = false, morph = origin?.let(::CardMorph))
+            editing = Editing(card, isNew = false, morph = origin?.let { CardMorph(it, card.id) })
         },
         onAddReceipt = { editing = Editing(it, isNew = false, addPurchase = state.wallet.spend) },
         onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
@@ -446,6 +408,45 @@ fun DirhamApp(
             QuoteWidget.refresh(context)
         }
         LaunchedEffect(Unit) { ReceiptShots.cleanup(context, state.wallet.cards.map { it.id }.toSet()) }
+    }
+    AnimatedVisibility(
+        visible = (!state.onboardingDone || onboardingForced) && !cameraOpen,
+        enter = EnterTransition.None,
+        exit = if (app.dirhamrub.ui.theme.LocalReduceMotion.current) ExitTransition.None else fadeOut(tween(320)) + androidx.compose.animation.scaleOut(tween(360), targetScale = 1.025f),
+    ) {
+        fun finish() {
+            onboardingForced = false
+            vm.finishOnboarding()
+            // Валюту трат только что выбрали сами — плашку «вы в другой стране» сразу не показываем.
+            country?.takeIf { Currency.forCountry(it) != null }?.let { vm.handleCountry(it, accept = null) }
+        }
+        OnboardingScreen(
+            startStep = startStep,
+            spend = state.wallet.spend,
+            home = state.wallet.home,
+            place = placeOf(state.wallet.spend, state.wallet.place, country),
+            country = country,
+            // Первый запуск: страна сотовой сети, а с российской SIM (или без неё) — Турция, самое частое
+            // направление. Знакомство из настроек страну не трогает.
+            suggested = if (onboardingReshown || onboardingForced || !countryRead) {
+                null
+            } else {
+                country?.let { iso -> Currency.forCountry(iso)?.let { it to iso } } ?: (Currency.TRY to "TR")
+            },
+            recent = state.wallet.recent,
+            official = state.reference,
+            unionPay = state.activeUnionPay,
+            onSpend = vm::setSpend,
+            newCard = vm::newCard,
+            onFinish = { card ->
+                card?.let(vm::saveCard)
+                finish()
+            },
+            onOpenEditor = { card ->
+                finish()
+                editing = Editing(card, isNew = true)
+            },
+        )
     }
 }
 

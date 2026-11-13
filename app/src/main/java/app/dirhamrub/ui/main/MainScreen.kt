@@ -8,6 +8,7 @@ import app.dirhamrub.ui.theme.fieldGlow
 import app.dirhamrub.ui.components.TypingText
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.Animatable
 import app.dirhamrub.ui.theme.topLight
 import app.dirhamrub.ui.theme.Springs
@@ -48,6 +49,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.runtime.key
+import androidx.compose.animation.animateContentSize
+import app.dirhamrub.ui.components.AnimatedAmount
+import app.dirhamrub.ui.components.ExpressiveSegments
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -173,7 +178,7 @@ fun MainScreen(
                 tileOffer -> TileBanner(onTileOffer)
             }
             Hero(state, short, onSelectLine)
-            PriceField(state, covered)
+            PriceField(state, covered, onSelectLine)
         }
         Column(
             modifier = Modifier
@@ -315,14 +320,6 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
     val a11y = stringResource(R.string.hero_a11y, (if (approx) "≈ " else "") + number, currency.mark)
     val switchLabel = stringResource(if (homeInput) R.string.hero_switch_spend else R.string.hero_switch_home, state.wallet.spend.code)
     val maxSize = if (short) 72f else 92f
-    // Сумма сменилась — цифры на миг «наливаются»: становятся плотнее и возвращаются к тонким.
-    val pour = remember { Animatable(0f) }
-    val reducePour = LocalReduceMotion.current
-    LaunchedEffect(number) {
-        if (empty || reducePour) return@LaunchedEffect
-        pour.animateTo(1f, tween(POUR_IN_MS))
-        pour.animateTo(0f, Springs.effects())
-    }
     Box(
         Modifier
             .fillMaxWidth()
@@ -336,21 +333,26 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
             },
         contentAlignment = Alignment.Center,
     ) {
+        Text(
+            stringResource(R.string.hero_currency_total, currency.code),
+            style = AppTheme.type.caption, color = colors.muted,
+            modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 2.dp),
+        )
         // Плейсхолдер — то же число с заливкой, полупрозрачное, плотным начертанием (тонкое на прозрачности выглядит контуром).
         val style = AppTheme.type.hero.copy(
             color = colors.ink,
-            fontWeight = if (empty) FontWeight.Medium else FontWeight.Light,
+            fontWeight = FontWeight.Normal,
             textAlign = TextAlign.Center,
         )
-        FitSize(text, style, maxSize, 40f) { size ->
+        FitSize(text, style, maxSize, 20f) { size ->
             // «≈» и «₽» — по центру высоты цифр, а не по базовой линии: строки обрезаны до высоты шрифта
             // и выровнены по центру ряда.
-            Row(Modifier.alpha(if (empty) 0.25f else 1f), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(top = 12.dp).alpha(if (empty) 0.25f else 1f), verticalAlignment = Alignment.CenterVertically) {
                 if (approx) {
                     HeroPart("≈", style, size * SIGN_SCALE, colors.muted)
                     Spacer(Modifier.width((size * 0.12f).dp))
                 }
-                HeroPart(number, style, size, colors.ink, pour = pour.value)
+                HeroPart(number, style, size, colors.ink)
                 Spacer(Modifier.width((size * 0.12f).dp))
                 HeroPart(sign, style, size * SIGN_SCALE, if (empty) colors.ink else colors.muted)
             }
@@ -362,24 +364,14 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
 private const val SIGN_SCALE = 0.6f
 
 @Composable
-private fun HeroPart(text: String, style: TextStyle, sizeSp: Float, color: androidx.compose.ui.graphics.Color, pour: Float = 0f) {
+private fun HeroPart(text: String, style: TextStyle, sizeSp: Float, color: androidx.compose.ui.graphics.Color) {
     val partStyle = style.copy(
         fontSize = sizeSp.sp,
         lineHeight = sizeSp.sp,
         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
     )
-    Box {
-        Text(text, style = partStyle, color = color, maxLines = 1, softWrap = false)
-        // «Наливается»: поверх — те же цифры обводкой того же начертания; ширина обводки — до 3 % кегля.
-        if (pour > 0.01f) {
-            val width = with(LocalDensity.current) { (sizeSp * POUR_STROKE * pour).sp.toPx() }
-            Text(text, style = partStyle.copy(drawStyle = Stroke(width = width)), color = color, maxLines = 1, softWrap = false)
-        }
-    }
+    AnimatedAmount(text, style = partStyle, color = color)
 }
-
-private const val POUR_IN_MS = 90
-private const val POUR_STROKE = 0.03f
 
 /** Размер шрифта, при котором [text] помещается в одну строку по ширине: от [maxSp] вниз до [minSp]. */
 @Composable
@@ -401,7 +393,7 @@ private fun FitSize(text: AnnotatedString, style: TextStyle, maxSp: Float, minSp
  * и код валюты; выражение «1 200 + 300 =» — мелко под суммой. При вводе в рублях — «Сколько у вас».
  */
 @Composable
-private fun PriceField(state: MainUiState, covered: Boolean) {
+private fun PriceField(state: MainUiState, covered: Boolean, onSelectLine: (Line) -> Unit) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val homeInput = state.active == Line.HOME
@@ -421,7 +413,13 @@ private fun PriceField(state: MainUiState, covered: Boolean) {
             .padding(start = 16.dp, end = 18.dp, top = 10.dp, bottom = 10.dp)
             .clearAndSetSemantics { contentDescription = a11y },
     ) {
-        Text(label, style = type.caption, color = colors.muted, maxLines = 1)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = type.caption, color = colors.muted, maxLines = 2, modifier = Modifier.weight(1f))
+            ExpressiveSegments(
+                listOf(state.wallet.spend.code, state.wallet.home.code), if (homeInput) 1 else 0,
+                { onSelectLine(if (it == 0) Line.SPEND else Line.HOME) }, Modifier.width(128.dp),
+            )
+        }
         val size = when {
             value.length > 13 -> 20.sp
             value.length > 10 -> 25.sp
@@ -488,11 +486,11 @@ private fun PayList(state: MainUiState, cards: List<BankCard>, onSelect: (String
         if (bestId != null && seenBest != null && bestId != seenBest) haptics.play(Haptic.BEST)
         seenBest = bestId
     }
-    Column(Modifier.fillMaxWidth().selectableGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.fillMaxWidth().selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for (card in cards) {
             val q = quote.of(card.id)
             val selected = card.id == selectedId
-            PayRow(
+            key(card.id) { PayRow(
                 state = state,
                 card = card,
                 q = q,
@@ -510,7 +508,7 @@ private fun PayList(state: MainUiState, cards: List<BankCard>, onSelect: (String
                     haptics.play(Haptic.TICK)
                     onEdit(card)
                 },
-            )
+            ) }
         }
     }
 }
@@ -589,9 +587,11 @@ private fun PayRow(
         if (LocalReduceMotion.current) snap() else Springs.fastSpatial(),
         label = "payLift",
     )
+    val breathingSpace by animateDpAsState(if (selected) 2.dp else 0.dp, if (LocalReduceMotion.current) snap() else androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 650f), label = "paySpace")
     Row(
         Modifier
             .fillMaxWidth()
+            .padding(vertical = breathingSpace.coerceAtLeast(0.dp))
             .heightIn(min = 58.dp)
             .graphicsLayer {
                 val s = 1f + LIFT_SCALE * lift
@@ -615,7 +615,7 @@ private fun PayRow(
         PayIcon(card, isBest, flight = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(card.name, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(card.name, style = type.body.copy(fontWeight = FontWeight.SemiBold), color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (sub.isNotEmpty()) {
                 Text(sub, style = type.caption, color = if (isBest && hasAmount) colors.good else colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -624,9 +624,9 @@ private fun PayRow(
         // Связь строки с крупным итогом: у выбранного способа (по нему итог сверху) — галочка и сумма плотным цветом
         // (синим, у самого выгодного — зелёным); у остальных — сумма серая, обычным начертанием.
         val mark = if (isBest) colors.good else colors.accent
-        if (selected) {
+        val check by animateFloatAsState(if (selected) 1f else 0f, if (LocalReduceMotion.current) snap() else Springs.fastSpatial(), label = "selectedCheck")
+        Box(Modifier.width(24.dp).graphicsLayer { scaleX = check; scaleY = check; alpha = check.coerceIn(0f, 1f) }) {
             SelectedMark(mark)
-            Spacer(Modifier.width(6.dp))
         }
         Column(horizontalAlignment = Alignment.End) {
             // Длинная сумма (донги, рупии) — мельче, чтобы не прилипать к краю.
@@ -804,5 +804,5 @@ private fun AddButton(onAdd: () -> Unit) {
 }
 
 /** Насколько приподнимается выбранная строка способа оплаты. */
-private const val LIFT_SCALE = 0.015f
+private const val LIFT_SCALE = 0.02f
 private val LIFT_SHADOW = 6.dp

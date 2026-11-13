@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,7 +51,7 @@ fun Modifier.flightOrigin(id: String): Modifier = composed {
  * ([target] — его сообщает сам экран). [progress] 0 — карта на главном, 1 — на месте. Пока летит, превью на экране
  * прячется ([flying]), а поверх всего рисуется [card] — та же карта; ей передаётся, насколько проявить надписи.
  */
-class CardMorph(val origin: Rect) {
+class CardMorph(val origin: Rect, val cardId: String) {
     var target by mutableStateOf<Rect?>(null)
     var card by mutableStateOf<(@Composable (textAlpha: () -> Float) -> Unit)?>(null)
     internal val progress = Animatable(0f)
@@ -69,7 +70,11 @@ class CardMorph(val origin: Rect) {
 internal fun CardMorphOverlay(morph: CardMorph) {
     val target = morph.target ?: return
     val card = morph.card ?: return
-    if (!morph.flying) return
+    val flight = LocalCardFlight.current
+    DisposableEffect(morph) {
+        flight.flying = morph.cardId
+        onDispose { if (flight.flying == morph.cardId) flight.flying = null }
+    }
     val density = LocalDensity.current
     val o = morph.origin
     Box(
@@ -77,7 +82,7 @@ internal fun CardMorphOverlay(morph: CardMorph) {
             .offset { IntOffset(target.left.roundToInt(), target.top.roundToInt()) }
             .size(with(density) { target.width.toDp() }, with(density) { target.height.toDp() })
             .graphicsLayer {
-                val p = morph.progress.value
+                val p = morph.progress.value.coerceIn(0f, 1f)
                 transformOrigin = TransformOrigin(0f, 0f)
                 translationX = (o.left - target.left) * (1f - p)
                 translationY = (o.top - target.top) * (1f - p)

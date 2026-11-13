@@ -76,7 +76,7 @@ def assert_home(amount=None):
 
 
 def video_frame(video, name, last=False):
-    seek = ['-sseof', '-0.2'] if last else ['-ss', '0.9']
+    seek = ['-sseof', '-0.2'] if last else ['-ss', '2.4']
     subprocess.run(['ffmpeg', '-v', 'error', '-y', *seek, '-i', str(OUT / video),
                     '-frames:v', '1', str(OUT / f'{name}.png')], check=True, timeout=30)
 

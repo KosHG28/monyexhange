@@ -224,7 +224,8 @@ fun DirhamApp(
             country = country,
             // Первый запуск: страна сотовой сети, а с российской SIM (или без неё) — Турция, самое частое
             // направление. Знакомство из настроек страну не трогает.
-            suggested = if (onboardingReshown || onboardingForced || !countryRead) {
+            // Исходящий экран ещё живёт во время shared transition, но уже не выбирает страну SIM.
+            suggested = if (!showOnboarding || onboardingReshown || onboardingForced || !countryRead) {
                 null
             } else {
                 country?.let { iso -> Currency.forCountry(iso)?.let { it to iso } } ?: (Currency.TRY to "TR")
@@ -232,7 +233,7 @@ fun DirhamApp(
             recent = state.wallet.recent,
             official = state.reference,
             unionPay = state.activeUnionPay,
-            onSpend = vm::setSpend,
+            onSpend = { currency, iso -> if (showOnboarding) vm.setSpend(currency, iso) },
             newCard = vm::newCard,
             onFinish = { card, amount ->
                 if (showOnboarding) {

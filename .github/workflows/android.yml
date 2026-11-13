@@ -212,5 +212,11 @@ jobs:
           echo "$GITHUB_SHA $GITHUB_REF_NAME" > screens/commit.txt
           gh release view screens > /dev/null 2>&1 || gh release create screens --prerelease --target "$GITHUB_SHA" \
             --title "Скриншоты CI" --notes "Снимки экранов последней сборки, обновляются автоматически."
-          gh release upload screens screens/* --clobber
+          # Пустой crash.txt нельзя загружать как release asset: GitHub отклоняет файлы нулевого размера.
+          # PNG уже проверены; метку коммита отправляем отдельно от диагностических журналов.
+          gh release upload screens screens/*.png --clobber
+          gh release upload screens screens/commit.txt --clobber
+          if [ -s screens/crash.txt ]; then
+            gh release upload screens screens/crash.txt --clobber
+          fi
           gh release edit screens --notes "Снимки экранов сборки ${GITHUB_SHA::7} (${GITHUB_REF_NAME}), обновляются автоматически."

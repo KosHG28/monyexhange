@@ -138,7 +138,7 @@ internal fun ColumnScope.SetupStep(
         button = {
             PrimaryButton(
                 stringResource(if (hasReceipt) R.string.onboarding_start else R.string.onboarding_without_receipt),
-                enter(6),
+                enter(6).tripOutgoing(),
                 soft = false,
             ) {
                 haptics.play(if (hasReceipt) Haptic.CONFIRM else Haptic.TICK)
@@ -146,12 +146,12 @@ internal fun ColumnScope.SetupStep(
             }
         },
     ) {
-        Title(stringResource(R.string.onboarding_setup_title), enter(0))
-        Lead(stringResource(R.string.onboarding_setup_lead), enter(1))
+        Title(stringResource(R.string.onboarding_setup_title), enter(0).tripOutgoing())
+        Lead(stringResource(R.string.onboarding_setup_lead), enter(1).tripOutgoing())
         CountryCard(place, spend, enter(2), onCountry)
-        Label(stringResource(R.string.onboarding_setup_way), enter(3))
+        Label(stringResource(R.string.onboarding_setup_way), enter(3).tripOutgoing())
         Column(
-            enter(4)
+            enter(4).tripOutgoing()
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(18.dp))
                 .background(colors.surface)
@@ -255,7 +255,7 @@ internal fun ColumnScope.SetupStep(
             stringResource(R.string.onboarding_setup_later),
             style = type.caption.copy(fontSize = 12.5.sp, lineHeight = 17.sp),
             color = colors.muted,
-            modifier = enter(5).padding(start = 2.dp, end = 2.dp, top = 10.dp),
+            modifier = enter(5).tripOutgoing().padding(start = 2.dp, end = 2.dp, top = 10.dp),
         )
     }
 }

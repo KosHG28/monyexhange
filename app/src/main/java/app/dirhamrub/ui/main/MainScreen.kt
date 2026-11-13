@@ -620,7 +620,7 @@ private fun PayRow(
             .fillMaxWidth()
             .heightIn(min = 58.dp)
             .zIndex(if (selected) 1f else 0f)
-            .then(if (card.id != LocalTripSharedTransition.current?.primaryCardId) Modifier.tripMainEnter() else Modifier)
+            .tripMainEnter()
             .graphicsLayer {
                 val s = 1f + LIFT_SCALE * lift
                 scaleX = s

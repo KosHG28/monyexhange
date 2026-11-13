@@ -149,7 +149,7 @@ data class Expression(
     private fun replaceLast(text: String) = Expression(terms.dropLast(1) + text, ops = ops)
 
     companion object {
-        const val MAX_INT_DIGITS = 9
+        const val MAX_INT_DIGITS = 12
         const val MAX_FRACTION = 2
         const val MAX_TERMS = 30
 

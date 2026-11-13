@@ -1,6 +1,6 @@
 package app.dirhamrub.ui.onboarding
 
-import androidx.compose.ui.geometry.Offset
+import app.dirhamrub.ui.components.OnboardingCardFlight
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -98,7 +98,7 @@ fun OnboardingScreen(
     unionPay: UnionPayRates?,
     onSpend: (Currency, String?) -> Unit,
     newCard: () -> BankCard,
-    onFinish: (BankCard?, Offset?) -> Unit,
+    onFinish: (BankCard?, OnboardingCardFlight?) -> Unit,
     onOpenEditor: (BankCard) -> Unit,
     /** С какого шага начать (снимки CI). */
     startStep: Int = 0,

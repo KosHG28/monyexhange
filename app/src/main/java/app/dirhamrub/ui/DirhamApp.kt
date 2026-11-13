@@ -1,6 +1,15 @@
 package app.dirhamrub.ui
 
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
+import app.dirhamrub.ui.components.CardMorphOverlay
+import app.dirhamrub.ui.components.OnboardingCardFlight
 import app.dirhamrub.widget.QuoteWidget
 import app.dirhamrub.ui.pro.ProScreen
 import app.dirhamrub.domain.AppIcon
@@ -127,13 +136,32 @@ fun DirhamApp(
     vm: MainViewModel = viewModel(factory = MainViewModel.Factory),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val cardFlight = LocalCardFlight.current
     var welcome by remember { mutableStateOf<WelcomeReveal?>(null) }
     val reduceWelcome = app.dirhamrub.ui.theme.LocalReduceMotion.current
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(welcome, reduceWelcome) {
         val reveal = welcome ?: return@LaunchedEffect
-        if (!reduceWelcome) reveal.progress.animateTo(1f, tween(460, easing = FastOutSlowInEasing))
+        if (!reduceWelcome) {
+            val source = reveal.flight
+            val destination = source?.let {
+                withTimeoutOrNull(600) { snapshotFlow { cardFlight.originOf(it.cardId) }.filterNotNull().first() }
+            }
+            if (source != null && destination != null) {
+                reveal.morph = CardMorph(destination, source.cardId, initialProgress = 1f).apply {
+                    target = source.bounds
+                    card = source.preview
+                    closing = true
+                }
+                // Сначала оверлей готов и скрывает оба оригинала; затем начинается движение.
+                withFrameNanos { }
+            }
+            coroutineScope {
+                launch { reveal.progress.animateTo(1f, tween(460, easing = FastOutSlowInEasing)) }
+                launch { reveal.morph?.progress?.animateTo(0f, Springs.spatial()) }
+            }
+        }
         welcome = null
     }
 
@@ -171,8 +199,6 @@ fun DirhamApp(
         }
     }
     val context = LocalContext.current
-    // Где на главном мини-карты строк — из них карта «перелетает» в настройку.
-    val cardFlight = LocalCardFlight.current
     // Страну сети перечитываем при каждом возвращении в приложение: прилетели — подсказка уже на месте.
     var country by remember { mutableStateOf<String?>(null) }
     // Страну сети уже прочитали (null после этого — российская SIM или её нет).
@@ -226,12 +252,12 @@ fun DirhamApp(
             unionPay = state.activeUnionPay,
             onSpend = vm::setSpend,
             newCard = vm::newCard,
-            onFinish = { card, center ->
+            onFinish = { card, flight ->
                 if (welcome == null) {
                     focus.clearFocus(force = true)
                     keyboard?.hide()
                     card?.let { vm.saveCard(it); vm.selectCard(it.id) }
-                    if (card != null && !reduceWelcome) welcome = WelcomeReveal(center)
+                    if (card != null && !reduceWelcome) welcome = WelcomeReveal(flight)
                     finish()
                 }
             },
@@ -486,6 +512,9 @@ fun DirhamApp(
     }
     }
     }
+    welcome?.morph?.let { morph ->
+        Box(Modifier.clearAndSetSemantics { }) { CardMorphOverlay(morph) }
+    }
     if (welcome != null) {
         BackHandler { }
         // Короткий переход не принимает касаний и не даёт повторно сохранить ту же карту.
@@ -500,8 +529,10 @@ fun DirhamApp(
 }
 
 /** Прогресс создаётся в момент нажатия с нуля: первый кадр не может показать весь главный экран. */
-private class WelcomeReveal(val origin: Offset?) {
+private class WelcomeReveal(val flight: OnboardingCardFlight?) {
+    val origin: Offset? get() = flight?.bounds?.center
     val progress = Animatable(0f)
+    var morph by mutableStateOf<CardMorph?>(null)
 }
 
 /** Круг с центром [center] и радиусом [radius] — форма раскрытия камеры. */

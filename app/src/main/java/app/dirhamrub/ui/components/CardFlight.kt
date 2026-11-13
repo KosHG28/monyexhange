@@ -8,6 +8,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -26,7 +27,7 @@ import kotlin.math.roundToInt
  * сейчас в полёте — её мини-карта в строке пустая («улетела»).
  */
 class CardFlight {
-    private val origins = HashMap<String, Rect>()
+    private val origins = mutableStateMapOf<String, Rect>()
     var flying by mutableStateOf<String?>(null)
 
     fun originOf(id: String): Rect? = origins[id]?.takeIf { it.width > 0f && it.height > 0f }
@@ -42,7 +43,8 @@ val LocalCardFlight = staticCompositionLocalOf { CardFlight() }
 fun Modifier.flightOrigin(id: String): Modifier = composed {
     val flight = LocalCardFlight.current
     this
-        .onGloballyPositioned { flight.place(id, it.boundsInWindow()) }
+        // Главный во время знакомства ещё обрезан кругом нулевого радиуса; нужны полные координаты.
+        .onGloballyPositioned { flight.place(id, it.boundsInWindow(clipBounds = false)) }
         .graphicsLayer { alpha = if (flight.flying == id) 0f else 1f }
 }
 
@@ -51,10 +53,10 @@ fun Modifier.flightOrigin(id: String): Modifier = composed {
  * ([target] — его сообщает сам экран). [progress] 0 — карта на главном, 1 — на месте. Пока летит, превью на экране
  * прячется ([flying]), а поверх всего рисуется [card] — та же карта; ей передаётся, насколько проявить надписи.
  */
-class CardMorph(val origin: Rect, val cardId: String) {
+class CardMorph(val origin: Rect, val cardId: String, initialProgress: Float = 0f) {
     var target by mutableStateOf<Rect?>(null)
     var card by mutableStateOf<(@Composable (textAlpha: () -> Float) -> Unit)?>(null)
-    internal val progress = Animatable(0f)
+    internal val progress = Animatable(initialProgress)
     internal var closing by mutableStateOf(false)
     internal var settled by mutableStateOf(false)
 
@@ -65,6 +67,13 @@ class CardMorph(val origin: Rect, val cardId: String) {
     internal val backgroundAlpha: Float get() = (progress.value * 1.4f).coerceAtMost(1f)
     internal val contentAlpha: Float get() = ((progress.value - 0.3f) / 0.7f).coerceIn(0f, 1f)
 }
+
+/** Снимок превью из знакомства: геометрия и содержимое фиксируются в момент продолжения. */
+class OnboardingCardFlight(
+    val cardId: String,
+    val bounds: Rect,
+    val preview: @Composable (textAlpha: () -> Float) -> Unit,
+)
 
 /** Летящая карта поверх экрана: от мини-карты к превью, надписи проявляются во второй половине пути. */
 @Composable

@@ -215,6 +215,11 @@ jobs:
           # Пустой crash.txt нельзя загружать как release asset: GitHub отклоняет файлы нулевого размера.
           # PNG уже проверены; метку коммита отправляем отдельно от диагностических журналов.
           gh release upload screens screens/*.png --clobber
+          for video in screens/*.mp4; do
+            if [ -s "$video" ]; then
+              gh release upload screens "$video" --clobber
+            fi
+          done
           gh release upload screens screens/commit.txt --clobber
           if [ -s screens/crash.txt ]; then
             gh release upload screens screens/crash.txt --clobber

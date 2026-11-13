@@ -89,47 +89,44 @@ internal fun SearchField(value: String, onValueChange: (String) -> Unit, hint: S
     val colors = AppTheme.colors
     val type = AppTheme.type
     val focus = LocalFocusManager.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(colors.surface)
-            .padding(start = 14.dp, end = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(painterResource(R.drawable.ic_search), contentDescription = null, tint = colors.muted, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(10.dp))
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (value.isEmpty()) Text(hint, style = type.body, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            BasicTextField(
-                value = value,
-                onValueChange = { onValueChange(it.take(40)) },
-                singleLine = true,
-                textStyle = type.body.copy(color = colors.ink),
-                cursorBrush = SolidColor(colors.accent),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { contentDescription = hint },
-            )
-        }
-        if (value.isNotEmpty()) {
-            Icon(
-                painterResource(R.drawable.ic_close),
-                contentDescription = stringResource(R.string.currency_search_clear),
-                tint = colors.muted,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .clickable(role = Role.Button) { onValueChange("") }
-                    .padding(12.dp),
-            )
-        } else {
-            Spacer(Modifier.width(12.dp))
-        }
-    }
+    BasicTextField(
+        value = value,
+        onValueChange = { onValueChange(it.take(40)) },
+        singleLine = true,
+        textStyle = type.body.copy(color = colors.ink),
+        cursorBrush = SolidColor(colors.accent),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            .semantics { contentDescription = hint },
+        // Декорация принадлежит самому полю: лупа, отступы и пустая часть строки тоже получают фокус.
+        decorationBox = { innerField ->
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(24.dp)).background(colors.surface)
+                    .padding(start = 14.dp, end = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(painterResource(R.drawable.ic_search), contentDescription = null,
+                    tint = colors.muted, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(10.dp))
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) Text(hint, style = type.body, color = colors.muted,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    innerField()
+                }
+                if (value.isNotEmpty()) {
+                    Icon(
+                        painterResource(R.drawable.ic_close),
+                        contentDescription = stringResource(R.string.currency_search_clear),
+                        tint = colors.muted,
+                        modifier = Modifier.size(48.dp).clip(CircleShape)
+                            .clickable(role = Role.Button) { onValueChange("") }.padding(14.dp),
+                    )
+                } else Spacer(Modifier.width(12.dp))
+            }
+        },
+    )
 }
 
 @Composable

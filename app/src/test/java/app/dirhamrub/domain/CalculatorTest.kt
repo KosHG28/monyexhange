@@ -120,7 +120,24 @@ class CalculatorTest {
     @Test
     fun `разряды при наборе`() {
         assertEquals("15${NBSP}000", type(*digits("15000")).display())
-        assertEquals("999${NBSP}999${NBSP}999", type(*digits("9999999999")).display())
+        assertEquals("999${NBSP}999${NBSP}999${NBSP}999", type(*digits("9999999999999")).display())
+    }
+
+    @Test
+    fun `риалы до двенадцати цифр сохраняются точно вместе с дробной частью`() {
+        val e = type(*digits("999999999999,99"))
+        assertEquals(0, BigDecimal("999999999999.99").compareTo(e.value))
+        assertEquals("999999999999,99", e.serialize())
+        assertEquals(e.value, Expression.parse(e.serialize()).value)
+        assertEquals(e, e.press(Key.Digit(5)))
+        assertEquals(0, BigDecimal("999999999999.9").compareTo(e.press(Key.Backspace).value))
+    }
+
+    @Test
+    fun `после лимита можно считать следующую покупку и вводить дробную часть`() {
+        val e = type(*digits("9000000000000,25+1"))
+        assertEquals(0, BigDecimal("900000000001.25").compareTo(e.value))
+        assertEquals(0, BigDecimal("1800000000000").compareTo(type(*digits("900000000000*2")).value))
     }
 
     @Test

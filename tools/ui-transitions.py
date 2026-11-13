@@ -46,13 +46,19 @@ def motion(enabled):
         adb('shell', 'settings', 'put', 'global', setting, '1' if enabled else '0')
 
 
-def launch(onboarding=False, demo=True):
+def launch(onboarding=False, demo=True, screen=None, amount=None, spend=None):
     adb('shell', 'am', 'force-stop', PKG)
     args = ['shell', 'am', 'start', '-W', '-n', ACT]
     if demo:
         args += ['--ez', 'demo', 'true']
     if onboarding:
         args += ['--es', 'screen', 'onboarding', '--ei', 'step', '2', '--ez', 'nocards', 'true']
+    if screen:
+        args += ['--es', 'screen', screen]
+    if amount is not None:
+        args += ['--es', 'amount', amount]
+    if spend:
+        args += ['--es', 'spend', spend]
     adb(*args)
     time.sleep(3)
 
@@ -67,6 +73,67 @@ def assert_home():
     assert not any('Настройте под поездку' in n.get('text', '') for n in tree().iter('node'))
 
 
+def finish_with_video(button, middle, after, theme):
+    name = f'welcome-{theme}.mp4'
+    recorder = subprocess.Popen(['adb', 'shell', 'screenrecord', '--size', '540x1200', '--bit-rate', '2000000',
+                                 '--time-limit', '4', f'/sdcard/{name}'],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    try:
+        time.sleep(0.5)
+        tap(button)
+        time.sleep(0.20)
+        capture(middle)
+        time.sleep(1)
+        assert_home()
+        capture(after)
+    finally:
+        _, errors = recorder.communicate(timeout=10)
+        assert recorder.returncode == 0, errors.decode(errors='replace')
+        adb('pull', f'/sdcard/{name}', str(OUT / name))
+        assert (OUT / name).stat().st_size > 1000, 'Запись перехода пуста'
+
+
+def search_hit_targets():
+    density = int(re.findall(r'\d+', adb('shell', 'wm', 'density'))[-1]) / 160
+    # Каждая попытка — без фокуса после нового запуска: лупа, верхний/нижний отступ и правый край.
+    for point in ['icon', 'top', 'bottom', 'right']:
+        launch(screen='currencies')
+        field = find(lambda n: n.get('content-desc') == 'Страна, город или валюта')
+        assert field.get('focused') == 'false', field.attrib
+        x1, y1, x2, y2 = map(int, re.findall(r'\d+', field.attrib['bounds']))
+        assert y2-y1 >= 48*density-1, field.attrib
+        positions = {
+            'icon': (x1+int(24*density), (y1+y2)//2),
+            'top': ((x1+x2)//2, y1+int(3*density)),
+            'bottom': ((x1+x2)//2, y2-int(3*density)),
+            'right': (x2-int(4*density), (y1+y2)//2),
+        }
+        x, y = positions[point]
+        adb('shell', 'input', 'tap', str(x), str(y))
+        find(lambda n: n.get('content-desc') == 'Страна, город или валюта' and n.get('focused') == 'true')
+        if point == 'icon':
+            capture('40-search-icon-focus')
+        if point == 'right':
+            adb('shell', 'input', 'text', 'JPY')
+            find(lambda n: n.get('content-desc') == 'Страна, город или валюта' and n.get('text') == 'JPY')
+            capture('41-search-query')
+            tap(find(lambda n: n.get('content-desc') == 'Очистить поиск'))
+            find(lambda n: n.get('content-desc') == 'Страна, город или валюта' and 'JPY' not in n.get('text', ''))
+
+
+def twelve_digits():
+    launch(amount='0', spend='IRR')
+    nine = find(lambda n: n.get('content-desc') == '9')
+    for _ in range(13):
+        tap(nine)
+    field = find(lambda n: '999999999999' in re.sub(r'\s+', '', n.get('content-desc', '')) and 'IRR' in n.get('content-desc', ''))
+    assert '9999999999999' not in re.sub(r'\s+', '', field.get('content-desc', '')), '13-я цифра принята'
+    capture('42-irr-keypad-limit')
+    time.sleep(1)
+    launch(demo=False)
+    find(lambda n: '999999999999' in re.sub(r'\s+', '', n.get('content-desc', '')) and 'IRR' in n.get('content-desc', ''))
+
+
 try:
     motion(True)
     for theme, before, middle, after in [
@@ -77,12 +144,7 @@ try:
         launch(onboarding=True)
         button = find(lambda n: n.get('text') == 'Продолжить без чека')
         capture(before)
-        tap(button)
-        time.sleep(0.10)
-        capture(middle)
-        time.sleep(1)
-        assert_home()
-        capture(after)
+        finish_with_video(button, middle, after, 'dark' if theme == 'yes' else 'light')
         time.sleep(1)
         launch(demo=False)
         assert_home()
@@ -104,7 +166,10 @@ try:
     chosen = card_node('Карта в юанях')
     assert chosen.get('selected') == 'true' or chosen.get('checked') == 'true', chosen.attrib
     capture('34-card-after')
-    print('Переход проверен в двух темах, без анимаций и после перезапуска; выбор карты подтверждён.')
+    motion(False)
+    search_hit_targets()
+    twelve_digits()
+    print('Поиск проверен по четырём краям, 12 цифр введены клавиатурой и сохранены. Переход проверен в двух темах, без анимаций и после перезапуска; выбор карты подтверждён.')
 except Exception:
     (OUT / 'transition-error.txt').write_text(traceback.format_exc(), encoding='utf-8')
     try:

@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
@@ -423,15 +424,31 @@ private fun PriceField(state: MainUiState, covered: Boolean) {
             .clearAndSetSemantics { contentDescription = a11y },
     ) {
         Text(label, style = type.caption, color = colors.muted, maxLines = 1)
-        val size = when {
-            value.length > 13 -> 20.sp
-            value.length > 10 -> 25.sp
-            else -> 32.sp
+        val nominal = when {
+            value.length > 13 -> 20f
+            value.length > 10 -> 25f
+            else -> 32f
         }
-        Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
-            // Набранная цифра «впрыгивает» с пружинкой, стёртая сжимается и гаснет (Material 3 Expressive).
-            TypingText(value, style = type.number.copy(fontSize = size, lineHeight = size * 1.2f), color = colors.ink)
-            Caret(size.value, paused = covered)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            // Код валюты и курсор имеют своё место; уменьшаем только длинную сумму по реальной ширине.
+            BoxWithConstraints(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                val density = LocalDensity.current
+                val measurer = rememberTextMeasurer()
+                val style = type.number
+                val limit = constraints.maxWidth - with(density) { 4.dp.roundToPx() }
+                val size = remember(value, limit, nominal, style, density, measurer) {
+                    var sp = nominal
+                    while (sp > 16f && measurer.measure(value, style.copy(fontSize = sp.sp),
+                            maxLines = 1, softWrap = false).size.width > limit) sp -= 1f
+                    sp.sp
+                }
+                val scroll = rememberScrollState()
+                LaunchedEffect(value, scroll.maxValue) { scroll.scrollTo(scroll.maxValue) }
+                Row(Modifier.horizontalScroll(scroll), verticalAlignment = Alignment.CenterVertically) {
+                    TypingText(value, style = type.number.copy(fontSize = size, lineHeight = size * 1.2f), color = colors.ink)
+                    Caret(size.value, paused = covered)
+                }
+            }
             Spacer(Modifier.width(6.dp))
             Text(currency.code, style = type.bodyStrong.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium), color = colors.muted, maxLines = 1)
         }
@@ -676,7 +693,7 @@ private fun SelectedMark(color: androidx.compose.ui.graphics.Color, progress: Fl
 internal fun PayIcon(card: BankCard, best: Boolean, flight: Boolean = false) {
     val colors = AppTheme.colors
     if (card.kind == CardKind.CASH) {
-        Box(Modifier.size(width = 38.dp, height = 26.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.then(if (flight) Modifier.flightOrigin(card.id) else Modifier).size(width = 38.dp, height = 26.dp), contentAlignment = Alignment.Center) {
             Icon(painterResource(R.drawable.ic_cash), contentDescription = null, tint = if (best) colors.good else colors.ink, modifier = Modifier.size(28.dp))
         }
         return

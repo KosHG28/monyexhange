@@ -1,6 +1,9 @@
 package app.dirhamrub.ui.onboarding
 
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.graphicsLayer
+import app.dirhamrub.ui.components.LocalCardFlight
+import app.dirhamrub.ui.components.OnboardingCardFlight
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 
@@ -88,14 +91,15 @@ internal fun ColumnScope.SetupStep(
     unionPay: UnionPayRates?,
     newCard: () -> BankCard,
     onCountry: () -> Unit,
-    onFinish: (BankCard?, Offset?) -> Unit,
+    onFinish: (BankCard?, OnboardingCardFlight?) -> Unit,
     onOpenEditor: (BankCard) -> Unit,
     enter: (Int) -> Modifier,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val template = remember { newCard() }
-    var previewCenter by remember { mutableStateOf<Offset?>(null) }
+    var previewBounds by remember { mutableStateOf<Rect?>(null) }
+    val flight = LocalCardFlight.current
     val haptics = rememberHaptics()
     var way by rememberSaveable { mutableStateOf(PayWay.HOME_CARD) }
     var cardCurrency by rememberSaveable { mutableStateOf(CARD_CURRENCIES.first { it != home && it != spend }) }
@@ -125,6 +129,20 @@ internal fun ColumnScope.SetupStep(
     val hasReceipt = draft != null && (draft.purchases.isNotEmpty() || draft.transfer != null)
     val quote = draft?.let { RateEngine.quote(it, spend, home, official, unionPay) }
 
+    val price = Numbers.parse(first)?.takeIf { it.signum() > 0 && way != PayWay.CASH } ?: QuickSums.chips(spend)[4]
+    val preview: @Composable (() -> Float) -> Unit = { textAlpha ->
+        draft?.let {
+            BankCardView(
+                card = it, quote = quote, spend = spend, home = home,
+                sum = quote?.let { q -> Numbers.moneyWhole(price.multiply(q.homePerUnit, MC)) },
+                selected = true, best = null, onClick = {}, onLongClick = {},
+                width = PREVIEW_WIDTH, height = PREVIEW_HEIGHT,
+                needsReceipt = official?.cross(spend, home) == null,
+                flipOnChange = false, textAlpha = textAlpha,
+            )
+        }
+    }
+
     StepLayout(
         button = {
             PrimaryButton(
@@ -133,7 +151,7 @@ internal fun ColumnScope.SetupStep(
                 soft = false,
             ) {
                 haptics.play(if (hasReceipt) Haptic.CONFIRM else Haptic.TICK)
-                onFinish(draft, previewCenter)
+                onFinish(draft, draft?.let { card -> previewBounds?.let { OnboardingCardFlight(card.id, it, preview) } })
             }
         },
     ) {
@@ -148,31 +166,10 @@ internal fun ColumnScope.SetupStep(
                 .background(colors.surface)
                 .padding(12.dp),
         ) {
-            // Превью: так карта будет выглядеть на главном — с суммой за набранную цену (или быструю сумму).
-            val price = Numbers.parse(first)?.takeIf { it.signum() > 0 && way != PayWay.CASH } ?: QuickSums.chips(spend)[4]
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .clearAndSetSemantics { }
-                    .onGloballyPositioned { previewCenter = it.boundsInWindow().center },
-                contentAlignment = Alignment.Center,
-            ) {
-                if (draft != null) {
-                    BankCardView(
-                        card = draft,
-                        quote = quote,
-                        spend = spend,
-                        home = home,
-                        sum = quote?.let { Numbers.moneyWhole(price.multiply(it.homePerUnit, MC)) },
-                        selected = true,
-                        best = null,
-                        onClick = {},
-                        onLongClick = {},
-                        width = PREVIEW_WIDTH,
-                        height = PREVIEW_HEIGHT,
-                        needsReceipt = official?.cross(spend, home) == null,
-                        flipOnChange = false,
-                    )
+            Box(Modifier.fillMaxWidth().clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
+                Box(Modifier.onGloballyPositioned { previewBounds = it.boundsInWindow() }
+                    .graphicsLayer { alpha = if (flight.flying == draft?.id) 0f else 1f }) {
+                    preview { 1f }
                 }
             }
             Spacer(Modifier.height(10.dp))

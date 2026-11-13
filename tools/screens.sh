@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Снимки только изменённых экранов текущего пакета: главный и последний шаг знакомства.
+# Снимки только изменённых экранов текущего пакета: главный, выбор страны и последний шаг знакомства.
 # Информация о стране исключена по просьбе владельца.
 set -euo pipefail
 APK=app/build/outputs/apk/debug/app-debug.apk
@@ -34,9 +34,13 @@ shot() {
 adb shell cmd uimode night yes
 shot 01-main
 shot 02-main-long --es amount 812492.31
+shot 03-countries-dark --es screen currencies
+shot 35-irr-max-dark --es spend IRR --es amount 999999999999.99
 adb shell cmd uimode night no
 shot 07-main-light
 shot 08-main-long-light --es amount 812492.31
+shot 09-countries-light --es screen currencies
+shot 36-irr-max-light --es spend IRR --es amount 999999999999.99
 
 adb shell wm density 450
 shot 15-main-narrow --es amount 812492.31
@@ -46,6 +50,9 @@ shot 17-main-short --es amount 812492.31
 adb shell wm size reset
 adb shell settings put system font_scale 1.3
 shot 18-main-font130 --es amount 812492.31
+adb shell wm density 450
+shot 37-irr-narrow-font130 --es spend IRR --es amount 999999999999.99
+adb shell wm density reset
 adb shell settings put system font_scale 1.0
 adb shell cmd uimode night yes
 shot 23-onboarding-setup --es screen onboarding --ei step 2
@@ -58,7 +65,7 @@ python3 - <<'PY'
 from pathlib import Path
 import struct, zlib
 files = sorted(Path('screens').glob('*.png'))
-assert len(files) == 18, f'Ожидалось 18 снимков, получено {len(files)}'
+assert len(files) == 26, f'Ожидалось 26 снимков, получено {len(files)}'
 for path in files:
     data = path.read_bytes()
     assert data[:8] == b'\x89PNG\r\n\x1a\n', path
@@ -74,7 +81,7 @@ for path in files:
             finished = True
             break
     assert finished, path
-print('Проверены 18 целых PNG изменённых экранов; содержимое требует визуального просмотра.')
+print('Проверены 26 целых PNG изменённых экранов; содержимое требует визуального просмотра.')
 PY
 
 adb logcat -d -b crash > "$OUT/crash.txt"

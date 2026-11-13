@@ -224,7 +224,7 @@ jobs:
           if [ -s screens/crash.txt ]; then
             gh release upload screens screens/crash.txt --clobber
           fi
-          for report in screens/transition-error.txt screens/transition-ui.xml; do
+          for report in screens/transition-error.txt screens/transition-ui.xml screens/font130-ui.xml; do
             if [ -s "$report" ]; then
               gh release upload screens "$report" --clobber
             fi

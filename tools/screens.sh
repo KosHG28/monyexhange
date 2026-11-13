@@ -48,9 +48,15 @@ adb shell wm density reset
 adb shell wm size 1080x1920
 shot 17-main-short --es amount 812492.31
 adb shell wm size reset
+adb shell am force-stop "$PKG"
 adb shell settings put system font_scale 1.3
-shot 18-main-font130 --es amount 812492.31
+sleep 2
+WAIT=10 shot 18-main-font130 --es amount 812492.31
+adb shell uiautomator dump /sdcard/font130.xml > /dev/null
+adb exec-out cat /sdcard/font130.xml > "$OUT/font130-ui.xml"
+adb shell am force-stop "$PKG"
 adb shell wm density 450
+sleep 2
 shot 37-irr-narrow-font130 --es spend IRR --es amount 999999999999.99
 adb shell wm density reset
 adb shell settings put system font_scale 1.0

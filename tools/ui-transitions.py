@@ -41,9 +41,9 @@ def capture(name):
         subprocess.run(['adb', 'exec-out', 'screencap', '-p'], stdout=output, check=True, timeout=30)
 
 
-def motion(enabled):
+def motion(enabled, scale=1):
     for setting in ['animator_duration_scale', 'transition_animation_scale', 'window_animation_scale']:
-        adb('shell', 'settings', 'put', 'global', setting, '1' if enabled else '0')
+        adb('shell', 'settings', 'put', 'global', setting, str(scale) if enabled else '0')
 
 
 def launch(onboarding=False, demo=True, screen=None, amount=None, spend=None):
@@ -76,7 +76,7 @@ def assert_home():
 def finish_with_video(button, middle, after, theme):
     name = f'welcome-{theme}.mp4'
     recorder = subprocess.Popen(['adb', 'shell', 'screenrecord', '--size', '540x1200', '--bit-rate', '2000000',
-                                 '--time-limit', '4', f'/sdcard/{name}'],
+                                 '--time-limit', '8', f'/sdcard/{name}'],
                                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     try:
         time.sleep(0.5)
@@ -98,7 +98,7 @@ def search_hit_targets():
     # Каждая попытка — без фокуса после нового запуска: лупа, верхний/нижний отступ и правый край.
     for point in ['icon', 'top', 'bottom', 'right']:
         launch(screen='currencies')
-        field = find(lambda n: n.get('content-desc') == 'Страна, город или валюта')
+        field = find(lambda n: n.get('class') == 'android.widget.EditText' and n.get('package') == PKG)
         assert field.get('focused') == 'false', field.attrib
         x1, y1, x2, y2 = map(int, re.findall(r'\d+', field.attrib['bounds']))
         assert y2-y1 >= 48*density-1, field.attrib
@@ -110,15 +110,15 @@ def search_hit_targets():
         }
         x, y = positions[point]
         adb('shell', 'input', 'tap', str(x), str(y))
-        find(lambda n: n.get('content-desc') == 'Страна, город или валюта' and n.get('focused') == 'true')
+        find(lambda n: n.get('class') == 'android.widget.EditText' and n.get('package') == PKG and n.get('focused') == 'true')
         if point == 'icon':
             capture('40-search-icon-focus')
         if point == 'right':
             adb('shell', 'input', 'text', 'JPY')
-            find(lambda n: n.get('content-desc') == 'Страна, город или валюта' and n.get('text') == 'JPY')
+            find(lambda n: n.get('class') == 'android.widget.EditText' and n.get('package') == PKG and n.get('text') == 'JPY')
             capture('41-search-query')
             tap(find(lambda n: n.get('content-desc') == 'Очистить поиск'))
-            find(lambda n: n.get('content-desc') == 'Страна, город или валюта' and 'JPY' not in n.get('text', ''))
+            find(lambda n: n.get('class') == 'android.widget.EditText' and n.get('package') == PKG and 'JPY' not in n.get('text', ''))
 
 
 def twelve_digits():
@@ -135,7 +135,8 @@ def twelve_digits():
 
 
 try:
-    motion(True)
+    # Замедляем только CI-запись: на слабом эмуляторе нужны промежуточные кадры, в приложении скорость обычная.
+    motion(True, scale=3)
     for theme, before, middle, after in [
         ('yes', '25-onboarding-before-dark', '26-welcome-mid-dark', '27-welcome-after-dark'),
         ('no', '28-onboarding-before-light', '29-welcome-mid-light', '30-welcome-after-light'),

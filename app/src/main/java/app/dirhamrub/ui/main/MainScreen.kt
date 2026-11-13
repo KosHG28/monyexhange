@@ -41,7 +41,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
@@ -63,6 +62,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -411,6 +411,7 @@ private fun PriceField(state: MainUiState, covered: Boolean) {
     val label = stringResource(if (homeInput) R.string.field_home_input else R.string.field_price)
     val value = state.activeText
     val a11y = stringResource(R.string.field_a11y, label, value, currency.code)
+    var fieldWidth by remember { mutableStateOf(0) }
     val shape = RoundedCornerShape(18.dp)
     Column(
         Modifier
@@ -421,6 +422,7 @@ private fun PriceField(state: MainUiState, covered: Boolean) {
             .background(colors.surface)
             .border(1.dp, colors.line, shape)
             .padding(start = 16.dp, end = 18.dp, top = 10.dp, bottom = 10.dp)
+            .onSizeChanged { fieldWidth = it.width }
             .clearAndSetSemantics { contentDescription = a11y },
     ) {
         Text(label, style = type.caption, color = colors.muted, maxLines = 1)
@@ -429,28 +431,25 @@ private fun PriceField(state: MainUiState, covered: Boolean) {
             value.length > 10 -> 25f
             else -> 32f
         }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            // Код валюты и курсор имеют своё место; уменьшаем только длинную сумму по реальной ширине.
-            BoxWithConstraints(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-                val density = LocalDensity.current
-                val measurer = rememberTextMeasurer()
-                val style = type.number
-                val limit = constraints.maxWidth - with(density) { 4.dp.roundToPx() }
-                val size = remember(value, limit, nominal, style, density, measurer) {
-                    var sp = nominal
-                    while (sp > 16f && measurer.measure(value, style.copy(fontSize = sp.sp),
-                            maxLines = 1, softWrap = false).size.width > limit) sp -= 1f
-                    sp.sp
-                }
-                val scroll = rememberScrollState()
-                LaunchedEffect(value, scroll.maxValue) { scroll.scrollTo(scroll.maxValue) }
-                Row(Modifier.horizontalScroll(scroll), verticalAlignment = Alignment.CenterVertically) {
-                    TypingText(value, style = type.number.copy(fontSize = size, lineHeight = size * 1.2f), color = colors.ink)
-                    Caret(size.value, paused = covered)
-                }
+        val density = LocalDensity.current
+        val measurer = rememberTextMeasurer()
+        val numberStyle = type.number
+        val codeStyle = type.bodyStrong.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        val size = remember(value, fieldWidth, nominal, numberStyle, codeStyle, currency, density, measurer) {
+            val reserved = measurer.measure(currency.code, codeStyle, maxLines = 1, softWrap = false).size.width +
+                with(density) { 10.dp.roundToPx() }
+            var sp = nominal
+            if (fieldWidth > reserved) {
+                while (sp > 16f && measurer.measure(value, numberStyle.copy(fontSize = sp.sp),
+                        maxLines = 1, softWrap = false).size.width > fieldWidth - reserved) sp -= 1f
             }
+            sp.sp
+        }
+        Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+            TypingText(value, style = type.number.copy(fontSize = size, lineHeight = size * 1.2f), color = colors.ink)
+            Caret(size.value, paused = covered)
             Spacer(Modifier.width(6.dp))
-            Text(currency.code, style = type.bodyStrong.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium), color = colors.muted, maxLines = 1)
+            Text(currency.code, style = codeStyle, color = colors.muted, maxLines = 1)
         }
         if (state.expression.isCompound) {
             Text(

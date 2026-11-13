@@ -117,6 +117,22 @@ jobs:
             app/build/test-results/
           if-no-files-found: ignore
 
+      # Снимки должен проверить агент до публикации, а не только после зелёного UI-сценария.
+      # Лёгкий тег ui-reviewed-<SHA> ставится на этот же коммит после просмотра PNG и записи перехода.
+      - name: Визуальная проверка текущего коммита
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || startsWith(github.ref, 'refs/tags/v') || startsWith(github.event.inputs.release, 'v')
+        run: |
+          for attempt in $(seq 1 120); do
+            REVIEWED=$(git ls-remote origin "refs/tags/ui-reviewed-$GITHUB_SHA" | awk '{print $1}')
+            if [ "$REVIEWED" = "$GITHUB_SHA" ]; then
+              echo "Снимки текущего коммита проверены"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::нет отметки визуальной проверки текущего коммита — выпуск остановлен"
+          exit 1
+
       # Push в main автоматически выпускает новую versionName после всех проверок.
       # Теги и ручной workflow_dispatch также поддерживаются.
       - name: GitHub Release

@@ -411,7 +411,7 @@ private fun PriceField(state: MainUiState, covered: Boolean, onSelectLine: (Line
             .background(colors.surface)
             .border(1.dp, colors.line, shape)
             .padding(start = 16.dp, end = 18.dp, top = 10.dp, bottom = 10.dp)
-            .clearAndSetSemantics { contentDescription = a11y },
+            .semantics { contentDescription = a11y },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(label, style = type.caption, color = colors.muted, maxLines = 2, modifier = Modifier.weight(1f))

@@ -20,4 +20,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "DirhamRub"
-include(":app")
+include(":app", ":baselineprofile")

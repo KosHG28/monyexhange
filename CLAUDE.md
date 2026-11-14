@@ -37,6 +37,12 @@ APK и снимки хранятся только в Releases, без дубли
 запусков этого репозитория: после Android CI, ежедневно и при обновлении самой очистки.
 Изменение только `actions-storage.yml` не запускает сборку приложения.
 Тег `v*` и ручной запуск workflow с `release=vX.Y.Z` также поддерживаются.
+Baseline Profile: `:baselineprofile` — отдельный producer с реальными UI-сценариями на изолированном
+эмуляторе. `baseline-profile.yml` запускается на ветках `profiles/**`, обычный Android CI их пропускает.
+Генерация `:app:generateReleaseBaselineProfile -Pdirhamrub.x86=true` экспортирует записанные baseline/startup
+правила и SHA в пререлиз `baseline-profiles`, без APK и Actions artifacts. Профиль включаем в исходники
+только после проверки совпадения SHA и наличия собственных правил `app/dirhamrub`; при обычной сборке
+он не генерируется заново. Камеру и информацию о стране producer не открывает и снимки не делает.
 Ещё: «Перечень валют ЦБ» (`.github/workflows/cbr-list.yml`, по понедельникам) — `tools/cbr-check.py` сверяет
 валюты из ответа ЦБ с `Currency.cbr`; Dependabot (`.github/dependabot.yml`) — еженедельные PR с обновлениями.
 Подпись: ключ только из секретов репозитория (`KEYSTORE_BASE64` — ключ в base64, `SIGNING_*` — пароли); без них

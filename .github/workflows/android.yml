@@ -2,7 +2,7 @@ name: Android
 
 on:
   push:
-    branches: ['**']
+    branches: ['**', '!profiles/**']
     tags: ['v*']
     paths-ignore: ['.github/workflows/actions-storage.yml']
   pull_request:

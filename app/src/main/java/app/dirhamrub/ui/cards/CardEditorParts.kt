@@ -50,6 +50,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
@@ -128,9 +130,13 @@ internal fun NetworkChips(network: CardNetwork?, onChange: (CardNetwork?) -> Uni
                                     CardNetwork.VISA_MC_FOREIGN -> R.string.network_short_visa_foreign
                                 },
                             ),
+                            modifier = Modifier.fillMaxWidth(),
                             style = type.bodyStrong.copy(fontSize = 13.5.sp),
                             color = if (selected) colors.onAccent else colors.ink,
+                            textAlign = TextAlign.Center,
+                            softWrap = false,
                             maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }

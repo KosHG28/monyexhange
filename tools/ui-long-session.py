@@ -50,6 +50,13 @@ try:
     adb('shell','am','start','-W','-n',ACT,'--ez','demo','true','--ez','receiptDemo','true','--es','spend','EUR','--es','amount','789','--es','card','demo-cny')
     main()
     adb('shell','dumpsys','gfxinfo',PKG,'reset')
+    for _ in range(3):
+        tap(find(lambda n:'Карта в юанях' in n.get('content-desc','') and (n.get('selected')=='true' or n.get('checked')=='true')))
+        time.sleep(.1)
+        adb('shell','input','keyevent','4')
+        main()
+    print('Rapid editor open/back cycles: 3 passed',flush=True)
+
     for round in range(1,21):
         if round in (1,11):
             adb('shell','cmd','uimode','night','no' if round==1 else 'yes')

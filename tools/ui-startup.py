@@ -66,6 +66,16 @@ try:
         report.append('restored-'+name+'\n'+result)
         assert_session('789')
         screenshot('main-restored-'+name)
+        # Background immediately after a key: pause flush must preserve input before debounce.
+        tap(wait_for(lambda n:n.get('content-desc')=='Очистить'))
+        tap(wait_for(lambda n:n.get('content-desc')=='4'))
+        adb('shell','input','keyevent','3')
+        time.sleep(1)
+        adb('shell','am','force-stop',PKG)
+        adb('shell','am','start','-W','-n',ACT)
+        assert_session('4')
+        report.append('immediate background input restored: '+name)
+
     assert len(list(OUT.glob('main-*.png')))==6
     (OUT/'startup-check.txt').write_text('\n'.join(report))
 except Exception:

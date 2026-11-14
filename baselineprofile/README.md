@@ -16,6 +16,6 @@ After inspecting the matching source SHA, commit the generated text to
 The profile contains code rules, not phone-specific compiled machine code. GitHub APK installation
 uses ProfileInstaller/Android background dex optimization; no speed percentage is implied.
 
-Recorded profile provenance and checksums: [profile-source.json](profile-source.json). The initial
-profile contains 22,184 baseline rules (2,139 application rules) and 18,225 startup rules
-(1,540 application rules), recorded by two passing tests on API 34.
+Recorded profile provenance and checksums: [profile-source.json](profile-source.json).
+The profile was refreshed for 1.51.0 after navigation, cache and background calculation changes;
+the two real UI producer scenarios passed on API 34. Counts and exact checksums are in the JSON.

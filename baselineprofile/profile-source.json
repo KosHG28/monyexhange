@@ -1,6 +1,6 @@
 {
-  "sourceCommit": "94fe496c3387811c48a5b4baf15e4da5e3172a19",
-  "run": "https://github.com/KosHG28/monyexhange/actions/runs/43593174940",
+  "sourceCommit": "0c6f3612ed7be80c583d258920bc038c99d51c70",
+  "run": "https://github.com/KosHG28/monyexhange/actions/runs/43623369939",
   "apiLevel": 34,
   "tests": {
     "passed": 2,
@@ -8,14 +8,14 @@
   },
   "files": {
     "baseline-prof.txt": {
-      "sha256": "df9bc5e53a767f2d09f6f7d92e622b877a3073e04ab15c52401129bf4771ab29",
-      "rules": 22184,
-      "applicationRules": 2139
+      "sha256": "8bb809a3112a57ef67747bee51c92791497ebd2a64ff7bda096613cb330cc957",
+      "rules": 21735,
+      "applicationRules": 2146
     },
     "startup-prof.txt": {
-      "sha256": "bd80894724a6e3242be3b6129cfeffc622bdb9b72ff9b6cbd70614955ad64f77",
-      "rules": 18225,
-      "applicationRules": 1540
+      "sha256": "67a5fabd02d28e23f9adcfd295541d34c21ab03016d02d575785a1fba2046084",
+      "rules": 17853,
+      "applicationRules": 1548
     }
   }
 }

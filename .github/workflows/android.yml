@@ -28,7 +28,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  ui-scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      screens: ${{ steps.scope.outputs.screens }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Только изменённые разрешённые экраны
+        id: scope
+        env:
+          SCOPE_BASE: ${{ github.event.before || github.event.pull_request.base.sha || '' }}
+          SCOPE_HEAD: ${{ github.sha }}
+        run: |
+          python3 tools/ui-scope.py --self-test
+          python3 tools/ui-scope.py
+
   build:
+    needs: ui-scope
     runs-on: ubuntu-latest
     env:
       LC_ALL: C.UTF-8
@@ -98,7 +117,7 @@ jobs:
           gh release edit ci-reports --notes "Отчёты сбоя сборки ${GITHUB_SHA::7}: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       - name: Результат проверки экранов
-        if: ${{ !contains(github.event.head_commit.message, '[phone-check]') }}
+        if: ${{ needs.ui-scope.outputs.screens == 'true' && !contains(github.event.head_commit.message, '[phone-check]') }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -118,7 +137,7 @@ jobs:
       # Снимки должен проверить агент до публикации, а не только после зелёного UI-сценария.
       # Лёгкий тег ui-reviewed-<SHA> ставится на этот же коммит после просмотра PNG и записи перехода.
       - name: Визуальная проверка текущего коммита
-        if: ((github.event_name == 'push' && github.ref == 'refs/heads/main') || startsWith(github.ref, 'refs/tags/v') || startsWith(github.event.inputs.release, 'v')) && !contains(github.event.head_commit.message, '[phone-check]')
+        if: ((github.event_name == 'push' && github.ref == 'refs/heads/main') || startsWith(github.ref, 'refs/tags/v') || startsWith(github.event.inputs.release, 'v')) && needs.ui-scope.outputs.screens == 'true' && !contains(github.event.head_commit.message, '[phone-check]')
         run: |
           for attempt in $(seq 1 120); do
             REVIEWED=$(git ls-remote origin "refs/tags/ui-reviewed-$GITHUB_SHA" | awk '{print $1}')
@@ -162,8 +181,9 @@ jobs:
 
   # Перед выпуском — снимки только изменённых экранов. Информация о стране исключена.
   screens:
+    needs: ui-scope
     # Только по прямому запросу владельца: APK проверяется на его телефоне.
-    if: ${{ !contains(github.event.head_commit.message, '[phone-check]') }}
+    if: ${{ needs.ui-scope.outputs.screens == 'true' && !contains(github.event.head_commit.message, '[phone-check]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:

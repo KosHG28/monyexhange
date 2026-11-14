@@ -31,20 +31,20 @@ import app.dirhamrub.ui.theme.*
 import java.time.LocalDate
 
 @Composable
-internal fun SeasonalCountryHeader(country: String, currency: Currency, iso: String?, onOpen: (CountryEasterEgg) -> Unit) {
+internal fun SeasonalCountryHeader(country: String, currency: Currency, iso: String?, onOpen: (CountryEasterEgg) -> Unit, onClose: () -> Unit) {
     val event = CountrySeasons.current(iso, LocalDate.now())
     val egg = countryEasterEggs[iso]
     if (event == null || egg == null) { Header(country, currency); return }
     var expanded by rememberSaveable(iso) { mutableStateOf(false) }
     val reduce = LocalReduceMotion.current
     val colors = AppTheme.colors
-    val palette = colors.easterEggPalette(egg.tone)
+    val palette = colors.easterEggPalette(egg.tone, egg.iso)
     val haptics = rememberHaptics()
     fun toggle(open: Boolean) {
         if (expanded == open) return
         expanded = open
         haptics.play(Haptic.TICK)
-        if (open) onOpen(egg)
+        if (open) onOpen(egg) else onClose()
     }
     Column {
         Header(country, currency, countryLabel = {
@@ -59,6 +59,8 @@ internal fun SeasonalCountryHeader(country: String, currency: Currency, iso: Str
             )
             val rotation by animateFloatAsState(if (expanded) -12f else 0f,
                 if (reduce) snap() else spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = "seasonBadgeAngle")
+            val lift by animateFloatAsState(if (expanded) -1.7f else 0f,
+                if (reduce) snap() else spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = "seasonBadgeLift")
             Row(Modifier.widthIn(max = 360.dp).heightIn(min = 48.dp).clip(CircleShape).background(background)
                 .toggleable(value = expanded, interactionSource = interactions, indication = null, role = Role.Button, onValueChange = ::toggle)
                 .semantics(mergeDescendants = true) { contentDescription = description; stateDescription = state }
@@ -67,7 +69,7 @@ internal fun SeasonalCountryHeader(country: String, currency: Currency, iso: Str
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 Spacer(Modifier.width(7.dp))
                 Icon(painterResource(egg.iconRes), contentDescription = null, tint = palette.icon,
-                    modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = rotation })
+                    modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = rotation; translationY = lift.dp.toPx() })
             }
         })
         AnimatedVisibility(
@@ -81,7 +83,7 @@ internal fun SeasonalCountryHeader(country: String, currency: Currency, iso: Str
                 Text(stringResource(egg.descriptionRes), style = AppTheme.type.body, color = colors.ink, modifier = Modifier.padding(top = 6.dp))
                 val interactions = remember { MutableInteractionSource() }
                 val pressed by interactions.collectIsPressedAsState()
-                val background by animateColorAsState(if (pressed) palette.icon.copy(alpha = 0.18f) else colors.seasonBadgeBackground,
+                val background by animateColorAsState(palette.icon.copy(alpha = if (pressed) 0.25f else if (colors.isDark) 0.18f else 0.12f),
                     if (reduce) snap() else tween(160), label = "seasonHideBackground")
                 Text(stringResource(R.string.season_hide), style = AppTheme.type.bodyStrong, color = palette.icon,
                     modifier = Modifier.padding(top = 8.dp).heightIn(min = 48.dp).clip(CircleShape).background(background)

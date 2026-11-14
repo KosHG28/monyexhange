@@ -169,7 +169,7 @@ fun CountryGuideScreen(
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 20.dp),
         ) {
-            SeasonalCountryHeader(place.second, currency, iso, onOpen = { activeEgg = it; seasonPlay++ })
+            SeasonalCountryHeader(place.second, currency, iso, onOpen = { activeEgg = it; seasonPlay++ }, onClose = { activeEgg = null })
             if (guide == null) {
                 Spacer(Modifier.height(16.dp))
                 Column(
@@ -248,7 +248,7 @@ fun CountryGuideScreen(
             ReportLink(stringResource(R.string.guide_report), guide.iso, countryName(guide.iso), guide.updated)
         }
         }
-        activeEgg?.let { SeasonalParticles(it, seasonPlay, Modifier.matchParentSize()) }
+        activeEgg?.let { EasterEggParticleOverlay(it, seasonPlay, Modifier.matchParentSize()) }
       }
     }
 }

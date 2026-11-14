@@ -2,6 +2,7 @@ package app.dirhamrub.ui.cards
 
 import android.graphics.Bitmap
 import app.dirhamrub.data.ReceiptImages
+import app.dirhamrub.data.ReceiptFile
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -52,17 +53,17 @@ import java.io.File
  * весь экран.
  */
 @Composable
-internal fun ReceiptShotRow(shots: List<File>) {
+internal fun ReceiptShotRow(shots: List<ReceiptFile>) {
     val colors = AppTheme.colors
-    var open by remember { mutableStateOf<File?>(null) }
+    var open by remember { mutableStateOf<ReceiptFile?>(null) }
     Row(
         Modifier.fillMaxWidth().padding(top = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         for (f in shots.take(MAX_THUMBS)) {
-            key(f.path) {
-            val thumb by rememberShot(f, THUMB_PX)
+            key(f.file.path) {
+            val thumb by rememberShot(f.file, f.revision, THUMB_PX)
             Box(
                 Modifier
                     .size(width = 48.dp, height = 64.dp)
@@ -82,8 +83,8 @@ internal fun ReceiptShotRow(shots: List<File>) {
 
 /** Скриншот на весь экран, на чёрном; «×» или «Назад» — закрыть. */
 @Composable
-private fun ShotViewer(file: File, onClose: () -> Unit) {
-    val image by rememberShot(file, FULL_PX)
+private fun ShotViewer(file: ReceiptFile, onClose: () -> Unit) {
+    val image by rememberShot(file.file, file.revision, FULL_PX)
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             image?.let {
@@ -110,13 +111,14 @@ private fun ShotViewer(file: File, onClose: () -> Unit) {
 
 /** Картинка из файла, уменьшенная до [maxPx] по длинной стороне, — читается в фоне. */
 @Composable
-private fun rememberShot(file: File, maxPx: Int) = produceState<ImageBitmap?>(null, file, file.lastModified(), maxPx) {
+private fun rememberShot(file: File, revision: Long, maxPx: Int) = produceState<ImageBitmap?>(null, file, revision, maxPx) {
     value = null
     var unpublished: Bitmap? = null
     try {
         val bitmap = withContext(Dispatchers.IO) {
             runCatching { ReceiptImages.decode(file, maxPx) }.getOrNull().also { unpublished = it }
         }
+        if (app.dirhamrub.BuildConfig.DEBUG && bitmap != null) app.dirhamrub.diag.LifetimeAudit.watch(bitmap)
         value = bitmap?.asImageBitmap()
         unpublished = null // The renderer now owns it; recycling a displayed bitmap is unsafe.
         awaitDispose { value = null }

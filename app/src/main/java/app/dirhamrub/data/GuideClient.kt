@@ -14,22 +14,14 @@ import java.net.URL
  */
 object GuideClient {
     private const val URL_RAW = "https://raw.githubusercontent.com/KosHG28/monyexhange/main/app/src/main/assets/countries.txt"
-    private const val TIMEOUT_MS = 10_000
 
     /** Текст файла, если он разбирается (битый или чужой ответ не сохраняем). */
     suspend fun fetch(): Pair<String, CountryGuides>? = withContext(Dispatchers.IO) {
-        runCatching {
-            val connection = URL(URL_RAW).openConnection() as HttpURLConnection
-            try {
-                connection.connectTimeout = TIMEOUT_MS
-                connection.readTimeout = TIMEOUT_MS
-                connection.setRequestProperty("User-Agent", "KursPoCheku/1.0 (Android)")
-                if (connection.responseCode != HttpURLConnection.HTTP_OK) return@runCatching null
-                val text = connection.inputStream.use { String(it.readBytes(), Charsets.UTF_8) }
-                CountryGuideParser.parse(text)?.let { text to it }
-            } finally {
-                connection.disconnect()
-            }
-        }.getOrNull()
+        recoverable {
+            val reply = readHttp(URL_RAW)?.takeIf { it.code == HttpURLConnection.HTTP_OK }
+                ?: return@recoverable null
+            val text = String(reply.body, Charsets.UTF_8)
+            CountryGuideParser.parse(text)?.let { text to it }
+        }
     }
 }

@@ -20,7 +20,7 @@ def logs():
     return adb('logcat','-d','-b','main','-s','KpcCompose:I','KpcImages:I','*:S')
 
 def counts(text):
-    return {name:int(count) for name,count in re.findall(r'\b(Header|CbrLine|Keypad|PayIcon|PriceField)=(\d+)',text)}
+    return {name:int(count) for name,count in re.findall(r'\b(Header|CbrLine|Keypad|PayIcon|PriceField|Navigation)=(\d+)',text)}
 
 adb('shell','am','force-stop',PKG)
 adb('logcat','-b','main','-c')
@@ -43,7 +43,7 @@ for node in root.iter('node'):
         coords[desc]=((x1+x2)//2,(y1+y2)//2)
 assert {'Очистить','7','8','9'} <= coords.keys(),coords
 before=counts(logs())
-assert set(before)=={'Header','CbrLine','Keypad','PayIcon','PriceField'},before
+assert set(before)=={'Header','CbrLine','Keypad','PayIcon','PriceField','Navigation'},before
 # Clear between short amounts to keep the existing amount-sizing algorithm and layout unchanged.
 for _ in range(3):
     for key in ['Очистить','7','8','9']:
@@ -53,7 +53,7 @@ time.sleep(1)
 after_text=logs()
 after=counts(after_text)
 (OUT/'recomposition-check.txt').write_text('before='+str(before)+'\nafter='+str(after)+'\n'+after_text)
-assert all(after[k]==before[k] for k in ['Header','CbrLine','Keypad','PayIcon']), f'Static groups recomposed during amount input: {before} -> {after}'
+assert all(after[k]==before[k] for k in ['Header','CbrLine','Keypad','PayIcon','Navigation']), f'Static groups recomposed during amount input: {before} -> {after}'
 assert after['PriceField']>before['PriceField'], 'Dynamic input field did not recompose'
 assert any(n.get('content-desc','').startswith('Цена на ценнике: 789 EUR') for n in tree().iter('node'))
 print('Static groups skipped all 12 key events:',before,after,flush=True)

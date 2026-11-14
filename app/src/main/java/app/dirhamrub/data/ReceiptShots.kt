@@ -12,6 +12,8 @@ import java.io.File
  * в папке приложения (в резервные копии не попадает), уменьшенной до 1600 px по длинной стороне.
  * Файл — «<id карты>-<вид чека>.jpg»: на каждый вид чека карты — последний скриншот.
  */
+data class ReceiptFile(val file: File, val revision: Long)
+
 object ReceiptShots {
     private const val MAX_SIDE = 1600
 
@@ -26,6 +28,11 @@ object ReceiptShots {
     /** Все сохранённые скриншоты карты, новые первыми. */
     fun list(context: Context, cardId: String): List<File> =
         dir(context).listFiles { f -> f.name.startsWith("${safe(cardId)}-") }?.sortedByDescending { it.lastModified() }.orEmpty()
+
+    /** File metadata is acquired off-main, not during composition of image thumbnails. */
+    suspend fun entries(context: Context, cardId: String): List<ReceiptFile> = withContext(Dispatchers.IO) {
+        list(context, cardId).map { ReceiptFile(it, it.lastModified()) }
+    }
 
     /** Уменьшить и сохранить скриншот [uri] к чеку; null — не получилось прочитать картинку. */
     suspend fun save(context: Context, uri: Uri, cardId: String, kind: String): File? = withContext(Dispatchers.IO) {
@@ -47,10 +54,10 @@ object ReceiptShots {
     }
 
     /** Скриншоты карт, которых больше нет (удалили, или новую карту не сохранили). */
-    fun cleanup(context: Context, cardIds: Set<String>) {
+    fun cleanup(context: Context, cardIds: Set<String>, olderThanMillis: Long = System.currentTimeMillis()) {
         val keep = cardIds.map(::safe).toSet()
         dir(context).listFiles()?.forEach { f ->
-            if (keep.none { f.name.startsWith("$it-") }) f.delete()
+            if (f.lastModified() < olderThanMillis && keep.none { f.name.startsWith("$it-") }) f.delete()
         }
     }
 

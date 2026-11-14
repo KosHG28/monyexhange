@@ -26,6 +26,8 @@ import app.dirhamrub.domain.wallet.TransferReceipt
 import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.domain.wallet.Wallet
 import app.dirhamrub.domain.wallet.WalletCodec
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -88,6 +90,13 @@ class WalletRepository(
     private val ratesStore: DataStore<Preferences>,
     private val decodeDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
+    private val writes = Mutex()
+    private var encodedWallet: Pair<Wallet, String>? = null
+
+    private suspend fun encodeWallet(wallet: Wallet): String {
+        encodedWallet?.let { if (it.first == wallet) return it.second }
+        return withContext(decodeDispatcher) { WalletCodec.encode(wallet) }.also { encodedWallet = wallet to it }
+    }
 
     suspend fun load(): StoredState = withContext(decodeDispatcher) {
         val p = store.data
@@ -160,14 +169,16 @@ class WalletRepository(
     }
 
     suspend fun saveUnionPay(rates: UnionPayRates, fetchedAt: Long) {
+        val encoded = withContext(decodeDispatcher) { WalletCodec.encodeUnionPay(rates) }
         unionPayStore.edit { p ->
-            p[UNIONPAY] = WalletCodec.encodeUnionPay(rates)
+            p[UNIONPAY] = encoded
             p[UNIONPAY_AT] = fetchedAt
         }
     }
 
     suspend fun saveOfficialWeekAgo(rates: OfficialRates) {
-        ratesStore.edit { p -> p[OFFICIAL_WEEK] = WalletCodec.encodeRates(rates) }
+        val encoded = withContext(decodeDispatcher) { WalletCodec.encodeRates(rates) }
+        ratesStore.edit { p -> p[OFFICIAL_WEEK] = encoded }
     }
 
     suspend fun saveGuide(text: String) {
@@ -180,9 +191,10 @@ class WalletRepository(
     }
 
     /** Один раз при переходе на автовыбор: кошелёк без ручного выбора и отметка, что переход сделан. */
-    suspend fun markSelectionAuto(wallet: Wallet) {
+    suspend fun markSelectionAuto(wallet: Wallet) = writes.withLock {
+        val encoded = encodeWallet(wallet)
         store.edit { p ->
-            p[WALLET] = WalletCodec.encode(wallet)
+            p[WALLET] = encoded
             p[SELECTION_AUTO] = true
         }
     }
@@ -196,7 +208,8 @@ class WalletRepository(
     }
 
     suspend fun saveRatesHistory(history: Map<LocalDate, OfficialRates>) {
-        ratesStore.edit { p -> p[RATES_HISTORY] = WalletCodec.encodeHistory(history) }
+        val encoded = withContext(decodeDispatcher) { WalletCodec.encodeHistory(history) }
+        ratesStore.edit { p -> p[RATES_HISTORY] = encoded }
     }
 
     suspend fun saveCameraEmbedded(value: Boolean) {
@@ -212,12 +225,13 @@ class WalletRepository(
     }
 
     /** Карты, чеки и валюты: пишутся сразу при изменении — закрытое следом приложение их не теряет. */
-    suspend fun saveWallet(wallet: Wallet) {
-        store.edit { p -> p[WALLET] = WalletCodec.encode(wallet) }
+    suspend fun saveWallet(wallet: Wallet) = writes.withLock {
+        val encoded = encodeWallet(wallet)
+        store.edit { p -> p[WALLET] = encoded }
     }
 
     /** Набираемая сумма и активная строка (меняются на каждом нажатии — пишутся с задержкой). */
-    suspend fun saveInput(active: Line, expression: Expression) {
+    suspend fun saveInput(active: Line, expression: Expression) = writes.withLock {
         store.edit { p ->
             p[ACTIVE] = active.name
             p[EXPRESSION] = expression.serialize()
@@ -225,9 +239,10 @@ class WalletRepository(
     }
 
     /** Всё сразу — когда приложение уходит с экрана. */
-    suspend fun saveSession(wallet: Wallet, active: Line, expression: Expression) {
+    suspend fun saveSession(wallet: Wallet, active: Line, expression: Expression) = writes.withLock {
+        val encoded = encodeWallet(wallet)
         store.edit { p ->
-            p[WALLET] = WalletCodec.encode(wallet)
+            p[WALLET] = encoded
             p[ACTIVE] = active.name
             p[EXPRESSION] = expression.serialize()
         }
@@ -275,8 +290,9 @@ class WalletRepository(
     }
 
     suspend fun saveOfficial(rates: OfficialRates, fetchedAt: Long, source: String) {
+        val encoded = withContext(decodeDispatcher) { WalletCodec.encodeRates(rates) }
         ratesStore.edit { p ->
-            p[OFFICIAL] = WalletCodec.encodeRates(rates)
+            p[OFFICIAL] = encoded
             p[OFFICIAL_AT] = fetchedAt
             p[OFFICIAL_SOURCE] = source
         }

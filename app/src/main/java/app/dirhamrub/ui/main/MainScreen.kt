@@ -1,6 +1,8 @@
 package app.dirhamrub.ui.main
 
 import app.dirhamrub.diag.RecompositionProbe
+import kotlinx.coroutines.flow.StateFlow
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.StrokeCap
@@ -141,7 +143,7 @@ fun placeOf(spend: Currency, chosen: String?, networkIso: String?): Pair<String,
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MainScreen(
-    state: MainUiState,
+    states: StateFlow<MainUiState>,
     place: Pair<String, String>,
     countryOffer: CountryOffer?,
     tileOffer: Boolean,
@@ -165,6 +167,7 @@ fun MainScreen(
     /** Центр клавиши камеры на экране — из неё раскрывается камера. */
     onCameraPlaced: (Offset) -> Unit = {},
 ) {
+    val state by states.collectAsStateWithLifecycle()
     val colors = AppTheme.colors
     val wallet = state.wallet
     val quote = state.quote

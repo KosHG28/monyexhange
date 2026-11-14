@@ -145,8 +145,13 @@ data class BankCard(
     fun canPay(spend: Currency): Boolean = kind != CardKind.CASH || currency == spend
 
     /** Последний чек покупки в валюте трат [spend]. */
-    fun purchaseFor(spend: Currency): PurchaseReceipt? =
-        purchases.filter { it.spend == spend && it.isValid }.maxByOrNull { it.date }
+    fun purchaseFor(spend: Currency): PurchaseReceipt? {
+        var latest: PurchaseReceipt? = null
+        for (purchase in purchases) {
+            if (purchase.spend == spend && purchase.isValid && (latest == null || purchase.date.isAfter(latest.date))) latest = purchase
+        }
+        return latest
+    }
 
     fun manualFor(spend: Currency, home: Currency): ManualRate? =
         manual.firstOrNull { it.spend == spend && it.home == home && it.homePerUnit.signum() > 0 }

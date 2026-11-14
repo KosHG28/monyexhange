@@ -239,7 +239,10 @@ fun CardEditorScreen(
         }
     }
     // Pro: сохранённые скриншоты чеков этой карты (новые первыми).
-    var shots by remember(card.id) { mutableStateOf(if (pro) ReceiptShots.list(context, card.id) else emptyList()) }
+    var shots by remember(card.id) { mutableStateOf<List<app.dirhamrub.data.ReceiptFile>>(emptyList()) }
+    LaunchedEffect(card.id, pro) {
+        shots = if (pro) ReceiptShots.entries(context.applicationContext, card.id) else emptyList()
+    }
     val pickScreenshot = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scan = ScanResult.Reading
@@ -270,7 +273,8 @@ fun CardEditorScreen(
                     is ScannedReceipt.Purchase -> ReceiptShots.purchaseKind(receipt.spend.code)
                     is ScannedReceipt.Transfer -> ReceiptShots.TRANSFER_KIND
                 }
-                if (ReceiptShots.save(context.applicationContext, uri, card.id, kind) != null) shots = ReceiptShots.list(context, card.id)
+                if (ReceiptShots.save(context.applicationContext, uri, card.id, kind) != null) shots =
+                    ReceiptShots.entries(context.applicationContext, card.id)
             }
         }
     }

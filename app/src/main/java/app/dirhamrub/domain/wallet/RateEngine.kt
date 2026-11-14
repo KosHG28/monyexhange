@@ -73,15 +73,18 @@ data class WalletQuote(
     /** [official] — не курс ЦБ, а справочный курс UnionPay (у ЦБ этой валюты нет). */
     val viaUnionPay: Boolean = false,
 ) {
-    val best: CardQuote? get() = quotes.minByOrNull { it.homePerUnit }
+    val best: CardQuote? by lazy(LazyThreadSafetyMode.PUBLICATION) { quotes.minByOrNull { it.homePerUnit } }
 
     fun of(id: String?): CardQuote? = quotes.firstOrNull { it.card.id == id }
 
     /** Выбранная карта против самой дешёвой из остальных; null, если карта одна или не выбрана. */
     fun compare(selectedId: String?): CardComparison? {
         val selected = of(selectedId) ?: return null
-        val other = quotes.filter { it.card.id != selected.card.id }.minByOrNull { it.homePerUnit } ?: return null
-        return CardComparison(selected, other)
+        var other: CardQuote? = null
+        for (quote in quotes) {
+            if (quote.card.id != selected.card.id && (other == null || quote.homePerUnit < other.homePerUnit)) other = quote
+        }
+        return other?.let { CardComparison(selected, it) }
     }
 
     /** Экономия лучшей карты против следующей по цене, в процентах; null, если карта одна. */

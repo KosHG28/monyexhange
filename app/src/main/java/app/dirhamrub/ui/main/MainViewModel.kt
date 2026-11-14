@@ -6,6 +6,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import app.dirhamrub.data.NetworkRateSources
+import app.dirhamrub.data.RateSources
+import app.dirhamrub.data.recoverable
 import app.dirhamrub.data.CbrClient
 import app.dirhamrub.data.GuideClient
 import app.dirhamrub.data.NetworkState
@@ -33,6 +36,7 @@ import app.dirhamrub.domain.wallet.CountryGuideParser
 import app.dirhamrub.domain.wallet.CountryGuides
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.OfficialRates
+import app.dirhamrub.domain.wallet.QuoteCache
 import app.dirhamrub.domain.wallet.RateEngine
 import app.dirhamrub.domain.wallet.ReceiptAge
 import app.dirhamrub.domain.wallet.StaleReceipt
@@ -45,10 +49,13 @@ import java.util.UUID
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -97,12 +104,13 @@ data class MainUiState(
     val unionPayFetchedAt: Long = 0L,
     /** Справочник «Чем платить в стране»: встроенный или скачанный, что свежее. */
     val guides: CountryGuides? = null,
+    val pricing: QuoteCache = QuoteCache(),
 ) {
     /** Курсы UnionPay, если они включены в настройках. */
     val activeUnionPay: UnionPayRates? get() = unionPay.takeIf { settings.unionPay }
 
     /** Справочные курсы: ЦБ, а валюты без ЦБ — по UnionPay к доллару и ЦБ доллара (они в [OfficialRates.derived]). */
-    val reference: OfficialRates? by lazy { QuoteCache.reference(official, activeUnionPay) }
+    val reference: OfficialRates? by lazy { pricing.reference(official, activeUnionPay) }
 
     /** Устаревший чек выбранной карты: давно, а ЦБ с тех пор заметно сдвинулся. */
     val staleReceipt: StaleReceipt?
@@ -111,7 +119,7 @@ data class MainUiState(
     /** Изменение курса ЦБ валюты трат к итоговой за неделю, в процентах. */
     val weekTrend: BigDecimal? get() = official?.trendPercent(officialWeekAgo, wallet.spend, wallet.home)
 
-    val quote: WalletQuote by lazy { QuoteCache.quote(wallet, reference, activeUnionPay) }
+    val quote: WalletQuote by lazy { pricing.quote(wallet, reference, activeUnionPay) }
     /** Чем считаем: выбранный вручную способ, а без ручного выбора — самый выгодный ([Wallet.pick]). */
     val selectedCard: BankCard? get() = wallet.pick(quote.best?.card?.id)
     val selectedQuote: CardQuote? get() = quote.of(selectedCard?.id)
@@ -149,30 +157,6 @@ data class MainUiState(
         }
 }
 
-/**
- * Последний расчёт справочных курсов и курсов карт. Они зависят только от кошелька и курсов, а состояние
- * пересоздаётся на каждое нажатие клавиши — без памяти ~150 валют и все карты считались бы заново на каждую цифру.
- * Сравнение — по ссылке (те же объекты), записи неизменяемые: гонка потоков даёт лишний расчёт, а не ошибку.
- */
-private object QuoteCache {
-    private class Ref(val official: OfficialRates?, val unionPay: UnionPayRates?, val result: OfficialRates?)
-    private class Quote(val wallet: Wallet, val reference: OfficialRates?, val unionPay: UnionPayRates?, val result: WalletQuote)
-
-    @Volatile private var ref: Ref? = null
-
-    @Volatile private var quote: Quote? = null
-
-    fun reference(official: OfficialRates?, unionPay: UnionPayRates?): OfficialRates? {
-        ref?.let { if (it.official === official && it.unionPay === unionPay) return it.result }
-        return official?.withUnionPay(unionPay).also { ref = Ref(official, unionPay, it) }
-    }
-
-    fun quote(wallet: Wallet, reference: OfficialRates?, unionPay: UnionPayRates?): WalletQuote {
-        quote?.let { if (it.wallet === wallet && it.reference === reference && it.unionPay === unionPay) return it.result }
-        return RateEngine.quoteAll(wallet, reference, unionPay).also { quote = Quote(wallet, reference, unionPay, it) }
-    }
-}
-
 class MainViewModel(
     private val repository: WalletRepository,
     /** Встроенный справочник стран (`assets/countries.txt`). */
@@ -180,9 +164,15 @@ class MainViewModel(
     /** Сеть сейчас безлимитная (Wi-Fi, Ethernet) — для «только по Wi-Fi». */
     private val unmetered: () -> Boolean = { true },
     private val guideDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val calculationDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val sources: RateSources = NetworkRateSources,
 ) : ViewModel() {
     private val _state = MutableStateFlow(MainUiState())
     val state: StateFlow<MainUiState> = _state.asStateFlow()
+    val navigation = _state.distinctUntilChanged(::sameNavigationState)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, _state.value)
+    val settings = _state.map { it.settings }.distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, _state.value.settings)
     private var unionPayLoading = false
     private var localGuideJob: Job? = null
 
@@ -224,7 +214,7 @@ class MainViewModel(
                 }
             }
             // Справочник не задерживает готовый калькулятор; завершение меняет только guides.
-            localGuideJob = launch {
+            localGuideJob = viewModelScope.launch {
                 val guides = loadGuides(stored.guideText)
                 _state.update { it.withLoadedGuides(guides) }
             }
@@ -236,10 +226,13 @@ class MainViewModel(
 
     /** Приложение ушло с экрана: дописываем то, что ждало своей задержки (последние нажатия). */
     fun flush() {
-        val s = _state.value
-        if (!s.loaded) return
-        // Запись не отменяется, даже если экран закрывают в этот момент.
-        viewModelScope.launch { withContext(NonCancellable) { repository.saveSession(s.wallet, s.active, s.expression) } }
+        // Capture after dispatch: a queued pause must not persist an older expression over newer input.
+        viewModelScope.launch {
+            withContext(NonCancellable) {
+                val latest = _state.value
+                if (latest.loaded) repository.saveSession(latest.wallet, latest.active, latest.expression)
+            }
+        }
     }
 
     fun press(key: Key) = _state.update { it.copy(expression = it.expression.press(key)) }
@@ -324,6 +317,17 @@ class MainViewModel(
     /** Кнопка «Обновить» (строка ЦБ, настройки): курсы ЦБ и UnionPay скачиваются всегда. */
     fun refreshRates() = refresh(Trigger.BUTTON)
 
+    /** Prepare expensive rates off-main; CAS retries against fresh input instead of replacing it. */
+    private suspend fun publishMarket(change: (MainUiState) -> MainUiState) {
+        while (true) {
+            val before = _state.value
+            val prepared = withContext(calculationDispatcher) {
+                change(before).also { it.quote }
+            }
+            if (_state.compareAndSet(before, prepared)) return
+        }
+    }
+
     /** Вернулись в приложение: курсы старше 6 часов — скачиваем, если так в настройках. */
     fun onResume() {
         if (_state.value.loaded) refresh(Trigger.RESUME)
@@ -349,26 +353,31 @@ class MainViewModel(
         _state.update { it.copy(ratesLoading = true, ratesFailed = false) }
         refreshGuide()
         viewModelScope.launch {
-            val fetched = CbrClient.fetch()
-            val at = System.currentTimeMillis()
-            if (fetched != null) repository.saveOfficial(fetched.rates, at, fetched.source)
-            _state.update {
-                it.copy(
-                    official = fetched?.rates ?: it.official,
-                    officialFetchedAt = if (fetched != null) at else it.officialFetchedAt,
-                    officialSource = fetched?.source ?: it.officialSource,
-                    ratesLoading = false,
-                    ratesFailed = fetched == null,
-                )
-            }
-            refreshWeekAgo(allow)
-            refreshReceiptRates(allow)
+            try {
+                val fetched = sources.official()
+                val at = System.currentTimeMillis()
+                if (fetched != null) repository.saveOfficial(fetched.rates, at, fetched.source)
+                publishMarket {
+                    it.copy(
+                        official = fetched?.rates ?: it.official,
+                        officialFetchedAt = if (fetched != null) at else it.officialFetchedAt,
+                        officialSource = fetched?.source ?: it.officialSource,
+                        ratesLoading = false,
+                        ratesFailed = fetched == null,
+                    )
+                }
+                refreshWeekAgo(allow)
+                refreshReceiptRates(allow)
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (_: Exception) {
+                _state.update { it.copy(ratesFailed = true) }
+            } finally { _state.update { it.copy(ratesLoading = false) } }
         }
     }
 
     /** Встроенный справочник и сохранённый скачанный — что свежее (разбор — не на главном потоке). */
     private suspend fun loadGuides(saved: String?): CountryGuides? = withContext(guideDispatcher) {
-        val bundled = runCatching { bundledGuide() }.getOrNull()?.let(CountryGuideParser::parse)
+        val bundled = recoverable { bundledGuide() }?.let(CountryGuideParser::parse)
         val downloaded = saved?.let(CountryGuideParser::parse)
         bundled?.newer(downloaded) ?: downloaded
     }
@@ -380,16 +389,19 @@ class MainViewModel(
         if (guideLoading) return
         guideLoading = true
         viewModelScope.launch {
-            val fetched = GuideClient.fetch()
-            // Дожидается только обновление справочника: иначе старый сетевой ответ может
-            // затереть свежую сохранённую копию до окончания её фонового разбора.
-            localGuideJob?.join()
-            val have = _state.value.guides
-            if (fetched != null && (have == null || fetched.second.version.isAfter(have.version))) {
-                repository.saveGuide(fetched.first)
-                _state.update { it.withLoadedGuides(fetched.second) }
-            }
-            guideLoading = false
+            try {
+                val fetched = sources.guide()
+                // Дожидается только обновление справочника: иначе старый сетевой ответ может
+                // затереть свежую сохранённую копию до окончания её фонового разбора.
+                localGuideJob?.join()
+                val have = _state.value.guides
+                if (fetched != null && (have == null || fetched.second.version.isAfter(have.version))) {
+                    repository.saveGuide(fetched.first)
+                    _state.update { it.withLoadedGuides(fetched.second) }
+                }
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (_: Exception) { /* Keep the validated local guide. */
+            } finally { guideLoading = false }
         }
     }
 
@@ -398,13 +410,16 @@ class MainViewModel(
         if (unionPayLoading) return
         unionPayLoading = true
         viewModelScope.launch {
-            val rates = UnionPayClient.fetch()
-            if (rates != null) {
-                val at = System.currentTimeMillis()
-                repository.saveUnionPay(rates, at)
-                _state.update { it.copy(unionPay = rates, unionPayFetchedAt = at) }
-            }
-            unionPayLoading = false
+            try {
+                val rates = sources.unionPay()
+                if (rates != null) {
+                    val at = System.currentTimeMillis()
+                    repository.saveUnionPay(rates, at)
+                    publishMarket { it.copy(unionPay = rates, unionPayFetchedAt = at) }
+                }
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (_: Exception) { /* Keep previous rates; a later refresh can retry. */
+            } finally { unionPayLoading = false }
         }
     }
 
@@ -470,12 +485,15 @@ class MainViewModel(
         if (missing.isEmpty()) return
         historyLoading += missing
         viewModelScope.launch {
-            for (day in missing) {
-                val rates = CbrClient.fetchOn(day) ?: continue
-                _state.update { st -> st.copy(ratesHistory = (st.ratesHistory + (day to rates)).entries.sortedByDescending { it.key }.take(HISTORY_MAX).associate { it.key to it.value }) }
-            }
-            historyLoading -= missing.toSet()
-            repository.saveRatesHistory(_state.value.ratesHistory)
+            try {
+                for (day in missing) {
+                    val rates = sources.onDate(day) ?: continue
+                    _state.update { st -> st.copy(ratesHistory = (st.ratesHistory + (day to rates)).entries.sortedByDescending { it.key }.take(HISTORY_MAX).associate { it.key to it.value }) }
+                }
+                repository.saveRatesHistory(_state.value.ratesHistory)
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (_: Exception) { /* Retry still-missing dates on the next refresh. */
+            } finally { historyLoading.removeAll(missing) }
         }
     }
 
@@ -492,12 +510,18 @@ class MainViewModel(
         if (weekLoading || fits) return
         weekLoading = true
         viewModelScope.launch {
-            val rates = CbrClient.fetchOn(target)
-            if (rates != null) {
-                repository.saveOfficialWeekAgo(rates)
-                _state.update { it.copy(officialWeekAgo = rates) }
+            try {
+                val rates = sources.onDate(target)
+                if (rates != null && _state.value.official?.date?.minusDays(WEEK_DAYS) == target) {
+                    repository.saveOfficialWeekAgo(rates)
+                    _state.update { if (it.official?.date?.minusDays(WEEK_DAYS) == target) it.copy(officialWeekAgo = rates) else it }
+                }
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (_: Exception) { /* Keep the previous reference. */
+            } finally {
+                weekLoading = false
+                if (_state.value.official?.date?.minusDays(WEEK_DAYS) != target) refreshWeekAgo(allow)
             }
-            weekLoading = false
         }
     }
 

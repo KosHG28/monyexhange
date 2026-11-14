@@ -12,7 +12,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.Velocity
 import app.dirhamrub.ui.theme.Haptic
 import app.dirhamrub.ui.theme.rememberHaptics
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
@@ -37,23 +37,27 @@ fun Modifier.fadingEdges(state: ScrollableState, edge: Dp = 24.dp): Modifier = t
             CompositingStrategy.Auto
         }
     }
-    .drawWithContent {
-        drawContent()
+    .drawWithCache {
         val h = edge.toPx().coerceAtMost(size.height / 3f)
+        val top = Brush.verticalGradient(listOf(Color.Transparent, Color.Black), startY = 0f, endY = h)
+        val bottom = Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = size.height - h, endY = size.height)
+        onDrawWithContent {
+        drawContent()
         if (state.canScrollBackward) {
             drawRect(
-                brush = Brush.verticalGradient(listOf(Color.Transparent, Color.Black), startY = 0f, endY = h),
+                brush = top,
                 size = Size(size.width, h),
                 blendMode = BlendMode.DstIn,
             )
         }
         if (state.canScrollForward) {
             drawRect(
-                brush = Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = size.height - h, endY = size.height),
+                brush = bottom,
                 topLeft = Offset(0f, size.height - h),
                 size = Size(size.width, h),
                 blendMode = BlendMode.DstIn,
             )
+        }
         }
     }
 

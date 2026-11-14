@@ -49,6 +49,10 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -134,7 +138,9 @@ fun DirhamApp(
     startCurrency: String? = null,
     vm: MainViewModel = viewModel(factory = MainViewModel.Factory),
 ) {
-    val state by vm.state.collectAsStateWithLifecycle()
+    val state by vm.navigation.collectAsStateWithLifecycle()
+    app.dirhamrub.diag.RecompositionProbe("Navigation")
+    val ioScope = rememberCoroutineScope()
     val cardFlight = LocalCardFlight.current
     var completionCardId by remember { mutableStateOf<String?>(null) }
     val reduceWelcome = LocalReduceMotion.current
@@ -278,7 +284,7 @@ fun DirhamApp(
         placeOf(state.wallet.spend, state.wallet.place, country)
     }
     MainScreen(
-        state = state,
+        states = vm.state,
         place = place,
         countryOffer = offer,
         tileOffer = tileOffer,
@@ -441,6 +447,7 @@ fun DirhamApp(
     }
     editing?.let { e ->
       key(e) {
+        val editorState by vm.state.collectAsStateWithLifecycle()
         CardEditorScreen(
             card = e.card,
             isNew = e.isNew,
@@ -456,7 +463,7 @@ fun DirhamApp(
             },
             onDelete = {
                 vm.deleteCard(e.card.id)
-                ReceiptShots.deleteCard(context, e.card.id)
+                ioScope.launch(Dispatchers.IO) { ReceiptShots.deleteCard(context.applicationContext, e.card.id) }
                 editing = null
                 cardFlight.flying = null
             },
@@ -465,7 +472,7 @@ fun DirhamApp(
                 cardFlight.flying = null
             },
             addPurchaseFor = e.addPurchase,
-            amount = state.totals.spend,
+            amount = editorState.totals.spend,
             rounding = state.settings.rounding,
             morph = e.morph,
             pro = state.settings.pro,
@@ -494,7 +501,12 @@ fun DirhamApp(
             delay(WIDGET_REFRESH_DELAY_MS)
             QuoteWidget.refresh(context)
         }
-        LaunchedEffect(Unit) { ReceiptShots.cleanup(context, state.wallet.cards.map { it.id }.toSet()) }
+        LaunchedEffect(Unit) {
+            val cutoff = System.currentTimeMillis()
+            withContext(Dispatchers.IO) {
+                ReceiptShots.cleanup(context.applicationContext, vm.state.value.wallet.cards.map { it.id }.toSet(), cutoff)
+            }
+        }
     }
     }
     }

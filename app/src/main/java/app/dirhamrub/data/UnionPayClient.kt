@@ -17,7 +17,6 @@ import java.time.format.DateTimeFormatter
  */
 object UnionPayClient {
     private const val URL_FORMAT = "https://m.unionpayintl.com/jfimg/%s.json"
-    private const val TIMEOUT_MS = 10_000
     private const val DAYS_BACK = 6L
     private val BEIJING = ZoneId.of("Asia/Shanghai")
 
@@ -29,10 +28,10 @@ object UnionPayClient {
         val today = LocalDate.now(BEIJING)
         for (back in 0L..DAYS_BACK) {
             val day = today.minusDays(back).format(DateTimeFormatter.BASIC_ISO_DATE)
-            val (code, body) = get(URL_FORMAT.format(day)) ?: return@withContext null
+            val (code, body) = readHttp(URL_FORMAT.format(day)) ?: return@withContext null
             when (code) {
                 // Файл не официальный: что бы в нём ни пришло, разбор не должен ронять приложение.
-                HttpURLConnection.HTTP_OK -> return@withContext runCatching { UnionPayParser.parse(String(body, Charsets.UTF_8)) }.getOrNull()
+                HttpURLConnection.HTTP_OK -> return@withContext recoverable { UnionPayParser.parse(String(body, Charsets.UTF_8)) }
                 HttpURLConnection.HTTP_NOT_FOUND -> continue
                 else -> return@withContext null
             }
@@ -40,16 +39,4 @@ object UnionPayClient {
         null
     }
 
-    private fun get(url: String): Pair<Int, ByteArray>? = runCatching {
-        val connection = URL(url).openConnection() as HttpURLConnection
-        try {
-            connection.connectTimeout = TIMEOUT_MS
-            connection.readTimeout = TIMEOUT_MS
-            connection.setRequestProperty("User-Agent", "KursPoCheku/1.0 (Android)")
-            val code = connection.responseCode
-            code to (if (code == HttpURLConnection.HTTP_OK) connection.inputStream.use { it.readBytes() } else ByteArray(0))
-        } finally {
-            connection.disconnect()
-        }
-    }.getOrNull()
 }

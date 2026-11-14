@@ -6,9 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -54,16 +52,17 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+        if (BuildConfig.DEBUG && intent?.getBooleanExtra("receiptDemo", false) == true && Demo.allowed(this)) {
+            runBlocking {
+                app.dirhamrub.diag.seedReceiptFixture(applicationContext)
+                WalletRepository(settingsDataStore, unionPayDataStore, ratesDataStore)
+                    .saveSettings(app.dirhamrub.domain.AppSettings(pro = true))
+            }
+        }
         setContent {
             val vm: MainViewModel = viewModel(factory = MainViewModel.Factory)
-            val state = vm.state.collectAsStateWithLifecycle()
-            // Тема и анимации — из настроек; корень перерисовывается только при их смене.
-            val theme by remember { derivedStateOf { state.value.settings.theme } }
-            val motion by remember { derivedStateOf { state.value.settings.motion } }
-            val keyHaptics by remember { derivedStateOf { state.value.settings.keyHaptics } }
-            val pureBlack by remember { derivedStateOf { state.value.settings.pureBlack } }
-            val dynamicColor by remember { derivedStateOf { state.value.settings.let { it.pro && it.dynamicColor } } }
-            DirhamTheme(theme = theme, motion = motion, keyHaptics = keyHaptics, pureBlack = pureBlack, dynamicColor = dynamicColor) {
+            val settings by vm.settings.collectAsStateWithLifecycle()
+            DirhamTheme(theme = settings.theme, motion = settings.motion, keyHaptics = settings.keyHaptics, pureBlack = settings.pureBlack, dynamicColor = settings.pro && settings.dynamicColor) {
                 AdaptiveFrameRate {
                 // Наклон телефона — для блика на картах (флагманы, Android 13+).
                 ProvideTilt {
@@ -79,6 +78,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (BuildConfig.DEBUG) app.dirhamrub.diag.LifetimeAudit.report()
     }
 
     companion object {

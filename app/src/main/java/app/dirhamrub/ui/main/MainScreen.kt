@@ -1,5 +1,7 @@
 package app.dirhamrub.ui.main
 
+import app.dirhamrub.diag.RecompositionProbe
+
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Path
@@ -173,7 +175,7 @@ fun MainScreen(
             .background(colors.bg)
             .windowInsetsPadding(WindowInsets.systemBarsIgnoringVisibility.union(WindowInsets.displayCutout)),
     ) {
-        Header(place, onOpenCountries, onOpenPlace, onOpenSettings)
+        Header(place.first, place.second, onOpenCountries, onOpenPlace, onOpenSettings)
         // Итог и поле цены всегда на месте; прокручивается только то, что ниже (карточки, курс ЦБ),
         // с мягким затуханием у краёв. Клавиатура тоже всегда на месте.
         Column(Modifier.padding(horizontal = 16.dp)) {
@@ -211,7 +213,9 @@ fun MainScreen(
             } else {
                 PayList(state, cards, onSelectCard, onEditCard)
             }
-            CbrLine(state, onRefreshRates)
+            CbrLine(quote.official, quote.viaUnionPay, wallet.spend, wallet.home,
+                state.ratesLoading, state.officialFetchedAt, LocalDate.now().toEpochDay(),
+                ZoneId.systemDefault().id, onRefreshRates)
             Box(Modifier.tripMainEnter(TripEnter.ADD)) { AddButton(onAddCard) }
             Spacer(Modifier.height(4.dp))
         }
@@ -225,7 +229,8 @@ fun MainScreen(
 
 /** «🇦🇲 Армения ⌄» (сменить страну), рядом ⓘ (всё о стране), справа — настройки. У каждой кнопки одно действие. */
 @Composable
-private fun Header(place: Pair<String, String>, onCountries: () -> Unit, onPlace: () -> Unit, onSettings: () -> Unit) {
+private fun Header(flag: String, name: String, onCountries: () -> Unit, onPlace: () -> Unit, onSettings: () -> Unit) {
+    RecompositionProbe("Header")
     val colors = AppTheme.colors
     Row(
         Modifier
@@ -234,7 +239,7 @@ private fun Header(place: Pair<String, String>, onCountries: () -> Unit, onPlace
             .padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val placeA11y = stringResource(R.string.place_a11y, place.second)
+        val placeA11y = stringResource(R.string.place_a11y, name)
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Row(
                 Modifier
@@ -254,10 +259,10 @@ private fun Header(place: Pair<String, String>, onCountries: () -> Unit, onPlace
                     Modifier.padding(start = 6.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(place.first, fontSize = 17.sp)
+                    Text(flag, fontSize = 17.sp)
                     Spacer(Modifier.width(7.dp))
                     Text(
-                        place.second,
+                        name,
                         style = AppTheme.type.bodyStrong.copy(fontWeight = FontWeight.Medium),
                         color = colors.ink,
                         maxLines = 1,
@@ -268,7 +273,7 @@ private fun Header(place: Pair<String, String>, onCountries: () -> Unit, onPlace
                     Icon(painterResource(R.drawable.ic_chevron_down), contentDescription = null, tint = colors.muted, modifier = Modifier.size(16.dp))
                 }
             }
-            val tools = stringResource(R.string.place_tools_a11y, place.second)
+            val tools = stringResource(R.string.place_tools_a11y, name)
             Box(
                 Modifier
                     .size(48.dp)
@@ -415,6 +420,7 @@ private fun FitSize(text: AnnotatedString, style: TextStyle, maxSp: Float, minSp
  */
 @Composable
 private fun PriceField(state: MainUiState) {
+    RecompositionProbe("PriceField")
     val colors = AppTheme.colors
     val type = AppTheme.type
     val homeInput = state.active == Line.HOME
@@ -681,6 +687,7 @@ private fun SelectedMark(color: androidx.compose.ui.graphics.Color, progress: Fl
  */
 @Composable
 internal fun PayIcon(card: BankCard, best: Boolean, flight: Boolean = false) {
+    RecompositionProbe("PayIcon")
     val colors = AppTheme.colors
     val shared = flight && card.id == LocalTripSharedTransition.current?.primaryCardId
     val sharedModifier = if (shared) Modifier.tripSharedBounds(TRIP_CARD) else Modifier
@@ -747,17 +754,18 @@ private fun join(a: String?, b: String?): String? = listOfNotNull(a?.takeIf { it
 
 /** «Курс ЦБ: 100 AMD = 22,00 ₽ · сегодня 09:40» — мелко серым под списком; касание — обновить курсы. */
 @Composable
-private fun CbrLine(state: MainUiState, onRefresh: () -> Unit) {
+private fun CbrLine(rate: BigDecimal?, viaUnionPay: Boolean, spend: Currency, home: Currency,
+    loading: Boolean, fetchedAtMillis: Long, todayEpochDay: Long, zone: String, onRefresh: () -> Unit) {
+    RecompositionProbe("CbrLine")
     val colors = AppTheme.colors
-    val rate = state.quote.official
     val text = when {
-        state.ratesLoading -> stringResource(R.string.cbr_loading)
+        loading -> stringResource(R.string.cbr_loading)
         rate == null -> stringResource(R.string.cbr_none)
         else -> {
-            val (unit, value) = rateSides(rate, state.wallet.spend, state.wallet.home)
-            val label = stringResource(if (state.quote.viaUnionPay) R.string.cbr_label_unionpay else R.string.cbr_label)
+            val (unit, value) = rateSides(rate, spend, home)
+            val label = stringResource(if (viaUnionPay) R.string.cbr_label_unionpay else R.string.cbr_label)
             val pair = "$unit = $value"
-            val time = fetchedAt(state.officialFetchedAt)
+            val time = fetchedAt(fetchedAtMillis, todayEpochDay, zone)
             if (time == null) stringResource(R.string.cbr_line, label, pair) else stringResource(R.string.cbr_line_time, label, pair, time)
         }
     }
@@ -782,11 +790,11 @@ private fun CbrLine(state: MainUiState, onRefresh: () -> Unit) {
 
 /** «сегодня 09:40», «вчера 18:02», «3 ноя»; ещё не скачивали — null. */
 @Composable
-private fun fetchedAt(at: Long): String? {
+private fun fetchedAt(at: Long, todayEpochDay: Long, zone: String): String? {
     if (at <= 0L) return null
-    val t = Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault())
+    val t = Instant.ofEpochMilli(at).atZone(ZoneId.of(zone))
     val time = "%02d:%02d".format(t.hour, t.minute)
-    val today = LocalDate.now()
+    val today = LocalDate.ofEpochDay(todayEpochDay)
     return when (val day = t.toLocalDate()) {
         today -> stringResource(R.string.cbr_today, time)
         today.minusDays(1) -> stringResource(R.string.cbr_yesterday, time)

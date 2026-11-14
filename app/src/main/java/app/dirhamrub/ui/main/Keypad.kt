@@ -1,5 +1,7 @@
 package app.dirhamrub.ui.main
 
+import app.dirhamrub.diag.RecompositionProbe
+
 import app.dirhamrub.ui.components.TripEnter
 import app.dirhamrub.ui.components.tripMainEnter
 
@@ -87,6 +89,7 @@ fun Keypad(
     /** Где на экране клавиша камеры (центр, в координатах окна): из неё раскрывается камера. */
     onCameraPlaced: (Offset) -> Unit = {},
 ) {
+    RecompositionProbe("Keypad")
     val colors = AppTheme.colors
     val h = keyHeight()
     BoxWithConstraints(modifier.fillMaxWidth()) {

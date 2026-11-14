@@ -1,6 +1,7 @@
 package app.dirhamrub.ui.cards
 
-import android.graphics.BitmapFactory
+import android.graphics.Bitmap
+import app.dirhamrub.data.ReceiptImages
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -59,6 +61,7 @@ internal fun ReceiptShotRow(shots: List<File>) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         for (f in shots.take(MAX_THUMBS)) {
+            key(f.path) {
             val thumb by rememberShot(f, THUMB_PX)
             Box(
                 Modifier
@@ -68,6 +71,7 @@ internal fun ReceiptShotRow(shots: List<File>) {
                     .clickable(role = Role.Image, onClickLabel = stringResource(R.string.shot_a11y)) { open = f },
             ) {
                 thumb?.let { Image(it, contentDescription = stringResource(R.string.shot_a11y), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+            }
             }
         }
         Spacer(Modifier.width(2.dp))
@@ -106,15 +110,18 @@ private fun ShotViewer(file: File, onClose: () -> Unit) {
 
 /** Картинка из файла, уменьшенная до [maxPx] по длинной стороне, — читается в фоне. */
 @Composable
-private fun rememberShot(file: File, maxPx: Int) = produceState<ImageBitmap?>(null, file, file.lastModified()) {
-    value = withContext(Dispatchers.IO) {
-        runCatching {
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeFile(file.path, bounds)
-            var sample = 1
-            while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxPx) sample *= 2
-            BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })?.asImageBitmap()
-        }.getOrNull()
+private fun rememberShot(file: File, maxPx: Int) = produceState<ImageBitmap?>(null, file, file.lastModified(), maxPx) {
+    value = null
+    var unpublished: Bitmap? = null
+    try {
+        val bitmap = withContext(Dispatchers.IO) {
+            runCatching { ReceiptImages.decode(file, maxPx) }.getOrNull().also { unpublished = it }
+        }
+        value = bitmap?.asImageBitmap()
+        unpublished = null // The renderer now owns it; recycling a displayed bitmap is unsafe.
+        awaitDispose { value = null }
+    } finally {
+        unpublished?.recycle() // Cancellation before publication must not retain native pixel memory.
     }
 }
 

@@ -2,7 +2,6 @@ package app.dirhamrub.data
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -31,17 +30,14 @@ object ReceiptShots {
     /** Уменьшить и сохранить скриншот [uri] к чеку; null — не получилось прочитать картинку. */
     suspend fun save(context: Context, uri: Uri, cardId: String, kind: String): File? = withContext(Dispatchers.IO) {
         runCatching {
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-            var sample = 1
-            while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= MAX_SIDE) sample *= 2
-            val bitmap = context.contentResolver.openInputStream(uri)?.use {
-                BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
-            } ?: return@runCatching null
-            val out = file(context, cardId, kind)
-            out.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 82, it) }
-            bitmap.recycle()
-            out
+            val bitmap = ReceiptImages.decode(context, uri, MAX_SIDE) ?: return@runCatching null
+            try {
+                val out = file(context, cardId, kind)
+                out.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.JPEG, 82, it)) }
+                out
+            } finally {
+                bitmap.recycle()
+            }
         }.getOrNull()
     }
 

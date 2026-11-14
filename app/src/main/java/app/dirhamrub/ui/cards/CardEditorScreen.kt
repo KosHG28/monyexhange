@@ -244,7 +244,7 @@ fun CardEditorScreen(
         if (uri == null) return@rememberLauncherForActivityResult
         scan = ScanResult.Reading
         scope.launch {
-            val lines = readScreenshotLines(context, uri)
+            val lines = readScreenshotLines(context.applicationContext, uri)
             val receipt = lines?.let { ReceiptScanner.guess(it, currency, spend, home) }
             when (receipt) {
                 is ScannedReceipt.Purchase -> {
@@ -270,7 +270,7 @@ fun CardEditorScreen(
                     is ScannedReceipt.Purchase -> ReceiptShots.purchaseKind(receipt.spend.code)
                     is ScannedReceipt.Transfer -> ReceiptShots.TRANSFER_KIND
                 }
-                if (ReceiptShots.save(context, uri, card.id, kind) != null) shots = ReceiptShots.list(context, card.id)
+                if (ReceiptShots.save(context.applicationContext, uri, card.id, kind) != null) shots = ReceiptShots.list(context, card.id)
             }
         }
     }

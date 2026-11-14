@@ -215,7 +215,11 @@ fun DirhamApp(
                 (if (reduceWelcome || initialState && !targetState) ExitTransition.None else fadeOut(tween(130))) using SizeTransform(clip = false)
         },
     ) { onboarding ->
-    CompositionLocalProvider(LocalTripSharedTransition provides TripSharedTransition(sharedScope, this, completionCardId)) {
+    val visibilityScope = this
+    val tripShared = remember(sharedScope, visibilityScope, completionCardId) {
+        TripSharedTransition(sharedScope, visibilityScope, completionCardId)
+    }
+    CompositionLocalProvider(LocalTripSharedTransition provides tripShared) {
     if (onboarding) {
         fun finish(card: BankCard? = null, amount: java.math.BigDecimal? = null) {
             onboardingForced = false
@@ -264,9 +268,15 @@ fun DirhamApp(
     // Плитка «Ценник» в шторке: предлагаем один раз, после первого знакомства с камерой (Android 13+).
     val tileOffer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && state.cameraUsed && !state.tileOffered
     // Справочник — той страны, что в шапке (выбранная, страна сети или главная страна валюты): у евро их много.
-    val placeIso = Countries.placeFor(state.wallet.spend, state.wallet.place, country)?.iso
-    val guide = placeIso?.let { state.guides?.countries?.get(it) } ?: state.guides?.forSpend(state.wallet.spend, country)
-    val place = placeOf(state.wallet.spend, state.wallet.place, country)
+    val placeIso = remember(state.wallet.spend, state.wallet.place, country) {
+        Countries.placeFor(state.wallet.spend, state.wallet.place, country)?.iso
+    }
+    val guide = remember(placeIso, state.guides, state.wallet.spend, country) {
+        placeIso?.let { state.guides?.countries?.get(it) } ?: state.guides?.forSpend(state.wallet.spend, country)
+    }
+    val place = remember(state.wallet.spend, state.wallet.place, country) {
+        placeOf(state.wallet.spend, state.wallet.place, country)
+    }
     MainScreen(
         state = state,
         place = place,

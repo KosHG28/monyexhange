@@ -10,6 +10,7 @@ adb shell setprop debug.hwui.swap_with_damage false
 adb logcat -b crash -c
 sleep 5
 python3 tools/ui-startup.py
+python3 tools/ui-recomposition.py
 python3 - <<'PY'
 from pathlib import Path
 import struct,zlib

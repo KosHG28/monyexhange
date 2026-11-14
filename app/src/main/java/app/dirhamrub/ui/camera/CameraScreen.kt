@@ -102,21 +102,14 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.math.BigDecimal
 import java.util.concurrent.Executor
-import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/**
- * Один фоновый поток анализа на всё приложение. Его не останавливаем при уходе с экрана:
- * запоздалый результат ML Kit иначе упал бы в остановленный executor.
- * Обычное статическое поле, а не `object` с `by lazy`: в release-сборке R8 такой объект
- * на первом кадре экрана камеры давал NullPointerException.
- */
-private val analysisExecutor: Executor =
-    Executors.newSingleThreadExecutor { r -> Thread(r, "price-analysis").apply { isDaemon = true } }
+/** Общий executor принимает запоздалые callback ML Kit; простаивающий поток сам освобождается. */
+private val analysisExecutor: Executor = newAnalysisExecutor()
 
 private const val TAG = "DirhamCamera"
 
@@ -330,6 +323,9 @@ private fun CameraContent(
     val previewHolder = remember { arrayOfNulls<PreviewView>(1) }
     var paused by remember { mutableStateOf(false) }
     var frozen by remember { mutableStateOf<ImageBitmap?>(null) }
+    DisposableEffect(camera) {
+        onDispose { frozen = null }
+    }
     LaunchedEffect(paused, analyzer) {
         if (paused) {
             frozen = previewHolder[0]?.bitmap?.asImageBitmap()
@@ -439,6 +435,10 @@ private fun CameraContent(
                 }
             },
             modifier = Modifier.fillMaxSize(),
+            onRelease = { view ->
+                view.controller = null
+                if (previewHolder[0] === view) previewHolder[0] = null
+            },
         )
         frozen?.let { bitmap ->
             Image(bitmap, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())

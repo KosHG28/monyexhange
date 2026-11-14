@@ -9,6 +9,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.dirhamrub.data.WalletRepository
@@ -28,6 +31,13 @@ class MainActivity : ComponentActivity() {
         CrashLog.install(this)
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        if (BuildConfig.DEBUG) app.dirhamrub.diag.RecompositionTrace.configure(
+            intent?.getBooleanExtra("traceRecompositions", false) == true,
+        )
+        if (BuildConfig.DEBUG && intent?.getBooleanExtra("checkImageMemory", false) == true) {
+            val appContext = applicationContext
+            lifecycleScope.launch(Dispatchers.IO) { app.dirhamrub.diag.checkImageMemory(appContext) }
+        }
         // Ярлык «Ценник» на иконке открывает сразу камеру; остальные экраны по extra — для скриншотов CI.
         val screen = intent?.getStringExtra(EXTRA_SCREEN)
         if (intent?.getBooleanExtra(EXTRA_DEMO, false) == true && Demo.allowed(this)) {

@@ -40,6 +40,7 @@ try:
                 '--ez', 'demo', 'true', '--es', 'screen', 'editor', '--es', 'card', card)
             time.sleep(5)
             nodes={}
+            root=ET.Element("unavailable")
             for attempt in range(7):
                 try:
                     root=tree()
@@ -47,11 +48,17 @@ try:
                 except (subprocess.CalledProcessError, ET.ParseError):
                     time.sleep(1)
                     continue
-                if set(nodes)==LABELS and all(len(bounds(n))==4 and bounds(n)[3]-bounds(n)[1]>=22*density/160 for n in nodes.values()):
+                print(case, attempt, {label:bounds(n) for label,n in nodes.items()}, flush=True)
+                # The Text line is 20sp, not the 44dp clickable parent; scale with font size.
+                if set(nodes)==LABELS and all(len(bounds(n))==4 and bounds(n)[3]-bounds(n)[1]>=18*float(font)*density/160 for n in nodes.values()):
                     break
                 adb('shell', 'input', 'swipe', '540', '1700', '540', '1000', '450')
                 time.sleep(1)
-            assert set(nodes)==LABELS, f'Missing payment labels: {LABELS-set(nodes)}'
+            if set(nodes)!=LABELS:
+                (OUT/'network-chips-ui.xml').write_text(ET.tostring(root,encoding='unicode'))
+                with (OUT/'editor-error.png').open('wb') as f:
+                    subprocess.run(['adb','exec-out','screencap','-p'],stdout=f,check=True,timeout=30)
+                raise AssertionError(f'Missing payment labels: {LABELS-set(nodes)}')
             name=f'editor-{case}-'+('dark' if theme=='yes' else 'light')
             with (OUT/(name+'.png')).open('wb') as f:
                 subprocess.run(['adb','exec-out','screencap','-p'],stdout=f,check=True,timeout=30)

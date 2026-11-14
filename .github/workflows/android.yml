@@ -278,7 +278,7 @@ jobs:
           if [ -s screens/crash.txt ]; then
             gh release upload screens screens/crash.txt --clobber
           fi
-          for report in screens/transition-error.txt screens/transition-ui.xml screens/font130-ui.xml screens/network-chips.txt screens/idle-frame-stats.txt screens/scenario.log screens/emulator-health.txt; do
+          for report in screens/transition-error.txt screens/transition-ui.xml screens/font130-ui.xml screens/network-chips.txt screens/network-chips-ui.xml screens/idle-frame-stats.txt screens/scenario.log screens/emulator-health.txt; do
             if [ -s "$report" ]; then
               gh release upload screens "$report" --clobber
             fi

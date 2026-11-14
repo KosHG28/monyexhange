@@ -26,7 +26,7 @@ jobs:
       # No checkout or execution of PR code in the privileged workflow_run context.
       - name: Удалить дубли APK и прежние временные отчёты
         id: cleanup
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const repo = { owner: context.repo.owner, repo: context.repo.repo };

@@ -15,8 +15,16 @@ def adb(*args):
     return subprocess.check_output(['adb', *args], text=True, timeout=30)
 
 def tree():
-    adb('shell', 'uiautomator', 'dump', '/sdcard/startup-ui.xml')
-    return ET.fromstring(adb('exec-out', 'cat', '/sdcard/startup-ui.xml'))
+    # Android may briefly have no accessibility root while a window is attaching.
+    # Never accept a stale dump; ADB/device failures still stop the scenario.
+    for attempt in range(3):
+        adb('shell', 'rm', '-f', '/sdcard/startup-ui.xml')
+        adb('shell', 'uiautomator', 'dump', '/sdcard/startup-ui.xml')
+        present = adb('shell', 'if test -s /sdcard/startup-ui.xml; then echo ready; fi').strip()
+        if present == 'ready':
+            return ET.fromstring(adb('exec-out', 'cat', '/sdcard/startup-ui.xml'))
+        if attempt < 2: time.sleep(0.3)
+    raise AssertionError('Android returned no accessibility root after three attempts')
 
 def wait_for(predicate):
     for _ in range(8):

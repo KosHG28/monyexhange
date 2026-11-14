@@ -206,14 +206,16 @@ internal fun BankCardView(
                     .padding(horizontal = if (compact) 10.dp else 13.dp, vertical = if (compact) 9.dp else 11.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                     Text(
                         text = card.name,
                         style = type.label.copy(fontSize = if (compact) 11.5.sp else 12.5.sp),
                         color = CardPalette.onCard.copy(alpha = 0.92f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f).then(if (tripPreview) Modifier.wrapContentSize(Alignment.CenterStart).tripSharedTitle() else Modifier),
+                        modifier = if (tripPreview) Modifier.tripSharedTitle() else Modifier,
                     )
+                    }
                     // Звезду лучшей карты рисует ряд: при смене лучшей она перелетает к другой карте.
                     if (best != null) Spacer(Modifier.width(STAR_SLOT))
                 }

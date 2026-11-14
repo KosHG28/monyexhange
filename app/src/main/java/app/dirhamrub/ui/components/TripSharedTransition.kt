@@ -105,6 +105,7 @@ internal fun Modifier.tripSharedTitle(): Modifier {
         sharedElement(rememberSharedContentState(TRIP_TITLE), trip.visibility,
             boundsTransform = { _, _ -> tween(TRIP_BOUNDS_DURATION, easing = TripEasing) },
             clipInOverlayDuringTransition = UnclippedTripOverlay, zIndexInOverlay = 5f)
+            .skipToLookaheadSize()
     }
 }
 

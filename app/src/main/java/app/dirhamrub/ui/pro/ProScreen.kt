@@ -352,7 +352,7 @@ private fun IconOption(settings: AppSettings, onChange: (AppIcon) -> Unit, modif
             for (variant in AppIcon.entries) {
                 val selected = settings.appIcon == variant
                 val scale by animateFloatAsState(if (selected) 1.06f else 1f, motion(180), label = "proIconScale")
-                val outline by animateColorAsState(if (selected) colors.proPalette.iconOutline else Color.Transparent, motion(180), label = "proIconOutline")
+                val outline by animateColorAsState(if (selected) colors.accent else Color.Transparent, motion(180), label = "proIconOutline")
                 val shape = RoundedCornerShape(12.dp)
                 val background = when (variant) {
                     AppIcon.CLASSIC -> R.color.ic_launcher_background

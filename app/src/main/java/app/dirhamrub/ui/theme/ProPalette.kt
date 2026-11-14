@@ -10,7 +10,6 @@ internal data class ProPalette(
     val activeOutline: Color,
     val receiptSurface: Color,
     val receiptOutline: Color,
-    val iconOutline: Color,
 )
 
 private val LightProPalette = ProPalette(
@@ -19,7 +18,6 @@ private val LightProPalette = ProPalette(
     activeOutline = Color(0xFF15803D).copy(alpha = 0.20f),
     receiptSurface = LightColors.surface2,
     receiptOutline = LightColors.line,
-    iconOutline = Color.Black.copy(alpha = 0.65f),
 )
 
 private val DarkProPalette = ProPalette(
@@ -28,7 +26,6 @@ private val DarkProPalette = ProPalette(
     activeOutline = Color(0xFF4ADE80).copy(alpha = 0.25f),
     receiptSurface = Color(0xFF22262E),
     receiptOutline = Color.White.copy(alpha = 0.09f),
-    iconOutline = Color.White.copy(alpha = 0.75f),
 )
 
 internal val AppColors.proPalette: ProPalette

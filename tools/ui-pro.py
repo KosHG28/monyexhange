@@ -8,12 +8,22 @@ from ui_tree import read_tree
 
 OUT=Path('screens');PKG='ru.kurspocheku';ACT=PKG+'/app.dirhamrub.MainActivity'
 report=[]
+viewport=None
 def adb(*args):return subprocess.check_output(['adb',*args],text=True,timeout=45)
-def tree():return read_tree(adb,'/sdcard/pro-ui.xml')
+def tree():
+    global viewport
+    root=read_tree(adb,'/sdcard/pro-ui.xml')
+    for n in root.iter('node'):
+        if n.get('class')=='android.widget.ScrollView' and n.get('package')==PKG:
+            viewport=tuple(map(int,re.findall(r'\d+',n.get('bounds',''))))
+            break
+    return root
 def size():return tuple(map(int,re.findall(r'(\d+)x(\d+)',adb('shell','wm','size'))[-1]))
 def swipe(down):
-    w,h=size()
-    adb('shell','input','swipe',str(w//2),str(int(h*(.78 if down else .3))),str(w//2),str(int(h*(.3 if down else .78))),'300')
+    if viewport is None:tree()
+    left,top,right,bottom=viewport
+    x=(left+right)//2;h=bottom-top
+    adb('shell','input','swipe',str(x),str(int(top+h*(.8 if down else .2))),str(x),str(int(top+h*(.2 if down else .8))),'300')
 def edge(down):
     for _ in range(3):swipe(down)
     tree()
@@ -33,6 +43,9 @@ def tap(n):
     adb('shell','input','tap',str((x1+x2)//2),str((y1+y2)//2))
 def text(value):return lambda n:value in n.get('text','')
 def chosen(n):return n.get('selected')=='true' or n.get('checked')=='true'
+def control(label,scroll=False):
+    # Android exports the checkable control and its label as parent/child nodes.
+    return find(lambda n:n.get('checkable')=='true' and any(c.get('content-desc')==label for c in n.iter('node')),scroll)
 def capture(name):
     # Never capture the launcher/system widget dialog or any other application screen.
     find(text('Курс по чеку')) if '-top-' in name or '-wallpaper-' in name else find(text('Pro активна') if 'locked' not in name else text('Активировать Pro'))
@@ -54,17 +67,17 @@ try:
         find(text('Pro активна'),scroll=True)
         edge(False)
         for label in ['Золотой','Классический','Тёмный']:
-            tap(find(lambda n:n.get('content-desc')==label,scroll=True))
-            assert chosen(find(lambda n:n.get('content-desc')==label))
+            tap(control(label,scroll=True))
+            assert chosen(control(label))
         edge(False);capture('pro-active-top-'+theme)
         edge(True);capture('pro-active-bottom-'+theme)
         edge(False)
-        switch=find(lambda n:n.get('content-desc')=='Цвета из обоев',scroll=True)
+        switch=control('Цвета из обоев',scroll=True)
         assert switch.get('enabled')=='true' and not chosen(switch)
-        tap(switch);assert chosen(find(lambda n:n.get('content-desc')=='Цвета из обоев'))
+        tap(switch);assert chosen(control('Цвета из обоев'))
         edge(False);capture('pro-wallpaper-'+theme)
-        tap(find(lambda n:n.get('content-desc')=='Цвета из обоев',scroll=True))
-        assert not chosen(find(lambda n:n.get('content-desc')=='Цвета из обоев'))
+        tap(control('Цвета из обоев',scroll=True))
+        assert not chosen(control('Цвета из обоев'))
         edge(False)
         tap(find(text('Быстрые действия')))
         find(text('Зажмите значок приложения'))
@@ -88,8 +101,8 @@ try:
         adb('shell','settings','put','system','font_scale','1.0')
         adb('shell','wm','size','reset');size_cached=size()
         adb('shell','am','start','-W','-n',ACT,'--es','screen','pro')
-        find(lambda n:n.get('content-desc')=='Тёмный' and chosen(n),scroll=True)
-        assert not chosen(find(lambda n:n.get('content-desc')=='Цвета из обоев'))
+        assert chosen(control('Тёмный',scroll=True))
+        assert not chosen(control('Цвета из обоев'))
         find(text('Pro активна'),scroll=True)
         report.append(theme+': compact display/font 130 and persisted PRO/style settings passed')
     (OUT/'pro-check.txt').write_text('\n'.join(report))

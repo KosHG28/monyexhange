@@ -49,10 +49,11 @@ try:
                     time.sleep(1)
                     continue
                 print(case, attempt, {label:bounds(n) for label,n in nodes.items()}, flush=True)
-                # The Text line is 20sp, not the 44dp clickable parent; scale with font size.
-                if set(nodes)==LABELS and all(len(bounds(n))==4 and bounds(n)[3]-bounds(n)[1]>=18*float(font)*density/160 for n in nodes.values()):
+                # Accessibility text bounds follow glyphs, not the button or Text line height.
+                # Keep every label safely between the fixed header and save button.
+                if set(nodes)==LABELS and all(len(bounds(n))==4 and 300 <= bounds(n)[1] < bounds(n)[3] <= 1900 for n in nodes.values()):
                     break
-                adb('shell', 'input', 'swipe', '540', '1700', '540', '1000', '450')
+                adb('shell', 'input', 'swipe', '540', '1700', '540', '1400', '450')
                 time.sleep(1)
             if set(nodes)!=LABELS:
                 (OUT/'network-chips-ui.xml').write_text(ET.tostring(root,encoding='unicode'))

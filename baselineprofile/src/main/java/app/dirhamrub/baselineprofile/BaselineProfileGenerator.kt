@@ -1,5 +1,6 @@
 package app.dirhamrub.baselineprofile
 
+import java.io.ByteArrayOutputStream
 import androidx.benchmark.macro.junit4.BaselineProfileRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -51,9 +52,18 @@ class BaselineProfileGenerator {
         startActivityAndWait()
         await { device.hasObject(By.desc("9")) }
         for (digit in listOf("7", "8", "9", "4", "5", "6")) click { device.findObject(By.desc(digit)) }
-        val name = if (node { device.findObject(By.descContains(SECOND)) }.isSelected) FIRST else SECOND
+        var name = SECOND
+        await {
+            val row = device.findObject(By.descContains(SECOND)) ?: return@await false
+            // Compose's RadioButton role maps selected semantics to accessibility checked on API 34.
+            name = if (row.isSelected || row.isChecked) FIRST else SECOND
+            true
+        }
         click { device.findObject(By.descContains(name)) }
-        await { device.findObject(By.descContains(name))?.isSelected == true }
+        await {
+            val row = device.findObject(By.descContains(name)) ?: return@await false
+            row.isSelected || row.isChecked
+        }
         device.waitForIdle()
         click { device.findObject(By.descContains(name)) }
         node { device.findObject(By.desc("Назад")) }
@@ -99,7 +109,8 @@ class BaselineProfileGenerator {
             }
             Thread.sleep(100)
         }
-        error("Expected calculator UI did not appear")
+        val xml = ByteArrayOutputStream().also { device.dumpWindowHierarchy(it) }.toString("UTF-8")
+        error("Expected calculator UI did not appear. Accessibility hierarchy: $xml")
     }
 
     companion object {

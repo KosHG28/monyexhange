@@ -42,8 +42,11 @@ import app.dirhamrub.domain.wallet.WalletQuote
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -176,10 +179,12 @@ class MainViewModel(
     private val bundledGuide: () -> String? = { null },
     /** Сеть сейчас безлимитная (Wi-Fi, Ethernet) — для «только по Wi-Fi». */
     private val unmetered: () -> Boolean = { true },
+    private val guideDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
     private val _state = MutableStateFlow(MainUiState())
     val state: StateFlow<MainUiState> = _state.asStateFlow()
     private var unionPayLoading = false
+    private var localGuideJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -205,21 +210,27 @@ class MainViewModel(
                 officialFetchedAt = stored.officialFetchedAt,
                 officialSource = stored.officialSource,
                 unionPayFetchedAt = stored.unionPayFetchedAt,
-                guides = loadGuides(stored.guideText),
             )
-            if (!stored.selectionAuto) repository.markSelectionAuto(_state.value.wallet)
-            repository.dropLegacy()
-            refresh(Trigger.LAUNCH)
             // Карты и чеки пишем сразу: сохранил карту и тут же закрыл приложение — она не пропадёт.
             // Изменения, не касающиеся кошелька (курсы загружаются, настройки), запись не вызывают.
-            launch {
+            launch(start = CoroutineStart.UNDISPATCHED) {
                 _state.map { it.wallet }.distinctUntilChanged().drop(1).collect { repository.saveWallet(it) }
             }
             // Набираемую сумму — не чаще раза в 300 мс: collectLatest отменяет отложенную запись при новом нажатии.
-            _state.map { it.active to it.expression }.distinctUntilChanged().drop(1).collectLatest { (active, expression) ->
-                delay(SAVE_DELAY_MS)
-                repository.saveInput(active, expression)
+            launch(start = CoroutineStart.UNDISPATCHED) {
+                _state.map { it.active to it.expression }.distinctUntilChanged().drop(1).collectLatest { (active, expression) ->
+                    delay(SAVE_DELAY_MS)
+                    repository.saveInput(active, expression)
+                }
             }
+            // Справочник не задерживает готовый калькулятор; завершение меняет только guides.
+            localGuideJob = launch {
+                val guides = loadGuides(stored.guideText)
+                _state.update { it.withLoadedGuides(guides) }
+            }
+            if (!stored.selectionAuto) repository.markSelectionAuto(_state.value.wallet)
+            repository.dropLegacy()
+            refresh(Trigger.LAUNCH)
         }
     }
 
@@ -356,7 +367,7 @@ class MainViewModel(
     }
 
     /** Встроенный справочник и сохранённый скачанный — что свежее (разбор — не на главном потоке). */
-    private suspend fun loadGuides(saved: String?): CountryGuides? = withContext(Dispatchers.Default) {
+    private suspend fun loadGuides(saved: String?): CountryGuides? = withContext(guideDispatcher) {
         val bundled = runCatching { bundledGuide() }.getOrNull()?.let(CountryGuideParser::parse)
         val downloaded = saved?.let(CountryGuideParser::parse)
         bundled?.newer(downloaded) ?: downloaded
@@ -370,10 +381,13 @@ class MainViewModel(
         guideLoading = true
         viewModelScope.launch {
             val fetched = GuideClient.fetch()
+            // Дожидается только обновление справочника: иначе старый сетевой ответ может
+            // затереть свежую сохранённую копию до окончания её фонового разбора.
+            localGuideJob?.join()
             val have = _state.value.guides
             if (fetched != null && (have == null || fetched.second.version.isAfter(have.version))) {
                 repository.saveGuide(fetched.first)
-                _state.update { it.copy(guides = fetched.second) }
+                _state.update { it.withLoadedGuides(fetched.second) }
             }
             guideLoading = false
         }
@@ -536,3 +550,7 @@ class MainViewModel(
 
 internal fun divideOrZero(value: BigDecimal, divisor: BigDecimal): BigDecimal =
     if (divisor.signum() == 0) BigDecimal.ZERO else value.divide(divisor, MC)
+
+/** Два независимых источника могут завершиться в любом порядке, не откатывая справочник или ввод. */
+internal fun MainUiState.withLoadedGuides(incoming: CountryGuides?): MainUiState =
+    copy(guides = guides?.newer(incoming) ?: incoming)

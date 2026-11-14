@@ -26,6 +26,9 @@ import app.dirhamrub.domain.wallet.TransferReceipt
 import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.domain.wallet.Wallet
 import app.dirhamrub.domain.wallet.WalletCodec
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import java.io.IOException
@@ -83,9 +86,10 @@ class WalletRepository(
     private val store: DataStore<Preferences>,
     private val unionPayStore: DataStore<Preferences>,
     private val ratesStore: DataStore<Preferences>,
+    private val decodeDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
 
-    suspend fun load(): StoredState {
+    suspend fun load(): StoredState = withContext(decodeDispatcher) {
         val p = store.data
             .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
             .first()
@@ -97,7 +101,7 @@ class WalletRepository(
         val u = unionPayStore.data
             .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
             .first()
-        return StoredState(
+        StoredState(
             wallet = WalletCodec.decode(p[WALLET]) ?: legacyWallet(p) ?: Wallet(),
             // Курсы, сохранённые со старым справочником валют, неполные (в 1.10 — только 14 валют):
             // показываем их, пока не скачаны свежие, но срок годности не учитываем — скачиваем сразу.

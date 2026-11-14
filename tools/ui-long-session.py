@@ -28,10 +28,21 @@ def capture(name):
     with (OUT/(name+'.png')).open('wb') as f:subprocess.run(['adb','exec-out','screencap','-p'],stdout=f,check=True)
 def main():find(lambda n:n.get('content-desc')=='9')
 def checkpoint(round):
-    # Managed dump triggers GC; wait for a fresh trim callback after it, never reuse an old sample.
+    # Keep the Activity alive but background it, then release renderer caches BEFORE GC.
+    # Foreground HWUI is allowed to cache a recent image; that alone is not an app leak.
+    adb('shell','input','keyevent','3')
     prior=adb('logcat','-d','-s','KpcAudit:I','*:S').count('aliveReceipts=')
+    adb('shell','am','send-trim-memory',PKG,'BACKGROUND')
+    for _ in range(40):
+        log=adb('logcat','-d','-s','KpcAudit:I','*:S')
+        if log.count('aliveReceipts=')>prior:break
+        time.sleep(.25)
+    else:raise AssertionError('No renderer trim callback: '+log)
+    # Activity's callback precedes HWUI trim completion; a launcher snapshot waits for UI idle.
+    tree()
     adb('shell','am','dumpheap',PKG,'/data/local/tmp/kpc-session.hprof',timeout=60)
-    adb('shell','am','send-trim-memory',PKG,'RUNNING_LOW')
+    prior=adb('logcat','-d','-s','KpcAudit:I','*:S').count('aliveReceipts=')
+    adb('shell','am','send-trim-memory',PKG,'BACKGROUND')
     for _ in range(40):
         log=adb('logcat','-d','-s','KpcAudit:I','*:S')
         values=re.findall(r'aliveReceipts=(\d+) javaBytes=(\d+) nativeBytes=(\d+)',log)
@@ -41,9 +52,11 @@ def checkpoint(round):
     adb('shell','rm','-f','/data/local/tmp/kpc-session.hprof')
     alive,java,native=map(int,values[-1])
     report.append((round,alive,java,native))
-    (OUT/'long-session-memory.txt').write_text('\n'.join(map(str,report)))
+    (OUT/'long-session-memory.txt').write_text('\n'.join(map(str,report))+'\nRaw trim/GC observations:\n'+log)
     assert alive==0,f'Receipt bitmap retained after closed screens and GC: {report[-1]}'
     (OUT/f'long-session-meminfo-{round}.txt').write_text(adb('shell','dumpsys','meminfo',PKG))
+    adb('shell','am','start','-W','-n',ACT)
+    main()
 
 report=[]
 try:

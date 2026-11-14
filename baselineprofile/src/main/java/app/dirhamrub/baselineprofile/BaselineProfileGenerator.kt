@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
 import org.junit.Before
@@ -49,14 +50,12 @@ class BaselineProfileGenerator {
         pressHome()
         startActivityAndWait()
         await { device.hasObject(By.desc("9")) }
-        for (digit in listOf("7", "8", "9", "4", "5", "6")) node { device.findObject(By.desc(digit)) }.click()
-        val first = node { device.findObject(By.descContains(FIRST)) }
-        val second = node { device.findObject(By.descContains(SECOND)) }
-        val target = if (second.isSelected) first else second
-        val name = if (second.isSelected) FIRST else SECOND
-        target.click()
+        for (digit in listOf("7", "8", "9", "4", "5", "6")) click { device.findObject(By.desc(digit)) }
+        val name = if (node { device.findObject(By.descContains(SECOND)) }.isSelected) FIRST else SECOND
+        click { device.findObject(By.descContains(name)) }
+        await { device.findObject(By.descContains(name))?.isSelected == true }
         device.waitForIdle()
-        node { device.findObject(By.descContains(name)) }.click()
+        click { device.findObject(By.descContains(name)) }
         node { device.findObject(By.desc("Назад")) }
         device.waitForIdle()
         device.pressBack()
@@ -64,15 +63,23 @@ class BaselineProfileGenerator {
     }
 
     private fun addCard(name: String) {
-        node { device.findObject(By.textContains("Добавить карту")) }.click()
+        click { device.findObject(By.textContains("Добавить карту")) }
         val field = node { device.findObject(By.clazz("android.widget.EditText")) }
         field.click()
         device.waitForIdle()
         field.text = name
         device.pressBack() // Hide IME; save stays a normal UI action.
-        node { device.findObject(By.text("Сохранить")) }.click()
+        click { device.findObject(By.text("Сохранить")) }
         await { device.hasObject(By.desc("9")) }
         node { device.findObject(By.descContains(name)) }
+    }
+
+    private fun click(find: () -> UiObject2?) {
+        await {
+            val target = find() ?: return@await false
+            target.click()
+            true
+        }
     }
 
     private fun node(find: () -> UiObject2?): UiObject2 {
@@ -84,7 +91,12 @@ class BaselineProfileGenerator {
     private fun await(condition: () -> Boolean) {
         val end = System.currentTimeMillis() + 15_000
         while (System.currentTimeMillis() < end) {
-            if (condition()) return
+            try {
+                if (condition()) return
+            } catch (_: StaleObjectException) {
+                // Compose can replace accessibility nodes while a selected row animates.
+                // Re-query on the next attempt instead of retaining a detached UiObject2.
+            }
             Thread.sleep(100)
         }
         error("Expected calculator UI did not appear")

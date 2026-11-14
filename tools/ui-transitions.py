@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Реальные нажатия на CI-эмуляторе: завершение знакомства и выбор карты."""
 import re
+import json
 import subprocess
 import time
 import traceback
@@ -76,9 +77,20 @@ def assert_home(amount=None, card='Карта RUB'):
 
 
 def video_frame(video, name, last=False):
-    seek = ['-sseof', '-0.2'] if last else ['-ss', '2.4']
-    subprocess.run(['ffmpeg', '-v', 'error', '-y', *seek, '-i', str(OUT / video),
-                    '-frames:v', '1', str(OUT / f'{name}.png')], check=True, timeout=30)
+    # screenrecord is variable-frame-rate: after rendering stops, the final packet can precede EOF.
+    # Select an existing decoded frame instead of seeking into that idle tail.
+    raw = subprocess.check_output(['ffprobe', '-v', 'error', '-select_streams', 'v:0',
+                                   '-show_entries', 'frame=best_effort_timestamp_time', '-of', 'json',
+                                   str(OUT / video)], text=True, timeout=30)
+    frames = json.loads(raw)['frames']
+    assert frames, 'Video contains no decoded frames'
+    index = len(frames) - 1 if last else min(range(len(frames)),
+        key=lambda i: abs(float(frames[i]['best_effort_timestamp_time']) - 2.4))
+    path = OUT / f'{name}.png'
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(OUT / video),
+                    '-vf', f'select=eq(n\\,{index})', '-fps_mode', 'vfr', '-frames:v', '1', str(path)],
+                   check=True, timeout=30)
+    assert path.is_file() and path.stat().st_size > 0, f'Missing extracted frame: {name}'
 
 
 def finish_with_video(button, middle, after, theme, amount=None, card='Карта RUB'):

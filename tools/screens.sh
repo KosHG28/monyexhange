@@ -78,7 +78,7 @@ python3 - <<'PY'
 from pathlib import Path
 import struct, zlib
 files = sorted(Path('screens').glob('*.png'))
-assert len(files) == 26, f'Ожидалось 26 снимков, получено {len(files)}'
+assert len(files) == 26, f'Ожидалось 26 снимков, получено {len(files)}: {[p.name for p in files]}'
 for path in files:
     data = path.read_bytes()
     assert data[:8] == b'\x89PNG\r\n\x1a\n', path

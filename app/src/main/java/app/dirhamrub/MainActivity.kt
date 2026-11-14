@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
         }
         // Ярлык «Ценник» на иконке открывает сразу камеру; остальные экраны по extra — для скриншотов CI.
         val screen = intent?.getStringExtra(EXTRA_SCREEN)
-        if (intent?.getBooleanExtra(EXTRA_DEMO, false) == true && Demo.allowed(this)) {
+        if (savedInstanceState == null && intent?.getBooleanExtra(EXTRA_DEMO, false) == true && Demo.allowed(this)) {
             // Только отладочная сборка: демо-данные пишутся до чтения состояния, поэтому синхронно.
             runBlocking {
                 Demo.seed(
@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-        if (BuildConfig.DEBUG && intent?.getBooleanExtra("receiptDemo", false) == true && Demo.allowed(this)) {
+        if (savedInstanceState == null && BuildConfig.DEBUG && intent?.getBooleanExtra("receiptDemo", false) == true && Demo.allowed(this)) {
             runBlocking {
                 app.dirhamrub.diag.seedReceiptFixture(applicationContext)
                 WalletRepository(settingsDataStore, unionPayDataStore, ratesDataStore)

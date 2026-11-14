@@ -51,7 +51,7 @@ def checkpoint(round):
     (OUT/'long-session-memory.txt').write_text('\n'.join(map(str,report))+'\nRaw trim/GC observations:\n'+log)
     assert alive==0,f'Receipt bitmap retained after closed screens and GC: {report[-1]}'
     (OUT/f'long-session-meminfo-{round}.txt').write_text(adb('shell','dumpsys','meminfo',PKG))
-    adb('shell','am','start','-W','-n',ACT)
+    adb('shell','am','start','-W','--activity-single-top','-n',ACT)
     main()
 
 report=[]
@@ -96,5 +96,7 @@ try:
     (OUT/'long-session-frames.txt').write_text(adb('shell','dumpsys','gfxinfo',PKG,'framestats'))
 except Exception:
     capture('audit-error')
+    (OUT/'activity-state.txt').write_text(adb('shell','dumpsys','activity','top'))
+    (OUT/'app-log.txt').write_text(adb('logcat','-d','-b','main','-b','crash','-v','threadtime'))
     raise
 finally:adb('shell','am','force-stop',PKG)

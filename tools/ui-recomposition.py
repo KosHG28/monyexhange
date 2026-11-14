@@ -6,6 +6,8 @@ import subprocess
 import time
 import xml.etree.ElementTree as ET
 
+from ui_tree import read_tree
+
 OUT=Path('screens')
 PKG='ru.kurspocheku'
 
@@ -13,8 +15,7 @@ def adb(*args):
     return subprocess.check_output(['adb',*args],text=True,timeout=30)
 
 def tree():
-    adb('shell','uiautomator','dump','/sdcard/recomposition.xml')
-    return ET.fromstring(adb('exec-out','cat','/sdcard/recomposition.xml'))
+    return read_tree(adb, '/sdcard/recomposition.xml')
 
 def logs():
     return adb('logcat','-d','-b','main','-s','KpcCompose:I','KpcImages:I','*:S')

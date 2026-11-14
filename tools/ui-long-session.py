@@ -2,12 +2,14 @@
 """20 real editor/receipt/settings cycles; changed screens only, no guide or camera."""
 from pathlib import Path
 import re,subprocess,time,xml.etree.ElementTree as ET
+from ui_tree import read_tree
+
 OUT=Path('screens');PKG='ru.kurspocheku';ACT=PKG+'/app.dirhamrub.MainActivity'
 
 def adb(*args,timeout=45):return subprocess.check_output(['adb',*args],text=True,timeout=timeout)
 def tree():
-    adb('shell','uiautomator','dump','/sdcard/long-session.xml')
-    return ET.fromstring(adb('exec-out','cat','/sdcard/long-session.xml'))
+    return read_tree(adb, '/sdcard/long-session.xml')
+
 def find(predicate,scroll=False):
     for attempt in range(10 if scroll else 5):
         root=tree()

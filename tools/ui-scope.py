@@ -16,7 +16,7 @@ def needs_screens(paths, version_only=False):
                 path in {'CLAUDE.md', 'tools/ui-scope.py', '.github/workflows/android.yml'} or
                 path == 'app/build.gradle.kts' and version_only)
     # Unknown files conservatively keep the existing screen and visual approval gates.
-    return not (any(guide(p) for p in paths) and all(guide(p) or supporting(p) for p in paths))
+    return not (bool(paths) and all(guide(p) or supporting(p) for p in paths))
 
 def main():
     if '--self-test' in sys.argv:
@@ -25,9 +25,10 @@ def main():
         assert needs_screens([GUIDE+'CountryEasterEgg.kt', 'app/build.gradle.kts'], False)
         assert needs_screens([GUIDE+'CountryEasterEgg.kt', 'app/src/main/java/app/dirhamrub/ui/main/MainScreen.kt'])
         assert needs_screens(['app/src/main/res/values/strings.xml'])
-        assert needs_screens(['docs/PLAN.md'])
+        assert not needs_screens(['docs/PLAN.md'])
+        assert not needs_screens(['app/build.gradle.kts', 'docs/PLAN.md'], True)
         assert needs_screens([])
-        print('UI scope: 7 cases passed; unknown/main changes preserve screenshot gates.')
+        print('UI scope: 8 cases passed; unknown/main changes preserve screenshot gates.')
         return
     head = os.environ.get('SCOPE_HEAD', 'HEAD')
     base = os.environ.get('SCOPE_BASE', '')
@@ -43,7 +44,7 @@ def main():
     result = str(needs_screens(paths, version_only)).lower()
     print('screens='+result)
     if result == 'false':
-        print('Only the country guide changed. Its screenshots are excluded by the owner; other screens are unchanged.')
+        print('Only excluded country-guide UI or non-UI metadata changed. No eligible changed screens to capture.')
     if os.environ.get('GITHUB_OUTPUT'):
         with Path(os.environ['GITHUB_OUTPUT']).open('a') as f:
             f.write('screens='+result+'\n')

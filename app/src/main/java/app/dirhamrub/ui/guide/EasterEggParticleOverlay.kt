@@ -61,6 +61,9 @@ internal fun EasterEggParticleOverlay(egg: CountryEasterEgg, play: Int, modifier
         if (progress.value >= 1f) return@Canvas
         val elapsed = progress.value * EASTER_EGG_CYCLE_MS
         val tau = 2f * PI.toFloat()
+        // Keep the vector raster cache at one size; particle sizes/flip live in the Canvas transform.
+        val spriteSize = 24.dp.toPx()
+        val spriteBounds = Size(spriteSize, spriteSize)
         specs.forEachIndexed { i, spec ->
             val p = (elapsed - spec.delay) / spec.duration
             val twinkle = effect.motion == ParticleMotion.TWINKLE
@@ -103,10 +106,10 @@ internal fun EasterEggParticleOverlay(egg: CountryEasterEgg, play: Int, modifier
                     withTransform({
                         translate(x, y)
                         rotate(angle, pivot = Offset.Zero)
-                        scale(flip * bloom, bloom, pivot = Offset.Zero)
-                        translate(-s / 2f, -s / 2f)
+                        scale(s / spriteSize * flip * bloom, s / spriteSize * bloom, pivot = Offset.Zero)
+                        translate(-spriteSize / 2f, -spriteSize / 2f)
                     }) {
-                        with(image) { draw(Size(s, s), alpha = alpha, colorFilter = filters[i % filters.size]) }
+                        with(image) { draw(spriteBounds, alpha = alpha, colorFilter = filters[i % filters.size]) }
                     }
                 }
             }

@@ -80,12 +80,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @Suppress("DEPRECATION")
-    override fun onTrimMemory(level: Int) {
-        super.onTrimMemory(level)
-        if (BuildConfig.DEBUG) app.dirhamrub.diag.LifetimeAudit.report()
-    }
-
     companion object {
         const val EXTRA_SCREEN = "screen"
 

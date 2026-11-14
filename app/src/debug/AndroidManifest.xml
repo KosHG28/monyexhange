@@ -2,6 +2,10 @@
 <!-- Только в отладочной сборке: проверка Gemini Nano (AICore) на телефоне, отдельный значок «Nano-тест». -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
+        <!-- Read-only heap observations for CI; absent from the release manifest. -->
+        <receiver
+            android:name="app.dirhamrub.diag.MemoryAuditReceiver"
+            android:exported="true" />
         <activity
             android:name="app.dirhamrub.nanolab.NanoLabActivity"
             android:exported="true"

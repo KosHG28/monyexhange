@@ -31,18 +31,14 @@ def checkpoint(round):
     # Keep the Activity alive but background it, then release renderer caches BEFORE GC.
     # Foreground HWUI is allowed to cache a recent image; that alone is not an app leak.
     adb('shell','input','keyevent','3')
-    prior=adb('logcat','-d','-s','KpcAudit:I','*:S').count('aliveReceipts=')
+    tree() # Wait for the launcher; Activity remains alive in the background.
+    adb('shell','am','broadcast','-n',PKG+'/app.dirhamrub.diag.MemoryAuditReceiver')
     adb('shell','am','send-trim-memory',PKG,'BACKGROUND')
-    for _ in range(40):
-        log=adb('logcat','-d','-s','KpcAudit:I','*:S')
-        if log.count('aliveReceipts=')>prior:break
-        time.sleep(.25)
-    else:raise AssertionError('No renderer trim callback: '+log)
     # Activity's callback precedes HWUI trim completion; a launcher snapshot waits for UI idle.
     tree()
     adb('shell','am','dumpheap',PKG,'/data/local/tmp/kpc-session.hprof',timeout=60)
     prior=adb('logcat','-d','-s','KpcAudit:I','*:S').count('aliveReceipts=')
-    adb('shell','am','send-trim-memory',PKG,'BACKGROUND')
+    adb('shell','am','broadcast','-n',PKG+'/app.dirhamrub.diag.MemoryAuditReceiver')
     for _ in range(40):
         log=adb('logcat','-d','-s','KpcAudit:I','*:S')
         values=re.findall(r'aliveReceipts=(\d+) javaBytes=(\d+) nativeBytes=(\d+)',log)

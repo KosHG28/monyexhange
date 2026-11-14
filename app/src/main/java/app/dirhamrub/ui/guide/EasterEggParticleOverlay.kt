@@ -22,6 +22,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import app.dirhamrub.R
 import app.dirhamrub.ui.theme.AppTheme
+import app.dirhamrub.ui.theme.HighFrameRate
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import app.dirhamrub.ui.theme.easterEggPalette
 import kotlin.math.PI
@@ -53,6 +54,7 @@ internal fun EasterEggParticleOverlay(egg: CountryEasterEgg, play: Int, modifier
     val density = LocalDensity.current
     val bubbleStroke = remember(density) { Stroke(with(density) { 1.2.dp.toPx() }) }
     val progress = remember(egg.iso) { Animatable(1f) }
+    HighFrameRate(progress.isRunning)
     LaunchedEffect(play, egg.iso) {
         progress.snapTo(0f)
         progress.animateTo(1f, tween(EASTER_EGG_CYCLE_MS, easing = LinearEasing))

@@ -205,6 +205,7 @@ fun DirhamApp(
     navigation.animateFloat(transitionSpec = {
         if (reduceWelcome || !initialState || targetState) snap() else tween(TRIP_DURATION, easing = LinearEasing)
     }, label = "tripOneSecondClock") { if (it) 0f else 1f }
+    app.dirhamrub.ui.theme.HighFrameRate(navigation.isRunning)
     androidx.compose.animation.SharedTransitionLayout {
     val sharedScope = this
     Box(Modifier.fillMaxSize().background(AppTheme.colors.bg)) {
@@ -292,7 +293,6 @@ fun DirhamApp(
         onRefreshRates = vm::refreshRates,
         onOpenCamera = { cameraOpen = true },
         onCameraPlaced = { cameraOrigin = it },
-        covered = settingsOpen || moneyOpen || currenciesOpen || cameraOpen || navigation.isRunning,
     )
     val reduceMotion = LocalReduceMotion.current
     if (guideOpen) {

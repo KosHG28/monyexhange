@@ -1,6 +1,7 @@
 package app.dirhamrub
 
 import app.dirhamrub.ui.theme.ProvideTilt
+import app.dirhamrub.ui.theme.AdaptiveFrameRate
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -53,6 +54,7 @@ class MainActivity : ComponentActivity() {
             val pureBlack by remember { derivedStateOf { state.value.settings.pureBlack } }
             val dynamicColor by remember { derivedStateOf { state.value.settings.let { it.pro && it.dynamicColor } } }
             DirhamTheme(theme = theme, motion = motion, keyHaptics = keyHaptics, pureBlack = pureBlack, dynamicColor = dynamicColor) {
+                AdaptiveFrameRate {
                 // Наклон телефона — для блика на картах (флагманы, Android 13+).
                 ProvideTilt {
                     DirhamApp(
@@ -64,6 +66,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 CrashReportDialog()
+                }
             }
         }
     }

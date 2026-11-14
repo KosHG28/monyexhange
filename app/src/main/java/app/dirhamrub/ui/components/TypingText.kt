@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.TextStyle
 import app.dirhamrub.ui.theme.LocalReduceMotion
+import app.dirhamrub.ui.theme.HighFrameRate
 import kotlin.math.roundToInt
 
 /** Что произошло со строкой ввода: дописали, стёрли с конца или заменили целиком («=», сброс, другая строка). */
@@ -97,6 +98,7 @@ fun TypingText(text: String, style: TextStyle, color: Color, modifier: Modifier 
 @Composable
 private fun PopChar(ch: String, style: TextStyle, color: Color, animate: Boolean) {
     val p = remember { Animatable(if (animate) 0f else 1f) }
+    HighFrameRate(p.isRunning)
     LaunchedEffect(Unit) { if (animate) p.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = 700f)) }
     Text(
         ch,
@@ -119,6 +121,7 @@ private fun PopChar(ch: String, style: TextStyle, color: Color, animate: Boolean
 @Composable
 private fun Ghost(text: String, style: TextStyle, color: Color) {
     val p = remember { Animatable(1f) }
+    HighFrameRate(p.isRunning)
     LaunchedEffect(Unit) { p.animateTo(0f, tween(170)) }
     if (p.value <= 0f) return
     Text(

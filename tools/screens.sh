@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Снимки только изменённых экранов текущего пакета: главный и последний шаг знакомства.
+# Снимки только изменённых экранов текущего пакета: главный, последний шаг знакомства и редактор карты (общая обёртка окна).
 # Информация о стране исключена по просьбе владельца.
 set -euo pipefail
 APK=app/build/outputs/apk/debug/app-debug.apk
@@ -78,7 +78,7 @@ python3 - <<'PY'
 from pathlib import Path
 import struct, zlib
 files = sorted(Path('screens').glob('*.png'))
-assert len(files) == 24, f'Ожидалось 24 снимка, получено {len(files)}'
+assert len(files) == 26, f'Ожидалось 26 снимков, получено {len(files)}'
 for path in files:
     data = path.read_bytes()
     assert data[:8] == b'\x89PNG\r\n\x1a\n', path
@@ -94,7 +94,7 @@ for path in files:
             finished = True
             break
     assert finished, path
-print('Проверены 24 целых PNG изменённых экранов; содержимое требует визуального просмотра.')
+print('Проверены 26 целых PNG изменённых экранов; содержимое требует визуального просмотра.')
 PY
 
 adb logcat -d -b crash > "$OUT/crash.txt"

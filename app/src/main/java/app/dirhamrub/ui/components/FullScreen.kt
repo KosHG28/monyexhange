@@ -55,6 +55,7 @@ import app.dirhamrub.ui.theme.Springs
 import app.dirhamrub.R
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.HighFrameRate
+import app.dirhamrub.ui.theme.AdaptiveFrameRate
 import app.dirhamrub.ui.theme.LocalReduceMotion
 
 /** Что может экран [FullScreen]: закрыться с анимацией и потом выполнить [then] (сохранить, удалить). */
@@ -135,6 +136,7 @@ fun FullScreen(
                 }
             }
         }
+        AdaptiveFrameRate {
         // Въезд, уход и перелёт карты — на высокой частоте кадров (120 Гц).
         HighFrameRate(!visible.isIdle || flight?.progress?.isRunning == true)
         val plain = reduceMotion || flight != null
@@ -158,6 +160,7 @@ fun FullScreen(
                 ) { scope.content() }
                 if (flight != null) CardMorphOverlay(flight)
             }
+        }
         }
     }
 }

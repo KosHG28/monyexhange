@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.foundation.Canvas
 import app.dirhamrub.ui.theme.fieldGlow
+import app.dirhamrub.ui.theme.HighFrameRate
 import app.dirhamrub.ui.components.*
 import app.dirhamrub.ui.components.TypingText
 import androidx.compose.ui.platform.LocalDensity
@@ -24,10 +25,6 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.animateFloatAsState
 import app.dirhamrub.ui.components.flightOrigin
 import app.dirhamrub.ui.theme.sheen
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -165,8 +162,6 @@ fun MainScreen(
     onOpenCamera: () -> Unit,
     /** Центр клавиши камеры на экране — из неё раскрывается камера. */
     onCameraPlaced: (Offset) -> Unit = {},
-    /** Главный закрыт другим экраном (настройки, страны, камера): курсор не мигает впустую. */
-    covered: Boolean = false,
 ) {
     val colors = AppTheme.colors
     val wallet = state.wallet
@@ -187,7 +182,7 @@ fun MainScreen(
                 tileOffer -> TileBanner(onTileOffer)
             }
             Hero(state, short, onSelectLine)
-            PriceField(state, covered)
+            PriceField(state)
         }
         Column(
             modifier = Modifier
@@ -335,6 +330,7 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
     // Сумма сменилась — цифры на миг «наливаются»: становятся плотнее и возвращаются к тонким.
     val pour = remember { Animatable(0f) }
     val reducePour = LocalReduceMotion.current
+    HighFrameRate(pour.isRunning)
     LaunchedEffect(number) {
         if (empty || reducePour) return@LaunchedEffect
         pour.animateTo(1f, tween(POUR_IN_MS))
@@ -414,11 +410,11 @@ private fun FitSize(text: AnnotatedString, style: TextStyle, maxSp: Float, minSp
 }
 
 /**
- * Поле ввода: «Цена на ценнике» слева вверху, справа набираемая сумма с курсором вплотную к последней цифре
+ * Поле ввода: «Цена на ценнике» слева вверху, справа набираемая сумма
  * и код валюты; выражение «1 200 + 300 =» — мелко под суммой. При вводе в рублях — «Сколько у вас».
  */
 @Composable
-private fun PriceField(state: MainUiState, covered: Boolean) {
+private fun PriceField(state: MainUiState) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val homeInput = state.active == Line.HOME
@@ -448,7 +444,6 @@ private fun PriceField(state: MainUiState, covered: Boolean) {
         Row(Modifier.align(Alignment.End).tripSharedBounds(TRIP_VALUE), verticalAlignment = Alignment.CenterVertically) {
             // Набранная цифра «впрыгивает» с пружинкой, стёртая сжимается и гаснет (Material 3 Expressive).
             TypingText(value, style = type.number.copy(fontSize = size, lineHeight = size * 1.2f), color = colors.ink)
-            Caret(size.value, paused = covered)
             Spacer(Modifier.width(6.dp))
             Text(currency.code, style = type.bodyStrong.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium), color = colors.muted, maxLines = 1)
         }
@@ -464,28 +459,6 @@ private fun PriceField(state: MainUiState, covered: Boolean) {
             )
         }
     }
-}
-
-/**
- * Мигающий курсор сразу за последней цифрой; без анимаций и под закрывающим главный экраном — просто черта.
- * Прозрачность меняется в слое — без рекомпозиций.
- */
-@Composable
-private fun Caret(fontSp: Float, paused: Boolean) {
-    val still = paused || LocalReduceMotion.current
-    val blink = if (still) {
-        null
-    } else {
-        rememberInfiniteTransition(label = "caret")
-            .animateFloat(1f, 0f, infiniteRepeatable(tween(530, delayMillis = 300), RepeatMode.Reverse), label = "caretAlpha")
-    }
-    Box(
-        Modifier
-            .padding(start = 2.dp)
-            .size(width = 2.dp, height = (fontSp * 0.95f).dp)
-            .graphicsLayer { alpha = blink?.value ?: 1f }
-            .background(AppTheme.colors.accent, RoundedCornerShape(1.dp)),
-    )
 }
 
 /**

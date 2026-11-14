@@ -2,11 +2,9 @@ package app.dirhamrub.ui.theme
 
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
-import android.os.PowerManager
 import android.content.Context
 import android.app.Activity
 import android.os.Build
-import android.provider.Settings
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
@@ -83,10 +81,7 @@ fun DirhamTheme(
         base
     }
     // Анимации выключены в системе или включено энергосбережение — без анимаций (слабые устройства).
-    val systemReduce = remember(context) {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f ||
-            (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isPowerSaveMode == true
-    }
+    val systemReduce = rememberSystemMotionReduction()
     val reduceMotion = motion == MotionMode.OFF || systemReduce
     val view = LocalView.current
     if (!view.isInEditMode) {

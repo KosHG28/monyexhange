@@ -146,6 +146,28 @@ try:
         assert chosen.get('selected') == 'true' or chosen.get('checked') == 'true', chosen.attrib
         assert find(lambda n: n.get('content-desc') == '9').get('bounds') == keypad_before, 'Numpad moved after selection'
         capture(prefix + '-after')
+        # The shared full-screen wrapper now owns a separate refresh policy for its Dialog.
+        tap(chosen)
+        find(lambda n: n.get('content-desc') == 'Назад')
+        time.sleep(2)
+        capture('38-editor-light' if theme == 'no' else '39-editor-dark')
+        adb('shell', 'input', 'keyevent', '4')
+        time.sleep(1)
+        assert find(lambda n: n.get('content-desc') == '9').get('bounds') == keypad_before
+        restored = card_node('Карта в юанях')
+        assert restored.get('selected') == 'true' or restored.get('checked') == 'true'
+    # Check the actual idle renderer; a continuously blinking caret would keep producing frames.
+    # No screenshots of country information or camera are taken.
+    time.sleep(4)
+    adb('shell', 'dumpsys', 'gfxinfo', PKG, 'reset')
+    time.sleep(3)
+    idle = adb('shell', 'dumpsys', 'gfxinfo', PKG)
+    windows = adb('shell', 'dumpsys', 'window', 'windows')
+    (OUT / 'idle-frame-stats.txt').write_text(idle + '\nWINDOW REQUESTS\n' + windows, encoding='utf-8')
+    totals = re.findall(r'Total frames rendered:\s*(\d+)', idle)
+    assert totals, 'No HWUI frame counter in gfxinfo'
+    assert sum(map(int, totals)) <= 4, 'Main screen keeps rendering while idle: ' + ', '.join(totals)
+    print('Idle main screen: no more than four residual frames in three seconds; actual panel Hz requires a physical device.')
     print('Общие элементы записаны в обеих темах; цена перенесена и сохранена после перезапуска. Проверены reduced motion, выбор карты в двух темах и неподвижность numpad.')
 
 except Exception:

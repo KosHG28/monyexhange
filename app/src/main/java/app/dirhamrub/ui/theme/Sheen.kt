@@ -85,6 +85,7 @@ private fun rememberTilt(): State<Float>? {
  */
 private class TiltListener(private val onTilt: (Float) -> Unit) : SensorEventListener {
     private val matrix = FloatArray(9)
+    private val publication = TiltPublicationGate()
     private var base = Float.NaN
     private var smooth = 0f
     private var last = 0L
@@ -92,6 +93,9 @@ private class TiltListener(private val onTilt: (Float) -> Unit) : SensorEventLis
     fun reset() {
         base = Float.NaN
         last = 0L
+        smooth = 0f
+        publication.reset()
+        onTilt(0f)
     }
 
     override fun onSensorChanged(event: SensorEvent) {
@@ -104,7 +108,7 @@ private class TiltListener(private val onTilt: (Float) -> Unit) : SensorEventLis
         val target = ((up - base) / RANGE).coerceIn(-1f, 1f)
         smooth += (target - smooth) * SMOOTHING
         if (abs(smooth) < 0.001f) smooth = 0f
-        onTilt(smooth)
+        if (publication.accept(smooth)) onTilt(smooth)
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit

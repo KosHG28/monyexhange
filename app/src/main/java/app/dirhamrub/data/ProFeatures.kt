@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.appwidget.AppWidgetManager
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
@@ -12,9 +13,23 @@ import app.dirhamrub.R
 import app.dirhamrub.domain.AppIcon
 import app.dirhamrub.domain.wallet.Countries
 import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.widget.QuoteWidget
 
 /** Функции Pro, которые живут вне экрана приложения: значок на рабочем столе и ярлыки на нём. */
 object ProFeatures {
+    /** Launcher's confirmation remains in control; unsupported launchers use the screen's help. */
+    fun requestWidget(context: Context): Boolean {
+        val manager = AppWidgetManager.getInstance(context) ?: return false
+        if (!manager.isRequestPinAppWidgetSupported) return false
+        return try {
+            manager.requestPinAppWidget(ComponentName(context, QuoteWidget::class.java), null, null)
+        } catch (_: IllegalStateException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        }
+    }
+
     private val ALIASES = mapOf(
         AppIcon.CLASSIC to "app.dirhamrub.LauncherClassic",
         AppIcon.DARK to "app.dirhamrub.LauncherDark",

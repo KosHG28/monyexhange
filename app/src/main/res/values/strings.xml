@@ -83,7 +83,10 @@
     <string name="pro_promo_invalid">Неверный промокод. Проверьте и попробуйте ещё раз.</string>
     <string name="pro_promo_activate">Активировать Pro</string>
     <string name="pro_promo_badge">По промокоду</string>
-    <string name="pro_active">✓ Pro активна</string>
+    <string name="pro_active">Pro активна</string>
+    <string name="pro_widget_help">Зажмите свободное место на рабочем столе, откройте «Виджеты» и выберите «Курс по чеку».</string>
+    <string name="pro_shortcuts_help">Зажмите значок приложения на рабочем столе. В меню доступны «Чек из скриншота» и возврат в прошлую страну, если вы уже меняли страну.</string>
+    <string name="pro_help_close">Понятно</string>
     <string name="pro_row">Курс по чеку Pro</string>
     <string name="pro_row_sub">Виджет, ярлыки, значок, цвета из обоев, скриншоты при чеках</string>
     <string name="pro_row_bought">Активна</string>

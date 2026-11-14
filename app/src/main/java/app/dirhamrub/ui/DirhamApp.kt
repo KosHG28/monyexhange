@@ -482,7 +482,9 @@ fun DirhamApp(
     }
     if (proOpen) {
         ProScreen(
-            pro = state.settings.pro,
+            settings = state.settings,
+            onDynamicColor = vm::setDynamicColor,
+            onAppIcon = vm::setAppIcon,
             onActivate = vm::activatePro,
             onDismiss = { proOpen = false },
         )

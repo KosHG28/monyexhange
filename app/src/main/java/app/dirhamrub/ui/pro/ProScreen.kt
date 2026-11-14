@@ -1,5 +1,9 @@
 package app.dirhamrub.ui.pro
 
+import android.os.Build
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,6 +14,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -23,6 +33,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.colorResource
@@ -41,6 +55,11 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
+import app.dirhamrub.domain.AppSettings
+import app.dirhamrub.domain.AppIcon
+import app.dirhamrub.data.ProFeatures
+import app.dirhamrub.ui.theme.proPalette
+import app.dirhamrub.ui.theme.motion
 import app.dirhamrub.ui.components.FullScreen
 import app.dirhamrub.ui.components.ScreenBar
 import app.dirhamrub.ui.theme.AppTheme
@@ -49,7 +68,16 @@ import app.dirhamrub.ui.theme.rememberHaptics
 
 /** Возможности Pro: реальные превью, обычная палитра приложения и активация промокодом. */
 @Composable
-fun ProScreen(pro: Boolean, onActivate: (String) -> Boolean, onDismiss: () -> Unit) {
+fun ProScreen(
+    settings: AppSettings,
+    onDynamicColor: (Boolean) -> Unit,
+    onAppIcon: (AppIcon) -> Unit,
+    onActivate: (String) -> Boolean,
+    onDismiss: () -> Unit,
+) {
+    val pro = settings.pro
+    val context = LocalContext.current
+    var help by rememberSaveable { mutableStateOf<ProHelp?>(null) }
     val colors = AppTheme.colors
     val type = AppTheme.type
     val haptics = rememberHaptics()
@@ -81,61 +109,96 @@ fun ProScreen(pro: Boolean, onActivate: (String) -> Boolean, onDismiss: () -> Un
                     Text(stringResource(R.string.pro_brand_title), style = type.title.copy(fontSize = 30.sp, lineHeight = 36.sp),
                         color = colors.ink, modifier = Modifier.weight(1f, fill = false).semantics { heading() })
                     Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.pro_badge).uppercase(), style = type.bodyStrong, color = colors.onAccent,
-                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(colors.accent)
+                    Text(stringResource(R.string.pro_badge).uppercase(), style = type.bodyStrong, color = colors.accent,
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(colors.accent.copy(alpha = 0.16f))
+                            .border(1.dp, colors.accent.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
                             .padding(horizontal = 8.dp, vertical = 3.dp))
                 }
                 Text(stringResource(R.string.pro_lead), style = type.body, color = colors.muted,
                     modifier = Modifier.padding(top = 6.dp, bottom = 18.dp))
                 ProSurface {
-                    FeatureRow(stringResource(R.string.pro_f_widget), stringResource(R.string.pro_f_widget_sub)) { WidgetPreview() }
+                    FeatureRow(stringResource(R.string.pro_f_widget), stringResource(R.string.pro_f_widget_sub),
+                        shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
+                        onClick = if (pro) ({
+                            if (!ProFeatures.requestWidget(context)) help = ProHelp.WIDGET
+                        }) else null,
+                    ) { WidgetPreview() }
                     FeatureDivider()
                     FeatureRow(stringResource(R.string.pro_f_shots), stringResource(R.string.pro_f_shots_sub)) { ReceiptPreview() }
                     FeatureDivider()
-                    FeatureRow(stringResource(R.string.pro_f_shortcuts), stringResource(R.string.pro_f_shortcuts_sub)) { ShortcutPreview() }
+                    FeatureRow(stringResource(R.string.pro_f_shortcuts), stringResource(R.string.pro_f_shortcuts_sub),
+                        shape = RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp),
+                        onClick = if (pro) ({ help = ProHelp.SHORTCUTS }) else null,
+                    ) { ShortcutPreview() }
                 }
                 Spacer(Modifier.height(12.dp))
-                StylePreview()
+                StylePreview(settings, onDynamicColor, onAppIcon)
                 Spacer(Modifier.height(16.dp))
-                ProSurface {
+                if (pro) {
+                    ActiveProBanner()
+                } else ProSurface {
                     Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                        if (!pro) {
-                            OutlinedTextField(
-                                value = code,
-                                onValueChange = { code = it; invalid = false },
-                                label = { Text(stringResource(R.string.pro_promo_label)) },
-                                singleLine = true,
-                                isError = invalid,
-                                supportingText = if (invalid) ({ Text(stringResource(R.string.pro_promo_invalid)) }) else null,
-                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters,
-                                    autoCorrectEnabled = false, imeAction = ImeAction.Done),
-                                keyboardActions = KeyboardActions(onDone = { activate() }),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = colors.ink, unfocusedTextColor = colors.ink,
-                                    focusedBorderColor = colors.accent, unfocusedBorderColor = colors.line,
-                                    focusedLabelColor = colors.accent, unfocusedLabelColor = colors.muted,
-                                    cursorColor = colors.accent, errorBorderColor = colors.danger,
-                                    errorLabelColor = colors.danger, errorSupportingTextColor = colors.danger,
-                                ),
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            Spacer(Modifier.height(12.dp))
-                        }
-                        val enabled = !pro && code.isNotBlank()
+                        OutlinedTextField(
+                            value = code,
+                            onValueChange = { code = it; invalid = false },
+                            label = { Text(stringResource(R.string.pro_promo_label)) },
+                            singleLine = true,
+                            isError = invalid,
+                            supportingText = if (invalid) ({ Text(stringResource(R.string.pro_promo_invalid)) }) else null,
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters,
+                                autoCorrectEnabled = false, imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { activate() }),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = colors.ink, unfocusedTextColor = colors.ink,
+                                focusedBorderColor = colors.accent, unfocusedBorderColor = colors.line,
+                                focusedLabelColor = colors.accent, unfocusedLabelColor = colors.muted,
+                                cursorColor = colors.accent, errorBorderColor = colors.danger,
+                                errorLabelColor = colors.danger, errorSupportingTextColor = colors.danger,
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        val enabled = code.isNotBlank()
                         Box(Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(RoundedCornerShape(14.dp))
-                            .background(if (pro) colors.goodSoft else if (enabled) colors.accent else colors.surface2)
+                            .background(if (enabled) colors.accent else colors.surface2)
                             .clickable(enabled = enabled, role = Role.Button, onClick = activate),
                             contentAlignment = Alignment.Center) {
-                            Text(stringResource(if (pro) R.string.pro_active else R.string.pro_promo_activate),
+                            Text(stringResource(R.string.pro_promo_activate),
                                 style = type.bodyStrong.copy(fontSize = 16.sp),
-                                color = if (pro) colors.good else if (enabled) colors.onAccent else colors.muted,
+                                color = if (enabled) colors.onAccent else colors.muted,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp))
                         }
                     }
                 }
             }
         }
+        help?.let { topic ->
+            AlertDialog(
+                onDismissRequest = { help = null },
+                title = { Text(stringResource(if (topic == ProHelp.WIDGET) R.string.pro_f_widget else R.string.pro_f_shortcuts)) },
+                text = { Text(stringResource(if (topic == ProHelp.WIDGET) R.string.pro_widget_help else R.string.pro_shortcuts_help)) },
+                confirmButton = { TextButton(onClick = { help = null }) { Text(stringResource(R.string.pro_help_close)) } },
+                containerColor = colors.surface,
+                titleContentColor = colors.ink,
+                textContentColor = colors.ink,
+            )
+        }
+    }
+}
+
+private enum class ProHelp { WIDGET, SHORTCUTS }
+
+@Composable
+private fun ActiveProBanner() {
+    val palette = AppTheme.colors.proPalette
+    val shape = RoundedCornerShape(16.dp)
+    Row(Modifier.fillMaxWidth().clip(shape).background(palette.activeSurface)
+        .border(1.dp, palette.activeOutline, shape).heightIn(min = 56.dp).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+        Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = palette.activeInk, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(stringResource(R.string.pro_active), style = AppTheme.type.bodyStrong, color = palette.activeInk)
     }
 }
 
@@ -146,12 +209,16 @@ private fun ProSurface(content: @Composable ColumnScope.() -> Unit) {
 
 @Composable
 private fun FeatureDivider() {
-    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(AppTheme.colors.line))
+    HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = AppTheme.colors.line)
 }
 
 @Composable
-private fun FeatureRow(title: String, sub: String, preview: @Composable () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun FeatureRow(
+    title: String, sub: String, shape: Shape = RoundedCornerShape(0.dp),
+    onClick: (() -> Unit)? = null, preview: @Composable () -> Unit,
+) {
+    val action = if (onClick != null) Modifier.clip(shape).clickable(role = Role.Button, onClick = onClick) else Modifier
+    Row(Modifier.fillMaxWidth().then(action).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, style = AppTheme.type.body.copy(fontWeight = FontWeight.Medium), color = AppTheme.colors.ink)
             Text(sub, style = AppTheme.type.caption.copy(fontSize = 13.sp, lineHeight = 17.sp), color = AppTheme.colors.muted,
@@ -180,8 +247,9 @@ private fun WidgetPreview() {
 private fun ReceiptPreview() {
     val colors = AppTheme.colors
     val description = stringResource(R.string.pro_receipt_preview)
-    Column(Modifier.width(76.dp).clip(ReceiptPreviewShape).background(colors.surface2)
-        .padding(horizontal = 9.dp, vertical = 10.dp).clearAndSetSemantics { contentDescription = description }) {
+    val palette = colors.proPalette
+    Column(Modifier.width(76.dp).clip(ReceiptPreviewShape).background(palette.receiptSurface)
+        .border(1.dp, palette.receiptOutline, ReceiptPreviewShape).padding(horizontal = 9.dp, vertical = 10.dp).clearAndSetSemantics { contentDescription = description }) {
         Text(stringResource(R.string.pro_preview_receipt), style = AppTheme.type.caption, color = colors.ink)
         Text(stringResource(R.string.pro_preview_receipt_sum), style = AppTheme.type.caption.copy(fontSize = 10.sp), color = colors.ink,
             modifier = Modifier.padding(top = 4.dp))
@@ -215,39 +283,94 @@ private fun ShortcutPreview() {
 }
 
 @Composable
-private fun StylePreview() {
+private fun StylePreview(settings: AppSettings, onDynamicColor: (Boolean) -> Unit, onAppIcon: (AppIcon) -> Unit) {
     val colors = AppTheme.colors
+    val fontScale = LocalDensity.current.fontScale
     ProSurface {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Text(stringResource(R.string.pro_your_style), style = AppTheme.type.title, color = colors.ink)
-            Spacer(Modifier.height(14.dp))
-            Row(Modifier.fillMaxWidth()) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.pro_f_colors), style = AppTheme.type.body.copy(fontSize = 13.sp), color = colors.ink)
-                    Text(stringResource(R.string.pro_android_version), style = AppTheme.type.caption, color = colors.muted,
-                        modifier = Modifier.padding(top = 3.dp))
-                    Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        for (color in listOf(colors.accent, colors.accent.copy(alpha = 0.45f), colors.accent.copy(alpha = 0.18f))) {
-                            Box(Modifier.size(26.dp).clip(RoundedCornerShape(8.dp)).background(color))
-                        }
+            Spacer(Modifier.height(10.dp))
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                // Three 48 dp icon targets need 144 dp; stack rather than shrink them on narrow screens.
+                if (maxWidth < 313.dp || fontScale > 1.4f) {
+                    Column {
+                        WallpaperOption(settings, onDynamicColor, Modifier.fillMaxWidth())
+                        HorizontalDivider(Modifier.padding(vertical = 12.dp), color = colors.line)
+                        IconOption(settings, onAppIcon, Modifier.fillMaxWidth())
+                    }
+                } else {
+                    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max)) {
+                        WallpaperOption(settings, onDynamicColor, Modifier.weight(1f).fillMaxHeight())
+                        VerticalDivider(Modifier.padding(horizontal = 12.dp).fillMaxHeight(), color = colors.line)
+                        IconOption(settings, onAppIcon, Modifier.weight(1f).fillMaxHeight())
                     }
                 }
-                Box(Modifier.width(1.dp).height(82.dp).background(colors.line))
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.pro_f_icon), style = AppTheme.type.body.copy(fontSize = 13.sp), color = colors.ink)
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        val variants = listOf(
-                            R.color.ic_launcher_background to R.drawable.ic_launcher_foreground,
-                            R.color.ic_launcher_background_dark to R.drawable.ic_launcher_foreground,
-                            R.color.ic_launcher_background_gold to R.drawable.ic_launcher_foreground_gold,
-                        )
-                        for ((background, foreground) in variants) {
-                            Box(Modifier.size(32.dp).clip(RoundedCornerShape(9.dp)).background(colorResource(background))) {
-                                Image(painterResource(foreground), contentDescription = null, modifier = Modifier.fillMaxSize())
-                            }
-                        }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WallpaperOption(settings: AppSettings, onChange: (Boolean) -> Unit, modifier: Modifier) {
+    val colors = AppTheme.colors
+    val label = stringResource(R.string.pro_f_colors)
+    Column(modifier, verticalArrangement = Arrangement.SpaceBetween) {
+        Column {
+            Row(Modifier.heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(label, style = AppTheme.type.body.copy(fontSize = 13.sp, lineHeight = 17.sp),
+                    color = colors.ink, modifier = Modifier.weight(1f))
+                Switch(
+                    checked = settings.pro && settings.dynamicColor,
+                    onCheckedChange = onChange,
+                    enabled = settings.pro && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
+                    modifier = Modifier.semantics { contentDescription = label },
+                    colors = SwitchDefaults.colors(checkedThumbColor = colors.onAccent,
+                        checkedTrackColor = colors.accent, uncheckedThumbColor = colors.muted,
+                        uncheckedTrackColor = colors.surface2, uncheckedBorderColor = colors.line),
+                )
+            }
+            Text(stringResource(R.string.pro_android_version), style = AppTheme.type.caption, color = colors.muted)
+        }
+        Row(Modifier.padding(top = 12.dp).height(48.dp), horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            for (color in listOf(colors.accent, colors.accent.copy(alpha = 0.45f), colors.accent.copy(alpha = 0.18f))) {
+                Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(color))
+            }
+        }
+    }
+}
+
+@Composable
+private fun IconOption(settings: AppSettings, onChange: (AppIcon) -> Unit, modifier: Modifier) {
+    val colors = AppTheme.colors
+    Column(modifier, verticalArrangement = Arrangement.SpaceBetween) {
+        Box(Modifier.heightIn(min = 48.dp), contentAlignment = Alignment.CenterStart) {
+            Text(stringResource(R.string.pro_f_icon), style = AppTheme.type.body.copy(fontSize = 13.sp, lineHeight = 17.sp), color = colors.ink)
+        }
+        Row(Modifier.padding(top = 12.dp).height(48.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically) {
+            for (variant in AppIcon.entries) {
+                val selected = settings.appIcon == variant
+                val scale by animateFloatAsState(if (selected) 1.06f else 1f, motion(180), label = "proIconScale")
+                val outline by animateColorAsState(if (selected) colors.proPalette.iconOutline else Color.Transparent, motion(180), label = "proIconOutline")
+                val shape = RoundedCornerShape(12.dp)
+                val background = when (variant) {
+                    AppIcon.CLASSIC -> R.color.ic_launcher_background
+                    AppIcon.DARK -> R.color.ic_launcher_background_dark
+                    AppIcon.GOLD -> R.color.ic_launcher_background_gold
+                }
+                val title = stringResource(when (variant) {
+                    AppIcon.CLASSIC -> R.string.app_icon_classic
+                    AppIcon.DARK -> R.string.app_icon_dark
+                    AppIcon.GOLD -> R.string.app_icon_gold
+                })
+                Box(Modifier.size(48.dp).clip(shape)
+                    .selectable(selected = selected, enabled = settings.pro, role = Role.RadioButton) { onChange(variant) }
+                    .semantics { contentDescription = title }, contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(40.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+                        .clip(shape).background(colorResource(background)).border(1.5.dp, outline, shape)) {
+                        Image(painterResource(if (variant == AppIcon.GOLD) R.drawable.ic_launcher_foreground_gold else R.drawable.ic_launcher_foreground),
+                            contentDescription = null, modifier = Modifier.fillMaxSize())
                     }
                 }
             }

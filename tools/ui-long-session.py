@@ -36,7 +36,7 @@ def checkpoint(round):
     adb('shell','am','send-trim-memory',PKG,'BACKGROUND')
     # Activity's callback precedes HWUI trim completion; a launcher snapshot waits for UI idle.
     tree()
-    adb('shell','am','dumpheap',PKG,'/data/local/tmp/kpc-session.hprof',timeout=60)
+    adb('shell','am','dumpheap','-g',PKG,'/data/local/tmp/kpc-session.hprof',timeout=60)
     prior=adb('logcat','-d','-s','KpcAudit:I','*:S').count('aliveReceipts=')
     adb('shell','am','broadcast','-n',PKG+'/app.dirhamrub.diag.MemoryAuditReceiver')
     for _ in range(40):

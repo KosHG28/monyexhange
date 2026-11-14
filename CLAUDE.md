@@ -50,7 +50,8 @@ Baseline Profile: `:baselineprofile` — отдельный producer с реал
 
 ## Архитектура
 
-Один модуль `:app`, один `MainActivity`, Compose + Material 3 со своей темой, MVVM без DI.
+Основной модуль `:app`, один `MainActivity`, Compose + Material 3 со своей темой, MVVM без DI.
+`:baselineprofile` — только генератор профиля на тестовом устройстве, в APK приложения не входит.
 
 ```
 app/src/main/java/app/dirhamrub/

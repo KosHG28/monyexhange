@@ -240,6 +240,8 @@ jobs:
           arch: x86_64
           target: default
           profile: pixel_6
+          ram-size: 2048M
+          heap-size: 256M
           emulator-options: -no-window -gpu swiftshader_indirect -feature -Vulkan -noaudio -no-boot-anim -camera-back emulated
           disk-size: 4096M
           disable-animations: true
@@ -252,6 +254,9 @@ jobs:
           {
             date -u
             df -h "$RUNNER_TEMP"
+            free -m
+            ps -eo pid,comm,rss --sort=-rss | head -15
+            sudo dmesg -T | tail -80 || true
             timeout 15s adb devices || true
             timeout 15s adb shell getprop sys.boot_completed || true
             timeout 15s adb logcat -d -b crash || true

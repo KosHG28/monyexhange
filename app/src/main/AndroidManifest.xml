@@ -54,9 +54,6 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <meta-data
-                android:name="android.app.shortcuts"
-                android:resource="@xml/shortcuts" />
         </activity-alias>
         <!-- Тёмный значок (Pro). -->
         <activity-alias
@@ -70,9 +67,6 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <meta-data
-                android:name="android.app.shortcuts"
-                android:resource="@xml/shortcuts" />
         </activity-alias>
         <!-- Золотой значок (Pro). -->
         <activity-alias
@@ -86,11 +80,16 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <meta-data
-                android:name="android.app.shortcuts"
-                android:resource="@xml/shortcuts" />
         </activity-alias>
 
+        <activity-alias android:name=".LauncherEmerald" android:enabled="false" android:exported="true"
+            android:icon="@mipmap/ic_launcher_emerald" android:roundIcon="@mipmap/ic_launcher_emerald_round" android:targetActivity=".MainActivity">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".LauncherPlatinum" android:enabled="false" android:exported="true"
+            android:icon="@mipmap/ic_launcher_platinum" android:roundIcon="@mipmap/ic_launcher_platinum_round" android:targetActivity=".MainActivity">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
         <!-- Виджет «Курс по чеку» на рабочем столе (Pro). -->
         <receiver
             android:name="app.dirhamrub.widget.QuoteWidget"

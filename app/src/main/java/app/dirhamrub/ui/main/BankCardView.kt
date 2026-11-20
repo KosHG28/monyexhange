@@ -210,7 +210,7 @@ internal fun BankCardView(
                     Text(
                         text = card.name,
                         style = type.label.copy(fontSize = if (compact) 11.5.sp else 12.5.sp),
-                        color = CardPalette.onCard.copy(alpha = 0.92f),
+                        color = style.ink.copy(alpha = 0.92f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = if (tripPreview) Modifier.tripSharedTitle() else Modifier,
@@ -224,15 +224,15 @@ internal fun BankCardView(
                 val sumStyle = type.number.copy(fontSize = sumSize, lineHeight = sumSize * 1.15f, fontWeight = FontWeight.Medium, letterSpacing = 0.sp)
                 Row(if (tripPreview) Modifier.tripSharedBounds(TRIP_HERO) else Modifier) {
                     if (sum != null) {
-                        if (approx.isNotEmpty()) Text(approx, style = sumStyle, color = CardPalette.onCard, maxLines = 1, softWrap = false)
-                        RollingText(sum, style = sumStyle, color = CardPalette.onCard)
-                        Text(" " + home.mark, style = sumStyle, color = CardPalette.onCard, maxLines = 1, softWrap = false)
+                        if (approx.isNotEmpty()) Text(approx, style = sumStyle, color = style.ink, maxLines = 1, softWrap = false)
+                        RollingText(sum, style = sumStyle, color = style.ink)
+                        Text(" " + home.mark, style = sumStyle, color = style.ink, maxLines = 1, softWrap = false)
                     } else {
-                        Text(sumText, style = sumStyle, color = CardPalette.onCard, maxLines = 1, softWrap = false)
+                        Text(sumText, style = sumStyle, color = style.ink, maxLines = 1, softWrap = false)
                     }
                 }
                 Spacer(Modifier.height(3.dp))
-                val rateStyle = type.caption.copy(fontSize = 11.5.sp, lineHeight = 14.sp, color = CardPalette.onCard.copy(alpha = 0.88f))
+                val rateStyle = type.caption.copy(fontSize = 11.5.sp, lineHeight = 14.sp, color = style.ink.copy(alpha = 0.88f))
                 // Курс не сокращается многоточием: на узкой карте шрифт сам уменьшается, пока строка не влезет.
                 val rateText: @Composable (Modifier) -> Unit = { m ->
                     if (tripPreview) {

@@ -40,6 +40,7 @@ object WalletCodec {
             p[k + "name"] = c.name
             p[k + "currency"] = c.currency.code
             p[k + "style"] = c.style.toString()
+            c.customColor?.takeIf { it in 0..0xFFFFFF }?.let { p[k + "color"] = it.toString(16).padStart(6, '0') }
             p[k + "kind"] = c.kind.name
             if (c.unionPay) p[k + "unionpay"] = "1"
             c.settlement?.let { p[k + "settlement"] = it.code }
@@ -134,6 +135,7 @@ object WalletCodec {
             name = p.getProperty(k + "name").orEmpty(),
             currency = currency,
             style = p.int(k + "style") ?: 0,
+            customColor = p.getProperty(k + "color")?.takeIf { it.matches(Regex("[0-9a-fA-F]{6}")) }?.toIntOrNull(16),
             transfer = transfer,
             purchases = purchases,
             manual = manual,

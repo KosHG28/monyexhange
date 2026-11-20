@@ -5,6 +5,12 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.alpha
+import app.dirhamrub.domain.wallet.BankCard
+import app.dirhamrub.domain.wallet.CardKind
+import app.dirhamrub.ui.theme.CardPalette
+import app.dirhamrub.ui.theme.LauncherPreview
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -70,7 +76,9 @@ import app.dirhamrub.ui.theme.rememberHaptics
 @Composable
 fun ProScreen(
     settings: AppSettings,
-    onDynamicColor: (Boolean) -> Unit,
+    cards: List<BankCard>,
+    onPureBlack: (Boolean) -> Unit,
+    onStyles: () -> Unit,
     onAppIcon: (AppIcon) -> Unit,
     onActivate: (String) -> Boolean,
     onDismiss: () -> Unit,
@@ -124,15 +132,13 @@ fun ProScreen(
                         }) else null,
                     ) { WidgetPreview() }
                     FeatureDivider()
-                    FeatureRow(stringResource(R.string.pro_f_shots), stringResource(R.string.pro_f_shots_sub)) { ReceiptPreview() }
-                    FeatureDivider()
-                    FeatureRow(stringResource(R.string.pro_f_shortcuts), stringResource(R.string.pro_f_shortcuts_sub),
+                    FeatureRow(stringResource(R.string.pro_f_tile), stringResource(R.string.pro_f_tile_sub),
                         shape = RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp),
-                        onClick = if (pro) ({ help = ProHelp.SHORTCUTS }) else null,
-                    ) { ShortcutPreview() }
+                        onClick = if (pro) ({ if (!ProFeatures.requestCameraTile(context)) help = ProHelp.TILE }) else null,
+                    ) { TilePreview() }
                 }
                 Spacer(Modifier.height(12.dp))
-                StylePreview(settings, onDynamicColor, onAppIcon)
+                StylePreview(settings, cards, onPureBlack, onStyles, onAppIcon)
                 Spacer(Modifier.height(16.dp))
                 if (pro) {
                     ActiveProBanner()
@@ -176,8 +182,8 @@ fun ProScreen(
         help?.let { topic ->
             AlertDialog(
                 onDismissRequest = { help = null },
-                title = { Text(stringResource(if (topic == ProHelp.WIDGET) R.string.pro_f_widget else R.string.pro_f_shortcuts)) },
-                text = { Text(stringResource(if (topic == ProHelp.WIDGET) R.string.pro_widget_help else R.string.pro_shortcuts_help)) },
+                title = { Text(stringResource(if (topic == ProHelp.WIDGET) R.string.pro_f_widget else R.string.pro_f_tile)) },
+                text = { Text(stringResource(if (topic == ProHelp.WIDGET) R.string.pro_widget_help else R.string.pro_tile_help)) },
                 confirmButton = { TextButton(onClick = { help = null }) { Text(stringResource(R.string.pro_help_close)) } },
                 containerColor = colors.surface,
                 titleContentColor = colors.ink,
@@ -187,7 +193,7 @@ fun ProScreen(
     }
 }
 
-private enum class ProHelp { WIDGET, SHORTCUTS }
+private enum class ProHelp { WIDGET, TILE }
 
 @Composable
 private fun ActiveProBanner() {
@@ -244,46 +250,19 @@ private fun WidgetPreview() {
 }
 
 @Composable
-private fun ReceiptPreview() {
-    val colors = AppTheme.colors
-    val description = stringResource(R.string.pro_receipt_preview)
-    val palette = colors.proPalette
-    Column(Modifier.width(76.dp).clip(ReceiptPreviewShape).background(palette.receiptSurface)
-        .border(1.dp, palette.receiptOutline, ReceiptPreviewShape).padding(horizontal = 9.dp, vertical = 10.dp).clearAndSetSemantics { contentDescription = description }) {
-        Text(stringResource(R.string.pro_preview_receipt), style = AppTheme.type.caption, color = colors.ink)
-        Text(stringResource(R.string.pro_preview_receipt_sum), style = AppTheme.type.caption.copy(fontSize = 10.sp), color = colors.ink,
-            modifier = Modifier.padding(top = 4.dp))
-        repeat(2) { Box(Modifier.padding(top = 5.dp).fillMaxWidth(if (it == 0) 1f else 0.7f).height(2.dp).background(colors.line)) }
-        Spacer(Modifier.height(5.dp))
-    }
-}
-
-private object ReceiptPreviewShape : Shape {
-    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
-        val tooth = with(density) { 4.dp.toPx() }
-        return Outline.Generic(Path().apply {
-            moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(size.width, size.height - tooth)
-            for (i in 1..12) lineTo(size.width * (1f - i / 12f), size.height - if (i % 2 == 0) tooth else 0f)
-            close()
-        })
+private fun TilePreview() {
+    val description = stringResource(R.string.pro_tile_preview)
+    Box(Modifier.size(width = 56.dp, height = 44.dp).clip(RoundedCornerShape(14.dp))
+        .background(AppTheme.colors.accentSoft).clearAndSetSemantics { contentDescription = description }, contentAlignment = Alignment.Center) {
+        Icon(painterResource(R.drawable.ic_camera_white), null, tint = AppTheme.colors.accent, modifier = Modifier.size(25.dp))
     }
 }
 
 @Composable
-private fun ShortcutPreview() {
-    val description = stringResource(R.string.pro_shortcuts_preview)
-    Row(Modifier.clearAndSetSemantics { contentDescription = description }, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (icon in listOf(R.drawable.ic_scan, R.drawable.ic_place_white)) {
-            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(AppTheme.colors.surface2),
-                contentAlignment = Alignment.Center) {
-                Icon(painterResource(icon), contentDescription = null, tint = AppTheme.colors.accent, modifier = Modifier.size(20.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun StylePreview(settings: AppSettings, onDynamicColor: (Boolean) -> Unit, onAppIcon: (AppIcon) -> Unit) {
+private fun StylePreview(
+    settings: AppSettings, cards: List<BankCard>, onPureBlack: (Boolean) -> Unit,
+    onStyles: () -> Unit, onAppIcon: (AppIcon) -> Unit,
+) {
     val colors = AppTheme.colors
     val fontScale = LocalDensity.current.fontScale
     ProSurface {
@@ -291,86 +270,107 @@ private fun StylePreview(settings: AppSettings, onDynamicColor: (Boolean) -> Uni
             Text(stringResource(R.string.pro_your_style), style = AppTheme.type.title, color = colors.ink)
             Spacer(Modifier.height(10.dp))
             BoxWithConstraints(Modifier.fillMaxWidth()) {
-                // Three 48 dp icon targets need 144 dp; stack rather than shrink them on narrow screens.
-                if (maxWidth < 313.dp || fontScale > 1.4f) {
+                if (maxWidth < 270.dp || fontScale > 1.4f) {
                     Column {
-                        WallpaperOption(settings, onDynamicColor, Modifier.fillMaxWidth())
+                        AmoledOption(settings, onPureBlack, Modifier.fillMaxWidth())
                         HorizontalDivider(Modifier.padding(vertical = 12.dp), color = colors.line)
-                        IconOption(settings, onAppIcon, Modifier.fillMaxWidth())
+                        CardColorsOption(settings.pro, cards, onStyles, Modifier.fillMaxWidth())
                     }
                 } else {
                     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max)) {
-                        WallpaperOption(settings, onDynamicColor, Modifier.weight(1f).fillMaxHeight())
+                        AmoledOption(settings, onPureBlack, Modifier.weight(1f).fillMaxHeight())
                         VerticalDivider(Modifier.padding(horizontal = 12.dp).fillMaxHeight(), color = colors.line)
-                        IconOption(settings, onAppIcon, Modifier.weight(1f).fillMaxHeight())
+                        CardColorsOption(settings.pro, cards, onStyles, Modifier.weight(1f).fillMaxHeight())
                     }
                 }
             }
+            HorizontalDivider(Modifier.padding(vertical = 12.dp), color = colors.line)
+            Text(stringResource(R.string.pro_f_icon), style = AppTheme.type.body.copy(fontSize = 13.sp), color = colors.ink)
+            Spacer(Modifier.height(8.dp))
+            IconOptions(settings, onAppIcon)
         }
     }
 }
 
 @Composable
-private fun WallpaperOption(settings: AppSettings, onChange: (Boolean) -> Unit, modifier: Modifier) {
+private fun AmoledOption(settings: AppSettings, onChange: (Boolean) -> Unit, modifier: Modifier) {
     val colors = AppTheme.colors
-    val label = stringResource(R.string.pro_f_colors)
+    val label = stringResource(R.string.pro_amoled)
+    val background by animateColorAsState(if (settings.pureBlack) androidx.compose.ui.graphics.Color.Black else colors.proPalette.amoledOff,
+        motion(180), label = "amoledPreview")
     Column(modifier, verticalArrangement = Arrangement.SpaceBetween) {
         Column {
             Row(Modifier.heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(label, style = AppTheme.type.body.copy(fontSize = 13.sp, lineHeight = 17.sp),
-                    color = colors.ink, modifier = Modifier.weight(1f))
-                Switch(
-                    checked = settings.pro && settings.dynamicColor,
-                    onCheckedChange = onChange,
-                    enabled = settings.pro && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
+                Text(label, style = AppTheme.type.body.copy(fontSize = 13.sp, lineHeight = 17.sp), color = colors.ink, modifier = Modifier.weight(1f))
+                Switch(checked = settings.pureBlack, onCheckedChange = onChange, enabled = settings.pro,
                     modifier = Modifier.semantics { contentDescription = label },
-                    colors = SwitchDefaults.colors(checkedThumbColor = colors.onAccent,
-                        checkedTrackColor = colors.accent, uncheckedThumbColor = colors.muted,
-                        uncheckedTrackColor = colors.surface2, uncheckedBorderColor = colors.line),
-                )
+                    colors = SwitchDefaults.colors(checkedThumbColor = colors.onAccent, checkedTrackColor = colors.accent,
+                        uncheckedThumbColor = colors.muted, uncheckedTrackColor = colors.surface2, uncheckedBorderColor = colors.line))
             }
-            Text(stringResource(R.string.pro_android_version), style = AppTheme.type.caption, color = colors.muted)
+            Text(stringResource(R.string.pro_amoled_sub), style = AppTheme.type.caption, color = colors.muted)
         }
-        Row(Modifier.padding(top = 12.dp).height(48.dp), horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            for (color in listOf(colors.accent, colors.accent.copy(alpha = 0.45f), colors.accent.copy(alpha = 0.18f))) {
-                Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(color))
+        Row(Modifier.padding(top = 10.dp).height(38.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp))
+            .background(background).padding(6.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(5.dp)).background(colors.goodSoft))
+            Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(5.dp)).background(colors.surface2))
+        }
+    }
+}
+
+@Composable
+private fun CardColorsOption(pro: Boolean, cards: List<BankCard>, onClick: () -> Unit, modifier: Modifier) {
+    val colors = AppTheme.colors
+    Column(modifier.clip(RoundedCornerShape(10.dp)).clickable(enabled = pro, role = Role.Button, onClick = onClick),
+        verticalArrangement = Arrangement.SpaceBetween) {
+        Column {
+            Row(Modifier.heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.pro_card_colors), style = AppTheme.type.body.copy(fontSize = 13.sp, lineHeight = 17.sp), color = colors.ink, modifier = Modifier.weight(1f))
+                Text("›", color = colors.muted, fontSize = 22.sp)
+            }
+            Text(stringResource(R.string.pro_per_card), style = AppTheme.type.caption, color = colors.muted)
+        }
+        Row(Modifier.padding(top = 10.dp).height(38.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            for ((slot, index) in listOf(0, 1, 3, 6).withIndex()) {
+                val style = cards.filter { it.kind == app.dirhamrub.domain.wallet.CardKind.CARD }.getOrNull(slot)?.let(CardPalette::style) ?: CardPalette.style(index)
+                Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(6.dp))
+                    .background(Brush.linearGradient(listOf(style.start, style.end)))) {
+                    Box(Modifier.padding(6.dp).size(7.dp, 6.dp).clip(RoundedCornerShape(2.dp)).background(style.chip))
+                }
             }
         }
     }
 }
 
 @Composable
-private fun IconOption(settings: AppSettings, onChange: (AppIcon) -> Unit, modifier: Modifier) {
+private fun IconOptions(settings: AppSettings, onChange: (AppIcon) -> Unit) {
     val colors = AppTheme.colors
-    Column(modifier, verticalArrangement = Arrangement.SpaceBetween) {
-        Box(Modifier.heightIn(min = 48.dp), contentAlignment = Alignment.CenterStart) {
-            Text(stringResource(R.string.pro_f_icon), style = AppTheme.type.body.copy(fontSize = 13.sp, lineHeight = 17.sp), color = colors.ink)
-        }
-        Row(Modifier.padding(top = 12.dp).height(48.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically) {
-            for (variant in AppIcon.entries) {
-                val selected = settings.appIcon == variant
-                val scale by animateFloatAsState(if (selected) 1.06f else 1f, motion(180), label = "proIconScale")
-                val outline by animateColorAsState(if (selected) colors.accent else Color.Transparent, motion(180), label = "proIconOutline")
-                val shape = RoundedCornerShape(12.dp)
-                val background = when (variant) {
-                    AppIcon.CLASSIC -> R.color.ic_launcher_background
-                    AppIcon.DARK -> R.color.ic_launcher_background_dark
-                    AppIcon.GOLD -> R.color.ic_launcher_background_gold
-                }
-                val title = stringResource(when (variant) {
-                    AppIcon.CLASSIC -> R.string.app_icon_classic
-                    AppIcon.DARK -> R.string.app_icon_dark
-                    AppIcon.GOLD -> R.string.app_icon_gold
-                })
-                Box(Modifier.size(48.dp).clip(shape)
-                    .selectable(selected = selected, enabled = settings.pro, role = Role.RadioButton) { onChange(variant) }
-                    .semantics { contentDescription = title }, contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(40.dp).graphicsLayer { scaleX = scale; scaleY = scale }
-                        .clip(shape).background(colorResource(background)).border(1.5.dp, outline, shape)) {
-                        Image(painterResource(if (variant == AppIcon.GOLD) R.drawable.ic_launcher_foreground_gold else R.drawable.ic_launcher_foreground),
-                            contentDescription = null, modifier = Modifier.fillMaxSize())
+    val icons = listOf(AppIcon.CLASSIC, AppIcon.GOLD, AppIcon.EMERALD, AppIcon.PLATINUM)
+    val fontScale = LocalDensity.current.fontScale
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // Accessibility text gets two equal rows rather than clipped labels or tiny touch targets.
+        val columns = if (fontScale > 1.2f || maxWidth < 254.dp) 2 else 4
+        val compact = maxWidth < 280.dp
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (row in icons.chunked(columns)) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (variant in row) {
+                    val selected = settings.appIcon == variant
+                    val bg by animateColorAsState(if (selected) colors.accent.copy(alpha = if (colors.isDark) 0.16f else 0.10f) else colors.proPalette.tileSurface, motion(180), label = "iconTileBg")
+                    val outline by animateColorAsState(if (selected) colors.accent else Color.Transparent, motion(180), label = "iconTileOutline")
+                    val ink by animateColorAsState(if (selected) colors.accent else colors.muted, motion(180), label = "iconTileInk")
+                    val title = stringResource(when (variant) {
+                        AppIcon.CLASSIC -> R.string.pro_icon_classic
+                        AppIcon.GOLD, AppIcon.DARK -> R.string.pro_icon_gold
+                        AppIcon.EMERALD -> R.string.pro_icon_emerald
+                        AppIcon.PLATINUM -> R.string.pro_icon_platinum
+                    })
+                    val shape = RoundedCornerShape(14.dp)
+                    Column(Modifier.weight(1f).clip(shape).background(bg).border(1.5.dp, outline, shape)
+                        .selectable(selected, enabled = settings.pro, role = Role.RadioButton) { onChange(variant) }
+                        .semantics { contentDescription = title }.padding(horizontal = 4.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        LauncherPreview(variant)
+                        Spacer(Modifier.height(7.dp))
+                        Text(title, color = ink, style = AppTheme.type.caption.copy(fontSize = if (compact) 11.sp else 11.5.sp,
+                            letterSpacing = if (compact) (-0.3).sp else 0.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal), maxLines = 1, softWrap = false)
                     }
                 }
             }

@@ -7,7 +7,7 @@ import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 
-/** Плитка «Ценник» в шторке быстрых настроек: открывает камеру с любого экрана. */
+/** Плитка «Курс по чеку» в шторке быстрых настроек: открывает камеру с любого экрана. */
 class CameraTileService : TileService() {
 
     override fun onStartListening() {

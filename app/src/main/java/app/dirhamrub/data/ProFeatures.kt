@@ -2,20 +2,14 @@ package app.dirhamrub.data
 
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.appwidget.AppWidgetManager
-import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
-import androidx.core.graphics.drawable.IconCompat
-import app.dirhamrub.MainActivity
 import app.dirhamrub.R
 import app.dirhamrub.domain.AppIcon
-import app.dirhamrub.domain.wallet.Countries
-import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.widget.QuoteWidget
 
-/** Функции Pro, которые живут вне экрана приложения: значок на рабочем столе и ярлыки на нём. */
+/** Функции Pro, которые живут вне экрана приложения: значок, виджет и плитка в шторке. */
 object ProFeatures {
     /** Launcher's confirmation remains in control; unsupported launchers use the screen's help. */
     fun requestWidget(context: Context): Boolean {
@@ -34,6 +28,8 @@ object ProFeatures {
         AppIcon.CLASSIC to "app.dirhamrub.LauncherClassic",
         AppIcon.DARK to "app.dirhamrub.LauncherDark",
         AppIcon.GOLD to "app.dirhamrub.LauncherGold",
+        AppIcon.EMERALD to "app.dirhamrub.LauncherEmerald",
+        AppIcon.PLATINUM to "app.dirhamrub.LauncherPlatinum",
     )
 
     /**
@@ -55,42 +51,22 @@ object ProFeatures {
         }
     }
 
-    /**
-     * Ярлыки на значке (долгое нажатие): с Pro — «Чек из скриншота» и «Вернуться в …» (прошлая страна);
-     * без Pro — только постоянный «Ценник» из shortcuts.xml.
-     */
-    fun updateShortcuts(context: Context, pro: Boolean, spend: Currency, recent: List<Currency>) {
-        if (!pro) {
-            runCatching { ShortcutManagerCompat.removeAllDynamicShortcuts(context) }
-            return
-        }
-        val shortcuts = buildList {
-            add(
-                ShortcutInfoCompat.Builder(context, "scan")
-                    .setShortLabel(context.getString(R.string.shortcut_scan_short))
-                    .setLongLabel(context.getString(R.string.shortcut_scan_long))
-                    .setIcon(IconCompat.createWithResource(context, R.drawable.ic_shortcut_scan))
-                    .setIntent(open(context, MainActivity.SCREEN_SCAN))
-                    .build(),
-            )
-            recent.firstOrNull { it != spend }?.let { previous ->
-                val country = Countries.placeFor(previous, null, null)?.nameRu ?: previous.shortRu
-                add(
-                    ShortcutInfoCompat.Builder(context, "previous")
-                        .setShortLabel(country)
-                        .setLongLabel(context.getString(R.string.shortcut_back_long, country, previous.code))
-                        .setIcon(IconCompat.createWithResource(context, R.drawable.ic_shortcut_place))
-                        .setIntent(open(context, MainActivity.SCREEN_SPEND).putExtra(MainActivity.EXTRA_CURRENCY, previous.code))
-                        .build(),
-                )
-            }
-        }
-        runCatching { ShortcutManagerCompat.setDynamicShortcuts(context, shortcuts) }
+    /** Retire advertised dynamic actions; existing user-pinned intents remain valid. */
+    fun retireShortcuts(context: Context) {
+        runCatching { ShortcutManagerCompat.removeDynamicShortcuts(context, listOf("scan", "previous")) }
     }
 
-    private fun open(context: Context, screen: String): Intent =
-        Intent(Intent.ACTION_VIEW)
-            .setClass(context, MainActivity::class.java)
-            .putExtra(MainActivity.EXTRA_SCREEN, screen)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+    fun requestCameraTile(context: Context): Boolean {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return false
+        val bar = context.getSystemService(android.app.StatusBarManager::class.java) ?: return false
+        return try {
+            bar.requestAddTileService(
+                ComponentName(context, app.dirhamrub.CameraTileService::class.java),
+                context.getString(R.string.tile_camera),
+                android.graphics.drawable.Icon.createWithResource(context, R.drawable.ic_camera_white),
+                context.mainExecutor,
+            ) { }
+            true
+        } catch (_: SecurityException) { false } catch (_: IllegalArgumentException) { false }
+    }
 }

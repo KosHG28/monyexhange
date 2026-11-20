@@ -3,6 +3,8 @@ package app.dirhamrub.ui.theme
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
 
@@ -85,9 +87,10 @@ val LocalAppColors = staticCompositionLocalOf { LightColors }
 
 /** Оформление «банковской» карты: градиент, водяной знак, чип. Одинаково в обеих темах. */
 @Immutable
-data class CardStyle(val start: Color, val end: Color, val mark: Color, val chip: Color)
+data class CardStyle(val start: Color, val end: Color, val mark: Color, val chip: Color, val ink: Color = Color.White)
 
 object CardPalette {
+    val hueStops = listOf(Color.Red, Color.Yellow, Color.Green, Color.Blue, Color.Magenta)
     val onCard = Color(0xFFFFFFFF)
     /** Наценка к ЦБ и «лучшая» поверх градиента карты: светлые, на тёмной подложке. */
     val goodOnCard = Color(0xFF7BE3AE)
@@ -114,7 +117,21 @@ object CardPalette {
     /** Наличные: зелень купюр — сразу видно, что это не карта. */
     val cash = CardStyle(Color(0xFF3F8F5A), Color(0xFF1F4A30), Color(0xFFCDEBD6), gold)
 
-    fun style(card: BankCard): CardStyle = if (card.kind == CardKind.CASH) cash else style(card.style)
+    fun style(card: BankCard): CardStyle = when {
+        card.kind == CardKind.CASH -> cash
+        card.customColor != null && card.customColor in 0..0xFFFFFF -> custom(card.customColor)
+        else -> style(card.style)
+    }
+
+    fun custom(rgb: Int): CardStyle {
+        val start = Color(0xFF000000L or rgb.toLong())
+        val end = lerp(start, Color.Black, if (start.luminance() > 0.45f) 0.18f else 0.46f)
+        val lightContrast = 1.05f / (maxOf(start.luminance(), end.luminance()) + 0.05f)
+        val dark = Color(0xFF15202A)
+        val darkContrast = (minOf(start.luminance(), end.luminance()) + 0.05f) / (dark.luminance() + 0.05f)
+        val ink = if (lightContrast >= darkContrast) Color.White else dark
+        return CardStyle(start, end, ink.copy(alpha = 0.3f), if (ink == Color.White) silver else gold, ink)
+    }
 }
 
 /** Выбор способа оплаты: в тёмной теме глубину создаёт только тон поверхности. */

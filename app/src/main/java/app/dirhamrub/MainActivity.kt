@@ -62,7 +62,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val vm: MainViewModel = viewModel(factory = MainViewModel.Factory)
             val settings by vm.settings.collectAsStateWithLifecycle()
-            DirhamTheme(theme = settings.theme, motion = settings.motion, keyHaptics = settings.keyHaptics, pureBlack = settings.pureBlack, dynamicColor = settings.pro && settings.dynamicColor) {
+            DirhamTheme(theme = settings.theme, motion = settings.motion, keyHaptics = settings.keyHaptics, pureBlack = settings.pureBlack, dynamicColor = settings.dynamicColor) {
                 AdaptiveFrameRate {
                 // Наклон телефона — для блика на картах (флагманы, Android 13+).
                 ProvideTilt {

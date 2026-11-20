@@ -719,7 +719,7 @@ internal fun PayIcon(card: BankCard, best: Boolean, flight: Boolean = false) {
             Text(
                 mark,
                 style = AppTheme.type.caption.copy(fontSize = 7.sp, lineHeight = 8.sp, fontWeight = FontWeight.Bold),
-                color = CardPalette.onCard,
+                color = style.ink,
                 maxLines = 1,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 3.dp, bottom = 2.dp)
                     .then(if (shared) Modifier.tripMainEnter(TripEnter.BADGE) else Modifier),

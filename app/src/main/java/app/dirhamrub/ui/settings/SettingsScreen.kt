@@ -92,12 +92,9 @@ class SettingsActions(
     val onHome: (Currency) -> Unit,
     val onCountryHint: (Boolean) -> Unit,
     val onCameraEmbedded: (Boolean) -> Unit,
-    /** null — плитку в шторку добавить нельзя (Android до 13). */
-    val onAddTile: (() -> Unit)?,
     val onTheme: (ThemeMode) -> Unit,
     val onMotion: (MotionMode) -> Unit,
     val onKeyHaptics: (Boolean) -> Unit,
-    val onPureBlack: (Boolean) -> Unit,
     val onWifiOnly: (Boolean) -> Unit,
     val onRounding: (Rounding) -> Unit,
     val onOnboarding: () -> Unit,
@@ -106,7 +103,6 @@ class SettingsActions(
     /** Экран «Курс по чеку Pro» с активацией промокодом. */
     val onOpenPro: () -> Unit,
     val onDynamicColor: (Boolean) -> Unit,
-    val onAppIcon: (AppIcon) -> Unit,
 )
 
 /**
@@ -374,10 +370,7 @@ private fun CameraSection(state: MainUiState, actions: SettingsActions) {
             listOf(stringResource(R.string.settings_camera_embed), stringResource(R.string.settings_camera_bubbles)),
             if (state.cameraEmbedded) 0 else 1,
         ) { actions.onCameraEmbedded(it == 0) }
-        actions.onAddTile?.let { add ->
-            Divider()
-            LinkRow(stringResource(R.string.settings_tile), stringResource(R.string.settings_tile_sub), null, add)
-        }
+
     }
 }
 
@@ -396,39 +389,11 @@ private fun LookSection(state: MainUiState, actions: SettingsActions) {
             themes.indexOf(state.settings.theme),
         ) { actions.onTheme(themes[it]) }
         Divider()
-        SwitchRow(
-            stringResource(R.string.settings_pure_black),
-            stringResource(R.string.settings_pure_black_sub),
-            state.settings.pureBlack,
-            actions.onPureBlack,
-        )
-        Divider()
-        // Pro: цвета из обоев (Android 12+) и значок. Без Pro строки ведут на экран покупки.
-        val pro = state.settings.pro
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (pro) {
-                SwitchRow(
-                    stringResource(R.string.settings_dynamic_color),
-                    stringResource(R.string.settings_dynamic_color_sub),
-                    state.settings.dynamicColor,
-                    actions.onDynamicColor,
-                )
-            } else {
-                LinkRow(stringResource(R.string.settings_dynamic_color), stringResource(R.string.settings_dynamic_color_locked), stringResource(R.string.pro_badge), actions.onOpenPro)
-            }
+            SwitchRow(stringResource(R.string.settings_dynamic_color),
+                stringResource(R.string.settings_dynamic_color_sub), state.settings.dynamicColor, actions.onDynamicColor)
             Divider()
         }
-        if (pro) {
-            val icons = AppIcon.entries
-            ChoiceRow(
-                stringResource(R.string.settings_app_icon),
-                listOf(stringResource(R.string.app_icon_classic), stringResource(R.string.app_icon_dark), stringResource(R.string.app_icon_gold)),
-                icons.indexOf(state.settings.appIcon),
-            ) { actions.onAppIcon(icons[it]) }
-        } else {
-            LinkRow(stringResource(R.string.settings_app_icon), stringResource(R.string.pro_f_icon_sub), stringResource(R.string.pro_badge), actions.onOpenPro)
-        }
-        Divider()
         val motions = MotionMode.entries
         ChoiceRow(
             stringResource(R.string.settings_motion),

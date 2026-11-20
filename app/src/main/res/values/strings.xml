@@ -21,7 +21,7 @@
     <string name="currency_no_rate">без курса</string>
     <string name="currency_unionpay">UnionPay</string>
     <string name="currency_home_only_cbr">Итог — в рубле или валюте, у которой есть курс ЦБ: иначе карты не сравнить.</string>
-    <string name="tile_camera">Ценник</string>
+    <string name="tile_camera">Курс по чеку</string>
     <string name="tile_offer">Камера в шторке: плитка «Ценник» открывает её с любого экрана</string>
     <string name="tile_offer_add">Добавить</string>
     <string name="tile_offer_add_a11y">Добавить плитку «Ценник» в шторку быстрых настроек</string>
@@ -88,7 +88,7 @@
     <string name="pro_shortcuts_help">Зажмите значок приложения на рабочем столе. В меню доступны «Чек из скриншота» и возврат в прошлую страну, если вы уже меняли страну.</string>
     <string name="pro_help_close">Понятно</string>
     <string name="pro_row">Курс по чеку Pro</string>
-    <string name="pro_row_sub">Виджет, ярлыки, значок, цвета из обоев, скриншоты при чеках</string>
+    <string name="pro_row_sub">Виджет, плитка и персонализация</string>
     <string name="pro_row_bought">Активна</string>
     <string name="pro_badge">Pro</string>
     <string name="settings_dynamic_color">Цвета из обоев</string>
@@ -551,4 +551,35 @@
     <string name="season_badge_a11y">Сезонная подсказка: %1$s</string>
     <string name="season_tip_open">Подсказка открыта</string>
     <string name="season_tip_closed">Подсказка закрыта</string>
+
+    <string name="pro_f_tile">Плитка в шторке</string>
+    <string name="pro_f_tile_sub">Быстрый запуск камеры в приложении</string>
+    <string name="pro_tile_preview">Пример плитки камеры</string>
+    <string name="pro_tile_help">Откройте шторку быстрых настроек, нажмите «Изменить» и перетащите плитку «Курс по чеку» в активную область. Она сразу открывает камеру в приложении.</string>
+    <string name="pro_amoled">AMOLED</string>
+    <string name="pro_amoled_sub">Чисто-чёрный фон</string>
+    <string name="pro_card_colors">Стиль карт</string>
+    <string name="pro_per_card">Для каждой карты</string>
+    <string name="pro_icon_classic">Классика</string>
+    <string name="pro_icon_gold">Золото</string>
+    <string name="pro_icon_emerald">Изумруд</string>
+    <string name="pro_icon_platinum">Платина</string>
+    <string name="style_title">Оформление карты</string>
+    <string name="style_card_picker">Карта для оформления</string>
+    <string name="style_colors">Цвета карты</string>
+    <string name="style_custom">Свой цвет</string>
+    <string name="style_hex">Цвет HEX</string>
+    <string name="style_hex_error">Введите 6 символов: 0–9, A–F</string>
+    <string name="style_hue">Оттенок</string>
+    <string name="style_apply">Применить</string>
+    <string name="style_empty">Сначала добавьте карту в «Карты и наличные».</string>
+    <string name="style_teal">Бирюза</string>
+    <string name="style_bordeaux">Бордо</string>
+    <string name="style_indigo">Индиго</string>
+    <string name="style_emerald">Изумруд</string>
+    <string name="style_amber">Янтарь</string>
+    <string name="style_purple">Фиолет</string>
+    <string name="style_graphite">Графит</string>
+    <string name="style_main_preview">На главном экране</string>
+    <string name="style_ready">Готово</string>
 </resources>

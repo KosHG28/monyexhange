@@ -115,18 +115,6 @@ private fun networkCountry(context: Context): String? =
         ?.uppercase()
         ?.takeIf { it.length == 2 }
 
-/** Системный запрос «Добавить плитку «Ценник» в быстрые настройки?». */
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
-private fun requestCameraTile(context: Context) {
-    val bar = context.getSystemService(StatusBarManager::class.java) ?: return
-    bar.requestAddTileService(
-        ComponentName(context, CameraTileService::class.java),
-        context.getString(R.string.tile_camera),
-        Icon.createWithResource(context, R.drawable.ic_camera_white),
-        context.mainExecutor,
-    ) { }
-}
-
 /** Корень интерфейса: главный экран, камера и шторки. */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -156,6 +144,7 @@ fun DirhamApp(
     var settingsOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_SETTINGS) }
     // «Курс по чеку Pro» — из настроек, из закрытых Pro-строк и с виджета без Pro.
     var proOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_PRO) }
+    var cardStyleOpen by rememberSaveable { mutableStateOf(false) }
     // Снимки CI: знакомство поверх демо-данных, с нужного шага.
     var onboardingForced by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_ONBOARDING) }
     // Знакомство открыли повторно из настроек: валюту трат по стране сети уже не подставляем.
@@ -272,7 +261,7 @@ fun DirhamApp(
     if (!onboarding) {
     Box(Modifier.fillMaxSize().background(AppTheme.colors.bg)) {
     // Плитка «Ценник» в шторке: предлагаем один раз, после первого знакомства с камерой (Android 13+).
-    val tileOffer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && state.cameraUsed && !state.tileOffered
+    val tileOffer = state.settings.pro && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && state.cameraUsed && !state.tileOffered
     // Справочник — той страны, что в шапке (выбранная, страна сети или главная страна валюты): у евро их много.
     val placeIso = remember(state.wallet.spend, state.wallet.place, country) {
         Countries.placeFor(state.wallet.spend, state.wallet.place, country)?.iso
@@ -289,7 +278,7 @@ fun DirhamApp(
         countryOffer = offer,
         tileOffer = tileOffer,
         onTileOffer = { accept ->
-            if (accept && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) requestCameraTile(context)
+            if (accept && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ProFeatures.requestCameraTile(context)
             vm.markTileOffered()
         },
         onKey = vm::press,
@@ -354,15 +343,9 @@ fun DirhamApp(
                 onHome = vm::setHome,
                 onCountryHint = vm::setCountryHint,
                 onCameraEmbedded = vm::setCameraEmbedded,
-                onAddTile = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) requestCameraTile(context) }
-                } else {
-                    null
-                },
                 onTheme = vm::setTheme,
                 onMotion = vm::setMotion,
                 onKeyHaptics = vm::setKeyHaptics,
-                onPureBlack = vm::setPureBlack,
                 onWifiOnly = vm::setWifiOnly,
                 onRounding = vm::setRounding,
                 onOnboarding = {
@@ -374,7 +357,6 @@ fun DirhamApp(
                 onCards = { moneyOpen = true },
                 onOpenPro = { proOpen = true },
                 onDynamicColor = vm::setDynamicColor,
-                onAppIcon = vm::setAppIcon,
             ),
         )
     }
@@ -483,11 +465,17 @@ fun DirhamApp(
     if (proOpen) {
         ProScreen(
             settings = state.settings,
-            onDynamicColor = vm::setDynamicColor,
+            cards = state.wallet.cards,
+            onPureBlack = vm::setPureBlack,
+            onStyles = { cardStyleOpen = true },
             onAppIcon = vm::setAppIcon,
             onActivate = vm::activatePro,
             onDismiss = { proOpen = false },
         )
+    }
+    if (cardStyleOpen) {
+        val appearanceState by vm.state.collectAsStateWithLifecycle()
+        app.dirhamrub.ui.pro.CardStyleScreen(appearanceState, vm::setCardAppearance) { cardStyleOpen = false }
     }
     // Pro вне экрана: значок на рабочем столе, ярлыки на нём, виджет. Без Pro — всё по-обычному.
     if (state.loaded) {
@@ -495,9 +483,7 @@ fun DirhamApp(
         LaunchedEffect(pro, state.settings.appIcon) {
             ProFeatures.applyAppIcon(context, if (pro) state.settings.appIcon else AppIcon.CLASSIC)
         }
-        LaunchedEffect(pro, state.wallet.spend, state.wallet.recent) {
-            ProFeatures.updateShortcuts(context, pro, state.wallet.spend, state.wallet.recent)
-        }
+        LaunchedEffect(Unit) { ProFeatures.retireShortcuts(context) }
         LaunchedEffect(pro, state.wallet, state.reference) {
             // Кошелёк сохраняется чуть позже — виджет перечитывает его после паузы.
             delay(WIDGET_REFRESH_DELAY_MS)

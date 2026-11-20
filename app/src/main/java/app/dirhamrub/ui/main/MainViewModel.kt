@@ -1,5 +1,7 @@
 package app.dirhamrub.ui.main
 
+import app.dirhamrub.domain.wallet.withAppearance
+
 import app.dirhamrub.domain.AppIcon
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -298,7 +300,8 @@ class MainViewModel(
     }
 
     fun saveCard(card: BankCard) {
-        _state.update { s -> s.copy(wallet = s.wallet.upsert(card)) }
+        _state.update { s -> val current = s.wallet.cards.firstOrNull { it.id == card.id }
+            s.copy(wallet = s.wallet.upsert(if (current == null) card else card.copy(style = current.style, customColor = current.customColor))) }
         refreshReceiptRates()
     }
 
@@ -448,7 +451,12 @@ class MainViewModel(
     fun setRounding(value: Rounding) = updateSettings { it.copy(rounding = value) }
     fun setKeyHaptics(value: Boolean) = updateSettings { it.copy(keyHaptics = value) }
 
-    fun setPureBlack(value: Boolean) = updateSettings { it.copy(pureBlack = value) }
+    fun setPureBlack(value: Boolean) = updateSettings { it.copy(pureBlack = value && it.pro) }
+
+    /** Only appearance changes; newer receipts and current selection remain intact. */
+    fun setCardAppearance(id: String, style: Int, customColor: Int?) {
+        _state.update { s -> if (s.settings.pro) s.copy(wallet = s.wallet.withAppearance(id, style, customColor)) else s }
+    }
 
     /** Проверка кода — до сохранения; состояние Pro переживает перезапуск через WalletRepository. */
     fun activatePro(code: String): Boolean {
@@ -457,7 +465,7 @@ class MainViewModel(
         return true
     }
 
-    fun setDynamicColor(value: Boolean) = updateSettings { it.copy(dynamicColor = value && it.pro) }
+    fun setDynamicColor(value: Boolean) = updateSettings { it.copy(dynamicColor = value) }
 
     fun setAppIcon(value: AppIcon) = updateSettings { it.copy(appIcon = if (it.pro) value else AppIcon.CLASSIC) }
 

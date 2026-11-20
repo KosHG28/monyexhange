@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Changed screen only: PRO. Guide, calculator, editor and camera are not photographed.
+# Changed screens: PRO, settings, card styles. No guide, calculator, card editor or camera.
 set -euo pipefail
 mkdir -p screens
 exec > >(tee screens/scenario.log) 2>&1
@@ -14,7 +14,7 @@ python3 - <<'PY'
 from pathlib import Path
 import struct,zlib
 files=list(Path('screens').glob('pro-*.png'))
-assert len(files)==14,len(files)
+assert len(files)==20,len(files)
 for path in files:
     data=path.read_bytes();assert data[:8]==b'\x89PNG\r\n\x1a\n',path
     pos=8;finished=False
@@ -25,7 +25,7 @@ for path in files:
         pos+=n+12
         if kind==b'IEND':finished=True;break
     assert finished,path
-print('14 complete PRO screenshots: locked/active, wallpaper colors, compact font 130; both themes.')
+print('20 complete screenshots: PRO, settings, palette/custom colors, compact font 130; both themes.')
 PY
 adb logcat -d -b crash > screens/crash.txt
 if rg -q "Process: ru.kurspocheku," screens/crash.txt; then cat screens/crash.txt; exit 1; fi

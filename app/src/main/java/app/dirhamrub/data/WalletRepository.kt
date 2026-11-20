@@ -144,7 +144,8 @@ class WalletRepository(
                 pureBlack = p[SET_PURE_BLACK] ?: false,
                 pro = p[SET_PRO] ?: false,
                 dynamicColor = p[SET_DYNAMIC_COLOR] ?: false,
-                appIcon = AppIcon.entries.firstOrNull { it.name == p[SET_APP_ICON] } ?: AppIcon.CLASSIC,
+                appIcon = (AppIcon.entries.firstOrNull { it.name == p[SET_APP_ICON] } ?: AppIcon.CLASSIC)
+                    .let { if (it == AppIcon.DARK) AppIcon.GOLD else it },
                 wifiOnly = p[SET_WIFI_ONLY] ?: false,
                 rounding = Rounding.entries.firstOrNull { it.name == p[SET_ROUNDING] } ?: Rounding.WHOLE,
             ),

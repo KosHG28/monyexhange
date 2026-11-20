@@ -19,7 +19,7 @@ enum class ThemeMode { SYSTEM, DARK, LIGHT }
 enum class MotionMode { SYSTEM, OFF }
 
 /** Значок приложения (Pro): классический, тёмный, золотой. */
-enum class AppIcon { CLASSIC, DARK, GOLD }
+enum class AppIcon { CLASSIC, DARK, GOLD, EMERALD, PLATINUM }
 
 /** Округление итога и сумм в карточках: без округления (с копейками), до целых, до десятков. */
 enum class Rounding { NONE, WHOLE, TENS }
@@ -42,7 +42,7 @@ data class AppSettings(
     val rounding: Rounding = Rounding.WHOLE,
     /** Активирована Pro-версия (пока — по общему промокоду без оплаты). */
     val pro: Boolean = false,
-    /** Pro: синий акцент — из цветов обоев (Android 12+). */
+    /** Бесплатно: акцент из цветов обоев (Android 12+). */
     val dynamicColor: Boolean = false,
     /** Pro: какой значок у приложения. */
     val appIcon: AppIcon = AppIcon.CLASSIC,

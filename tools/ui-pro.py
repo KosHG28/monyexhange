@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PRO only: activation, settings, launcher actions, two themes and a compact font-130 layout."""
+"""Changed PRO, settings and card style screens only; camera and guide are excluded."""
 from pathlib import Path
 import re
 import subprocess
@@ -47,66 +47,98 @@ def control(label,scroll=False):
     # Android exports the checkable control and its label as parent/child nodes.
     return find(lambda n:n.get('checkable')=='true' and any(c.get('content-desc')==label for c in n.iter('node')),scroll)
 def capture(name):
-    # Never capture the launcher/system widget dialog or any other application screen.
-    find(text('Курс по чеку')) if '-top-' in name or '-wallpaper-' in name else find(text('Pro активна') if 'locked' not in name else text('Активировать Pro'))
+    root=tree()
+    assert any(n.get('package')==PKG and n.get('text') in ['Курс по чеку','Оформление карты','Настройки'] for n in root.iter('node')), 'Only changed app screens may be captured'
     with (OUT/(name+'.png')).open('wb') as f:subprocess.run(['adb','exec-out','screencap','-p'],stdout=f,check=True,timeout=30)
+def switch(label,scroll=False):
+    return find(lambda n:n.get('checkable')=='true' and any(c.get('text')==label or c.get('content-desc')==label for c in n.iter('node')),scroll)
+def start(screen,demo=False):
+    global viewport
+    adb('shell','am','force-stop',PKG);viewport=None
+    args=['shell','am','start','-W','-n',ACT,'--es','screen',screen]
+    if demo:args+=['--ez','demo','true']
+    adb(*args)
+def assert_absent(*labels):
+    root=tree()
+    for label in labels:assert not any(label in n.get('text','') for n in root.iter('node')),label
+
+def style_open():
+    edge(False);tap(find(text('Стиль карт'),scroll=True));find(text('Оформление карты'))
 
 try:
     for theme,night in [('light','no'),('dark','yes')]:
-        adb('shell','am','force-stop',PKG)
         adb('shell','settings','put','system','font_scale','1.0')
         adb('shell','wm','size','reset');size_cached=size()
         adb('shell','cmd','uimode','night',night)
-        adb('shell','am','start','-W','-n',ACT,'--ez','demo','true','--es','screen','pro')
-        find(text('Курс по чеку'))
-        capture('pro-locked-top-'+theme)
+        # Material You must work without activating PRO; removed PRO settings stay absent.
+        start('settings',True);find(text('Настройки'))
+        value=switch('Цвета из обоев',scroll=True)
+        assert value.get('enabled')=='true' and not chosen(value)
+        tap(value);assert chosen(switch('Цвета из обоев'))
+        tap(switch('Цвета из обоев'));assert not chosen(switch('Цвета из обоев'))
+        assert_absent('AMOLED','Значок приложения','Чек с оригиналом')
+        capture('pro-settings-look-'+theme)
+        start('pro');find(text('Курс по чеку'));capture('pro-locked-top-'+theme)
+        assert_absent('Чек с оригиналом','Быстрые действия')
         edge(True);capture('pro-locked-bottom-'+theme)
         field=find(lambda n:n.get('class')=='android.widget.EditText',scroll=True)
         tap(field);adb('shell','input','text','KIMCHI')
         tap(find(lambda n:'Активировать Pro' in n.get('text','') and n.get('enabled')=='true',scroll=True))
         find(text('Pro активна'),scroll=True)
         edge(False)
-        for label in ['Золотой','Классический','Тёмный']:
-            tap(control(label,scroll=True))
-            assert chosen(control(label))
+        for label in ['Золото','Изумруд','Платина','Классика']:
+            tap(control(label,scroll=True));assert chosen(control(label))
+        edge(False);tap(switch('AMOLED',scroll=True));assert chosen(switch('AMOLED'))
+        tap(switch('AMOLED'));assert not chosen(switch('AMOLED'))
         edge(False);capture('pro-active-top-'+theme)
         edge(True);capture('pro-active-bottom-'+theme)
-        edge(False)
-        switch=control('Цвета из обоев',scroll=True)
-        assert switch.get('enabled')=='true' and not chosen(switch)
-        tap(switch);assert chosen(control('Цвета из обоев'))
-        edge(False);capture('pro-wallpaper-'+theme)
-        tap(control('Цвета из обоев',scroll=True))
-        assert not chosen(control('Цвета из обоев'))
-        edge(False)
-        tap(find(text('Быстрые действия')))
-        find(text('Зажмите значок приложения'))
+        style_open()
+        assert_absent('Банки')
+        tap(control('Бордо',scroll=True));assert chosen(control('Бордо'))
+        edge(False);capture('pro-styles-palette-'+theme)
+        tap(find(text('Применить')));find(text('Курс по чеку'))
+        style_open();assert chosen(control('Бордо',scroll=True))
+        tap(control('Свой цвет',scroll=True))
+        field=find(lambda n:n.get('class')=='android.widget.EditText',scroll=True)
+        tap(field)
+        adb('shell','input','keyevent','KEYCODE_MOVE_END')
+        for _ in range(7):adb('shell','input','keyevent','KEYCODE_DEL')
+        adb('shell','input','text','376AC4');adb('shell','input','keyevent','4')
+        find(lambda n:n.get('class')=='android.widget.EditText' and '376AC4' in n.get('text',''))
+        edge(False);capture('pro-styles-custom-'+theme)
+        tap(find(text('Применить')));find(text('Курс по чеку'))
+        # Reopen after process death, verify both appearance and PRO/icon settings persisted.
+        start('pro');find(text('Курс по чеку'));assert chosen(control('Классика',scroll=True))
+        style_open();assert chosen(control('Свой цвет',scroll=True));tap(control('Свой цвет'))
+        find(lambda n:n.get('class')=='android.widget.EditText' and '376AC4' in n.get('text',''),scroll=True)
         adb('shell','input','keyevent','4');find(text('Курс по чеку'))
+        edge(False);tap(find(text('Плитка в шторке')))
+        for _ in range(8):
+            root=tree()
+            native=any(n.get('package')=='com.android.systemui' and n.get('class')=='android.widget.Button' for n in root.iter('node'))
+            fallback=any('Откройте шторку быстрых настроек' in n.get('text','') for n in root.iter('node'))
+            if native or fallback:break
+        assert native or fallback,'Neither tile addition request nor manual help opened'
+        adb('shell','input','keyevent','4');find(text('Курс по чеку'))
+        # Do not add/click the tile or open the camera; check only its setup request.
         tap(find(text('Виджет на рабочем столе')))
         for _ in range(8):
             root=tree()
             native=any(n.get('package','').startswith('com.android.launcher') for n in root.iter('node'))
             fallback=any('Зажмите свободное место' in n.get('text','') for n in root.iter('node'))
             if native or fallback:break
-        assert native or fallback,'Neither widget pin confirmation nor launcher help opened'
-        report.append(theme+': KIMCHI activation, 3 icon selections, wallpaper on/off, shortcuts help; widget '+('system confirmation' if native else 'manual help'))
+        assert native or fallback,'Neither widget confirmation nor manual help opened'
         adb('shell','input','keyevent','4');find(text('Курс по чеку'))
-        # Compact display and larger system text: still only PRO is photographed.
+        report.append(theme+': free Material You, KIMCHI, 4 icons, AMOLED, palette/custom color persistence; native tile/widget setup only; no camera/guide')
         adb('shell','settings','put','system','font_scale','1.3')
         adb('shell','wm','size','960x2140');size_cached=size()
         find(text('Курс по чеку'));edge(False);capture('pro-large-top-'+theme)
         edge(True);capture('pro-large-bottom-'+theme)
-        # Reopen ordinary saved state; activation, icon and switch must persist.
-        adb('shell','am','force-stop',PKG)
-        adb('shell','settings','put','system','font_scale','1.0')
-        adb('shell','wm','size','reset');size_cached=size()
-        adb('shell','am','start','-W','-n',ACT,'--es','screen','pro')
-        assert chosen(control('Тёмный',scroll=True))
-        assert not chosen(control('Цвета из обоев'))
-        find(text('Pro активна'),scroll=True)
-        report.append(theme+': compact display/font 130 and persisted PRO/style settings passed')
+        style_open();capture('pro-styles-large-'+theme)
+        report.append(theme+': compact display/font 130 PRO and card styles passed')
     (OUT/'pro-check.txt').write_text('\n'.join(report))
     print('\n'.join(report),flush=True)
+
 except Exception:
     try:
         root=tree();(OUT/'pro-error-ui.xml').write_text(ET.tostring(root,encoding='unicode'))

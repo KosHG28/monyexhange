@@ -231,6 +231,8 @@ jobs:
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
           ./gradlew assembleDebug -Pdirhamrub.x86=true
+          # Release the build daemon heap before starting the emulator on a shared runner.
+          ./gradlew --stop
 
       - uses: reactivecircus/android-emulator-runner@v2
         with:

@@ -72,6 +72,7 @@ def style_open():
 
 try:
     for theme,night in [('light','no'),('dark','yes')]:
+        adb('shell','am','force-stop',PKG)
         adb('shell','settings','put','system','font_scale','1.0')
         adb('shell','wm','size','reset');size_cached=size()
         adb('shell','cmd','uimode','night',night)
@@ -135,8 +136,11 @@ try:
         assert native or fallback,'Neither widget confirmation nor manual help opened'
         adb('shell','input','keyevent','4');find(text('Курс по чеку'))
         report.append(theme+': free Material You, KIMCHI, 4 icons, AMOLED, palette/custom color persistence; native tile/widget setup only; no camera/guide')
+        # Reconfigure a stopped activity, avoiding live dialog-surface recreation on SwiftShader.
+        adb('shell','am','force-stop',PKG)
         adb('shell','settings','put','system','font_scale','1.3')
         adb('shell','wm','size','960x2140');size_cached=size()
+        start('pro')
         find(text('Курс по чеку'));edge(False);capture('pro-large-top-'+theme)
         edge(True);capture('pro-large-bottom-'+theme)
         style_open();capture('pro-styles-large-'+theme)

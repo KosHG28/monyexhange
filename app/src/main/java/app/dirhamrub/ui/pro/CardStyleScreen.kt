@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -18,6 +19,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -174,13 +176,19 @@ private fun CustomColorEditor(hex: String, onHex: (String) -> Unit, rgb: Int?) {
         val width = with(density) { maxWidth.toPx() }
         val height = with(density) { 116.dp.toPx() }
         val radius = with(density) { 7.dp.toPx() }
+        val pickColor by rememberUpdatedState<(Offset) -> Unit>({ pos ->
+            choose(hue, (pos.x / width).coerceIn(0f, 1f), 1f - (pos.y / height).coerceIn(0f, 1f))
+        })
         Box(Modifier.fillMaxWidth().height(116.dp).clip(RoundedCornerShape(12.dp))
             .background(hueColor)
             .background(Brush.horizontalGradient(listOf(Color.White, Color.Transparent)))
             .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
-            .pointerInput(hue, width, height) {
-                detectDragGestures(onDragStart = { pos -> choose(hue, (pos.x / width).coerceIn(0f, 1f), 1f - (pos.y / height).coerceIn(0f, 1f)) }) { change, _ ->
-                    change.consume(); choose(hue, (change.position.x / width).coerceIn(0f, 1f), 1f - (change.position.y / height).coerceIn(0f, 1f))
+            .pointerInput(width, height) {
+                detectTapGestures { pos -> pickColor(pos) }
+            }
+            .pointerInput(width, height) {
+                detectDragGestures(onDragStart = { pos -> pickColor(pos) }) { change, _ ->
+                    change.consume(); pickColor(change.position)
                 }
             }) {
             Box(Modifier.offset { IntOffset((hsv[1] * width - radius).roundToInt(), ((1f - hsv[2]) * height - radius).roundToInt()) }

@@ -47,11 +47,16 @@ def control(label,scroll=False):
     # Android exports the checkable control and its label as parent/child nodes.
     return find(lambda n:n.get('checkable')=='true' and any(c.get('content-desc')==label for c in n.iter('node')),scroll)
 def capture(name):
-    root=tree()
-    assert any(n.get('package')==PKG and n.get('text') in ['Курс по чеку','Оформление карты','Настройки'] for n in root.iter('node')), 'Only changed app screens may be captured'
+    # Headers within the PRO/settings scroll view can move off screen. Verify the
+    # unique visible content of this changed screen rather than a hidden header.
+    if 'settings-look' in name:find(text('Цвета из обоев'))
+    elif 'styles-' in name:find(text('Оформление карты'))
+    elif '-bottom-' in name:find(text('Активировать Pro') if 'locked' in name else text('Pro активна'))
+    else:find(text('Курс по чеку'))
     with (OUT/(name+'.png')).open('wb') as f:subprocess.run(['adb','exec-out','screencap','-p'],stdout=f,check=True,timeout=30)
+
 def switch(label,scroll=False):
-    return find(lambda n:n.get('checkable')=='true' and any(c.get('text')==label or c.get('content-desc')==label for c in n.iter('node')),scroll)
+    return find(lambda n:n.get('checkable')=='true' and any(label in c.get('text','').split('\n') or c.get('content-desc')==label for c in n.iter('node')),scroll)
 def start(screen,demo=False):
     global viewport
     adb('shell','am','force-stop',PKG);viewport=None

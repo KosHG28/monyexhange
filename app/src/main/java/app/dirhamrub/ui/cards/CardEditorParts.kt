@@ -76,6 +76,7 @@ import java.math.BigDecimal
 internal sealed interface ScanResult {
     data object Reading : ScanResult
     data object NotFound : ScanResult
+    data object ReadError : ScanResult
     data class Found(val receipt: ScannedReceipt) : ScanResult
 }
 
@@ -266,17 +267,18 @@ internal fun ScreenshotButton(result: ScanResult?, card: Currency, onClick: (() 
     val message = when (result) {
         null -> null
         ScanResult.Reading -> stringResource(R.string.scan_reading)
+        ScanResult.ReadError -> stringResource(R.string.scan_read_error)
         ScanResult.NotFound -> stringResource(R.string.scan_not_found, card.mark)
         is ScanResult.Found -> when (val r = result.receipt) {
             is ScannedReceipt.Purchase -> stringResource(
                 R.string.scan_purchase,
-                "${Numbers.money(r.paid)} ${card.mark}",
-                "${Numbers.money(r.price)} ${r.spend.mark}",
+                "${Numbers.groupInput(Numbers.exactInput(r.paid))} ${card.mark}",
+                "${Numbers.groupInput(Numbers.exactInput(r.price))} ${r.spend.mark}",
             )
             is ScannedReceipt.Transfer -> stringResource(
                 R.string.scan_transfer,
-                "${Numbers.money(r.sent)} ${r.sentCurrency.mark}",
-                "${Numbers.money(r.got)} ${card.mark}",
+                "${Numbers.groupInput(Numbers.exactInput(r.sent))} ${r.sentCurrency.mark}",
+                "${Numbers.groupInput(Numbers.exactInput(r.got))} ${card.mark}",
             )
         }
     }
@@ -285,7 +287,7 @@ internal fun ScreenshotButton(result: ScanResult?, card: Currency, onClick: (() 
             text = message,
             style = type.caption.copy(fontSize = 13.sp),
             color = when (result) {
-                ScanResult.NotFound -> colors.danger
+                ScanResult.NotFound, ScanResult.ReadError -> colors.danger
                 is ScanResult.Found -> colors.good
                 else -> colors.muted
             },

@@ -1,6 +1,14 @@
 package app.dirhamrub.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
+import app.dirhamrub.R
+import app.dirhamrub.ui.currency.CurrencyPickerScreen
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -116,9 +124,13 @@ fun CurrencyDropdown(
     options: List<Currency>,
     onSelect: (Currency) -> Unit,
     description: String,
+    allOptions: List<Currency>,
     chip: Boolean = false,
 ) {
     var open by remember { mutableStateOf(false) }
+    var pickerOpen by remember { mutableStateOf(false) }
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     val colors = AppTheme.colors
     val type = AppTheme.type
     Box {
@@ -126,7 +138,11 @@ fun CurrencyDropdown(
             modifier = Modifier
                 .heightIn(min = 44.dp)
                 .clip(RoundedCornerShape(if (chip) 50 else 20))
-                .clickable(role = Role.DropdownList, onClickLabel = description) { open = true }
+                .clickable(role = Role.DropdownList, onClickLabel = description) {
+                    focus.clearFocus(force = true)
+                    keyboard?.hide()
+                    open = true
+                }
                 .padding(horizontal = if (chip) 0.dp else 6.dp),
             contentAlignment = Alignment.Center,
         ) {
@@ -141,19 +157,38 @@ fun CurrencyDropdown(
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 )
             } else {
-                Text("${selected.mark} ▾", style = type.mono, color = colors.accent, maxLines = 1, softWrap = false)
+                Text("${selected.code} ▾", style = type.mono, color = colors.accent, maxLines = 1, softWrap = false)
             }
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            for (c in options) {
-                DropdownMenuItem(
-                    text = { Text("${c.flag} ${c.code} · ${c.nameRu}", style = AppTheme.type.body) },
-                    onClick = {
-                        open = false
-                        onSelect(c)
-                    },
-                )
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = colors.surface) {
+            Column(Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
+                for (c in options) {
+                    DropdownMenuItem(
+                        text = { Text("${c.flag} ${c.code} · ${c.nameRu}", style = AppTheme.type.body) },
+                        onClick = {
+                            open = false
+                            onSelect(c)
+                        },
+                    )
+                }
             }
+            HorizontalDivider(color = colors.line)
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.currency_all) + " ›", style = type.bodyStrong, color = colors.accent) },
+                modifier = Modifier.heightIn(min = 48.dp),
+                onClick = {
+                    open = false
+                    focus.clearFocus(force = true)
+                    pickerOpen = true
+                },
+            )
         }
     }
+    if (pickerOpen) CurrencyPickerScreen(
+        title = description,
+        selected = selected,
+        options = allOptions,
+        onPick = onSelect,
+        onDismiss = { pickerOpen = false },
+    )
 }

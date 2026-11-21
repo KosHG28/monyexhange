@@ -41,10 +41,12 @@ import app.dirhamrub.ui.theme.AppTheme
 import java.time.LocalDate
 
 /** Черновик чека покупки в редакторе: поля — как набрал пользователь. */
-internal class PurchaseDraft(val key: Int, spend: Currency, paid: String, price: String, val date: LocalDate) {
+internal class PurchaseDraft(val key: Int, spend: Currency, paid: String, price: String, date: LocalDate) {
     var spend by mutableStateOf(spend)
     var paid by mutableStateOf(paid)
     var price by mutableStateOf(price)
+    var date by mutableStateOf(date)
+    var imported by mutableStateOf(false)
 }
 
 /**
@@ -109,7 +111,7 @@ internal fun PurchaseReceipts(
                 AmountField(
                     forLabel, d.price, { d.price = it }, forLabel, m,
                     error = amountError(showErrors, d.price, d.paid),
-                    trailing = { CurrencyDropdown(d.spend, (listOf(spend, d.spend) + Currency.POPULAR).distinct(), { d.spend = it }, pick) },
+                    trailing = { CurrencyDropdown(d.spend, (listOf(spend, d.spend) + Currency.POPULAR).distinct(), { d.spend = it }, pick, Currency.entries) },
                     selectable = true,
                 )
             },

@@ -58,6 +58,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -214,6 +216,10 @@ fun DirhamApp(
     val tripShared = remember(sharedScope, visibilityScope, completionCardId) {
         TripSharedTransition(sharedScope, visibilityScope, completionCardId)
     }
+    val transitioning = navigation.currentState != navigation.targetState || navigation.isRunning
+    val transitionInput = if (transitioning) Modifier.clearAndSetSemantics { hideFromAccessibility() }
+    else Modifier
+    Box(transitionInput.fillMaxSize()) {
     CompositionLocalProvider(LocalTripSharedTransition provides tripShared) {
     if (onboarding) {
         fun finish(card: BankCard? = null, amount: java.math.BigDecimal? = null) {
@@ -251,8 +257,10 @@ fun DirhamApp(
                 }
             },
             onOpenEditor = { card ->
-                finish()
-                editing = Editing(card, isNew = true)
+                if (showOnboarding && !transitioning) {
+                    finish()
+                    editing = Editing(card, isNew = true)
+                }
             },
         )
         }
@@ -378,7 +386,7 @@ fun DirhamApp(
     }
     // Камера раскрывается кругом из кнопки «Ценник» и сворачивается в неё обратно; главный экран — под ней.
     val reveal = remember { Animatable(if (cameraOpen) 1f else 0f) }
-    LaunchedEffect(cameraOpen) {
+    LaunchedEffect(cameraOpen, reduceMotion) {
         val target = if (cameraOpen) 1f else 0f
         if (reduceMotion) {
             reveal.snapTo(target)
@@ -419,7 +427,8 @@ fun DirhamApp(
                 embedded = state.cameraEmbedded,
                 onEmbeddedChange = vm::setCameraEmbedded,
                 onSelectCard = vm::selectCard,
-                onToCalculator = { items ->
+                onToCalculator = { items, currency ->
+                    if (currency != state.wallet.spend) vm.setSpend(currency)
                     vm.putItems(items)
                     cameraOpen = false
                 },
@@ -438,8 +447,11 @@ fun DirhamApp(
             official = state.reference,
             unionPay = state.activeUnionPay,
             cards = state.wallet.cards,
-            onSave = {
-                vm.saveCard(it)
+            onSave = { card, images ->
+                vm.saveCard(card)
+                if (images.isNotEmpty()) ioScope.launch(Dispatchers.IO) {
+                    for ((kind, uri) in images) ReceiptShots.save(context.applicationContext, uri, card.id, kind)
+                }
                 editing = null
                 cardFlight.flying = null
             },
@@ -499,8 +511,9 @@ fun DirhamApp(
     }
     }
     } // CompositionLocalProvider
+    } // Transition input and semantics
     } // AnimatedContent
-    if (navigation.isRunning) {
+    if (navigation.currentState != navigation.targetState || navigation.isRunning) {
         BackHandler { }
         Box(Modifier.fillMaxSize().pointerInput(Unit) {
             awaitPointerEventScope {

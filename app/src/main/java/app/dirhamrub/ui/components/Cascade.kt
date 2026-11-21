@@ -55,17 +55,18 @@ class CascadeTiming(val delayMs: Float, val stepMs: Float, val itemMs: Float, va
 }
 
 @Composable
-fun rememberCascade(timing: CascadeTiming = CascadeTiming.Screen): CascadeState {
+fun rememberCascade(timing: CascadeTiming = CascadeTiming.Screen, lastIndex: Int = MAX_INDEX): CascadeState {
     val reduceMotion = LocalReduceMotion.current
     val scope = rememberCoroutineScope()
-    val total = timing.totalMs
+    val total = timing.delayMs + lastIndex.coerceIn(0, MAX_INDEX) * timing.stepMs + timing.itemMs
     val clock = remember { Animatable(if (reduceMotion) total else 0f) }
-    LaunchedEffect(Unit) {
-        if (!reduceMotion) clock.animateTo(total, tween(total.toInt(), easing = LinearEasing))
+    LaunchedEffect(reduceMotion, total) {
+        if (reduceMotion) clock.snapTo(total)
+        else if (clock.value < total) clock.animateTo(total, tween((total - clock.value).toInt(), easing = LinearEasing))
     }
     // Пока волна идёт — экран на высокой частоте кадров (120 Гц).
     HighFrameRate(clock.isRunning)
-    return remember(clock, scope) { CascadeState(clock, scope, total) }
+    return remember(clock, scope, total) { CascadeState(clock, scope, total) }
 }
 
 /** Первое касание экрана — волна сразу доходит до конца (за 0 мс), чтобы не мешать листать и нажимать. */

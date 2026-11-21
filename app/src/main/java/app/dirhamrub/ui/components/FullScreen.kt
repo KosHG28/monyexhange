@@ -60,14 +60,13 @@ import app.dirhamrub.ui.theme.LocalReduceMotion
 
 /** Что может экран [FullScreen]: закрыться с анимацией и потом выполнить [then] (сохранить, удалить). */
 class FullScreenScope internal constructor(
-    private val visible: MutableTransitionState<Boolean>,
     private val pending: MutableState<(() -> Unit)?>,
-    private val morph: CardMorph?,
+    private val closing: MutableState<Boolean>,
 ) {
     fun close(then: (() -> Unit)? = null) {
+        if (closing.value) return
         pending.value = then
-        // С перелётом: сначала карта летит обратно в свою строку, потом экран закрывается.
-        if (morph != null) morph.closing = true else visible.targetState = false
+        closing.value = true
     }
 }
 
@@ -94,26 +93,25 @@ fun FullScreen(
     val flight = morph?.takeIf { !reduceMotion }
     val visible = remember { MutableTransitionState(reduceMotion || flight != null).apply { targetState = true } }
     val pending = remember { mutableStateOf<(() -> Unit)?>(null) }
-    val scope = remember { FullScreenScope(visible, pending, flight) }
-    if (flight != null) {
-        // Туда — как только экран знает, где у него превью; обратно — по close(), потом закрываемся.
-        val targetKnown = flight.target != null
-        LaunchedEffect(targetKnown) {
-            if (targetKnown && !flight.closing) {
-                flight.progress.animateTo(1f, Springs.spatial())
-                // Передаём карту превью ровно один раз, когда пружина окончательно остановилась.
-                flight.settled = true
-            }
-        }
-        LaunchedEffect(flight.closing) {
-            if (flight.closing) {
+    val closing = remember { mutableStateOf(false) }
+    val scope = remember { FullScreenScope(pending, closing) }
+    val cardFlight = LocalCardFlight.current
+    val targetKnown = flight?.target?.let { it.width > 0f && it.height > 0f } == true
+    LaunchedEffect(flight, targetKnown, closing.value) {
+        if (closing.value) {
+            val origin = flight?.let { cardFlight.originOf(it.cardId) }
+            if (flight != null && targetKnown && origin != null) {
+                flight.returnOrigin = origin
+                flight.closing = true
                 flight.progress.animateTo(0f, Springs.exit())
-                visible.targetState = false
+            } else if (flight != null) {
+                flight.fallback = true
             }
+            visible.targetState = false
+        } else if (flight != null && targetKnown && !flight.settled) {
+            flight.progress.animateTo(1f, Springs.spatial())
+            flight.settled = true
         }
-    } else if (morph != null) {
-        // Без анимаций: превью сразу на месте.
-        LaunchedEffect(Unit) { morph.progress.snapTo(1f) }
     }
     // Уехал совсем — тогда сообщаем наверх (и выполняем отложенное действие).
     if (visible.isIdle && !visible.currentState && !visible.targetState) {
@@ -143,19 +141,24 @@ fun FullScreen(
         AnimatedVisibility(
             visibleState = visible,
             enter = if (plain) EnterTransition.None else Springs.screenIn,
-            exit = if (plain) ExitTransition.None else Springs.screenOut,
+            exit = when {
+                reduceMotion -> ExitTransition.None
+                flight?.fallback == true -> fadeOut(tween(120))
+                plain -> ExitTransition.None
+                else -> Springs.screenOut
+            },
         ) {
             Box(Modifier.fillMaxSize()) {
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .graphicsLayer { if (flight != null) alpha = flight.backgroundAlpha }
+                        .graphicsLayer { if (flight != null && !flight.fallback) alpha = flight.backgroundAlpha }
                         .background(colors.bg),
                 ) { backdrop() }
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .graphicsLayer { if (flight != null) alpha = flight.contentAlpha }
+                        .graphicsLayer { if (flight != null && !flight.fallback) alpha = flight.contentAlpha }
                         .windowInsetsPadding(WindowInsets.safeDrawing),
                 ) { scope.content() }
                 if (flight != null) CardMorphOverlay(flight)

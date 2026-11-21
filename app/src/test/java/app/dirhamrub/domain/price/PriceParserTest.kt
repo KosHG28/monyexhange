@@ -400,4 +400,18 @@ class PriceParserTest {
         val kwd = PriceCurrency.of("KWD")
         assertEquals(3, kwd.decimals)
     }
+    @Test
+    fun `snapshot does not quote a printed euro price as AED`() {
+        val output = photoPrices(listOf(OcrBlock(listOf(line("12,50", "€")))), app.dirhamrub.domain.wallet.Currency.AED, null)
+        val price = output.single()
+        assertEquals(app.dirhamrub.domain.wallet.Currency.EUR, price.currency)
+        assertEquals(BigDecimal("12.50"), price.candidate.value)
+        assertTrue(price.needsReview)
+    }
+
+    @Test
+    fun `snapshot marks a price without a currency for confirmation`() {
+        val output = photoPrices(listOf(OcrBlock(listOf(line("12,50")))), app.dirhamrub.domain.wallet.Currency.AED, null)
+        assertTrue(output.single().needsReview)
+    }
 }

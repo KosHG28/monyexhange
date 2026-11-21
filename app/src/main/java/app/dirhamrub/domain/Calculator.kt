@@ -8,6 +8,7 @@ enum class Line { SPEND, HOME, CARD }
 /** Клавиши своей клавиатуры калькулятора. */
 sealed interface Key {
     data class Digit(val digit: Int) : Key
+    data object TripleZero : Key
     data object Comma : Key
     data object Backspace : Key
     data object Clear : Key
@@ -30,10 +31,13 @@ enum class Op(val symbol: Char, val stored: Char) {
  * (их на один меньше, чем чисел).
  * [fresh] — значение подставлено извне (чип, «=», смена строки): следующая цифра начинает число заново.
  */
+enum class InputLimit { WHOLE, FRACTION, TERMS, TRIPLE_ZERO }
+
 data class Expression(
     val terms: List<String> = listOf(""),
     val fresh: Boolean = false,
     val ops: List<Op> = List(maxOf(0, terms.size - 1)) { Op.PLUS },
+    val waitingAtLimit: Boolean = false,
 ) {
     val isCompound: Boolean get() = terms.size > 1
     val isEmpty: Boolean get() = terms.all { it.isEmpty() }
@@ -82,21 +86,51 @@ data class Expression(
         }
     }
 
-    fun press(key: Key): Expression = when (key) {
-        is Key.Digit -> digit(key.digit)
-        Key.Comma -> comma()
-        Key.Backspace -> backspace()
-        Key.Clear -> Expression()
-        Key.Plus -> operator(Op.PLUS)
-        Key.Minus -> operator(Op.MINUS)
-        Key.Times -> operator(Op.TIMES)
-        Key.Equals -> equals()
+    fun limitFor(key: Key, fractionDigits: Int = MAX_FRACTION): InputLimit? {
+        val last = terms.last()
+        val comma = last.indexOf(',')
+        val digits = last.removePrefix("-")
+        return when (key) {
+            is Key.Digit -> when {
+                waitingAtLimit -> InputLimit.TERMS
+                fresh -> null
+                comma >= 0 && last.length - comma - 1 >= fractionDigits -> InputLimit.FRACTION
+                comma < 0 && digits.length >= MAX_INT_DIGITS -> InputLimit.WHOLE
+                else -> null
+            }
+            Key.TripleZero -> when {
+                waitingAtLimit -> InputLimit.TERMS
+                fresh || last.isEmpty() || last == "0" || comma >= 0 -> InputLimit.TRIPLE_ZERO
+                digits.length + 3 > MAX_INT_DIGITS -> InputLimit.WHOLE
+                else -> null
+            }
+            Key.Comma -> if (waitingAtLimit) InputLimit.TERMS else null
+            Key.Plus, Key.Minus, Key.Times ->
+                if (terms.size >= MAX_TERMS && last.isNotEmpty()) InputLimit.TERMS else null
+            else -> null
+        }
+    }
+
+    fun press(key: Key, fractionDigits: Int = MAX_FRACTION): Expression {
+        val limit = limitFor(key, fractionDigits)
+        if (limit != null) return if (limit == InputLimit.TERMS) copy(waitingAtLimit = true) else this
+        return when (key) {
+            is Key.Digit -> digit(key.digit)
+            Key.TripleZero -> replaceLast(terms.last() + "000")
+            Key.Comma -> comma()
+            Key.Backspace -> backspace()
+            Key.Clear -> Expression()
+            Key.Plus -> operator(Op.PLUS)
+            Key.Minus -> operator(Op.MINUS)
+            Key.Times -> operator(Op.TIMES)
+            Key.Equals -> equals()
+        }
     }
 
     /** Подставить сумму в последнее число, если оно пустое (после «+» или «×»), иначе заменить выражение. */
     fun putAmount(amount: BigDecimal): Expression =
         if (!fresh && isCompound && terms.last().isEmpty()) {
-            copy(terms = terms.dropLast(1) + Numbers.plain(amount))
+            copy(terms = terms.dropLast(1) + Numbers.exactInput(amount))
         } else {
             of(amount)
         }
@@ -105,13 +139,7 @@ data class Expression(
         require(d in 0..9)
         if (fresh) return Expression(listOf(d.toString()))
         val last = terms.last()
-        val comma = last.indexOf(',')
-        val next = when {
-            comma >= 0 && last.length - comma - 1 >= MAX_FRACTION -> return this
-            comma < 0 && last.length >= MAX_INT_DIGITS -> return this
-            last == "0" -> d.toString()
-            else -> last + d
-        }
+        val next = if (last == "0") d.toString() else last + d
         return replaceLast(next)
     }
 
@@ -126,6 +154,7 @@ data class Expression(
     }
 
     private fun backspace(): Expression {
+        if (waitingAtLimit) return copy(waitingAtLimit = false)
         val last = terms.last()
         return when {
             last.isEmpty() && terms.size > 1 -> Expression(terms.dropLast(1), ops = ops.dropLast(1))
@@ -154,7 +183,7 @@ data class Expression(
         const val MAX_TERMS = 30
 
         fun of(value: BigDecimal): Expression =
-            if (value.signum() == 0) Expression() else Expression(listOf(Numbers.plain(value)), fresh = true)
+            if (value.signum() == 0) Expression() else Expression(listOf(Numbers.exactInput(value)), fresh = true)
 
         /** Обратная операция к [serialize]; всё непонятное отбрасывается. */
         fun parse(stored: String?): Expression {

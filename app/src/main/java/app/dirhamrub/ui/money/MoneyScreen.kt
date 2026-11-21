@@ -91,7 +91,7 @@ fun MoneyScreen(state: MainUiState, actions: MoneyActions) {
         val scroll = rememberScrollState()
         val collapsing = rememberCollapsingTitle(scroll)
         CollapsingBar(stringResource(R.string.cards_title), actions.onBack, collapsing)
-        val cascade = rememberCascade()
+        val cascade = rememberCascade(lastIndex = 1)
         Column(
             Modifier
                 .fillMaxWidth()

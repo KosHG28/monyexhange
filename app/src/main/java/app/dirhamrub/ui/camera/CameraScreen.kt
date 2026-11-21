@@ -9,6 +9,11 @@ import android.util.Log
 import android.util.Size
 import android.view.accessibility.AccessibilityManager
 import androidx.camera.core.FocusMeteringAction
+import com.google.mlkit.vision.common.InputImage
+import app.dirhamrub.ui.cards.awaitOwnedTask
+import app.dirhamrub.domain.wallet.Currency
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ZoomState
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
@@ -195,7 +200,7 @@ fun CameraScreen(
     embedded: Boolean,
     onEmbeddedChange: (Boolean) -> Unit,
     onSelectCard: (String) -> Unit,
-    onToCalculator: (List<BigDecimal>) -> Unit,
+    onToCalculator: (List<BigDecimal>, Currency) -> Unit,
     onBack: () -> Unit,
     /** Переключиться на режим «Обменник» (табло); null — переключателя нет. */
 ) {
@@ -230,7 +235,7 @@ private fun CameraContent(
     embedded: Boolean,
     onEmbeddedChange: (Boolean) -> Unit,
     onSelectCard: (String) -> Unit,
-    onToCalculator: (List<BigDecimal>) -> Unit,
+    onToCalculator: (List<BigDecimal>, Currency) -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -323,19 +328,42 @@ private fun CameraContent(
     val previewHolder = remember { arrayOfNulls<PreviewView>(1) }
     var paused by remember { mutableStateOf(false) }
     var frozen by remember { mutableStateOf<ImageBitmap?>(null) }
+    var photoReading by remember { mutableStateOf(false) }
+    var photoError by remember { mutableStateOf(false) }
     DisposableEffect(camera) {
         onDispose { frozen = null }
     }
     LaunchedEffect(paused, analyzer) {
-        if (paused) {
-            frozen = previewHolder[0]?.bitmap?.asImageBitmap()
-            camera.clearImageAnalysisAnalyzer()
-            pipeline.setPaused(true)
-        } else {
+        if (!paused) {
             frozen = null
+            photoReading = false
+            photoError = false
             pipeline.setPaused(false)
             camera.setImageAnalysisAnalyzer(executor, analyzer)
+            return@LaunchedEffect
         }
+        val generation = pipeline.setPaused(true)
+        val bitmap = runCatching { previewHolder[0]?.bitmap }.getOrNull()
+        camera.clearImageAnalysisAnalyzer()
+        if (bitmap == null) {
+            photoError = true
+            return@LaunchedEffect
+        }
+        frozen = bitmap.asImageBitmap()
+        photoReading = true
+        val client = runCatching { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }.getOrNull()
+        val result = client?.let {
+            awaitOwnedTask(
+                start = { it.process(InputImage.fromBitmap(bitmap, 0)) },
+                release = { it.close() },
+                transform = { it },
+            )
+        }
+        if (result != null) withContext(Dispatchers.Default) {
+            pipeline.onPhoto(result, bitmap.width, bitmap.height, SystemClock.uptimeMillis(), generation)
+        }
+        photoError = result == null
+        photoReading = false
     }
 
     var torch by rememberSaveable { mutableStateOf(false) }
@@ -414,7 +442,7 @@ private fun CameraContent(
     // Карточка фокуса перерисовывается только когда меняется её содержимое, а не на каждом кадре OCR.
     val focus by remember {
         derivedStateOf {
-            frame.value.focus?.let { FocusInfo(it.id, it.value, it.isOld, it.unsure, it.homeAmount, it.officialAmount) }
+            frame.value.focus?.let { FocusInfo(it.id, it.value, it.isOld, it.unsure, it.homeAmount, it.officialAmount, it.sourceCurrency) }
         }
     }
     val a11y = remember {
@@ -453,6 +481,9 @@ private fun CameraContent(
         val hitSlop = with(density) { 8.dp.toPx() }
         var overlaySize by remember { mutableStateOf(IntSize.Zero) }
         LaunchedEffect(overlaySize, topReserve, bottomReserve) {
+            val still = frozen
+            if (paused && still != null && overlaySize != IntSize.Zero &&
+                (still.width != overlaySize.width || still.height != overlaySize.height)) paused = false
             if (overlaySize != IntSize.Zero) {
                 pipeline.setViewport(overlaySize.width.toFloat(), overlaySize.height.toFloat(), topReserve, bottomReserve)
             }
@@ -541,8 +572,8 @@ private fun CameraContent(
             for (l in frame.value.labels) {
                 val desc = stringResource(
                     if (l.isOld) R.string.camera_label_old_a11y else R.string.camera_label_a11y,
-                    Numbers.money(l.value),
-                    wallet.spend.code,
+                    Numbers.groupInput(Numbers.exactInput(l.value)),
+                    (l.sourceCurrency ?: wallet.spend).code,
                     l.homeAmount?.let(Numbers::moneyWhole) ?: "—",
                     wallet.home.mark,
                 )
@@ -637,35 +668,47 @@ private fun CameraContent(
                 val info = focus ?: lastFocus[0] ?: return@AnimatedVisibility
                 FocusCard(
                     info = info,
-                    spend = wallet.spend,
+                    spend = info.printedCurrency ?: wallet.spend,
                     home = wallet.home,
                     cardName = wallet.pick(null)?.name,
                     cardQuote = selectedQuote,
                     viaUnionPay = quote.viaUnionPay,
                     comparison = comparison,
                     onOpen = { sheet = frame.value.labels.firstOrNull { it.id == info.id } },
-                    onAdd = { basket = basket + info.value.toPlainString() },
+                    onAdd = {
+                        val label = frame.value.labels.firstOrNull { it.id == info.id }
+                        if (label != null && (label.unsure || label.sourceCurrency?.let { it != wallet.spend } == true)) sheet = label
+                        else if (label != null) basket = basket + info.value.toPlainString()
+                    },
                     onSelectCard = onSelectCard,
                 )
             }
             BottomStrip(
                 basket = basket,
                 hint = when {
-                    paused && nothingFound -> stringResource(R.string.camera_paused)
+                    photoReading -> stringResource(R.string.camera_photo_reading)
+                    paused && (photoError || nothingFound) -> stringResource(R.string.camera_photo_retry)
                     nothingFound -> stringResource(R.string.camera_hint, "${wallet.spend.flag} ${wallet.spend.code}")
                     else -> null
                 },
                 spend = wallet.spend,
                 home = wallet.home,
                 homePerUnit = homePerUnit,
-                onToCalculator = { onToCalculator(basket.mapNotNull { Numbers.parse(it) }) },
+                onToCalculator = { onToCalculator(basket.mapNotNull { Numbers.parse(it) }, wallet.spend) },
                 onClear = { basket = emptyList() },
             )
         }
     }
 
     sheet?.let { label ->
-        PriceSheet(
+        if (label.unsure || label.sourceCurrency?.let { it != wallet.spend } == true) {
+            PhotoPriceReview(label, wallet.spend,
+                onUse = { value, currency ->
+                    sheet = null
+                    onToCalculator(listOf(value), currency)
+                },
+                onDismiss = { sheet = null })
+        } else PriceSheet(
             amount = label.value,
             spend = wallet.spend,
             home = wallet.home,
@@ -674,7 +717,7 @@ private fun CameraContent(
             selectedId = wallet.pick(null)?.id,
             onToCalculator = {
                 sheet = null
-                onToCalculator(listOf(label.value))
+                onToCalculator(listOf(label.value), wallet.spend)
             },
             onAdd = {
                 basket = basket + label.value.toPlainString()

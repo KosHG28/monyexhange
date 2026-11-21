@@ -2,6 +2,7 @@ package app.dirhamrub.ui.cards
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.RectF
 import android.net.Uri
 import app.dirhamrub.data.ReceiptImages
 import com.google.mlkit.vision.common.InputImage
@@ -11,8 +12,16 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+internal data class ScreenshotReading(val lines: List<String>, val shapes: List<RectF?>) {
+    fun bounds(range: IntRange): RectF? {
+        val matches = range.mapNotNull(shapes::getOrNull)
+        val first = matches.firstOrNull() ?: return null
+        return RectF(first).apply { matches.drop(1).forEach(::union) }
+    }
+}
+
 /** Private OCR bitmap: release only after ML Kit completes, including after the editor is closed. */
-suspend fun readScreenshotLines(context: Context, uri: Uri): List<String>? {
+internal suspend fun readBankScreenshot(context: Context, uri: Uri): ScreenshotReading? {
     var bitmap: Bitmap? = null
     var recognizer: TextRecognizer? = null
     var submitted = false
@@ -30,7 +39,19 @@ suspend fun readScreenshotLines(context: Context, uri: Uri): List<String>? {
                 decoded.recycle()
                 bitmap = null
             },
-            transform = { text -> text.textBlocks.flatMap { block -> block.lines.map { it.text } } },
+            transform = { text ->
+                val rows = text.textBlocks.flatMap { it.lines }
+                    .sortedBy { it.boundingBox?.top ?: Int.MAX_VALUE }
+                ScreenshotReading(
+                    rows.map { it.text },
+                    rows.map { row -> row.boundingBox?.let { b ->
+                        RectF(
+                            b.left.toFloat() / decoded.width, b.top.toFloat() / decoded.height,
+                            b.right.toFloat() / decoded.width, b.bottom.toFloat() / decoded.height,
+                        )
+                    } },
+                )
+            },
         )
     } finally {
         if (!submitted) {

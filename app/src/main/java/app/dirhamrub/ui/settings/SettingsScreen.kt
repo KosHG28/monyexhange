@@ -132,7 +132,7 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
         val collapsing = rememberCollapsingTitle(scroll)
         CollapsingBar(stringResource(R.string.settings_title), actions.onBack, collapsing)
         // Разделы выплывают снизу по очереди; касание — сразу всё на месте.
-        val cascade = rememberCascade()
+        val cascade = rememberCascade(lastIndex = 5)
         Column(
             Modifier
                 .fillMaxWidth()

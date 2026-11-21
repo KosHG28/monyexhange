@@ -267,6 +267,8 @@ fun CurrencyPickerScreen(
     val colors = AppTheme.colors
     var query by rememberSaveable { mutableStateOf("") }
     FullScreen(onDismissRequest = onDismiss) {
+        val focus = LocalFocusManager.current
+        val keyboard = LocalSoftwareKeyboardController.current
         Column(Modifier.fillMaxSize()) {
         ScreenBar(onBack = { close() }, title = title)
         Column(
@@ -290,8 +292,12 @@ fun CurrencyPickerScreen(
                 if (found.isEmpty()) item { Note(nothing) }
                 items(found, key = { it.code }) { c ->
                     CurrencyRow(c, selected = c == selected) {
-                        onPick(c)
-                        close()
+                        focus.clearFocus(force = true)
+                        keyboard?.hide()
+                        close {
+                            onPick(c)
+                            onDismiss()
+                        }
                     }
                 }
             }

@@ -13,6 +13,7 @@ import app.dirhamrub.domain.price.PriceParser
 import app.dirhamrub.domain.price.PriceTracker
 import app.dirhamrub.domain.price.TrackedPrice
 import app.dirhamrub.domain.price.orientedWidth
+import app.dirhamrub.domain.price.photoPrices
 import app.dirhamrub.domain.wallet.Currency
 import com.google.mlkit.vision.text.Text
 import java.math.BigDecimal
@@ -58,6 +59,8 @@ class PricePipeline(private val metrics: LabelMetrics) {
     private val colors = HashMap<Long, TagColors>()
 
     private var lastTracked: List<TrackedPrice> = emptyList()
+    private var photoGeneration = 0L
+    private val snapshotCurrencies = HashMap<Long, Currency>()
     private var focusId = NO_FOCUS
     private var lastNowMs = 0L
     /** Когда метка впервые показана — для плавного появления. */
@@ -129,17 +132,35 @@ class PricePipeline(private val metrics: LabelMetrics) {
         relayout()
     }
 
-    fun setPaused(value: Boolean) {
+    fun setPaused(value: Boolean): Long =
         synchronized(this) {
+            photoGeneration++
             paused = value
-            if (!value) {
-                tracker.clear()
-                shownAt.clear()
-                lastTracked = emptyList()
-                focusId = NO_FOCUS
-            }
+            tracker.clear()
+            shownAt.clear()
+            colors.clear()
+            snapshotCurrencies.clear()
+            lastTracked = emptyList()
+            focusId = NO_FOCUS
+            _frames.value = LabelFrame.EMPTY
+            photoGeneration
         }
-        if (!value) _frames.value = LabelFrame.EMPTY
+
+    fun onPhoto(text: Text, width: Int, height: Int, at: Long, generation: Long) {
+        val results = photoPrices(OcrMapper.map(text), spend, Box(0f, 0f, width.toFloat(), height.toFloat()))
+        synchronized(this) {
+            if (!paused || photoGeneration != generation) return
+            lastNowMs = at
+            snapshotCurrencies.clear()
+            lastTracked = results.mapIndexed { i, match ->
+                val price = match.candidate
+                val id = -1L - i
+                snapshotCurrencies[id] = match.currency
+                TrackedPrice(id, price.value, price.box, price.score, price.hasCurrency, price.isOld, 1f,
+                    !match.needsReview, price.extent, price.angle, price.height)
+            }
+            publish()
+        }
     }
 
     /** Кадр OCR (фоновый поток). */
@@ -196,8 +217,11 @@ class PricePipeline(private val metrics: LabelMetrics) {
         for (t in order) {
             if (labels.size >= MAX_LABELS) break
             val focused = t.id == focusId
-            val homeAmount = rate?.let { t.value.multiply(it, MC) }
-            val amount = homeAmount?.let { "${Numbers.cheat(it)} ${home.mark}" } ?: "${Numbers.money(t.value)} ${spend.mark}"
+            val printed = snapshotCurrencies[t.id] ?: spend
+            val canQuote = printed == spend && (!paused || t.confident)
+            val homeAmount = rate?.takeIf { canQuote }?.let { t.value.multiply(it, MC) }
+            val amount = homeAmount?.let { "${Numbers.cheat(it)} ${home.mark}" }
+                ?: "${Numbers.groupInput(Numbers.exactInput(t.value))} ${printed.mark}"
             val text = when {
                 t.isOld -> "было $amount"
                 !t.confident -> "$amount?"
@@ -208,7 +232,7 @@ class PricePipeline(private val metrics: LabelMetrics) {
             val first = shownAt.getOrPut(t.id) { lastNowMs }
             val alpha = t.alpha
             // Вписываем только уверенные цены с пересчётом: догадку, выглядящую как настоящая цена, не рисуем.
-            if (embedded && t.confident && homeAmount != null) {
+            if (!paused && embedded && t.confident && homeAmount != null) {
                 // Вписанная сумма появляется своей анимацией (проявляется слева направо) — без общего затухания.
                 val label = embeddedLabel(t, focused, alpha, first, "${Numbers.cheat(homeAmount)} ${home.mark}", homeAmount, official)
                 if (label != null) {
@@ -261,7 +285,8 @@ class PricePipeline(private val metrics: LabelMetrics) {
                 textY = pill.top + padY - fm.ascent,
                 shownAt = first,
                 homeAmount = homeAmount,
-                officialAmount = official?.let { t.value.multiply(it, MC) },
+                officialAmount = official?.takeIf { canQuote }?.let { t.value.multiply(it, MC) },
+                sourceCurrency = snapshotCurrencies[t.id],
             )
         }
         _frames.value = LabelFrame(labels, ++version)

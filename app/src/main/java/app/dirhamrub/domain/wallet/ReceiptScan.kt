@@ -86,13 +86,17 @@ object ReceiptScanner {
         }
     }
 
+    private fun marker(text: String, rules: List<Pair<Currency, Regex>>): Currency? =
+        rules.mapNotNull { (currency, rule) -> rule.find(text)?.let { currency to it.value.length } }
+            .maxByOrNull { it.second }?.first
+
     private fun money(line: String, m: MatchResult): Money? {
         val after = line.substring(m.range.last + 1)
         val before = line.substring(0, m.range.first)
         // Знак после числа надёжнее («304,76 ¥»), но бывает и до («AED 167.00», «$12»).
-        val afterCurrency = AFTER.firstOrNull { (_, r) -> r.containsMatchIn(after) }?.first
-        val currency = afterCurrency ?: BEFORE.firstOrNull { (_, r) -> r.containsMatchIn(before) }?.first ?: return null
-        val amount = number(m.value, markerAfter = afterCurrency != null) ?: return null
+        val afterCurrency = marker(after, AFTER)
+        val currency = afterCurrency ?: marker(before, BEFORE) ?: return null
+        val amount = number(m.value, markerAfter = afterCurrency != null, fractionDigits = currency.digits) ?: return null
         return if (amount.signum() > 0) Money(amount, currency) else null
     }
 
@@ -101,12 +105,12 @@ object ReceiptScanner {
      * Если разряды через пробел не складываются в одно число («*1234 15 000 ₸»), берётся самый длинный
      * правильный кусок у знака валюты: после числа — хвост («15 000»), до числа — начало.
      */
-    internal fun number(raw: String, markerAfter: Boolean = true): BigDecimal? {
+    internal fun number(raw: String, markerAfter: Boolean = true, fractionDigits: Int = 2): BigDecimal? {
         val groups = raw.trim().split(Regex("[\\s\\u00A0\\u202F\\u2009']+")).filter { it.isNotEmpty() }
         if (groups.isEmpty()) return null
         val runs = if (markerAfter) groups.indices.map { groups.subList(it, groups.size) } else groups.indices.reversed().map { groups.subList(0, it + 1) }
         val run = runs.firstOrNull { isGrouped(it) } ?: return null
-        return decimal(run.joinToString(""))
+        return decimal(run.joinToString(""), fractionDigits)
     }
 
     /** Одна группа или «1–3 цифры, дальше группы по три цифры» (у последней могут быть копейки). */
@@ -114,7 +118,7 @@ object ReceiptScanner {
         run.size == 1 || run.first().all { it.isDigit() } && run.first().length <= 3 &&
             run.drop(1).all { g -> g.takeWhile { it.isDigit() }.length == 3 }
 
-    private fun decimal(text: String): BigDecimal? {
+    private fun decimal(text: String, fractionDigits: Int): BigDecimal? {
         val lastDot = text.lastIndexOf('.')
         val lastComma = text.lastIndexOf(',')
         val plain = when {
@@ -129,7 +133,7 @@ object ReceiptScanner {
                 val parts = text.split(sep)
                 when {
                     // Один разделитель и 1–2 цифры после — копейки.
-                    parts.size == 2 && parts[1].length in 1..2 -> parts[0] + "." + parts[1]
+                    parts.size == 2 && parts[1].length in 1..fractionDigits.coerceAtLeast(2) -> parts[0] + "." + parts[1]
                     // Группы по три — разряды.
                     parts.drop(1).all { it.length == 3 } && parts[0].length in 1..3 -> parts.joinToString("")
                     else -> return null

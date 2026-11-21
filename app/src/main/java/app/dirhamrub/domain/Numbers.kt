@@ -148,6 +148,9 @@ object Numbers {
     fun plain(value: BigDecimal, maxFraction: Int = 2): String =
         stripZeros(value.setScale(maxFraction, RoundingMode.HALF_UP)).toPlainString().replace('.', ',')
 
+    fun exactInput(value: BigDecimal): String =
+        stripZeros(value).toPlainString().replace('.', ',')
+
     private fun stripZeros(value: BigDecimal): BigDecimal {
         val stripped = value.stripTrailingZeros()
         return if (stripped.scale() < 0) stripped.setScale(0) else stripped

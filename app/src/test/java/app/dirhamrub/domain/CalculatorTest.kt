@@ -179,7 +179,7 @@ class CalculatorTest {
 
     @Test
     fun `значение из числа`() {
-        assertEquals("8507,31", Expression.of(BigDecimal("8507.3125")).display().replace(NBSP.toString(), ""))
+        assertEquals("8507,3125", Expression.of(BigDecimal("8507.3125")).display().replace(NBSP.toString(), ""))
         assertTrue(Expression.of(BigDecimal.ZERO).isEmpty)
     }
 
@@ -195,5 +195,31 @@ class CalculatorTest {
         // Дальше считается как обычно.
         assertEquals(0, BigDecimal("-100").compareTo(e.press(Key.Plus).press(Key.Digit(5)).press(Key.Digit(0)).value))
         assertEquals("−1${NBSP}500", type(*digits("1000-2500")).press(Key.Equals).currentTerm())
+    }
+    @Test
+    fun `rejected operator cannot turn the last purchase into a larger number`() {
+        val full = type(*digits(List(30) { "1" }.joinToString("+")))
+        val blocked = full.press(Key.Plus)
+        assertEquals(InputLimit.TERMS, blocked.limitFor(Key.Digit(2)))
+        assertEquals(BigDecimal(30), blocked.press(Key.Digit(2)).value)
+        assertEquals(BigDecimal(32), blocked.press(Key.Equals).press(Key.Plus).press(Key.Digit(2)).value)
+    }
+
+    @Test
+    fun `triple zero is atomic at digit and fraction bounds`() {
+        assertEquals("125000", type(*digits("125")).press(Key.TripleZero).serialize())
+        for (input in listOf("1234567890", "2,1", "12+")) {
+            val expression = type(*digits(input))
+            assertEquals(expression, expression.press(Key.TripleZero))
+        }
+    }
+
+    @Test
+    fun `third decimal and equals preserve their original precision`() {
+        var e = Expression()
+        for (key in digits("1,234")) e = e.press(key, fractionDigits = 3)
+        assertEquals("1,234", e.press(Key.Equals).serialize())
+        assertEquals(BigDecimal("0.1625"), type(*digits("1,25*0,13=")).value)
+        assertEquals("1,23", type(*digits("1,234")).serialize())
     }
 }

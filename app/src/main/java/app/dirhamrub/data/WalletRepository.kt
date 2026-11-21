@@ -17,6 +17,7 @@ import app.dirhamrub.domain.MotionMode
 import app.dirhamrub.domain.RatesUpdate
 import app.dirhamrub.domain.Rounding
 import app.dirhamrub.domain.ThemeMode
+import app.dirhamrub.domain.wallet.InputSnapshot
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.ManualRate
@@ -54,6 +55,8 @@ data class StoredState(
     val officialWeekAgo: OfficialRates?,
     val active: Line,
     val expression: Expression,
+    val inputSnapshot: InputSnapshot?,
+    val pendingConversion: InputSnapshot?,
     /** Страна сети, для которой подсказку «переключить валюту» уже показали (приняли или закрыли). */
     val countryHandled: String?,
     /** Знакомство с приложением пройдено (или пропущено). */
@@ -122,7 +125,14 @@ class WalletRepository(
                 "CARD" -> Line.CARD
                 else -> Line.SPEND
             },
-            expression = Expression.parse(p[EXPRESSION]),
+            expression = Expression.parse(p[EXPRESSION]).let { expression ->
+                expression.copy(
+                    fresh = p[EXPRESSION_FRESH] ?: expression.fresh,
+                    waitingAtLimit = p[EXPRESSION_LIMIT] == true && expression.terms.size >= Expression.MAX_TERMS,
+                )
+            },
+            inputSnapshot = InputSnapshot.decode(p[INPUT_SNAPSHOT]),
+            pendingConversion = InputSnapshot.decode(p[PENDING_CONVERSION]),
             countryHandled = p[COUNTRY_HANDLED],
             onboardingDone = p[ONBOARDING_DONE] ?: false,
             cameraEmbedded = p[CAMERA_EMBEDDED] ?: true,
@@ -232,20 +242,32 @@ class WalletRepository(
     }
 
     /** Набираемая сумма и активная строка (меняются на каждом нажатии — пишутся с задержкой). */
-    suspend fun saveInput(active: Line, expression: Expression) = writes.withLock {
+    suspend fun saveInput(active: Line, expression: Expression,
+        snapshot: InputSnapshot? = null, pending: InputSnapshot? = null,
+    ) = writes.withLock {
         store.edit { p ->
             p[ACTIVE] = active.name
             p[EXPRESSION] = expression.serialize()
+            p[EXPRESSION_FRESH] = expression.fresh
+            p[EXPRESSION_LIMIT] = expression.waitingAtLimit
+            if (snapshot == null) p.remove(INPUT_SNAPSHOT) else p[INPUT_SNAPSHOT] = snapshot.encode()
+            if (pending == null) p.remove(PENDING_CONVERSION) else p[PENDING_CONVERSION] = pending.encode()
         }
     }
 
     /** Всё сразу — когда приложение уходит с экрана. */
-    suspend fun saveSession(wallet: Wallet, active: Line, expression: Expression) = writes.withLock {
+    suspend fun saveSession(wallet: Wallet, active: Line, expression: Expression,
+        snapshot: InputSnapshot? = null, pending: InputSnapshot? = null,
+    ) = writes.withLock {
         val encoded = encodeWallet(wallet)
         store.edit { p ->
             p[WALLET] = encoded
             p[ACTIVE] = active.name
             p[EXPRESSION] = expression.serialize()
+            p[EXPRESSION_FRESH] = expression.fresh
+            p[EXPRESSION_LIMIT] = expression.waitingAtLimit
+            if (snapshot == null) p.remove(INPUT_SNAPSHOT) else p[INPUT_SNAPSHOT] = snapshot.encode()
+            if (pending == null) p.remove(PENDING_CONVERSION) else p[PENDING_CONVERSION] = pending.encode()
         }
     }
 
@@ -281,6 +303,8 @@ class WalletRepository(
             p[WALLET] = WalletCodec.encode(wallet)
             p[ACTIVE] = Line.SPEND.name
             p[EXPRESSION] = expression.serialize()
+            p[EXPRESSION_FRESH] = expression.fresh
+            p[EXPRESSION_LIMIT] = expression.waitingAtLimit
             p[ONBOARDING_DONE] = true
             // Эмулятор CI «находится» в США — плашку «считать в USD?» на скриншотах не показываем,
             // как и предложение плитки «Ценник».
@@ -341,6 +365,10 @@ class WalletRepository(
         val OFFICIAL_AT = longPreferencesKey("official_fetched_at")
         val ACTIVE = stringPreferencesKey("active_line")
         val EXPRESSION = stringPreferencesKey("expression")
+        val EXPRESSION_FRESH = booleanPreferencesKey("expression_fresh")
+        val EXPRESSION_LIMIT = booleanPreferencesKey("expression_limit")
+        val INPUT_SNAPSHOT = stringPreferencesKey("input_snapshot")
+        val PENDING_CONVERSION = stringPreferencesKey("pending_conversion")
         val COUNTRY_HANDLED = stringPreferencesKey("country_handled")
         val OFFICIAL_WEEK = stringPreferencesKey("official_week_ago")
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")

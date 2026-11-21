@@ -101,6 +101,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 import app.dirhamrub.ui.components.fadingScroll
+import app.dirhamrub.domain.InputLimit
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.MC
@@ -188,6 +189,18 @@ fun MainScreen(
             }
             Hero(state, short, onSelectLine)
             PriceField(state)
+            val hint = when (state.inputLimit) {
+                InputLimit.WHOLE -> stringResource(R.string.key_limit_whole)
+                InputLimit.FRACTION -> stringResource(R.string.key_limit_fraction, state.fractionDigits)
+                InputLimit.TERMS -> stringResource(R.string.key_limit_terms)
+                InputLimit.TRIPLE_ZERO -> stringResource(R.string.key_limit_triple_zero)
+                null -> state.pendingConversion?.let { stringResource(R.string.key_pending_conversion, it.currency.code) }
+            }
+            if (hint != null) Text(
+                hint, color = colors.muted, style = AppTheme.type.caption,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    .semantics { liveRegion = LiveRegionMode.Polite },
+            )
         }
         Column(
             modifier = Modifier
@@ -224,7 +237,10 @@ fun MainScreen(
         }
         Column(Modifier.padding(horizontal = 16.dp)) {
             Spacer(Modifier.height(6.dp))
-            Keypad(onKey = onKey, onCamera = onOpenCamera, onCameraPlaced = onCameraPlaced)
+            Keypad(
+                onKey = onKey, onCamera = onOpenCamera, onCameraPlaced = onCameraPlaced,
+                showTripleZero = state.inputCurrency.magnitude >= 4,
+            )
             Spacer(Modifier.height(8.dp))
         }
     }
@@ -642,10 +658,8 @@ private fun PayRow(
         // Связь строки с крупным итогом: у выбранного способа (по нему итог сверху) — галочка и сумма плотным цветом
         // (синим, у самого выгодного — зелёным); у остальных — сумма серая, обычным начертанием.
         val mark = if (isBest) colors.good else colors.accent
-        if (selected) {
-            SelectedMark(mark, lift)
-            Spacer(Modifier.width(6.dp))
-        }
+        SelectedMark(mark, lift)
+        Spacer(Modifier.width(6.dp))
         Column(horizontalAlignment = Alignment.End) {
             // Длинная сумма (донги, рупии) — мельче, чтобы не прилипать к краю.
             val size = when {

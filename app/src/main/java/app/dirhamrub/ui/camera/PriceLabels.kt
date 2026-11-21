@@ -5,6 +5,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import java.math.BigDecimal
+import app.dirhamrub.domain.wallet.Currency
 
 /**
  * Готовая к отрисовке метка: строка, прямоугольники и контур посчитаны заранее, draw только рисует.
@@ -56,6 +57,7 @@ class PriceLabel(
     val homeAmount: BigDecimal?,
     /** Сумма по курсу ЦБ — для карточки фокуса (null — не показывать). */
     val officialAmount: BigDecimal?,
+    val sourceCurrency: Currency? = null,
 )
 
 internal val EMPTY_RECT = RectF()

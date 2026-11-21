@@ -88,6 +88,7 @@ fun Keypad(
     modifier: Modifier = Modifier,
     /** Где на экране клавиша камеры (центр, в координатах окна): из неё раскрывается камера. */
     onCameraPlaced: (Offset) -> Unit = {},
+    showTripleZero: Boolean = false,
 ) {
     RecompositionProbe("Keypad")
     val colors = AppTheme.colors
@@ -119,7 +120,10 @@ fun Keypad(
                         }
                     }
                     Row(Modifier.tripMainEnter(TripEnter.KEYPAD, 4), horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
-                        TextKey("0", "0", Modifier.size(w * 2 + KEY_GAP, h)) { onKey(Key.Digit(0)) }
+                        TextKey("0", "0", Modifier.size(if (showTripleZero) w else w * 2 + KEY_GAP, h)) { onKey(Key.Digit(0)) }
+                        if (showTripleZero) TextKey("000", stringResource(R.string.key_triple_zero), Modifier.size(w, h)) {
+                            onKey(Key.TripleZero)
+                        }
                         TextKey(",", stringResource(R.string.key_comma), Modifier.size(w, h)) { onKey(Key.Comma) }
                     }
                 }
@@ -167,7 +171,11 @@ private fun KeyBase(
     val round = remember { Animatable(0f) }
     val reduceMotion = LocalReduceMotion.current
     LaunchedEffect(source, reduceMotion) {
-        if (reduceMotion) return@LaunchedEffect
+        if (reduceMotion) {
+            press.snapTo(1f)
+            round.snapTo(0f)
+            return@LaunchedEffect
+        }
         source.interactions.collect { interaction ->
             when (interaction) {
                 is PressInteraction.Press -> {

@@ -32,8 +32,8 @@ class CardFlight {
 
     fun originOf(id: String): Rect? = origins[id]?.takeIf { it.width > 0f && it.height > 0f }
 
-    internal fun place(id: String, bounds: Rect) {
-        origins[id] = bounds
+    internal fun place(id: String, bounds: Rect?) {
+        if (bounds == null) origins.remove(id) else origins[id] = bounds
     }
 }
 
@@ -42,9 +42,14 @@ val LocalCardFlight = staticCompositionLocalOf { CardFlight() }
 /** Мини-карта строки [id]: запоминает своё место для перелёта и прячется, пока карта «в полёте». */
 fun Modifier.flightOrigin(id: String): Modifier = composed {
     val flight = LocalCardFlight.current
+    DisposableEffect(id, flight) { onDispose { flight.place(id, null) } }
     this
         // Не обрезаем координаты границами прокрутки: они нужны для перелёта в редактор.
-        .onGloballyPositioned { flight.place(id, it.boundsInWindow(clipBounds = false)) }
+        .onGloballyPositioned {
+            val full = it.boundsInWindow(clipBounds = false)
+            val visible = it.boundsInWindow()
+            flight.place(id, full.takeIf { _ -> visible.width >= full.width * .9f && visible.height >= full.height * .9f })
+        }
         .graphicsLayer { alpha = if (flight.flying == id) 0f else 1f }
 }
 
@@ -58,10 +63,12 @@ class CardMorph(val origin: Rect, val cardId: String, initialProgress: Float = 0
     var card by mutableStateOf<(@Composable (textAlpha: () -> Float) -> Unit)?>(null)
     internal val progress = Animatable(initialProgress)
     internal var closing by mutableStateOf(false)
+    internal var returnOrigin by mutableStateOf<Rect?>(null)
+    internal var fallback by mutableStateOf(false)
     internal var settled by mutableStateOf(false)
 
     /** Летит (туда или обратно): настоящее превью на экране спрятано. */
-    val flying: Boolean get() = !settled || closing
+    val flying: Boolean get() = !fallback && (!settled || closing)
 
     /** Фон экрана проявляется быстрее карты, содержимое — во второй половине полёта. */
     internal val backgroundAlpha: Float get() = (progress.value * 1.4f).coerceAtMost(1f)
@@ -71,7 +78,7 @@ class CardMorph(val origin: Rect, val cardId: String, initialProgress: Float = 0
 /** Летящая карта поверх экрана: от мини-карты к превью, надписи проявляются во второй половине пути. */
 @Composable
 internal fun CardMorphOverlay(morph: CardMorph) {
-    val target = morph.target ?: return
+    val target = morph.target?.takeIf { it.width > 0f && it.height > 0f } ?: return
     val card = morph.card ?: return
     if (!morph.flying) return
     val flight = LocalCardFlight.current
@@ -80,7 +87,7 @@ internal fun CardMorphOverlay(morph: CardMorph) {
         onDispose { if (flight.flying == morph.cardId) flight.flying = null }
     }
     val density = LocalDensity.current
-    val o = morph.origin
+    val o = morph.returnOrigin ?: morph.origin
     Box(
         Modifier
             .offset { IntOffset(target.left.roundToInt(), target.top.roundToInt()) }

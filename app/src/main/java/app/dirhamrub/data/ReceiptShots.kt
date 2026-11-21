@@ -3,6 +3,7 @@ package app.dirhamrub.data
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import android.util.AtomicFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -40,8 +41,16 @@ object ReceiptShots {
             val bitmap = ReceiptImages.decode(context, uri, MAX_SIDE) ?: return@runCatching null
             try {
                 val out = file(context, cardId, kind)
-                out.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.JPEG, 82, it)) }
-                out
+                val atomic = AtomicFile(out)
+                val stream = atomic.startWrite()
+                try {
+                    check(bitmap.compress(Bitmap.CompressFormat.JPEG, 82, stream))
+                    atomic.finishWrite(stream)
+                    out
+                } catch (error: Exception) {
+                    atomic.failWrite(stream)
+                    throw error
+                }
             } finally {
                 bitmap.recycle()
             }

@@ -186,10 +186,10 @@ internal fun ColumnScope.SetupStep(
                             cardCurrency,
                             (CARD_CURRENCIES + cardCurrency).filter { it != home && it != spend }.distinct(),
                             {
-                                if (it != cardCurrency) second = ""
                                 cardCurrency = it
                             },
                             pick,
+                            Currency.entries.filter { it != home && it != spend },
                         )
                     }
                 }
@@ -205,12 +205,13 @@ internal fun ColumnScope.SetupStep(
                                 trailing = {
                                     CurrencyDropdown(
                                         sentCurrency,
-                                        (listOf(home) + EXCHANGE_FROM).filter { it != spend }.distinct(),
+                                        (listOf(sentCurrency, home) + EXCHANGE_FROM).filter { it != spend }.distinct(),
                                         {
                                             if (it != sentCurrency) bought = ""
                                             sentCurrency = it
                                         },
                                         pick,
+                                        Currency.entries.filter { it != spend },
                                     )
                                 },
                                 selectable = true,

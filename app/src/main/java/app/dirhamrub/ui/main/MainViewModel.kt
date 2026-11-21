@@ -22,6 +22,7 @@ import app.dirhamrub.data.unionPayDataStore
 import app.dirhamrub.domain.AppSettings
 import app.dirhamrub.domain.ProPromo
 import app.dirhamrub.domain.Expression
+import app.dirhamrub.domain.InputLimit
 import app.dirhamrub.domain.Key
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.MC
@@ -37,6 +38,7 @@ import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.CountryGuideParser
 import app.dirhamrub.domain.wallet.CountryGuides
 import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.InputSnapshot
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.QuoteCache
 import app.dirhamrub.domain.wallet.RateEngine
@@ -88,6 +90,9 @@ data class MainUiState(
     val ratesFailed: Boolean = false,
     val active: Line = Line.SPEND,
     val expression: Expression = Expression(),
+    val inputLimit: InputLimit? = null,
+    val inputSnapshot: InputSnapshot? = null,
+    val pendingConversion: InputSnapshot? = null,
     /** Страна сети, для которой подсказку о валюте уже приняли или закрыли. */
     val countryHandled: String? = null,
     val onboardingDone: Boolean = true,
@@ -150,11 +155,16 @@ data class MainUiState(
         )
     }
 
+    val inputCurrency: Currency get() = if (active == Line.HOME) wallet.home else wallet.spend
+    val fractionDigits: Int get() = inputCurrency.digits.coerceAtLeast(2)
+
     /** Текст активной строки: набираемое число или итог выражения «22 + 15,5». */
     val activeText: String
         get() = when {
             expression.isEmpty -> "0"
-            expression.isCompound -> Numbers.money(expression.value)
+            expression.isCompound -> if (fractionDigits > 2) Numbers.groupInput(Numbers.plain(expression.value, fractionDigits)) else Numbers.money(expression.value)
+            expression.fresh && expression.terms.last().length > 16 ->
+                Numbers.groupInput(Numbers.plain(expression.value, fractionDigits))
             else -> expression.currentTerm()
         }
 }
@@ -190,6 +200,8 @@ class MainViewModel(
                 // Ввод — только в валюте трат или в итоговой (поля «цена» и «стоит вам»); валюты карты больше нет.
                 active = if (stored.active == Line.CARD) Line.SPEND else stored.active,
                 expression = stored.expression,
+                inputSnapshot = stored.inputSnapshot,
+                pendingConversion = stored.pendingConversion,
                 countryHandled = stored.countryHandled,
                 // Знакомство — только для нового пользователя: у перешедших со старых версий карты уже есть.
                 onboardingDone = stored.onboardingDone || stored.wallet.cards.isNotEmpty(),
@@ -206,14 +218,19 @@ class MainViewModel(
             // Карты и чеки пишем сразу: сохранил карту и тут же закрыл приложение — она не пропадёт.
             // Изменения, не касающиеся кошелька (курсы загружаются, настройки), запись не вызывают.
             launch(start = CoroutineStart.UNDISPATCHED) {
-                _state.map { it.wallet }.distinctUntilChanged().drop(1).collect { repository.saveWallet(it) }
+                _state.map { it.wallet }.distinctUntilChanged().drop(1).collect {
+                    val latest = _state.value
+                    repository.saveSession(latest.wallet, latest.active, latest.expression, latest.inputSnapshot, latest.pendingConversion)
+                }
             }
             // Набираемую сумму — не чаще раза в 300 мс: collectLatest отменяет отложенную запись при новом нажатии.
             launch(start = CoroutineStart.UNDISPATCHED) {
-                _state.map { it.active to it.expression }.distinctUntilChanged().drop(1).collectLatest { (active, expression) ->
-                    delay(SAVE_DELAY_MS)
-                    repository.saveInput(active, expression)
-                }
+                _state.map { listOf(it.active, it.expression, it.inputSnapshot, it.pendingConversion) }
+                    .distinctUntilChanged().drop(1).collectLatest {
+                        delay(SAVE_DELAY_MS)
+                        val latest = _state.value
+                        repository.saveInput(latest.active, latest.expression, latest.inputSnapshot, latest.pendingConversion)
+                    }
             }
             // Справочник не задерживает готовый калькулятор; завершение меняет только guides.
             localGuideJob = viewModelScope.launch {
@@ -232,17 +249,37 @@ class MainViewModel(
         viewModelScope.launch {
             withContext(NonCancellable) {
                 val latest = _state.value
-                if (latest.loaded) repository.saveSession(latest.wallet, latest.active, latest.expression)
+                if (latest.loaded) repository.saveSession(latest.wallet, latest.active, latest.expression, latest.inputSnapshot, latest.pendingConversion)
             }
         }
     }
 
-    fun press(key: Key) = _state.update { it.copy(expression = it.expression.press(key)) }
+    fun press(key: Key) = _state.update { state ->
+        val limit = state.expression.limitFor(key, state.fractionDigits)
+        val next = state.expression.press(key, state.fractionDigits)
+        if (next == state.expression && limit == null && key != Key.Clear) state
+        else state.copy(
+            expression = next,
+            inputLimit = limit,
+            inputSnapshot = if (limit == null) null else state.inputSnapshot,
+            pendingConversion = if (limit == null) null else state.pendingConversion,
+        )
+    }
 
     /** Коснулись поля «цена» ([Line.SPEND]) или «стоит вам» ([Line.HOME]): вводим в нём, сумма не меняется. */
     fun setActive(line: Line) = _state.update { s ->
-        if (s.active == line || line == Line.CARD) s
-        else s.copy(active = line, expression = Expression.of(s.totals.of(line) ?: BigDecimal.ZERO))
+        if (s.active == line || line == Line.CARD || s.homePerUnit == null) return@update s
+        val original = s.inputSnapshot
+        if (original?.line == line) {
+            s.copy(active = line, expression = original.expression, inputSnapshot = null, inputLimit = null)
+        } else {
+            s.copy(
+                active = line,
+                expression = Expression.of(s.totals.of(line) ?: BigDecimal.ZERO),
+                inputSnapshot = InputSnapshot(s.inputCurrency, s.active, s.expression, s.totals.home),
+                inputLimit = null,
+            )
+        }
     }
 
     /** Коснулись плитки способа: выбрать его; лучший — снова автовыбор ([Wallet.choose]). */
@@ -258,11 +295,22 @@ class MainViewModel(
     fun setSpend(currency: Currency, place: String? = null) {
         _state.update { s ->
             if (s.wallet.spend == currency) return@update s.copy(wallet = s.wallet.withSpend(currency, place))
-            val home = s.totals.home
-            val next = s.copy(wallet = s.wallet.withSpend(currency, place), active = Line.SPEND)
-            val rate = next.homePerUnit
-            val amount = if (home != null && rate != null) divideOrZero(home, rate) else BigDecimal.ZERO
-            next.copy(expression = Expression.of(amount))
+            val source = s.pendingConversion ?: s.inputSnapshot
+                ?: InputSnapshot(s.inputCurrency, s.active, s.expression, s.totals.home)
+            val next = s.copy(
+                wallet = s.wallet.withSpend(currency, place), active = Line.SPEND,
+                inputSnapshot = null, inputLimit = null,
+            )
+            when {
+                source.line == Line.SPEND && source.currency == currency ->
+                    next.copy(expression = source.expression, pendingConversion = null)
+                source.expression.isEmpty -> next.copy(expression = Expression(), pendingConversion = null)
+                next.homePerUnit != null && source.homeAmount != null -> next.copy(
+                    expression = Expression.of(divideOrZero(source.homeAmount, next.homePerUnit!!)),
+                    pendingConversion = null,
+                )
+                else -> next.copy(expression = Expression(), pendingConversion = source)
+            }
         }
         refreshReceiptRates()
     }
@@ -271,25 +319,31 @@ class MainViewModel(
     fun setHome(currency: Currency) {
         _state.update { s ->
             if (s.wallet.home == currency) s
-            else s.copy(wallet = s.wallet.copy(home = currency), active = Line.SPEND, expression = Expression.of(s.totals.spend))
+            else {
+                val original = s.inputSnapshot?.takeIf { it.line == Line.SPEND }?.expression
+                val expression = if (s.active == Line.SPEND) s.expression else original ?: Expression.of(s.totals.spend)
+                s.copy(
+                    wallet = s.wallet.copy(home = currency), active = Line.SPEND, expression = expression,
+                    inputSnapshot = null, inputLimit = null,
+                    pendingConversion = s.pendingConversion?.copy(homeAmount = null),
+                )
+            }
         }
         refreshReceiptRates()
     }
 
     /** Быстрая сумма в валюте трат: после «+» подставляется в выражение, иначе заменяет его. */
     fun putAmount(amount: BigDecimal) = _state.update { s ->
-        if (s.active == Line.SPEND) s.copy(expression = s.expression.putAmount(amount))
-        else s.copy(active = Line.SPEND, expression = Expression.of(amount))
+        val expression = if (s.active == Line.SPEND) s.expression.putAmount(amount) else Expression.of(amount)
+        s.copy(active = Line.SPEND, expression = expression, inputSnapshot = null, inputLimit = null, pendingConversion = null)
     }
 
     /** Цены из камеры: одна — заменяет сумму, несколько — становятся выражением «a + b + c». */
     fun putItems(items: List<BigDecimal>) = _state.update { s ->
-        val expression = when (items.size) {
-            0 -> s.expression
-            1 -> Expression.of(items.single())
-            else -> Expression(items.map { Numbers.plain(it) })
-        }
-        s.copy(active = Line.SPEND, expression = expression)
+        if (items.isEmpty()) return@update s
+        val expression = if (items.size == 1) Expression.of(items.single())
+            else Expression(items.map(Numbers::exactInput))
+        s.copy(active = Line.SPEND, expression = expression, inputSnapshot = null, inputLimit = null, pendingConversion = null)
     }
 
     /** Подсказка «вы в другой стране»: [accept] — переключить валюту трат; больше для этой страны не показываем. */
@@ -325,7 +379,20 @@ class MainViewModel(
         while (true) {
             val before = _state.value
             val prepared = withContext(calculationDispatcher) {
-                change(before).also { it.quote }
+                val updated = change(before)
+                val pending = updated.pendingConversion
+                val rate = updated.homePerUnit
+                val sourceValue = pending?.homeAmount ?: pending?.let {
+                    if (it.line == Line.SPEND) {
+                        val original = updated.copy(wallet = updated.wallet.withSpend(it.currency))
+                        original.homePerUnit?.let { r -> it.expression.value.multiply(r, MC) }
+                    } else updated.reference?.cross(it.currency, updated.wallet.home)?.let { r ->
+                        it.expression.value.multiply(r, MC)
+                    }
+                }
+                if (rate != null && sourceValue != null && pending != null) updated.copy(
+                    expression = Expression.of(divideOrZero(sourceValue, rate)), pendingConversion = null,
+                ) else updated
             }
             if (_state.compareAndSet(before, prepared)) return
         }

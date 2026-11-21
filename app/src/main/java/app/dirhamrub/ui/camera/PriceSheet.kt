@@ -61,7 +61,7 @@ fun PriceSheet(
         ) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    text = "${Numbers.money(amount)} ${spend.mark}",
+                    text = "${Numbers.groupInput(Numbers.exactInput(amount))} ${spend.mark}",
                     style = type.hero.copy(fontSize = 34.sp, lineHeight = 40.sp),
                     color = if (isOld) colors.muted else colors.ink,
                     textDecoration = if (isOld) TextDecoration.LineThrough else null,

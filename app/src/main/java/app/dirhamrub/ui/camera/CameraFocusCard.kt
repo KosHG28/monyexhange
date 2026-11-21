@@ -53,6 +53,7 @@ internal data class FocusInfo(
     val unsure: Boolean,
     val homeAmount: BigDecimal?,
     val officialAmount: BigDecimal?,
+    val printedCurrency: Currency? = null,
 )
 
 /**
@@ -76,7 +77,7 @@ internal fun FocusCard(
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    val price = "${Numbers.money(info.value)} ${spend.mark}" + if (info.unsure) "?" else ""
+    val price = "${Numbers.groupInput(Numbers.exactInput(info.value))} ${spend.mark}" + if (info.unsure) "?" else ""
     val head = (if (info.isOld) stringResource(R.string.camera_focus_old, price) else price) +
         (cardName?.let { " · $it" } ?: "")
     // «≈» — у оценки: курс без чека покупки в валюте трат, по ЦБ, или сама цена — догадка.
@@ -147,7 +148,7 @@ internal fun FocusCard(
         if (details.isNotEmpty()) {
             Text(details, style = type.caption.copy(fontSize = 13.sp), color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        if (comparison != null && info.homeAmount != null && !info.isOld) {
+        if (comparison != null && info.homeAmount != null && !info.isOld && !info.unsure) {
             FocusComparison(info.value, home, comparison, onSelectCard)
         }
     }

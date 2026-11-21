@@ -23,6 +23,9 @@ def find(predicate, retries=5):
         match = next((node for node in root.iter("node") if predicate(node)), None)
         if match is not None:
             return match
+    for node in root.iter("node"):
+        if node.get("package") == PACKAGE and (node.get("text") or node.get("content-desc")):
+            print(node.get("class"), node.get("text"), node.get("content-desc"), node.get("bounds"))
     raise AssertionError("Expected control missing")
 
 
@@ -74,8 +77,7 @@ for _ in range(6):
 assert menu is not None, "No RUB currency control for the transfer"
 tap(menu)
 tap(find(contains("Все валюты ›")))
-tap(find(lambda node: node.get("class") == "android.widget.EditText"
-         and node.get("content-desc") == "Валюта, код или страна"))
+tap(find(contains("Валюта, код или страна")))
 adb("shell", "input", "text", "JPY")
 option = find(contains("Японская иена"))
 capture("currency-154-jpy.png")

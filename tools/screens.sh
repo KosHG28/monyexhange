@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Two changed screens, no camera and no country guide.
+# One screenshot of card appearance.
 set -euo pipefail
 mkdir -p screens
 exec > >(tee screens/scenario.log) 2>&1
@@ -8,11 +8,11 @@ adb shell setprop debug.hwui.renderer skiagl
 adb shell setprop debug.hwui.use_buffer_age false
 adb shell setprop debug.hwui.swap_with_damage false
 adb logcat -b crash -c
-python3 tools/ui-package154.py
+python3 tools/ui-card-reflection.py
 python3 - <<'PY'
 from pathlib import Path
 import struct, zlib
-for name in ('keypad-154-vnd.png', 'currency-154-jpy.png'):
+for name in ('card-reflection-1541.png',):
     path = Path('screens') / name
     data = path.read_bytes()
     assert data[:8] == b'\x89PNG\r\n\x1a\n', path

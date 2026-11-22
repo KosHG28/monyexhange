@@ -31,10 +31,13 @@ import app.dirhamrub.ui.theme.*
 import java.time.LocalDate
 
 @Composable
-internal fun SeasonalCountryHeader(country: String, currency: Currency, iso: String?, onOpen: (CountryEasterEgg) -> Unit, onClose: () -> Unit) {
+internal fun SeasonalCountryHeader(
+    country: String, currency: Currency, iso: String?, onOpen: (CountryEasterEgg) -> Unit, onClose: () -> Unit,
+    titleModifier: Modifier = Modifier,
+) {
     val event = CountrySeasons.current(iso, LocalDate.now())
     val egg = countryEasterEggs[iso]
-    if (event == null || egg == null) { Header(country, currency); return }
+    if (event == null || egg == null) { Header(country, currency, titleModifier); return }
     var expanded by rememberSaveable(iso) { mutableStateOf(false) }
     val reduce = LocalReduceMotion.current
     val colors = AppTheme.colors
@@ -47,7 +50,7 @@ internal fun SeasonalCountryHeader(country: String, currency: Currency, iso: Str
         if (open) onOpen(egg) else onClose()
     }
     Column {
-        Header(country, currency, countryLabel = {
+        Header(country, currency, titleModifier, countryLabel = {
             val title = stringResource(egg.titleRes)
             val description = stringResource(R.string.season_badge_a11y, title)
             val state = stringResource(if (expanded) R.string.season_tip_open else R.string.season_tip_closed)

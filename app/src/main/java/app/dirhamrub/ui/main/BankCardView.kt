@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.wrapContentSize
 import app.dirhamrub.ui.theme.sheen
 import app.dirhamrub.ui.theme.parallaxOf
 import app.dirhamrub.ui.theme.LocalTilt
+import app.dirhamrub.ui.theme.cardReflection
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -34,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -95,10 +98,17 @@ internal fun BankCardView(
     /** Насколько видны надписи (перелёт карты: на мини-карте их нет, проявляются по пути). */
     textAlpha: () -> Float = { 1f },
     tripPreview: Boolean = false,
+    reflectionTilt: State<Offset>? = null,
+    colorSweep: State<Float>? = null,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     val style = CardPalette.style(card)
+    val surface = if (reflectionTilt != null) {
+        Modifier.cardReflection(style, reflectionTilt, colorSweep, CARD_RADIUS)
+    } else {
+        Modifier.background(Brush.linearGradient(listOf(style.start, style.end))).sheen(halfWidth = 46.dp)
+    }
     val dim by animateFloatAsState(if (selected) 1f else 0.82f, motion(), label = "cardDim")
     // Невыбранные карты чуть меньше: выбранная — «впереди».
     val shrink by animateFloatAsState(if (selected) 1f else 0.96f, motion(260), label = "cardScale")
@@ -168,8 +178,7 @@ internal fun BankCardView(
                         )
                     }
                 }
-                .then(if (tripPreview) Modifier else Modifier.clip(CARD_SHAPE)
-                    .background(Brush.linearGradient(listOf(style.start, style.end))).sheen(halfWidth = 46.dp))
+                .then(if (tripPreview) Modifier else Modifier.clip(CARD_SHAPE).then(surface))
                 .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = editLabel)
                 .clearAndSetSemantics {
                     contentDescription = a11y
@@ -178,7 +187,7 @@ internal fun BankCardView(
                 },
         ) {
             if (tripPreview) Box(Modifier.matchParentSize().tripSharedBounds(TRIP_CARD)
-                .clip(CARD_SHAPE).background(Brush.linearGradient(listOf(style.start, style.end))).sheen(halfWidth = 46.dp))
+                .clip(CARD_SHAPE).then(surface))
             // Водяной знак валюты карты: при наклоне отстаёт на 6 dp — будто глубже в пластике.
             val mark = card.currency.mark
             val tilt = LocalTilt.current
@@ -193,7 +202,9 @@ internal fun BankCardView(
                     .then(if (tripPreview) Modifier.tripExit(TripExit.DECORATION) else Modifier)
                     .offset(x = 6.dp, y = if (mark.length > 2) 4.dp else 24.dp)
                     .graphicsLayer {
-                        translationX = parallaxOf(tilt, 6.dp.toPx())
+                        val angle = reflectionTilt?.value
+                        translationX = if (angle == null) parallaxOf(tilt, 6.dp.toPx()) else -angle.x * 6.dp.toPx()
+                        translationY = -(angle?.y ?: 0f) * 3.dp.toPx()
                         alpha = textAlpha()
                     },
             )

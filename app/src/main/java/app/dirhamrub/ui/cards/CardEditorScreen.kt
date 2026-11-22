@@ -11,6 +11,7 @@ import app.dirhamrub.ui.components.CardMorph
 import app.dirhamrub.ui.theme.Haptic
 import app.dirhamrub.ui.theme.rememberHaptics
 import app.dirhamrub.ui.theme.LocalReduceMotion
+import app.dirhamrub.ui.theme.rememberReflectionTilt
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
@@ -383,6 +384,8 @@ fun CardEditorScreen(
             // Черновик из полей и его курс — для предпросмотра сверху и итога ниже.
             val draft = build()
             val q = RateEngine.quote(draft, spend, home, official, unionPay, cards)
+            var previewVisible by remember { mutableStateOf(false) }
+            val reflectionTilt = rememberReflectionTilt(previewVisible && !isClosing && morph?.flying != true)
             // Живая карточка: как карта будет выглядеть на главном экране с тем, что уже введено.
             val preview: @Composable (() -> Float) -> Unit = { textAlpha ->
                 BankCardView(
@@ -400,6 +403,7 @@ fun CardEditorScreen(
                     needsReceipt = official?.cross(spend, home) == null,
                     flipOnChange = false,
                     textAlpha = textAlpha,
+                    reflectionTilt = reflectionTilt,
                 )
             }
             // Перелёт: та же карточка летит поверх экрана, а здесь она спрятана, пока не сядет на место.
@@ -412,7 +416,11 @@ fun CardEditorScreen(
             ) {
                 Box(
                     Modifier
-                        .onGloballyPositioned { if (morph != null) morph.target = it.boundsInWindow() }
+                        .onGloballyPositioned {
+                            val bounds = it.boundsInWindow()
+                            previewVisible = !bounds.isEmpty
+                            if (morph != null) morph.target = bounds
+                        }
                         .graphicsLayer { if (morph?.flying == true && !saveReduce) alpha = 0f },
                 ) { preview { 1f } }
             }

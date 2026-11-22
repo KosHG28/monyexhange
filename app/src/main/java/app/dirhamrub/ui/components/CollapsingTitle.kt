@@ -17,10 +17,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
@@ -31,6 +34,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
@@ -44,19 +48,21 @@ import app.dirhamrub.ui.theme.Springs
  * на полпути — доезжает пружиной туда, где ближе. [progress]: 0 — раскрыт, 1 — в строке.
  */
 class CollapsingTitle internal constructor(private val scroll: ScrollState, internal val rangePx: Float) {
-    val progress: Float get() = (scroll.value / rangePx).coerceIn(0f, 1f)
+    internal val distance: Float get() = minOf(rangePx, scroll.maxValue.toFloat()).coerceAtLeast(1f)
+    val progress: Float get() = (scroll.value / distance).coerceIn(0f, 1f)
 }
 
 @Composable
-fun rememberCollapsingTitle(scroll: ScrollState): CollapsingTitle {
-    val range = with(LocalDensity.current) { LARGE_TITLE_HEIGHT.toPx() }
+fun rememberCollapsingTitle(scroll: ScrollState, titleHeight: Dp = LARGE_TITLE_HEIGHT): CollapsingTitle {
+    val range = with(LocalDensity.current) { titleHeight.toPx() }
     val title = remember(scroll, range) { CollapsingTitle(scroll, range) }
     val reduceMotion = LocalReduceMotion.current
-    LaunchedEffect(scroll.isScrollInProgress) {
+    LaunchedEffect(scroll.isScrollInProgress, title) {
         if (scroll.isScrollInProgress) return@LaunchedEffect
         val v = scroll.value
-        if (v > 0 && v < range) {
-            val target = if (v < range / 2f) 0 else range.toInt()
+        val distance = title.distance
+        if (v > 0 && v < distance.toInt()) {
+            val target = if (v < distance / 2f) 0 else distance.toInt()
             if (reduceMotion) scroll.scrollTo(target) else scroll.animateScrollTo(target, Springs.spatial())
         }
     }
@@ -65,9 +71,10 @@ fun rememberCollapsingTitle(scroll: ScrollState): CollapsingTitle {
 
 /** Строка экрана: «←» и заголовок, который появляется, когда крупный заголовок уехал. */
 @Composable
-fun CollapsingBar(title: String, onBack: () -> Unit, state: CollapsingTitle) {
+fun CollapsingBar(title: String, onBack: () -> Unit, state: CollapsingTitle, fillOnCollapse: Boolean = false) {
     val colors = AppTheme.colors
-    Column {
+    val compactTitleVisible by remember(state) { derivedStateOf { state.progress >= 0.5f } }
+    Column(if (fillOnCollapse) Modifier.drawBehind { drawRect(colors.bg, alpha = state.progress) } else Modifier) {
         Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             val back = stringResource(R.string.settings_back)
             Box(
@@ -88,8 +95,8 @@ fun CollapsingBar(title: String, onBack: () -> Unit, state: CollapsingTitle) {
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .weight(1f)
-                    // Для TalkBack заголовок — крупный, этот только виден.
-                    .clearAndSetSemantics { }
+                    .then(if (fillOnCollapse && compactTitleVisible) Modifier.semantics { heading() }
+                        else Modifier.clearAndSetSemantics { })
                     .graphicsLayer {
                         val p = state.progress
                         alpha = p
@@ -97,7 +104,7 @@ fun CollapsingBar(title: String, onBack: () -> Unit, state: CollapsingTitle) {
                     },
             )
         }
-        Box(
+        if (!fillOnCollapse) Box(
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)

@@ -1,9 +1,9 @@
 package app.dirhamrub.ui.guide
 
-import app.dirhamrub.ui.theme.topLight
 import android.content.Intent
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import android.os.Build
 import kotlin.math.roundToInt
 import androidx.compose.ui.unit.IntOffset
@@ -14,17 +14,20 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.foundation.Canvas
-import app.dirhamrub.ui.theme.LocalTilt
 import app.dirhamrub.ui.theme.parallaxOf
+import app.dirhamrub.ui.theme.rememberTilt
+import app.dirhamrub.ui.components.CollapsingBar
+import app.dirhamrub.ui.components.rememberCollapsingTitle
 import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.ui.components.finishCascadeOnTouch
 import app.dirhamrub.ui.components.rememberCascade
 import app.dirhamrub.ui.components.cascade
 import app.dirhamrub.ui.components.FullScreen
-import app.dirhamrub.ui.components.ScreenBar
 import app.dirhamrub.domain.wallet.noun
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.hideFromAccessibility
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -32,6 +35,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -51,7 +55,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -153,31 +156,41 @@ fun CountryGuideScreen(
     val type = AppTheme.type
     var seasonPlay by remember(iso) { mutableIntStateOf(0) }
     var activeEgg by remember(iso) { mutableStateOf<CountryEasterEgg?>(null) }
-    // Флаг страны — фоном в правом верхнем углу экрана (и под строкой состояния — без резкого среза сверху);
-    // прокручивается только содержимое.
-    FullScreen(onDismissRequest = onDismiss, backdrop = { FlagBackdrop(place.first, Modifier.align(Alignment.TopEnd)) }) {
+    val scroll = rememberScrollState()
+    var headerHeight by remember { mutableIntStateOf(0) }
+    val titleHeight = with(LocalDensity.current) { headerHeight.toDp() }.coerceAtLeast(56.dp)
+    val collapsing = rememberCollapsingTitle(scroll, titleHeight)
+    val titleCollapsed by remember(collapsing) { derivedStateOf { collapsing.progress >= 0.5f } }
+    FullScreen(onDismissRequest = onDismiss, backdrop = {
+        FlagBackdrop(place.first, Modifier.align(Alignment.TopEnd)) { 1f - collapsing.progress }
+    }) {
       Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-        ScreenBar(onBack = { close() })
+        CollapsingBar(currency.noun, onBack = { close() }, collapsing, fillOnCollapse = true)
         // Шапка — сразу, блоки ниже выплывают снизу по очереди; касание — сразу всё на месте.
         val cascade = rememberCascade()
         Column(
             Modifier
                 .fillMaxWidth()
                 .finishCascadeOnTouch(cascade)
-                .fadingScroll(rememberScrollState())
+                .fadingScroll(scroll)
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 20.dp),
         ) {
-            SeasonalCountryHeader(place.second, currency, iso, onOpen = { activeEgg = it; seasonPlay++ }, onClose = { activeEgg = null })
+            SeasonalCountryHeader(
+                place.second, currency, iso,
+                onOpen = { activeEgg = it; seasonPlay++ }, onClose = { activeEgg = null },
+                titleModifier = Modifier
+                    .onSizeChanged { headerHeight = it.height }
+                    .graphicsLayer { alpha = 1f - collapsing.progress }
+                    .then(if (titleCollapsed) Modifier.semantics { hideFromAccessibility() } else Modifier),
+            )
             if (guide == null) {
                 Spacer(Modifier.height(16.dp))
                 Column(
                     Modifier
                         .cascade(cascade, 0)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(colors.surface)
+                        .guideCard()
                         .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 4.dp),
                 ) {
                     Text(stringResource(R.string.guide_empty), style = type.body, color = colors.ink)
@@ -192,9 +205,7 @@ fun CountryGuideScreen(
             if (local != null && shown.isNotEmpty()) {
               Column(Modifier.cascade(cascade, step++)) {
                 Section(stringResource(R.string.guide_your_cards))
-                Group {
-                    shown.forEachIndexed { i, card ->
-                        if (i > 0) Divider()
+                Group(shown) { card ->
                         val verdict = guide.verdict(card, local)
                         val network = card.paymentNetwork
                         val note = network?.let { guide.networks[it]?.text }
@@ -206,18 +217,14 @@ fun CountryGuideScreen(
                             else -> networkShort(network) + " · " + lower(note)
                         }
                         Line(acceptanceIcon(verdict), acceptanceColor(verdict), card.name, sub)
-                    }
                 }
               }
             }
             Column(Modifier.cascade(cascade, step++)) {
             Section(stringResource(R.string.guide_networks))
-            Group {
-                CardNetwork.entries.filter { it in guide.networks }.forEachIndexed { i, n ->
-                    if (i > 0) Divider()
+            Group(CardNetwork.entries.filter { it in guide.networks }) { n ->
                     val note = guide.networks.getValue(n)
                     Line(acceptanceIcon(note.acceptance), acceptanceColor(note.acceptance), networkName(n), note.text)
-                }
             }
             }
             // Наличные — зелёной купюрой (без знаков валют), банкоматы — серым, советы — жёлтой лампочкой.
@@ -258,10 +265,10 @@ fun CountryGuideScreen(
  * Длинное название («Фунт стерлингов» на узком экране) уменьшается до 80 %, дальше — переносится.
  */
 @Composable
-internal fun Header(country: String, currency: Currency, countryLabel: @Composable (() -> Unit)? = null) {
+internal fun Header(country: String, currency: Currency, modifier: Modifier = Modifier, countryLabel: @Composable (() -> Unit)? = null) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    Column(Modifier.padding(start = 4.dp, top = 4.dp)) {
+    Column(modifier.padding(start = 4.dp, top = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (countryLabel != null) countryLabel() else
                 Text(country, style = type.body.copy(fontSize = 14.sp), color = colors.muted, maxLines = 1)
@@ -296,18 +303,20 @@ private const val HEADER_SP = 40f
  * В светлой теме — наложение «умножение»: белые поля флага (Япония, Кипр) пропадают на светлом фоне.
  */
 @Composable
-private fun FlagBackdrop(flag: String, modifier: Modifier = Modifier) {
+private fun FlagBackdrop(flag: String, modifier: Modifier, opacity: () -> Float) {
     val dark = AppTheme.colors.isDark
     val image = remember(flag) { flagBitmap(flag) } ?: return
     val blur = with(LocalDensity.current) { FLAG_BLUR.toPx() }
     // Наклон телефона: флаг «глубже» экрана — отстаёт от наклона, а угловая маска стоит на месте.
-    val tilt = LocalTilt.current
+    val shown by remember(opacity) { derivedStateOf { opacity() > 0f } }
+    val tilt = rememberTilt(active = shown)
     val depth = with(LocalDensity.current) { FLAG_DEPTH.toPx() }
     Canvas(
         modifier
             .size(FLAG_SIZE)
             .clearAndSetSemantics { }
             .graphicsLayer {
+                alpha = opacity()
                 compositingStrategy = CompositingStrategy.Offscreen
                 if (!dark) blendMode = BlendMode.Multiply
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) renderEffect = BlurEffect(blur, blur, TileMode.Clamp)
@@ -408,11 +417,8 @@ private fun Items(title: String, @DrawableRes icon: Int, tint: Color, items: Lis
     if (items.isEmpty()) return
     Column(modifier) {
     Section(title)
-    Group {
-        items.forEachIndexed { i, item ->
-            if (i > 0) Divider()
-            Line(icon, tint, item.title, item.text)
-        }
+    Group(items) { item ->
+        Line(icon, tint, item.title, item.text)
     }
     }
 }
@@ -429,14 +435,22 @@ private fun Section(text: String) {
 }
 
 @Composable
-private fun Group(content: @Composable () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(AppTheme.colors.surface)
-            .topLight(),
-    ) { content() }
+private fun <T> Group(items: List<T>, content: @Composable (T) -> Unit) {
+    if (items.isEmpty()) return
+    Column(Modifier.guideCard()) {
+        items.forEachIndexed { i, item ->
+            if (i > 0) Divider()
+            content(item)
+        }
+    }
+}
+
+@Composable
+private fun Modifier.guideCard(): Modifier {
+    val colors = AppTheme.colors
+    val shape = RoundedCornerShape(16.dp)
+    return fillMaxWidth().clip(shape).background(colors.surface)
+        .then(if (colors.bg == Color.Black) Modifier.border(1.dp, Color.White.copy(alpha = 0.065f), shape) else Modifier)
 }
 
 /** Разделитель от края текста: колонка значков остаётся чистой. */

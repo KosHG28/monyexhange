@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -27,6 +28,8 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -40,32 +43,56 @@ import kotlin.math.abs
  */
 val LocalTilt = staticCompositionLocalOf<State<Float>?> { null }
 
-/** Датчик наклона на всё приложение: слушаем, только пока оно на экране, ~30 раз в секунду. */
+/** Наклон для мини-карт и знакомства, пока окно приложения активно. */
 @Composable
 fun ProvideTilt(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalTilt provides rememberTilt(), content = content)
 }
 
 @Composable
-private fun rememberTilt(): State<Float>? {
+internal fun rememberTilt(active: Boolean = true): State<Float>? {
+    val supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !LocalReduceMotion.current
+    val tilt = remember { mutableFloatStateOf(0f) }
+    val filter = remember { TiltFilter { tilt.floatValue = it } }
+    val available = ObserveRotation(active && supported, onStart = filter::reset) { matrix, timestamp, _ -> filter.read(matrix, timestamp) }
+    return tilt.takeIf { supported && available }
+}
+
+@Composable
+internal fun ObserveRotation(
+    active: Boolean,
+    onStart: () -> Unit,
+    onReading: (matrix: FloatArray, timestamp: Long, rotation: Int) -> Unit,
+): Boolean {
+    val focused = LocalWindowInfo.current.isWindowFocused
     val reduceMotion = LocalReduceMotion.current
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val manager = remember { context.getSystemService(SensorManager::class.java) }
+    val view = LocalView.current
+    val manager = remember(context) { context.getSystemService(SensorManager::class.java) }
     // Игровой вектор поворота: гироскоп + акселерометр, без компаса — не «плывёт» у металла.
     val sensor = remember(manager) { manager?.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR) }
-    val enabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !reduceMotion && manager != null && sensor != null
-    val tilt = remember { mutableFloatStateOf(0f) }
-    DisposableEffect(enabled, lifecycle) {
+    val enabled = active && focused && !reduceMotion
+    val start by rememberUpdatedState(onStart)
+    val reading by rememberUpdatedState(onReading)
+    DisposableEffect(enabled, manager, sensor, lifecycle, view) {
         if (!enabled || manager == null || sensor == null) return@DisposableEffect onDispose { }
-        val listener = TiltListener { tilt.floatValue = it }
+        val matrix = FloatArray(9)
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                SensorManager.getRotationMatrixFromVector(matrix, event.values)
+                reading(matrix, event.timestamp, view.display?.rotation ?: 0)
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+        }
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_RESUME -> manager.registerListener(listener, sensor, SAMPLING_US)
-                Lifecycle.Event.ON_PAUSE -> {
-                    manager.unregisterListener(listener)
-                    listener.reset()
+                Lifecycle.Event.ON_RESUME -> {
+                    start()
+                    manager.registerListener(listener, sensor, SAMPLING_US)
                 }
+                Lifecycle.Event.ON_PAUSE -> manager.unregisterListener(listener)
                 else -> Unit
             }
         }
@@ -75,7 +102,7 @@ private fun rememberTilt(): State<Float>? {
             manager.unregisterListener(listener)
         }
     }
-    return if (enabled) tilt else null
+    return sensor != null
 }
 
 /**
@@ -83,8 +110,7 @@ private fun rememberTilt(): State<Float>? {
  * держат телефон. «Ноль» — как держали при открытии; потом плавно (≈2 с) подтягивается к новому положению руки.
  * Значение сглажено — полоса двигается с инерцией, без дрожания.
  */
-private class TiltListener(private val onTilt: (Float) -> Unit) : SensorEventListener {
-    private val matrix = FloatArray(9)
+private class TiltFilter(private val onTilt: (Float) -> Unit) {
     private val publication = TiltPublicationGate()
     private var base = Float.NaN
     private var smooth = 0f
@@ -98,11 +124,10 @@ private class TiltListener(private val onTilt: (Float) -> Unit) : SensorEventLis
         onTilt(0f)
     }
 
-    override fun onSensorChanged(event: SensorEvent) {
-        SensorManager.getRotationMatrixFromVector(matrix, event.values)
+    fun read(matrix: FloatArray, timestamp: Long) {
         val up = -matrix[6]
-        val dt = if (last == 0L) 0f else ((event.timestamp - last) / 1e9f).coerceIn(0f, 0.2f)
-        last = event.timestamp
+        val dt = if (last == 0L) 0f else ((timestamp - last) / 1e9f).coerceIn(0f, 0.2f)
+        last = timestamp
         if (base.isNaN()) base = up
         base += (up - base) * (dt / BASELINE_S).coerceAtMost(1f)
         val target = ((up - base) / RANGE).coerceIn(-1f, 1f)
@@ -111,7 +136,6 @@ private class TiltListener(private val onTilt: (Float) -> Unit) : SensorEventLis
         if (publication.accept(smooth)) onTilt(smooth)
     }
 
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 }
 
 /**

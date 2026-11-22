@@ -63,6 +63,8 @@ class FullScreenScope internal constructor(
     private val pending: MutableState<(() -> Unit)?>,
     private val closing: MutableState<Boolean>,
 ) {
+    val isClosing: Boolean get() = closing.value
+
     fun close(then: (() -> Unit)? = null) {
         if (closing.value) return
         pending.value = then

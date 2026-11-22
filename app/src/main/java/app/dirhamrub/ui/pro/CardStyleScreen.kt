@@ -1,6 +1,9 @@
 package app.dirhamrub.ui.pro
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +27,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -67,11 +72,31 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?) ->
                 val q = state.quote.of(card.id)
                 val sum = q?.let { Numbers.total(state.totals.spend.multiply(it.homePerUnit, MC), state.settings.rounding) }
                 val focus = LocalFocusManager.current
+                var previewVisible by remember { mutableStateOf(false) }
+                val reflectionTilt = rememberReflectionTilt(previewVisible && !isClosing)
+                val reduce = LocalReduceMotion.current
+                var sweepRequest by remember(card.id) { mutableIntStateOf(0) }
+                var playedSweep by remember(card.id) { mutableIntStateOf(0) }
+                val sweep = remember(card.id) { Animatable(1f) }
+                LaunchedEffect(sweepRequest, reduce, isClosing) {
+                    if (sweepRequest == playedSweep || reduce || isClosing) {
+                        playedSweep = sweepRequest
+                        sweep.snapTo(1f)
+                    } else {
+                        playedSweep = sweepRequest
+                        sweep.snapTo(0f)
+                        sweep.animateTo(1f, tween(500, easing = FastOutSlowInEasing))
+                    }
+                }
+                HighFrameRate(sweep.isRunning)
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
                     CardChoice(cards, card, { chosenId = it })
-                    Box(Modifier.fillMaxWidth().padding(vertical = 12.dp).clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
+                    Box(Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                        .onGloballyPositioned { previewVisible = !it.boundsInWindow().isEmpty }
+                        .clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
                         BankCardView(draft, q, state.wallet.spend, state.wallet.home, sum, true, null, {}, {},
-                            width = 270.dp, height = 142.dp, flipOnChange = false)
+                            width = 270.dp, height = 142.dp, flipOnChange = false,
+                            reflectionTilt = reflectionTilt, colorSweep = sweep.asState())
                     }
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(colors.surface).padding(12.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -83,7 +108,13 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?) ->
                         if (customOpen) {
                             CustomColorEditor(hex, { hex = it }, rgb)
                         } else {
-                            ColorPresets(preset, custom, { preset = it; custom = false }, {
+                            ColorPresets(preset, custom, {
+                                if (custom || preset != it) {
+                                    preset = it
+                                    custom = false
+                                    sweepRequest++
+                                }
+                            }, {
                                 custom = true; customOpen = true
                             })
                         }

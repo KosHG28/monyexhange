@@ -14,10 +14,10 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
@@ -104,33 +104,46 @@ internal fun Modifier.cardReflection(
         val edgeSize = Size(size.width - edgeWidth, size.height - edgeWidth)
         val corner = CornerRadius(radius.toPx() - inset)
         val stroke = Stroke(edgeWidth)
+        val clearLight = Color.White.copy(alpha = 0f)
         onDrawBehind {
             val angle = tilt.value
             val strength = maxOf(abs(angle.x), abs(angle.y))
             val progress = sweep?.value ?: 1f
-            val sweepAlpha = if (progress in 0f..1f) 0.14f * sin(progress * PI).toFloat() else 0f
-            val spotAlpha = (0.065f + 0.145f * strength).coerceAtMost(0.21f - sweepAlpha)
-            val hotspot = center + Offset(size.width * angle.x * 0.39f, size.height * angle.y * 0.43f)
+            val sweepAlpha = REFLECTION_PEAK * sin(progress.coerceIn(0f, 1f) * PI).toFloat()
+            val spotAlpha = (0.15f + 0.07f * strength).coerceAtMost(REFLECTION_PEAK - sweepAlpha)
+            val hotspot = center + Offset(size.width * angle.x * 0.36f, size.height * angle.y * 0.41f)
+            val spread = size.width * 0.48f
             drawRect(background)
-            drawRect(
-                Brush.radialGradient(listOf(Color.White.copy(alpha = spotAlpha), Color.Transparent), hotspot, size.width * 0.37f),
-                blendMode = BlendMode.Softlight,
-            )
+            if (spotAlpha > 0.001f) withTransform({
+                rotate(-32f, pivot = hotspot)
+                scale(1f, 0.5f, pivot = hotspot)
+            }) {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        0f to Color.White.copy(alpha = spotAlpha),
+                        0.38f to Color.White.copy(alpha = spotAlpha * 0.72f),
+                        1f to clearLight,
+                        center = hotspot,
+                        radius = spread,
+                    ),
+                    radius = spread,
+                    center = hotspot,
+                )
+            }
             if (sweepAlpha > 0.001f) {
                 val band = Offset(size.width * (-0.26f + 1.52f * progress), size.height * 0.5f)
                 val feather = Offset(size.width * 0.19f, size.height * 0.19f)
                 drawRect(
-                    Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = sweepAlpha), Color.Transparent), band - feather, band + feather),
-                    blendMode = BlendMode.Softlight,
+                    Brush.linearGradient(listOf(clearLight, Color.White.copy(alpha = sweepAlpha), clearLight), band - feather, band + feather),
                 )
             }
             val edgePosition = center + Offset(
-                size.width * 0.56f * angle.x,
-                size.height * 0.54f * (angle.y * 0.62f + angle.x * 0.78f).coerceIn(-1f, 1f),
+                size.width * (0.54f * angle.x - 0.22f * (1f - strength)),
+                size.height * 0.52f * (angle.y * 0.62f + angle.x * 0.78f - 0.64f * (1f - strength)).coerceIn(-1f, 1f),
             )
             drawRoundRect(
                 brush = Brush.radialGradient(
-                    listOf(Color.White.copy(alpha = 0.08f + 0.13f * strength), Color.White.copy(alpha = 0.035f)),
+                    listOf(Color.White.copy(alpha = 0.15f + 0.07f * strength), Color.White.copy(alpha = 0.045f)),
                     edgePosition, size.width * 0.62f,
                 ),
                 topLeft = Offset(inset, inset),
@@ -141,3 +154,5 @@ internal fun Modifier.cardReflection(
         }
     }
 }
+
+private const val REFLECTION_PEAK = 0.22f

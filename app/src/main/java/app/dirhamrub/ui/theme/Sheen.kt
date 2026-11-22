@@ -70,13 +70,18 @@ internal fun ObserveRotation(
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val view = LocalView.current
     val manager = remember(context) { context.getSystemService(SensorManager::class.java) }
-    // Игровой вектор поворота: гироскоп + акселерометр, без компаса — не «плывёт» у металла.
-    val sensor = remember(manager) { manager?.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR) }
+    // Предпочитаем вектор без компаса. На некоторых устройствах доступен только обычный вектор поворота.
+    val sensors = remember(manager) {
+        listOfNotNull(
+            manager?.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR),
+            manager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR),
+        )
+    }
     val enabled = active && focused && !reduceMotion
     val start by rememberUpdatedState(onStart)
     val reading by rememberUpdatedState(onReading)
-    DisposableEffect(enabled, manager, sensor, lifecycle, view) {
-        if (!enabled || manager == null || sensor == null) return@DisposableEffect onDispose { }
+    DisposableEffect(enabled, manager, sensors, lifecycle, view) {
+        if (!enabled || manager == null || sensors.isEmpty()) return@DisposableEffect onDispose { }
         val matrix = FloatArray(9)
         val listener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
@@ -90,7 +95,7 @@ internal fun ObserveRotation(
             when (event) {
                 Lifecycle.Event.ON_RESUME -> {
                     start()
-                    manager.registerListener(listener, sensor, SAMPLING_US)
+                    sensors.any { manager.registerListener(listener, it, SAMPLING_US) }
                 }
                 Lifecycle.Event.ON_PAUSE -> manager.unregisterListener(listener)
                 else -> Unit
@@ -102,7 +107,7 @@ internal fun ObserveRotation(
             manager.unregisterListener(listener)
         }
     }
-    return sensor != null
+    return sensors.isNotEmpty()
 }
 
 /**

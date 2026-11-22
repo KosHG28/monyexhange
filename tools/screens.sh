@@ -22,7 +22,7 @@ kill "$android_log_pid" 2>/dev/null || true
 python3 - <<'PY'
 from pathlib import Path
 import struct, zlib
-for name in ('card-reflection-1541.png',):
+for name in ('card-reflection-1542.png',):
     path = Path('screens') / name
     data = path.read_bytes()
     assert data[:8] == b'\x89PNG\r\n\x1a\n', path

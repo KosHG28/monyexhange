@@ -149,6 +149,7 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?) ->
                 }
                 Box(Modifier.fillMaxWidth().padding(16.dp)) {
                     val enabled = state.settings.pro && changed && (!custom || rgb != null) && !applied
+                    val label = stringResource(if (applied) R.string.style_applied else R.string.style_apply)
                     Box(Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(RoundedCornerShape(16.dp))
                         .background(when { applied -> colors.goodSoft; enabled -> colors.accent; else -> colors.surface2 })
                         .clickable(enabled, role = Role.Button) {
@@ -158,9 +159,14 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?) ->
                                 onApply(card.id, preset, if (custom) rgb else null)
                             }
                         }
-                        .semantics { if (applied) liveRegion = LiveRegionMode.Polite }
+                        .semantics {
+                            contentDescription = label
+                            role = Role.Button
+                            if (!enabled) disabled()
+                            if (applied) liveRegion = LiveRegionMode.Polite
+                        }
                         .padding(vertical = 14.dp), contentAlignment = Alignment.Center) {
-                        Text(stringResource(if (applied) R.string.style_applied else R.string.style_apply),
+                        Text(label, modifier = Modifier.clearAndSetSemantics { },
                             style = AppTheme.type.bodyStrong.copy(fontSize = 17.sp),
                             color = when { applied -> colors.good; enabled -> colors.onAccent; else -> colors.muted })
                     }

@@ -103,7 +103,7 @@ print("New cash name follows its kind. Existing cash has a fixed kind and the re
 start("pro", "--ez", "receiptDemo", "true")
 tap(find(text("Стиль карт")))
 find(text("Оформление карты"))
-apply_button = lambda node: labeled(node, "android.widget.Button", "Применить")
+apply_button = lambda node: node.get("content-desc") == "Применить"
 assert find(apply_button).get("enabled") == "false", "Apply starts enabled"
 tap(find(text("Свой цвет")))
 assert find(apply_button).get("enabled") == "false", "Opening the editor created a change"

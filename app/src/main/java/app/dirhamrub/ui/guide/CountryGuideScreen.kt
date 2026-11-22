@@ -239,7 +239,8 @@ fun CountryGuideScreen(
             // Ходовые купюры: номиналы и код валюты — чтобы узнавать деньги в руках.
             guide.notes?.let { n ->
                 val code = local?.code.orEmpty()
-                Items(stringResource(R.string.guide_notes), R.drawable.ic_cash, colors.muted, listOf(GuideItem("${n.title} $code", n.text)), Modifier.cascade(cascade, step++))
+                val denominations = DIGIT_SPACES.replace(n.title, "\u00A0")
+                Items(stringResource(R.string.guide_notes), R.drawable.ic_cash, colors.muted, listOf(GuideItem("$denominations $code".trimEnd(), n.text)), Modifier.cascade(cascade, step++))
             }
             Items(stringResource(R.string.guide_atm), R.drawable.ic_atm, colors.muted, guide.atm, Modifier.cascade(cascade, step++))
             Items(stringResource(R.string.guide_tips), R.drawable.ic_tip, colors.warn, guide.tips, Modifier.cascade(cascade, step++))
@@ -250,12 +251,6 @@ fun CountryGuideScreen(
                 style = type.caption,
                 color = if (stale) colors.warn else colors.muted,
                 modifier = Modifier.padding(horizontal = 4.dp),
-            )
-            Text(
-                stringResource(R.string.guide_disclaimer),
-                style = type.caption,
-                color = colors.muted,
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
             )
             ReportLink(stringResource(R.string.guide_report), guide.iso, countryName(guide.iso), guide.updated)
         }
@@ -299,6 +294,7 @@ internal fun Header(country: String, currency: Currency, modifier: Modifier = Mo
 }
 
 private const val HEADER_SP = 40f
+private val DIGIT_SPACES = Regex("(?<=\\d) +(?=\\d{3}(?!\\d))")
 
 /**
  * Мягкий флаг, растушёванный от угла. При прокрутке меняется только прозрачность готовой картинки.

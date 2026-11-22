@@ -163,9 +163,11 @@ fun CardEditorScreen(
     }
     var confirmExit by remember(card.id) { mutableStateOf(false) }
 
-    var name by remember(card.id) { mutableStateOf(card.name) }
+    val initialTemplate = stringResource(if (card.kind == CardKind.CASH) R.string.cash_default_name else R.string.card_default_name, card.currency.code)
+    var name by remember(card.id) { mutableStateOf(card.name.takeUnless { isNew && it == initialTemplate }.orEmpty()) }
     var currency by remember(card.id) { mutableStateOf(card.currency) }
-    var kind by remember(card.id) { mutableStateOf(card.kind) }
+    var newKind by remember(card.id) { mutableStateOf(card.kind) }
+    val kind = if (isNew) newKind else card.kind
     // UnionPay — одна из платёжных систем: выбрали её — карта считается картой UnionPay (без отдельного переключателя).
     var network by remember(card.id) { mutableStateOf(card.paymentNetwork) }
     // Прежние пополнения и какой курс считать: по последнему или в среднем.
@@ -383,7 +385,12 @@ fun CardEditorScreen(
             Spacer(Modifier.height(6.dp))
             // Черновик из полей и его курс — для предпросмотра сверху и итога ниже.
             val draft = build()
-            val q = RateEngine.quote(draft, spend, home, official, unionPay, cards)
+            val previewSpend = if (cash) currency else spend
+            val travelQuote = RateEngine.quote(draft, previewSpend, home, official, unionPay, cards)
+            val receipt = draft.effectiveTransfer?.takeIf { cash && it.isValid }
+            val previewHome = if (receipt != null && (travelQuote == null || currency == home)) receipt.sentCurrency else home
+            val q = if (previewHome == home) travelQuote else RateEngine.quote(draft, previewSpend, previewHome, official, unionPay, cards)
+            val amountInPreview = if (previewSpend == spend) previewAmount else PREVIEW_AMOUNT
             var previewVisible by remember { mutableStateOf(false) }
             val reflectionTilt = rememberReflectionTilt(previewVisible && !isClosing && morph?.flying != true)
             // Живая карточка: как карта будет выглядеть на главном экране с тем, что уже введено.
@@ -391,16 +398,16 @@ fun CardEditorScreen(
                 BankCardView(
                     card = draft,
                     quote = q,
-                    spend = spend,
-                    home = home,
-                    sum = q?.let { Numbers.total(previewAmount.multiply(it.homePerUnit, MC), rounding) },
+                    spend = previewSpend,
+                    home = previewHome,
+                    sum = q?.let { Numbers.total(amountInPreview.multiply(it.homePerUnit, MC), rounding) },
                     selected = true,
                     best = null,
                     onClick = {},
                     onLongClick = {},
                     width = PREVIEW_WIDTH,
                     height = PREVIEW_HEIGHT,
-                    needsReceipt = official?.cross(spend, home) == null,
+                    needsReceipt = official?.cross(previewSpend, previewHome) == null,
                     flipOnChange = false,
                     textAlpha = textAlpha,
                     reflectionTilt = reflectionTilt,
@@ -426,9 +433,10 @@ fun CardEditorScreen(
             }
             Spacer(Modifier.height(8.dp))
             // Карта или наличные из обменника: у наличных вместо пополнения — обмен, покупок по чекам нет.
-            // Карточка и «Карта / Наличные» — сразу; блоки ниже выплывают по очереди.
-            KindSwitch(kind) { kind = it }
-            Spacer(Modifier.height(10.dp))
+            if (isNew) {
+                KindSwitch(kind) { newKind = it }
+                Spacer(Modifier.height(10.dp))
+            }
 
             // Блок 1. Основное: название, валюта, платёжная система.
             EditorBlock(stringResource(R.string.editor_block_main), Modifier.cascade(cascade, 0)) {

@@ -373,7 +373,6 @@
     <string name="guide_notes">Купюры</string>
     <string name="guide_updated">Обновлено: %1$s</string>
     <string name="guide_updated_stale">Обновлено: %1$s — давно, сведения могли устареть</string>
-    <string name="guide_disclaimer">Сведения меняются: перед поездкой уточните в своём банке.</string>
     <string name="guide_report">Нашли неточность? Сообщить ›</string>
     <string name="guide_report_title">Справочник: %1$s</string>
     <string name="guide_report_body">Страна: %1$s (%2$s)\nСведения от: %3$s\n\nЧто изменилось:\n</string>
@@ -572,6 +571,9 @@
     <string name="style_hex_error">Введите 6 символов: 0–9, A–F</string>
     <string name="style_hue">Оттенок</string>
     <string name="style_apply">Применить</string>
+    <string name="style_applied">Применено ✓</string>
+    <string name="payment_move_up">Переместить выше</string>
+    <string name="payment_move_down">Переместить ниже</string>
     <string name="style_empty">Сначала добавьте карту в «Карты и наличные».</string>
     <string name="style_teal">Бирюза</string>
     <string name="style_bordeaux">Бордо</string>

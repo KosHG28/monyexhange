@@ -364,6 +364,10 @@ class MainViewModel(
         s.copy(wallet = wallet)
     }
 
+    fun reorderPaymentWays(ids: List<String>) = _state.update { s ->
+        s.copy(wallet = s.wallet.reorderPayments(ids))
+    }
+
     /** Пустая карта для редактора: валюта трат по умолчанию — первая, которой ещё нет среди карт. */
     fun newCard(): BankCard {
         val w = _state.value.wallet

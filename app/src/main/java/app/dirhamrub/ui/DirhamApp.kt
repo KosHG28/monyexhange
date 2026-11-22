@@ -291,6 +291,7 @@ fun DirhamApp(
         },
         onKey = vm::press,
         onSelectCard = vm::selectCard,
+        onReorderPayments = vm::reorderPaymentWays,
         onEditCard = { card ->
             // С главного карта «перелетает» из своей строки; наличные — экран снизу, как раньше.
             val origin = if (card.kind == CardKind.CARD) cardFlight.originOf(card.id) else null

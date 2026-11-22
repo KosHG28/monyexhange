@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -22,6 +23,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -48,6 +50,7 @@ import app.dirhamrub.ui.components.ScreenBar
 import app.dirhamrub.ui.main.BankCardView
 import app.dirhamrub.ui.main.MainUiState
 import app.dirhamrub.ui.theme.*
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 /** A local visual draft; applying rebases it onto the latest saved card in MainViewModel. */
@@ -58,17 +61,28 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?) ->
     val card = cards.firstOrNull { it.id == chosenId } ?: cards.firstOrNull()
     val colors = AppTheme.colors
     FullScreen(onDismissRequest = onDismiss) {
+        var applied by rememberSaveable { mutableStateOf(false) }
+        LaunchedEffect(applied) {
+            if (applied) {
+                delay(1_000)
+                close()
+            }
+        }
         Column(Modifier.fillMaxSize().imePadding()) {
             ScreenBar(onBack = { close() }, title = stringResource(R.string.style_title))
             if (card == null) {
                 Text(stringResource(R.string.style_empty), style = AppTheme.type.body, color = colors.muted, modifier = Modifier.padding(24.dp))
             } else {
-                var preset by rememberSaveable(card.id, card.style, card.customColor) { mutableIntStateOf(((card.style % Wallet.CARD_STYLES) + Wallet.CARD_STYLES) % Wallet.CARD_STYLES) }
+                val savedPreset = Math.floorMod(card.style, Wallet.CARD_STYLES)
+                var preset by rememberSaveable(card.id, card.style, card.customColor) { mutableIntStateOf(savedPreset) }
                 var custom by rememberSaveable(card.id, card.style, card.customColor) { mutableStateOf(card.customColor != null) }
                 var customOpen by rememberSaveable(card.id) { mutableStateOf(false) }
                 var hex by rememberSaveable(card.id, card.customColor) { mutableStateOf(CardAppearance.hex(card.customColor ?: (CardPalette.style(card).start.toArgb() and 0xFFFFFF))) }
                 val rgb = CardAppearance.parseHex(hex)
                 val draft = card.copy(style = preset, customColor = if (custom) rgb ?: card.customColor else null)
+                val changed = if (draft.customColor != null || card.customColor != null) {
+                    draft.customColor != card.customColor
+                } else preset != savedPreset
                 val q = state.quote.of(card.id)
                 val sum = q?.let { Numbers.total(state.totals.spend.multiply(it.homePerUnit, MC), state.settings.rounding) }
                 val focus = LocalFocusManager.current
@@ -90,7 +104,7 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?) ->
                 }
                 HighFrameRate(sweep.isRunning)
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
-                    CardChoice(cards, card, { chosenId = it })
+                    CardChoice(cards, card, { if (!applied) chosenId = it })
                     Box(Modifier.fillMaxWidth().padding(vertical = 12.dp)
                         .onGloballyPositioned { previewVisible = !it.boundsInWindow().isEmpty }
                         .clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
@@ -106,16 +120,26 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?) ->
                         }
                         Spacer(Modifier.height(10.dp))
                         if (customOpen) {
-                            CustomColorEditor(hex, { hex = it }, rgb)
+                            CustomColorEditor(hex, { input ->
+                                if (!applied) {
+                                    hex = input
+                                    val presetRgb = CardPalette.style(preset).start.toArgb() and 0xFFFFFF
+                                    val entered = CardAppearance.parseHex(input)
+                                    custom = entered != presetRgb || card.customColor == entered
+                                }
+                            }, rgb)
                         } else {
                             ColorPresets(preset, custom, {
-                                if (custom || preset != it) {
+                                if (!applied && (custom || preset != it)) {
                                     preset = it
                                     custom = false
                                     sweepRequest++
                                 }
                             }, {
-                                custom = true; customOpen = true
+                                if (!applied) {
+                                    if (!custom) hex = CardAppearance.hex(CardPalette.style(preset).start.toArgb() and 0xFFFFFF)
+                                    customOpen = true
+                                }
                             })
                         }
                     }
@@ -124,12 +148,21 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?) ->
                     AppearanceRow(draft, sum, state.wallet.home)
                 }
                 Box(Modifier.fillMaxWidth().padding(16.dp)) {
-                    val enabled = state.settings.pro && (!custom || rgb != null)
+                    val enabled = state.settings.pro && changed && (!custom || rgb != null) && !applied
                     Box(Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(RoundedCornerShape(16.dp))
-                        .background(if (enabled) colors.accent else colors.surface2)
-                        .clickable(enabled, role = Role.Button) { focus.clearFocus(); onApply(card.id, preset, if (custom) rgb else null); close() }
+                        .background(when { applied -> colors.goodSoft; enabled -> colors.accent; else -> colors.surface2 })
+                        .clickable(enabled, role = Role.Button) {
+                            if (!applied) {
+                                applied = true
+                                focus.clearFocus()
+                                onApply(card.id, preset, if (custom) rgb else null)
+                            }
+                        }
+                        .semantics { if (applied) liveRegion = LiveRegionMode.Polite }
                         .padding(vertical = 14.dp), contentAlignment = Alignment.Center) {
-                        Text(stringResource(R.string.style_apply), style = AppTheme.type.bodyStrong.copy(fontSize = 17.sp), color = if (enabled) colors.onAccent else colors.muted)
+                        Text(stringResource(if (applied) R.string.style_applied else R.string.style_apply),
+                            style = AppTheme.type.bodyStrong.copy(fontSize = 17.sp),
+                            color = when { applied -> colors.good; enabled -> colors.onAccent; else -> colors.muted })
                     }
                 }
             }
@@ -193,11 +226,13 @@ private fun ColorPresets(preset: Int, custom: Boolean, onPreset: (Int) -> Unit, 
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CustomColorEditor(hex: String, onHex: (String) -> Unit, rgb: Int?) {
     val colors = AppTheme.colors
     val hsv = remember(rgb) { FloatArray(3).also { android.graphics.Color.colorToHSV(0xFF000000.toInt() or (rgb ?: 0x9858CB), it) } }
-    val hue = hsv[0]
+    var sliderHue by remember { mutableStateOf<Float?>(null) }
+    val hue = sliderHue ?: hsv[0]
     val focus = LocalFocusManager.current
     // Keep saturation/value from the current valid draft; no money is converted to Float.
     fun choose(h: Float, s: Float, v: Float) { onHex(CardAppearance.hex(android.graphics.Color.HSVToColor(floatArrayOf(h, s, v)) and 0xFFFFFF)) }
@@ -227,16 +262,29 @@ private fun CustomColorEditor(hex: String, onHex: (String) -> Unit, rgb: Int?) {
         }
     }
     val description = stringResource(R.string.style_hue)
-    Slider(value = hue, onValueChange = { choose(it, hsv[1], hsv[2]) }, valueRange = 0f..359.9f,
-        modifier = Modifier.fillMaxWidth().semantics { contentDescription = description },
-        colors = SliderDefaults.colors(thumbColor = hueColor, activeTrackColor = colors.accent, inactiveTrackColor = colors.surface2))
-    OutlinedTextField(value = hex, onValueChange = { onHex(it.take(7)) }, singleLine = true,
+    Slider(
+        value = hue, onValueChange = {
+            sliderHue = it
+            choose(it, hsv[1], hsv[2])
+        }, valueRange = 0f..359.9f,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 3.dp).semantics { contentDescription = description },
+        thumb = {
+            Box(Modifier.size(23.dp).shadow(3.dp, CircleShape).background(hueColor, CircleShape)
+                .border(2.dp, Color.White, CircleShape))
+        },
+        track = {
+            Box(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(Brush.horizontalGradient(HUE_TRACK)))
+        },
+    )
+    OutlinedTextField(value = hex, onValueChange = { sliderHue = null; onHex(it.take(7)) }, singleLine = true,
         label = { Text(stringResource(R.string.style_hex)) }, isError = rgb == null,
         supportingText = if (rgb == null) ({ Text(stringResource(R.string.style_hex_error)) }) else null,
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, autoCorrectEnabled = false, imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
         shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth())
 }
+
+private val HUE_TRACK = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red)
 
 @Composable
 private fun MiniColorCard(card: BankCard) {

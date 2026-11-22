@@ -35,6 +35,21 @@ class WalletCodecTest {
     }
 
     @Test
+    fun `ручной порядок переживает перезапуск и сохраняет скрытые наличные и выбор`() {
+        val first = BankCard("first", "Первая", Currency.CNY, 0)
+        val hidden = BankCard("cash", "Наличные EUR", Currency.EUR, 1, kind = CardKind.CASH)
+        val second = BankCard("second", "Вторая", Currency.KZT, 2)
+        val wallet = Wallet(cards = listOf(first, hidden, second), spend = Currency.AED, selectedId = first.id)
+        assertFalse(WalletCodec.decode(WalletCodec.encode(wallet))!!.manualPaymentOrder)
+        val reordered = wallet.reorderPayments(listOf(second.id, first.id))
+        val restored = WalletCodec.decode(WalletCodec.encode(reordered))!!
+        assertTrue(restored.manualPaymentOrder)
+        assertEquals(listOf(second, hidden, first), restored.cards)
+        assertEquals(listOf(second, first), restored.usable)
+        assertEquals(first, restored.pick(second.id))
+    }
+
+    @Test
     fun `наличные сохраняются как наличные, старые карты — карты`() {
         val cash = BankCard(
             id = "cash", name = "Наличные AED", currency = Currency.AED, style = 3, kind = CardKind.CASH,

@@ -31,10 +31,12 @@ import app.dirhamrub.ui.components.flightOrigin
 import app.dirhamrub.ui.theme.sheen
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -67,21 +69,31 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -152,6 +164,7 @@ fun MainScreen(
     onKey: (Key) -> Unit,
     /** Касание карточки: выбрать способ (касание лучшей — снова считать по лучшей). */
     onSelectCard: (String) -> Unit,
+    onReorderPayments: (List<String>) -> Unit,
     onEditCard: (BankCard) -> Unit,
     onAddReceipt: (BankCard) -> Unit,
     onAddCard: () -> Unit,
@@ -202,11 +215,12 @@ fun MainScreen(
                     .semantics { liveRegion = LiveRegionMode.Polite },
             )
         }
+        val paymentsScroll = rememberScrollState()
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .fadingScroll(rememberScrollState())
+                .fadingScroll(paymentsScroll)
                 .padding(horizontal = 16.dp),
         ) {
             if (state.homePerUnit == null) {
@@ -215,7 +229,8 @@ fun MainScreen(
                 EmptyRate(state, onRefreshRates, onAddReceipt, onAddCard)
             }
             val cards = remember(wallet, quote) {
-                wallet.usable.sortedBy { quote.of(it.id)?.homePerUnit ?: BigDecimal(Long.MAX_VALUE) }
+                if (wallet.manualPaymentOrder) wallet.usable else
+                    wallet.usable.sortedBy { quote.of(it.id)?.homePerUnit ?: BigDecimal(Long.MAX_VALUE) }
             }
             Spacer(Modifier.height(16.dp))
             if (cards.isEmpty()) {
@@ -227,7 +242,7 @@ fun MainScreen(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                 )
             } else {
-                PayList(state, cards, onSelectCard, onEditCard)
+                PayList(state, cards, paymentsScroll, onSelectCard, onEditCard, onReorderPayments)
             }
             CbrLine(quote.official, quote.viaUnionPay, wallet.spend, wallet.home,
                 state.ratesLoading, state.officialFetchedAt, LocalDate.now().toEpochDay(),
@@ -492,7 +507,14 @@ private fun PriceField(state: MainUiState) {
  * Ничего не набрано — вместо сумм курс каждого способа («22,40 ₽ / 100 AMD»).
  */
 @Composable
-private fun PayList(state: MainUiState, cards: List<BankCard>, onSelect: (String) -> Unit, onEdit: (BankCard) -> Unit) {
+private fun PayList(
+    state: MainUiState,
+    cards: List<BankCard>,
+    scroll: ScrollState,
+    onSelect: (String) -> Unit,
+    onEdit: (BankCard) -> Unit,
+    onReorder: (List<String>) -> Unit,
+) {
     val quote = state.quote
     val best = quote.best?.takeIf { quote.quotes.size > 1 }
     val selectedId = state.selectedCard?.id
@@ -504,17 +526,71 @@ private fun PayList(state: MainUiState, cards: List<BankCard>, onSelect: (String
         if (bestId != null && seenBest != null && bestId != seenBest) haptics.play(Haptic.BEST)
         seenBest = bestId
     }
-    Column(Modifier.fillMaxWidth().selectableGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for ((ordinal, card) in cards.withIndex()) {
+    val ids = remember(cards) { cards.map { it.id } }
+    val byId = remember(cards) { cards.associateBy { it.id } }
+    val drag = remember(ids, state.wallet.spend) { PaymentDrag(ids) }
+    val commit by rememberUpdatedState(onReorder)
+    val density = LocalDensity.current
+    val edge = with(density) { 34.dp.toPx() }
+    val step = with(density) { 7.dp.toPx() }
+    LaunchedEffect(drag, drag.dragged, edge, step) {
+        while (drag.dragged != null) {
+            withFrameNanos {
+                val delta = drag.edgeScroll(edge, step)
+                if (delta != 0f) drag.dragBy(scroll.dispatchRawDelta(delta))
+            }
+        }
+    }
+    val movable = ids.size > 1
+    val gesture = if (!movable) Modifier else Modifier
+        .onGloballyPositioned {
+            val full = it.boundsInWindow(clipBounds = false)
+            val visible = it.boundsInWindow()
+            drag.viewport = visible.translate(-full.topLeft)
+        }
+        .pointerInput(drag, haptics) {
+            detectDragGesturesAfterLongPress(
+                onDragStart = { if (drag.start(it)) haptics.play(Haptic.TICK) },
+                onDrag = { change, delta ->
+                    if (drag.dragged != null) {
+                        change.consume()
+                        drag.dragBy(delta.y)
+                    }
+                },
+                onDragCancel = drag::cancel,
+                onDragEnd = { drag.finish()?.let(commit) },
+            )
+        }
+    val editLabel = stringResource(R.string.card_edit_a11y)
+    val up = stringResource(R.string.payment_move_up)
+    val down = stringResource(R.string.payment_move_down)
+    val displayed = drag.order
+    val primary = LocalTripSharedTransition.current?.primaryCardId
+    Column(Modifier.fillMaxWidth().selectableGroup().then(gesture), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        for ((ordinal, id) in displayed.withIndex()) {
+            val card = byId.getValue(id)
             val q = quote.of(card.id)
             val selected = card.id == selectedId
-            key(card.id) { PayRow(
+            val actions = buildList {
+                add(CustomAccessibilityAction(editLabel) { onEdit(card); true })
+                if (ordinal > 0) add(CustomAccessibilityAction(up) { onReorder(displayed.moved(ordinal, ordinal - 1)); true })
+                if (ordinal < displayed.lastIndex) add(CustomAccessibilityAction(down) { onReorder(displayed.moved(ordinal, ordinal + 1)); true })
+            }
+            key(id) { Box(
+                Modifier.zIndex(if (drag.dragged == id) 2f else if (selected) 1f else 0f)
+                    .onPlaced { coordinates ->
+                        val origin = coordinates.positionInParent()
+                        drag.place(id, Rect(origin, origin + Offset(coordinates.size.width.toFloat(), coordinates.size.height.toFloat())))
+                    },
+            ) { PayRow(
                 state = state,
                 card = card,
                 q = q,
                 best = best,
                 selected = selected,
-                entranceIndex = cards.take(ordinal).count { it.id != LocalTripSharedTransition.current?.primaryCardId },
+                entranceIndex = displayed.take(ordinal).count { it != primary },
+                modifier = Modifier.graphicsLayer { translationY = drag.translationOf(id) },
+                actions = actions,
                 onClick = {
                     if (selected) {
                         onEdit(card)
@@ -523,11 +599,11 @@ private fun PayList(state: MainUiState, cards: List<BankCard>, onSelect: (String
                         onSelect(card.id)
                     }
                 },
-                onLongClick = {
+                onLongClick = if (movable) null else ({
                     haptics.play(Haptic.TICK)
                     onEdit(card)
-                },
-            ) }
+                }),
+            ) } }
         }
     }
 }
@@ -541,8 +617,10 @@ private fun PayRow(
     best: CardQuote?,
     selected: Boolean,
     entranceIndex: Int,
+    modifier: Modifier,
+    actions: List<CustomAccessibilityAction>,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
@@ -619,10 +697,9 @@ private fun PayRow(
         label = "payLift",
     )
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .heightIn(min = 58.dp)
-            .zIndex(if (selected) 1f else 0f)
             .tripMainEnter(if (isPrimary) TripEnter.PRIMARY_DETAILS else TripEnter.PAYMENT, entranceIndex)
             .graphicsLayer {
                 val s = 1f + LIFT_SCALE * lift
@@ -641,6 +718,7 @@ private fun PayRow(
                 contentDescription = a11y
                 role = Role.RadioButton
                 this.selected = selected
+                customActions = actions
             }
             .padding(start = 12.dp, end = 18.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,

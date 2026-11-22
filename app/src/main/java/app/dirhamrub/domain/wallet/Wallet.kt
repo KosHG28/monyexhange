@@ -174,6 +174,7 @@ data class Wallet(
     val recent: List<Currency> = emptyList(),
     /** Страна, выбранная в списке стран (ISO), — для шапки, если валютой платят в нескольких странах (евро). */
     val place: String? = null,
+    val manualPaymentOrder: Boolean = false,
 ) {
     /**
      * Новая валюта трат; прежняя и она сама — в начале недавних (не больше [RECENT]). [place] — страна, если её
@@ -203,6 +204,16 @@ data class Wallet(
         val byId = cards.associateBy { it.id }
         val ordered = ids.distinct().mapNotNull { byId[it] }
         return copy(cards = ordered + cards.filter { it !in ordered })
+    }
+
+    /** Reorder the displayed ways to pay and retain the slots of methods hidden in this country. */
+    fun reorderPayments(ids: List<String>): Wallet {
+        val visible = usable.mapTo(HashSet()) { it.id }
+        val ordered = ids.distinct().filter(visible::contains)
+        if (ordered.size < 2) return this
+        val moved = ordered.toSet()
+        val next = ordered.iterator()
+        return reorder(cards.map { if (it.id in moved) next.next() else it.id }).copy(manualPaymentOrder = true)
     }
 
     fun upsert(card: BankCard): Wallet {

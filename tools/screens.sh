@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One screenshot of card appearance.
+# Screenshots of the changed card editor and custom hue control.
 set -euo pipefail
 mkdir -p screens
 exec > >(tee screens/scenario.log) 2>&1
@@ -17,12 +17,12 @@ adb shell setprop debug.hwui.swap_with_damage false
 adb logcat -b crash -c
 timeout 180s adb logcat -b crash -b main -b system -v brief AndroidRuntime:E libc:F DEBUG:F OpenGLRenderer:E '*:S' > screens/app-log.txt 2>&1 &
 android_log_pid=$!
-python3 tools/ui-card-reflection.py
+python3 tools/ui-wallet-155.py
 kill "$android_log_pid" 2>/dev/null || true
 python3 - <<'PY'
 from pathlib import Path
 import struct, zlib
-for name in ('card-reflection-1542.png',):
+for name in ('wallet-155-cash.png', 'wallet-155-hue.png'):
     path = Path('screens') / name
     data = path.read_bytes()
     assert data[:8] == b'\x89PNG\r\n\x1a\n', path

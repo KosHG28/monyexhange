@@ -3,6 +3,13 @@
 set -euo pipefail
 mkdir -p screens
 exec > >(tee screens/scenario.log) 2>&1
+diagnose() {
+    if [ "$?" -ne 0 ]; then
+        timeout 12s adb logcat -d -b crash > screens/crash.txt 2>&1 || true
+        timeout 12s adb shell dumpsys activity activities > screens/activity-state.txt 2>&1 || true
+    fi
+}
+trap diagnose EXIT
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell setprop debug.hwui.renderer skiagl
 adb shell setprop debug.hwui.use_buffer_age false

@@ -53,19 +53,11 @@ def swipe(start, end):
 
 def start(screen, *extras):
     adb("shell", "am", "force-stop", PACKAGE)
-    adb("shell", "am", "start", "-W", "-n", ACTIVITY, "--es", "screen", screen, "--ez", "demo", "true", *extras)
+    print(adb("shell", "am", "start", "-W", "-n", ACTIVITY, "--es", "screen", screen, "--ez", "demo", "true", *extras), flush=True)
 
 
 adb("shell", "cmd", "uimode", "night", "yes")
 adb("shell", "settings", "put", "global", "animator_duration_scale", "1")
-start("guide", "--es", "spend", "KRW")
-expanded_top = bounds(find(text("Вона")))[1]
-swipe(.78, .22)
-find(lambda node: text("Вона")(node) and bounds(node)[1] < expanded_top)
-swipe(.12, .92)
-find(lambda node: text("Вона")(node) and bounds(node)[1] >= expanded_top)
-print("Currency title collapses into the top bar and expands again.")
-
 start("pro", "--ez", "receiptDemo", "true")
 find(text("Курс по чеку"))
 tap(find(text("Стиль карт")))
@@ -81,3 +73,12 @@ find(lambda node: bordeaux(node) and (node.get("checked") == "true" or node.get(
 with (Path("screens") / "card-reflection-1541.png").open("wb") as output:
     subprocess.run(["adb", "exec-out", "screencap", "-p"], check=True, stdout=output, timeout=30)
 print("Bordeaux selected in card appearance. One screenshot.")
+
+adb("shell", "settings", "put", "global", "animator_duration_scale", "0")
+start("guide", "--es", "spend", "KRW")
+expanded_top = bounds(find(text("Вона")))[1]
+swipe(.78, .22)
+find(lambda node: text("Вона")(node) and bounds(node)[1] < expanded_top)
+swipe(.12, .92)
+find(lambda node: text("Вона")(node) and bounds(node)[1] >= expanded_top)
+print("Currency title collapses into the top bar and expands again.")

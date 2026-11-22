@@ -6,11 +6,12 @@ import subprocess
 import sys
 
 GUIDE = 'app/src/main/java/app/dirhamrub/ui/guide/'
+GUIDE_DATA = 'app/src/main/assets/countries.txt'
 PALETTE = 'app/src/main/java/app/dirhamrub/ui/theme/EasterEggPalette.kt'
 
 def needs_screens(paths, version_only=False):
     def guide(path):
-        return path.startswith(GUIDE) or path == PALETTE or path.startswith('app/src/main/res/drawable/ic_egg_')
+        return path.startswith(GUIDE) or path in {GUIDE_DATA, PALETTE} or path.startswith('app/src/main/res/drawable/ic_egg_')
     def supporting(path):
         return (path.startswith(('docs/', 'app/src/test/')) or
                 path in {'CLAUDE.md', 'tools/ui-scope.py', '.github/workflows/android.yml'} or
@@ -21,6 +22,8 @@ def needs_screens(paths, version_only=False):
 def main():
     if '--self-test' in sys.argv:
         assert not needs_screens([GUIDE+'CountryEasterEgg.kt', PALETTE])
+        assert not needs_screens([GUIDE_DATA, 'tools/ui-scope.py'])
+        assert needs_screens([GUIDE_DATA, 'app/src/main/java/app/dirhamrub/ui/main/MainScreen.kt'])
         assert not needs_screens([GUIDE+'EasterEggParticleOverlay.kt', 'app/build.gradle.kts'], True)
         assert needs_screens([GUIDE+'CountryEasterEgg.kt', 'app/build.gradle.kts'], False)
         assert needs_screens([GUIDE+'CountryEasterEgg.kt', 'app/src/main/java/app/dirhamrub/ui/main/MainScreen.kt'])
@@ -28,7 +31,7 @@ def main():
         assert not needs_screens(['docs/PLAN.md'])
         assert not needs_screens(['app/build.gradle.kts', 'docs/PLAN.md'], True)
         assert needs_screens([])
-        print('UI scope: 8 cases passed; unknown/main changes preserve screenshot gates.')
+        print('UI scope: 10 cases passed; unknown/main changes preserve screenshot gates.')
         return
     head = os.environ.get('SCOPE_HEAD', 'HEAD')
     base = os.environ.get('SCOPE_BASE', '')

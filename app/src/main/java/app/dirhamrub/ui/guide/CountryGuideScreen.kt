@@ -1,18 +1,27 @@
 package app.dirhamrub.ui.guide
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas as BitmapCanvas
+import android.graphics.LightingColorFilter
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.RadialGradient
+import android.graphics.Rect as BitmapRect
+import android.graphics.RectF
+import android.graphics.Shader
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import android.os.Build
 import kotlin.math.roundToInt
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.graphics.TileMode
-import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.Canvas
 import app.dirhamrub.ui.theme.parallaxOf
 import app.dirhamrub.ui.theme.rememberTilt
@@ -30,10 +39,6 @@ import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.setValue
@@ -296,68 +301,39 @@ internal fun Header(country: String, currency: Currency, modifier: Modifier = Mo
 private const val HEADER_SP = 40f
 
 /**
- * Флаг страны фоном: мягкое цветное пятно в правом верхнем углу экрана, растворяется радиальной маской от угла
- * (45 % → 0 к середине — текст слева всегда на чистом фоне). Эмодзи — маленькая картинка (~136 px), растянутая
- * текстом на полэкрана она рассыпается на пиксели (и тяжела для отрисовки). Поэтому флаг рисуется маленьким,
- * обрезается по самому флагу и растягивается со сглаживанием и лёгким размытием — читается как флаг, но без пикселей.
- * В светлой теме — наложение «умножение»: белые поля флага (Япония, Кипр) пропадают на светлом фоне.
+ * Мягкий флаг, растушёванный от угла. При прокрутке меняется только прозрачность готовой картинки.
  */
 @Composable
 private fun FlagBackdrop(flag: String, modifier: Modifier, opacity: () -> Float) {
-    val dark = AppTheme.colors.isDark
-    val image = remember(flag) { flagBitmap(flag) } ?: return
-    val blur = with(LocalDensity.current) { FLAG_BLUR.toPx() }
-    // Наклон телефона: флаг «глубже» экрана — отстаёт от наклона, а угловая маска стоит на месте.
+    val colors = AppTheme.colors
+    val matte = colors.bg.takeUnless { colors.isDark }
+    val image = remember(flag, matte) { flagBitmap(flag, matte) } ?: return
     val shown by remember(opacity) { derivedStateOf { opacity() > 0f } }
     val tilt = rememberTilt(active = shown)
     val depth = with(LocalDensity.current) { FLAG_DEPTH.toPx() }
-    Canvas(
-        modifier
-            .size(FLAG_SIZE)
-            .clearAndSetSemantics { }
-            .graphicsLayer {
-                alpha = opacity()
-                compositingStrategy = CompositingStrategy.Offscreen
-                if (!dark) blendMode = BlendMode.Multiply
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) renderEffect = BlurEffect(blur, blur, TileMode.Clamp)
-            },
-    ) {
-        // Флаг «накрывает» угол: по высоте чуть больше квадрата, правым краем — за край экрана.
-        val h = size.height * 1.05f
-        val w = h * image.width / image.height
+    Canvas(modifier.size(FLAG_SIZE).clipToBounds().clearAndSetSemantics { }) {
+        val alpha = opacity()
+        if (alpha <= 0f) return@Canvas
         drawImage(
             image,
-            dstOffset = IntOffset(
-                (size.width - w * 0.82f + parallaxOf(tilt, depth)).roundToInt(),
-                (-size.height * 0.08f).roundToInt(),
-            ),
-            dstSize = IntSize(w.roundToInt(), h.roundToInt()),
+            dstOffset = IntOffset(parallaxOf(tilt, depth).roundToInt(), 0),
+            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+            alpha = alpha,
             filterQuality = FilterQuality.High,
-        )
-        drawRect(
-            brush = Brush.radialGradient(
-                0f to Color.Black.copy(alpha = 0.45f),
-                0.3f to Color.Black.copy(alpha = 0.38f),
-                0.55f to Color.Black.copy(alpha = 0.16f),
-                0.8f to Color.Transparent,
-                center = Offset(size.width, 0f),
-                radius = size.width,
-            ),
-            blendMode = BlendMode.DstIn,
         )
     }
 }
 
-/** Эмодзи флага, нарисованный маленьким и обрезанный по непрозрачной части (без полей шрифта); null — пусто. */
-private fun flagBitmap(flag: String): ImageBitmap? {
+/** Обрезка по эмодзи, сглаживание при масштабировании и угловая маска на одном программном слое. */
+private fun flagBitmap(flag: String, matte: Color?): ImageBitmap? {
     val px = FLAG_BITMAP_PX
-    val full = android.graphics.Bitmap.createBitmap(px, px, android.graphics.Bitmap.Config.ARGB_8888)
-    val paint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+    val full = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+    val paint = android.text.TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = px * 0.75f
-        textAlign = android.graphics.Paint.Align.CENTER
+        textAlign = Paint.Align.CENTER
     }
     val metrics = paint.fontMetrics
-    android.graphics.Canvas(full).drawText(flag, px / 2f, px / 2f - (metrics.ascent + metrics.descent) / 2f, paint)
+    BitmapCanvas(full).drawText(flag, px / 2f, px / 2f - (metrics.ascent + metrics.descent) / 2f, paint)
     var left = px
     var top = px
     var right = -1
@@ -374,12 +350,38 @@ private fun flagBitmap(flag: String): ImageBitmap? {
             }
         }
     }
-    if (right < left || bottom < top) return null
-    return android.graphics.Bitmap.createBitmap(full, left, top, right - left + 1, bottom - top + 1).asImageBitmap()
+    if (right < left || bottom < top) {
+        full.recycle()
+        return null
+    }
+    val crop = BitmapRect(left, top, right + 1, bottom + 1)
+    val aspect = crop.width().toFloat() / crop.height()
+    val softHeight = minOf(crop.height(), 64)
+    val softWidth = (softHeight * aspect).roundToInt().coerceAtLeast(1)
+    val softened = Bitmap.createBitmap(softWidth, softHeight, Bitmap.Config.ARGB_8888)
+    val filter = Paint(Paint.FILTER_BITMAP_FLAG)
+    BitmapCanvas(softened).drawBitmap(full, crop, BitmapRect(0, 0, softWidth, softHeight), filter)
+    full.recycle()
+
+    val output = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+    val canvas = BitmapCanvas(output)
+    val height = px * 1.05f
+    val width = height * aspect
+    val x = px - width * 0.82f
+    val y = -px * 0.08f
+    if (matte != null) filter.colorFilter = LightingColorFilter(matte.toArgb(), 0)
+    canvas.drawBitmap(softened, null, RectF(x, y, x + width, y + height), filter)
+    softened.recycle()
+    val mask = Paint().apply {
+        shader = RadialGradient(px.toFloat(), 0f, px.toFloat(),
+            intArrayOf(0x73000000, 0x61000000, 0x29000000, 0), floatArrayOf(0f, 0.3f, 0.55f, 0.8f), Shader.TileMode.CLAMP)
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+    }
+    canvas.drawRect(0f, 0f, px.toFloat(), px.toFloat(), mask)
+    return output.asImageBitmap()
 }
 
 private const val FLAG_BITMAP_PX = 256
-private val FLAG_BLUR = 3.dp
 
 /** На сколько флаг отстаёт от наклона телефона (на полном наклоне, ±20°). */
 private val FLAG_DEPTH = 14.dp

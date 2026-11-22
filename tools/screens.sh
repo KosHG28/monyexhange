@@ -15,7 +15,10 @@ adb shell setprop debug.hwui.renderer skiagl
 adb shell setprop debug.hwui.use_buffer_age false
 adb shell setprop debug.hwui.swap_with_damage false
 adb logcat -b crash -c
+timeout 180s adb logcat -b crash -b main -b system -v brief AndroidRuntime:E libc:F DEBUG:F OpenGLRenderer:E '*:S' > screens/app-log.txt 2>&1 &
+android_log_pid=$!
 python3 tools/ui-card-reflection.py
+kill "$android_log_pid" 2>/dev/null || true
 python3 - <<'PY'
 from pathlib import Path
 import struct, zlib

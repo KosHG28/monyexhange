@@ -39,6 +39,10 @@ def text(label):
     return lambda node: node.get("text") == label or node.get("content-desc") == label
 
 
+def labeled(node, android_class, label):
+    return node.get("class") == android_class and any(text(label)(child) for child in node.iter("node"))
+
+
 def center(node, x=0.5):
     left, top, right, bottom = bounds(node)
     return str(round(left + (right - left) * x)), str((top + bottom) // 2)
@@ -82,7 +86,7 @@ find(text("Наличные VND"))
 start("editor", "--es", "card", "demo-aed-cash", "--es", "spend", "VND")
 find(text("Наличные"))
 assert not any(text("Карта")(node) for node in tree().iter("node")), "Existing record still offers a kind switch"
-received = find(lambda node: node.get("class") == "android.widget.EditText" and "Получил" in node.get("content-desc", ""))
+received = find(lambda node: labeled(node, "android.widget.EditText", "Получил"))
 tap(received)
 adb("shell", "input", "keyevent", "KEYCODE_MOVE_END", *(["KEYCODE_DEL"] * 10))
 adb("shell", "input", "text", "1000")
@@ -99,11 +103,12 @@ print("New cash name follows its kind. Existing cash has a fixed kind and the re
 start("pro", "--ez", "receiptDemo", "true")
 tap(find(text("Стиль карт")))
 find(text("Оформление карты"))
-assert find(text("Применить")).get("enabled") == "false", "Apply starts enabled"
+apply_button = lambda node: labeled(node, "android.widget.Button", "Применить")
+assert find(apply_button).get("enabled") == "false", "Apply starts enabled"
 tap(find(text("Свой цвет")))
-assert find(text("Применить")).get("enabled") == "false", "Opening the editor created a change"
+assert find(apply_button).get("enabled") == "false", "Opening the editor created a change"
 tap(find(text("Оттенок")), 0.98)
-apply = find(lambda node: text("Применить")(node) and node.get("enabled") == "true")
+apply = find(lambda node: apply_button(node) and node.get("enabled") == "true")
 capture("wallet-155-hue.png")
 tap(apply)
 find(text("Курс по чеку"))

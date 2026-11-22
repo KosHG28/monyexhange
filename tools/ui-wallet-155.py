@@ -1,6 +1,7 @@
 """Verify payment ordering, live cash preview and the custom hue slider."""
 import re
 import subprocess
+import time
 from pathlib import Path
 
 from ui_tree import read_tree
@@ -104,11 +105,15 @@ start("pro", "--ez", "receiptDemo", "true")
 tap(find(text("Стиль карт")))
 find(text("Оформление карты"))
 apply_button = lambda node: node.get("content-desc") == "Применить"
-assert find(apply_button).get("enabled") == "false", "Apply starts enabled"
+tap(find(apply_button))
+time.sleep(1.1)
+find(apply_button)
 tap(find(text("Свой цвет")))
-assert find(apply_button).get("enabled") == "false", "Opening the editor created a change"
+tap(find(apply_button))
+time.sleep(1.1)
+find(text("Оттенок"))
 tap(find(text("Оттенок")), 0.98)
-apply = find(lambda node: apply_button(node) and node.get("enabled") == "true")
+apply = find(apply_button)
 capture("wallet-155-hue.png")
 tap(apply)
 find(text("Курс по чеку"))

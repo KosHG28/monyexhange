@@ -2,6 +2,7 @@ package app.dirhamrub.ui.theme
 
 import android.graphics.BlurMaskFilter
 import android.os.Build
+import androidx.compose.foundation.border
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Paint
@@ -14,14 +15,23 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
+
+private val AMOLED_OUTLINE = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.11f), Color.White.copy(alpha = 0.02f)))
+
+/** Замкнутый световой контур матовых поверхностей на чисто чёрном фоне. */
+fun Modifier.amoledOutline(shape: Shape): Modifier = composed {
+    if (AppTheme.colors.bg == Color.Black) border(1.dp, AMOLED_OUTLINE, shape) else this
+}
 
 /**
  * Глубина в тёмной теме: у верхнего края карточки — тонкая светлая полоса, как свет сверху. Слои читаются без
  * резких рамок. В светлой теме — ничего. Ставить после clip и фона карточки.
  */
-fun Modifier.topLight(): Modifier = composed {
+fun Modifier.topLight(shape: Shape): Modifier = composed {
     if (!AppTheme.colors.isDark) return@composed this
+    if (AppTheme.colors.bg == Color.Black) return@composed amoledOutline(shape)
     drawWithContent {
         drawContent()
         val h = 1.5.dp.toPx()

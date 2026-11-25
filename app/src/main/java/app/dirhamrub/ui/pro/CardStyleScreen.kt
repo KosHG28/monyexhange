@@ -1,5 +1,8 @@
 package app.dirhamrub.ui.pro
 
+import app.dirhamrub.ui.components.ScreenAction
+import app.dirhamrub.ui.theme.amoledOutline
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -112,7 +115,9 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?) ->
                             width = 270.dp, height = 142.dp, flipOnChange = false,
                             reflectionTilt = reflectionTilt, colorSweep = sweep.asState())
                     }
-                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(colors.surface).padding(12.dp)) {
+                    val paletteShape = RoundedCornerShape(18.dp)
+                    Column(Modifier.fillMaxWidth().clip(paletteShape).background(colors.surface)
+                        .amoledOutline(paletteShape).padding(12.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(if (customOpen) R.string.style_custom else R.string.style_colors), style = AppTheme.type.bodyStrong,
                                 color = colors.ink, modifier = Modifier.weight(1f))
@@ -147,30 +152,19 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?) ->
                     Text(stringResource(R.string.style_main_preview), style = AppTheme.type.caption, color = colors.muted, modifier = Modifier.padding(bottom = 8.dp))
                     AppearanceRow(draft, sum, state.wallet.home)
                 }
-                Box(Modifier.fillMaxWidth().padding(16.dp)) {
-                    val enabled = state.settings.pro && changed && (!custom || rgb != null) && !applied
-                    val label = stringResource(if (applied) R.string.style_applied else R.string.style_apply)
-                    Box(Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(RoundedCornerShape(16.dp))
-                        .background(when { applied -> colors.goodSoft; enabled -> colors.accent; else -> colors.surface2 })
-                        .clickable(enabled, role = Role.Button) {
-                            if (!applied) {
-                                applied = true
-                                focus.clearFocus()
-                                onApply(card.id, preset, if (custom) rgb else null)
-                            }
+                ScreenAction(
+                    label = stringResource(if (applied) R.string.style_applied else R.string.style_apply),
+                    onClick = {
+                        if (!applied) {
+                            applied = true
+                            focus.clearFocus()
+                            onApply(card.id, preset, if (custom) rgb else null)
                         }
-                        .semantics {
-                            contentDescription = label
-                            role = Role.Button
-                            if (!enabled) disabled()
-                            if (applied) liveRegion = LiveRegionMode.Polite
-                        }
-                        .padding(vertical = 14.dp), contentAlignment = Alignment.Center) {
-                        Text(label, modifier = Modifier.clearAndSetSemantics { },
-                            style = AppTheme.type.bodyStrong.copy(fontSize = 17.sp),
-                            color = when { applied -> colors.good; enabled -> colors.onAccent; else -> colors.muted })
-                    }
-                }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 16.dp),
+                    enabled = state.settings.pro && changed && (!custom || rgb != null) && !applied,
+                    confirmed = applied,
+                )
             }
         }
     }
@@ -181,8 +175,9 @@ private fun CardChoice(cards: List<BankCard>, current: BankCard, onPick: (String
     var open by remember { mutableStateOf(false) }
     val colors = AppTheme.colors
     val label = stringResource(R.string.style_card_picker)
+    val shape = RoundedCornerShape(14.dp)
     Box {
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.surface)
+        Row(Modifier.fillMaxWidth().clip(shape).background(colors.surface).amoledOutline(shape)
             .clickable(role = Role.Button) { open = true }.semantics { contentDescription = label }
             .padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             MiniColorCard(current)
@@ -304,7 +299,9 @@ private fun MiniColorCard(card: BankCard) {
 @Composable
 private fun AppearanceRow(card: BankCard, sum: String?, home: Currency) {
     val colors = AppTheme.colors
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp)).background(colors.payRowSurface(true, false)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+    val shape = RoundedCornerShape(17.dp)
+    Row(Modifier.fillMaxWidth().clip(shape).background(colors.payRowSurface(true, false)).amoledOutline(shape).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically) {
         MiniColorCard(card)
         Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
             Text(card.name, style = AppTheme.type.bodyStrong, color = colors.ink, maxLines = 1)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Screenshots of the changed card editor and custom hue control.
+# Screenshots of changed screens: calculator, settings, card editor and custom color.
 set -euo pipefail
 mkdir -p screens
 exec > >(tee screens/scenario.log) 2>&1
@@ -22,7 +22,7 @@ kill "$android_log_pid" 2>/dev/null || true
 python3 - <<'PY'
 from pathlib import Path
 import struct, zlib
-for name in ('wallet-155-cash.png', 'wallet-155-hue.png'):
+for name in ('wallet-155-cash.png', 'wallet-155-hue.png', 'polish-156-grab.png', 'polish-156-settings.png'):
     path = Path('screens') / name
     data = path.read_bytes()
     assert data[:8] == b'\x89PNG\r\n\x1a\n', path

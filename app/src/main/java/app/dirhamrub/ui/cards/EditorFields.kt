@@ -66,12 +66,13 @@ import app.dirhamrub.ui.theme.AppTheme
 @Composable
 internal fun EditorBlock(title: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     val colors = AppTheme.colors
+    val shape = RoundedCornerShape(18.dp)
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
+            .clip(shape)
             .background(colors.surface)
-            .topLight()
+            .topLight(shape)
             .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 14.dp),
     ) {
         Text(

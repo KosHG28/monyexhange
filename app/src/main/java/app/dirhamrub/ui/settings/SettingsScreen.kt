@@ -1,5 +1,7 @@
 package app.dirhamrub.ui.settings
 
+import app.dirhamrub.ui.components.ScreenAction
+
 import android.os.Build
 import app.dirhamrub.domain.AppIcon
 import app.dirhamrub.ui.components.rememberCollapsingTitle
@@ -107,7 +109,7 @@ class SettingsActions(
 
 /**
  * Настройки (значок в шапке главного). Основные (карты и наличные); курсы — одна карточка: источники,
- * UnionPay в своей строке, частота, «только по Wi-Fi», ниже — «Обновить сейчас»; валюты (итог, округление,
+ * UnionPay в своей строке, частота, «только по Wi-Fi», «Обновить сейчас» закреплена внизу; валюты (итог, округление,
  * подсказка о стране); камера; оформление (тема, анимации, вибрация); о приложении (журнал ошибок — отдельным экраном).
  */
 @Composable
@@ -135,9 +137,10 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
         val cascade = rememberCascade(lastIndex = 5)
         Column(
             Modifier
+                .weight(1f)
                 .fillMaxWidth()
                 .finishCascadeOnTouch(cascade)
-                .fadingScroll(scroll)
+                .fadingScroll(scroll, bottomEdge = 32.dp)
                 .padding(horizontal = 14.dp)
                 .padding(bottom = 24.dp),
         ) {
@@ -168,6 +171,12 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
             Column(Modifier.cascade(cascade, 4)) { LookSection(state, actions) }
             Column(Modifier.cascade(cascade, 5)) { AboutSection(onOnboarding = actions.onOnboarding, onCrash = { crashOpen = true }) }
         }
+        ScreenAction(
+            label = stringResource(if (state.ratesLoading) R.string.settings_loading_button else R.string.settings_refresh),
+            onClick = actions.onRefresh,
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+            loading = state.ratesLoading,
+        )
     }
     if (roundingPicker) {
         RoundingSheet(state.settings.rounding, onPick = {
@@ -263,21 +272,6 @@ private fun RatesSection(state: MainUiState, actions: SettingsActions) {
             state.settings.wifiOnly,
             actions.onWifiOnly,
         )
-    }
-    // «Обновить сейчас» — отдельная тональная кнопка под карточкой курсов.
-    val colors = AppTheme.colors
-    val label = stringResource(if (state.ratesLoading) R.string.settings_loading_button else R.string.settings_refresh)
-    Box(
-        Modifier
-            .padding(top = 10.dp)
-            .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(colors.accentSoft)
-            .clickable(role = Role.Button, enabled = !state.ratesLoading, onClick = actions.onRefresh),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text("↻  $label", style = AppTheme.type.bodyStrong, color = colors.accent)
     }
 }
 

@@ -111,6 +111,8 @@
     <string name="saved_a11y">Сохранено</string>
     <string name="nfc_title">Приложите карту к задней панели</string>
     <string name="nfc_sub">Определим платёжную систему и валюту карты. Номер карты не читаем и не сохраняем.</string>
+    <string name="nfc_disabled">NFC выключен</string>
+    <string name="nfc_enable">Включить NFC</string>
     <string name="nfc_found">Карта прочитана: %1$s · %2$s</string>
     <string name="nfc_found_no_currency">Карта прочитана: %1$s, валюту карта не сообщила</string>
     <string name="nfc_failed">Не удалось прочитать — подержите карту у телефона чуть дольше</string>

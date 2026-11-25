@@ -191,6 +191,7 @@ internal fun BankCardView(
             // Водяной знак валюты карты: при наклоне отстаёт на 6 dp — будто глубже в пластике.
             val mark = card.currency.mark
             val tilt = LocalTilt.current
+            val markY = (if (mark.length > 2) 4.dp else 24.dp) - if (vs != null) 16.dp else 0.dp
             val watermark: @Composable BoxScope.() -> Unit = {
             Text(
                 text = mark,
@@ -200,7 +201,7 @@ internal fun BankCardView(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .then(if (tripPreview) Modifier.tripExit(TripExit.DECORATION) else Modifier)
-                    .offset(x = 6.dp, y = if (mark.length > 2) 4.dp else 24.dp)
+                    .offset(x = 6.dp, y = markY)
                     .graphicsLayer {
                         val angle = reflectionTilt?.value
                         translationX = if (angle == null) parallaxOf(tilt, 6.dp.toPx()) else -angle.x * 6.dp.toPx()
@@ -268,7 +269,7 @@ internal fun BankCardView(
                             modifier = Modifier
                                 .then(if (tripPreview) Modifier.tripExit(TripExit.DECORATION) else Modifier)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(CardPalette.chipScrim)
+                                .background(CardPalette.chipScrim.copy(alpha = 0.62f))
                                 .padding(horizontal = 5.dp, vertical = 1.dp),
                         )
                     }

@@ -1,7 +1,17 @@
 package app.dirhamrub.ui.cards
 
+import app.dirhamrub.ui.components.ScreenActionHeight
+import app.dirhamrub.ui.components.ScreenActionRadius
+
 import app.dirhamrub.ui.theme.Springs
 import app.dirhamrub.ui.theme.LocalReduceMotion
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.animateFloatAsState
@@ -42,6 +52,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -54,6 +68,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.dirhamrub.R
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
@@ -320,23 +335,63 @@ internal fun ReceiptRate(rate: String, whole: Boolean = false) {
  * (красным). Само чтение идёт всё время, пока открыта настройка карты ([NfcCardReader]).
  */
 @Composable
-internal fun NfcHint(result: NfcRead?) {
+internal fun NfcHint(read: NfcRead?, enabled: Boolean, animate: Boolean) {
     val colors = AppTheme.colors
     val type = AppTheme.type
+    val reduce = LocalReduceMotion.current
+    val context = LocalContext.current
+    val result = read.takeIf { enabled }
+    val found = result is NfcRead.Found
+    var visible by remember { mutableStateOf(false) }
+    var resumed by remember { mutableStateOf(false) }
+    LifecycleResumeEffect(Unit) {
+        resumed = true
+        onPauseOrDispose { resumed = false }
+    }
+    val pulse = if (!reduce && animate && visible && resumed && enabled && !found) {
+        rememberInfiniteTransition(label = "nfcWaiting").animateFloat(
+            initialValue = 0f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(1050, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+            label = "nfcWave",
+        )
+    } else null
     Row(
         Modifier
             .fillMaxWidth()
+            .onGloballyPositioned { visible = !it.boundsInWindow().isEmpty }
             .clip(RoundedCornerShape(14.dp))
             .background(colors.surface2)
             .padding(horizontal = 12.dp, vertical = 10.dp)
             .semantics(mergeDescendants = true) {},
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(painterResource(R.drawable.ic_nfc), contentDescription = null, tint = colors.accent, modifier = Modifier.size(24.dp))
+        Crossfade(targetState = found, modifier = Modifier.size(24.dp),
+            animationSpec = if (reduce) snap() else tween(180), label = "nfcIcon") { success ->
+            Icon(
+                painterResource(if (success) R.drawable.ic_check else R.drawable.ic_nfc), contentDescription = null,
+                tint = when {
+                    success -> colors.good
+                    enabled -> colors.accent
+                    else -> colors.muted
+                },
+                modifier = Modifier.size(24.dp).graphicsLayer {
+                    val breathing = if (success) 0f else pulse?.value ?: 0f
+                    scaleX = 1f + 0.10f * breathing
+                    scaleY = scaleX
+                    alpha = 1f - 0.24f * breathing
+                },
+            )
+        }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.nfc_title), style = type.bodyStrong, color = colors.ink)
-            Text(stringResource(R.string.nfc_sub), style = type.caption, color = colors.muted)
+            Text(stringResource(if (enabled) R.string.nfc_title else R.string.nfc_disabled), style = type.bodyStrong, color = colors.ink)
+            if (enabled) {
+                Text(stringResource(R.string.nfc_sub), style = type.caption, color = colors.muted)
+            } else {
+                TextButton(onClick = { openNfcSettings(context) }) {
+                    Text(stringResource(R.string.nfc_enable), style = type.bodyStrong, color = colors.accent)
+                }
+            }
         }
     }
     val message = when (result) {
@@ -379,29 +434,27 @@ internal fun SaveButton(saving: Boolean, onClick: () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         val full = maxWidth
         val k = shrink.coerceIn(0f, 1.05f)
-        val width = full - (full - SAVE_HEIGHT) * k
+        val width = full - (full - ScreenActionHeight) * k
         val label = stringResource(R.string.save)
         val done = stringResource(R.string.saved_a11y)
         Box(
             Modifier
-                .width(width.coerceAtLeast(SAVE_HEIGHT))
-                .height(SAVE_HEIGHT)
-                .clip(RoundedCornerShape(14.dp + (SAVE_HEIGHT / 2 - 14.dp) * k.coerceAtMost(1f)))
+                .width(width.coerceAtLeast(ScreenActionHeight))
+                .heightIn(min = ScreenActionHeight)
+                .clip(RoundedCornerShape(ScreenActionRadius + (ScreenActionHeight / 2 - ScreenActionRadius) * k.coerceAtMost(1f)))
                 .background(colors.accent)
                 .clickable(enabled = !saving, role = Role.Button, onClick = onClick)
                 .semantics { contentDescription = if (saving) done else label },
             contentAlignment = Alignment.Center,
         ) {
             if (shrink < 0.5f) {
-                Text(label, style = AppTheme.type.bodyStrong.copy(fontSize = 16.sp), color = colors.onAccent, maxLines = 1)
+                Text(label, style = AppTheme.type.bodyStrong.copy(fontSize = 17.sp), color = colors.onAccent, maxLines = 1)
             } else {
                 Text("✓", style = AppTheme.type.bodyStrong.copy(fontSize = 22.sp), color = colors.onAccent)
             }
         }
     }
 }
-
-private val SAVE_HEIGHT = 52.dp
 
 @Composable
 internal fun Hint(text: String) {

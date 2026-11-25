@@ -1,5 +1,7 @@
 package app.dirhamrub.ui.pro
 
+import app.dirhamrub.ui.theme.amoledOutline
+
 import android.os.Build
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -210,7 +212,8 @@ private fun ActiveProBanner() {
 
 @Composable
 private fun ProSurface(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(AppTheme.colors.surface), content = content)
+    val shape = RoundedCornerShape(18.dp)
+    Column(Modifier.fillMaxWidth().clip(shape).background(AppTheme.colors.surface).amoledOutline(shape), content = content)
 }
 
 @Composable

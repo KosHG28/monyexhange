@@ -2,14 +2,19 @@ package app.dirhamrub.ui.currency
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Icon
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
@@ -67,6 +72,7 @@ import app.dirhamrub.domain.wallet.CurrencySearch
 import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.Region
 import app.dirhamrub.domain.wallet.cbrPublishes
+import app.dirhamrub.ui.components.CurrencyChip
 import app.dirhamrub.ui.components.CurrencyChips
 import app.dirhamrub.ui.components.cascade
 import app.dirhamrub.ui.components.finishCascadeOnTouch
@@ -354,7 +360,14 @@ private fun LazyListScope.spendItems(
     item(key = "recent") {
         Column(Modifier.cascade(cascade, i)) {
             Section(texts.recent)
-            CurrencyChips(options = last, selected = spend, onSelect = { onPick(it, null) })
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                for (currency in last) {
+                    CurrencyChip(currency, currency == spend, Modifier.widthIn(min = 68.dp)) { onPick(currency, null) }
+                }
+            }
         }
     }
     val byRegion = Countries.all.groupBy { it.region }

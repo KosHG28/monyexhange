@@ -121,3 +121,20 @@ capture("wallet-155-hue.png")
 tap(apply)
 find(text("Курс по чеку"))
 print("Changing hue enabled Apply. Two screenshots of changed screens.")
+
+amoled = lambda node: node.get("class") == "android.widget.Switch" and text("AMOLED")(node)
+tap(find(amoled))
+find(lambda node: amoled(node) and node.get("checked") == "true")
+start("main", demo=False)
+tap(find(text("Запятая")))
+tap(find(text("5")))
+row = payment("Карта в юанях")
+with subprocess.Popen(["adb", "shell", "input", "swipe", *center(row), *center(row), "2400"]) as hold:
+    time.sleep(1.0)
+    capture("polish-156-grab.png")
+    assert hold.wait(timeout=12) == 0
+
+start("settings", demo=False)
+refresh = find(lambda node: text("Обновить сейчас")(node) or text("Обновляем…")(node))
+assert refresh.get("class") == "android.widget.Button", "Refresh must be a bottom action"
+capture("polish-156-settings.png")

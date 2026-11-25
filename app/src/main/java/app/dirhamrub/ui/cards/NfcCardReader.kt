@@ -1,20 +1,30 @@
 package app.dirhamrub.ui.cards
 
 import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
+import android.content.IntentFilter
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.IsoDep
+import android.provider.Settings
 import android.util.Log
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.dirhamrub.domain.wallet.Emv
 import app.dirhamrub.domain.wallet.EmvInfo
 import java.security.SecureRandom
 import java.time.LocalDate
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Что вышло с картой, приложенной к телефону. */
 sealed interface NfcRead {
@@ -24,8 +34,41 @@ sealed interface NfcRead {
     data object Failed : NfcRead
 }
 
-/** Есть ли на телефоне NFC и включён ли он. */
-fun nfcReady(context: Context): Boolean = NfcAdapter.getDefaultAdapter(context)?.isEnabled == true
+internal enum class NfcAvailability { UNSUPPORTED, DISABLED, READY }
+
+private fun NfcAdapter?.availability(): NfcAvailability = when {
+    this == null -> NfcAvailability.UNSUPPORTED
+    isEnabled -> NfcAvailability.READY
+    else -> NfcAvailability.DISABLED
+}
+
+@Composable
+internal fun rememberNfcAvailability(observe: Boolean): NfcAvailability {
+    val context = LocalContext.current
+    val adapter = remember(context) { NfcAdapter.getDefaultAdapter(context) }
+    var availability by remember(adapter) { mutableStateOf(adapter.availability()) }
+    LifecycleResumeEffect(adapter, observe) {
+        val receiver = if (observe && adapter != null) {
+            object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) {
+                    availability = adapter.availability()
+                }
+            }.also {
+                ContextCompat.registerReceiver(context, it, IntentFilter(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED), ContextCompat.RECEIVER_EXPORTED)
+                availability = adapter.availability()
+            }
+        } else null
+        onPauseOrDispose { if (receiver != null) context.unregisterReceiver(receiver) }
+    }
+    return availability
+}
+
+internal fun openNfcSettings(context: Context) {
+    val activity = context.findActivity() ?: return
+    if (runCatching { activity.startActivity(Intent(Settings.ACTION_NFC_SETTINGS)) }.isFailure) {
+        runCatching { activity.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS)) }
+    }
+}
 
 /**
  * Пока [enabled] и экран на виду, телефон ждёт банковскую карту у задней панели (режим чтения NFC; оплата
@@ -35,19 +78,26 @@ fun nfcReady(context: Context): Boolean = NfcAdapter.getDefaultAdapter(context)?
 @Composable
 fun NfcCardReader(enabled: Boolean, onRead: (NfcRead) -> Unit) {
     val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
+    val adapter = remember(context) { NfcAdapter.getDefaultAdapter(context) }
     val callback = rememberUpdatedState(onRead)
-    DisposableEffect(enabled, context) {
-        val activity = context.findActivity()
-        val adapter = NfcAdapter.getDefaultAdapter(context)
-        if (!enabled || activity == null || adapter == null || !adapter.isEnabled) return@DisposableEffect onDispose { }
-        val reader = NfcAdapter.ReaderCallback { tag ->
-            val result = read(tag)
-            activity.runOnUiThread { callback.value(result) }
+    LifecycleResumeEffect(enabled, activity, adapter) {
+        val active = AtomicBoolean(enabled && activity != null && adapter?.isEnabled == true)
+        val started = if (active.get() && activity != null && adapter != null) {
+            val reader = NfcAdapter.ReaderCallback { tag ->
+                if (active.get()) {
+                    val result = read(tag)
+                    activity.runOnUiThread { if (active.get()) callback.value(result) }
+                }
+            }
+            val flags = NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NFC_B or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK
+            runCatching { adapter.enableReaderMode(activity, reader, flags, null) }
+                .onFailure { Log.w(TAG, "Режим чтения NFC не включился", it) }.isSuccess
+        } else false
+        onPauseOrDispose {
+            active.set(false)
+            if (started && activity != null && adapter != null) runCatching { adapter.disableReaderMode(activity) }
         }
-        val flags = NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NFC_B or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK
-        runCatching { adapter.enableReaderMode(activity, reader, flags, null) }
-            .onFailure { Log.w(TAG, "Режим чтения NFC не включился", it) }
-        onDispose { runCatching { adapter.disableReaderMode(activity) } }
     }
 }
 

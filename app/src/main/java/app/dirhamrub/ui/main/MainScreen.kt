@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.foundation.Canvas
 import app.dirhamrub.ui.theme.fieldGlow
+import app.dirhamrub.ui.theme.amoledOutline
 import app.dirhamrub.ui.theme.HighFrameRate
 import app.dirhamrub.ui.components.*
 import app.dirhamrub.ui.components.TypingText
@@ -23,7 +24,6 @@ import app.dirhamrub.ui.theme.payRowSurface
 import app.dirhamrub.ui.theme.PayRowShadow
 import app.dirhamrub.ui.theme.paymentRowShadow
 import androidx.compose.animation.core.Animatable
-import app.dirhamrub.ui.theme.topLight
 import app.dirhamrub.ui.theme.Springs
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.animateFloatAsState
@@ -76,10 +76,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
@@ -471,7 +475,7 @@ private fun PriceField(state: MainUiState) {
             .fieldGlow(corner = 18.dp)
             .clip(shape)
             .background(colors.surface)
-            .border(1.dp, colors.line, shape)
+            .then(if (colors.bg == Color.Black) Modifier.amoledOutline(shape) else Modifier.border(1.dp, colors.line, shape))
             .padding(start = 16.dp, end = 18.dp, top = 10.dp, bottom = 10.dp)
             .clearAndSetSemantics { contentDescription = a11y },
     ) {
@@ -483,7 +487,8 @@ private fun PriceField(state: MainUiState) {
         }
         Row(Modifier.align(Alignment.End).tripSharedBounds(TRIP_VALUE), verticalAlignment = Alignment.CenterVertically) {
             // Набранная цифра «впрыгивает» с пружинкой, стёртая сжимается и гаснет (Material 3 Expressive).
-            TypingText(value, style = type.number.copy(fontSize = size, lineHeight = size * 1.2f), color = colors.ink)
+            TypingText(value, style = type.number.copy(fontSize = size, lineHeight = size * 1.2f),
+                color = colors.ink, fractionColor = colors.muted)
             Spacer(Modifier.width(6.dp))
             Text(currency.code, style = type.bodyStrong.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium), color = colors.muted, maxLines = 1)
         }
@@ -588,6 +593,7 @@ private fun PayList(
                 q = q,
                 best = best,
                 selected = selected,
+                dragged = drag.dragged == id,
                 entranceIndex = displayed.take(ordinal).count { it != primary },
                 modifier = Modifier.graphicsLayer { translationY = drag.translationOf(id) },
                 actions = actions,
@@ -616,6 +622,7 @@ private fun PayRow(
     q: CardQuote?,
     best: CardQuote?,
     selected: Boolean,
+    dragged: Boolean,
     entranceIndex: Int,
     modifier: Modifier,
     actions: List<CustomAccessibilityAction>,
@@ -678,6 +685,9 @@ private fun PayRow(
     }
     val shape = RoundedCornerShape(16.dp)
     val reduce = LocalReduceMotion.current
+    val amoled = colors.bg == Color.Black
+    val grab by animateFloatAsState(if (dragged && amoled) 1f else 0f,
+        if (reduce) snap() else tween(if (dragged) 120 else 180), label = "paymentGrab")
     val bg by animateColorAsState(
         colors.payRowSurface(selected, isBest),
         if (reduce) snap() else tween(180), label = "paySurface",
@@ -702,7 +712,7 @@ private fun PayRow(
             .heightIn(min = 58.dp)
             .tripMainEnter(if (isPrimary) TripEnter.PRIMARY_DETAILS else TripEnter.PAYMENT, entranceIndex)
             .graphicsLayer {
-                val s = 1f + LIFT_SCALE * lift
+                val s = (1f + LIFT_SCALE * lift) * (1f + (if (reduce) 0f else 0.02f) * grab)
                 scaleX = s
                 scaleY = s
                 shadowElevation = if (colors.isDark) 0f else elevation.toPx()
@@ -713,6 +723,19 @@ private fun PayRow(
             .paymentRowShadow(enabled = !colors.isDark, opacity = { shadowAlpha.value })
             .clip(shape)
             .background(bg)
+            .amoledOutline(shape)
+            .then(if (amoled) Modifier.drawWithContent {
+                val amount = grab
+                if (amount > 0f) drawRect(Color.White.copy(alpha = 0.08f * amount))
+                drawContent()
+                if (amount > 0f) {
+                    val half = 0.5.dp.toPx()
+                    inset(half) {
+                        drawRoundRect(color = colors.accent.copy(alpha = 0.38f * amount),
+                            cornerRadius = CornerRadius(16.dp.toPx() - half), style = Stroke(half * 2f))
+                    }
+                }
+            } else Modifier)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = editLabel)
             .clearAndSetSemantics {
                 contentDescription = a11y

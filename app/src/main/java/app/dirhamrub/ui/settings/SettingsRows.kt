@@ -63,12 +63,13 @@ internal fun SectionTitle(text: String) {
 /** Карточка раздела: строки друг под другом, между ними — тонкая линия ([Divider]). */
 @Composable
 internal fun Group(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val shape = RoundedCornerShape(18.dp)
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
+            .clip(shape)
             .background(AppTheme.colors.surface)
-            .topLight(),
+            .topLight(shape),
         content = content,
     )
 }

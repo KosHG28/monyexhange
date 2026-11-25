@@ -234,13 +234,13 @@ fun CardEditorScreen(
     val stagedShots = remember(card.id) { mutableMapOf<String, StagedReceiptImage>() }
     // Карта, приложенная к телефону: система и валюта сразу в поля.
     var nfc by remember(card.id) { mutableStateOf<NfcRead?>(null) }
-    val nfcAvailable = remember { nfcReady(context) }
-    NfcCardReader(enabled = nfcAvailable && kind == CardKind.CARD) { result ->
+    val nfcAvailability = rememberNfcAvailability(observe = !cash)
+    NfcCardReader(enabled = nfcAvailability == NfcAvailability.READY && !cash && pendingSave == null) { result ->
         nfc = result
         if (result is NfcRead.Found) {
             result.info.currency?.let { currency = it }
             network = result.info.network
-            haptics.play(Haptic.CONFIRM)
+            haptics.play(Haptic.TICK)
         } else {
             haptics.play(Haptic.REJECT)
         }
@@ -378,7 +378,7 @@ fun CardEditorScreen(
                 .fillMaxWidth()
                 .pointerInput(Unit) { detectTapGestures(onTap = { focus.clearFocus() }) }
                 .finishCascadeOnTouch(cascade)
-                .fadingScroll(rememberScrollState())
+                .fadingScroll(rememberScrollState(), bottomEdge = 32.dp)
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 12.dp),
         ) {
@@ -440,8 +440,8 @@ fun CardEditorScreen(
 
             // Блок 1. Основное: название, валюта, платёжная система.
             EditorBlock(stringResource(R.string.editor_block_main), Modifier.cascade(cascade, 0)) {
-                if (!cash && nfcAvailable) {
-                    NfcHint(nfc)
+                if (!cash && nfcAvailability != NfcAvailability.UNSUPPORTED) {
+                    NfcHint(nfc, enabled = nfcAvailability == NfcAvailability.READY, animate = !isClosing)
                     Spacer(Modifier.height(12.dp))
                 }
                 FieldLabel(stringResource(R.string.editor_name))

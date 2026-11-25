@@ -1,5 +1,8 @@
 package app.dirhamrub.ui.guide
 
+import app.dirhamrub.ui.theme.amoledOutline
+import androidx.compose.ui.graphics.Color
+
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas as BitmapCanvas
@@ -13,7 +16,6 @@ import android.graphics.RectF
 import android.graphics.Shader
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import kotlin.math.roundToInt
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -67,7 +69,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -447,8 +448,7 @@ private fun <T> Group(items: List<T>, content: @Composable (T) -> Unit) {
 private fun Modifier.guideCard(): Modifier {
     val colors = AppTheme.colors
     val shape = RoundedCornerShape(16.dp)
-    return fillMaxWidth().clip(shape).background(colors.surface)
-        .then(if (colors.bg == Color.Black) Modifier.border(1.dp, Color.White.copy(alpha = 0.065f), shape) else Modifier)
+    return fillMaxWidth().clip(shape).background(colors.surface).amoledOutline(shape)
 }
 
 /** Разделитель от края текста: колонка значков остаётся чистой. */

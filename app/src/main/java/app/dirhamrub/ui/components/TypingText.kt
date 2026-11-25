@@ -22,6 +22,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import app.dirhamrub.ui.theme.HighFrameRate
@@ -37,6 +39,7 @@ private class TypingTrack(var last: String) {
     var appends = 0
     var deletes = 0
     var removed = ""
+    var removedFractionStart = -1
 
     fun update(text: String) {
         if (text == last) return
@@ -47,6 +50,9 @@ private class TypingTrack(var last: String) {
             a.startsWith(b) && a.length > b.length -> Change.DELETE.also {
                 deletes++
                 removed = a.substring(b.length)
+                removedFractionStart = a.indexOf(',').let { comma ->
+                    if (comma < 0) -1 else (comma - b.length).coerceAtLeast(0)
+                }
             }
             else -> Change.REPLACE.also { generation++ }
         }
@@ -62,9 +68,11 @@ private class TypingTrack(var last: String) {
  * (результат «=», сброс) — старое уходит вверх, новое поднимается снизу. При отключённых анимациях — обычный текст.
  */
 @Composable
-fun TypingText(text: String, style: TextStyle, color: Color, modifier: Modifier = Modifier) {
+fun TypingText(text: String, style: TextStyle, color: Color, fractionColor: Color, modifier: Modifier = Modifier) {
+    val fraction = SpanStyle(color = fractionColor, fontSize = style.fontSize * 0.82f)
     if (LocalReduceMotion.current) {
-        Text(text, style = style, color = color, maxLines = 1, softWrap = false, modifier = modifier)
+        Text(withFraction(text, text.indexOf(','), fraction), style = style, color = color,
+            maxLines = 1, softWrap = false, modifier = modifier)
         return
     }
     val track = remember { TypingTrack(text) }
@@ -83,20 +91,29 @@ fun TypingText(text: String, style: TextStyle, color: Color, modifier: Modifier 
         val live = generation == track.generation
         Row(verticalAlignment = Alignment.Bottom) {
             if (t.isEmpty()) return@Row
-            Text(t.dropLast(1), style = style, color = color, maxLines = 1, softWrap = false)
+            val comma = t.indexOf(',')
+            Text(withFraction(t.dropLast(1), comma, fraction), style = style, color = color,
+                maxLines = 1, softWrap = false, modifier = Modifier.alignByBaseline())
             // Последний символ — отдельно: при каждом новом нажатии он «впрыгивает».
             key(track.appends) {
-                PopChar(t.last().toString(), style, color, animate = live && track.change == Change.APPEND)
+                val last = withFraction(t.last().toString(), if (comma < 0) -1 else 0, fraction)
+                PopChar(last, style, color, animate = live && track.change == Change.APPEND, modifier = Modifier.alignByBaseline())
             }
             if (live && track.change == Change.DELETE) {
-                key(track.deletes) { Ghost(track.removed, style, color) }
+                key(track.deletes) {
+                    Ghost(withFraction(track.removed, track.removedFractionStart, fraction), style, color, Modifier.alignByBaseline())
+                }
             }
         }
     }
 }
 
+private fun withFraction(text: String, start: Int, style: SpanStyle): AnnotatedString =
+    if (start in text.indices) AnnotatedString(text, listOf(AnnotatedString.Range(style, start, text.length)))
+    else AnnotatedString(text)
+
 @Composable
-private fun PopChar(ch: String, style: TextStyle, color: Color, animate: Boolean) {
+private fun PopChar(ch: AnnotatedString, style: TextStyle, color: Color, animate: Boolean, modifier: Modifier) {
     val p = remember { Animatable(if (animate) 0f else 1f) }
     HighFrameRate(p.isRunning)
     LaunchedEffect(Unit) { if (animate) p.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = 700f)) }
@@ -106,7 +123,7 @@ private fun PopChar(ch: String, style: TextStyle, color: Color, animate: Boolean
         color = color,
         maxLines = 1,
         softWrap = false,
-        modifier = Modifier.graphicsLayer {
+        modifier = modifier.graphicsLayer {
             val v = p.value
             scaleX = 0.55f + 0.45f * v
             scaleY = 0.55f + 0.45f * v
@@ -119,7 +136,7 @@ private fun PopChar(ch: String, style: TextStyle, color: Color, animate: Boolean
 
 /** Стёртые символы: сжимаются вместе со своим местом и гаснут. */
 @Composable
-private fun Ghost(text: String, style: TextStyle, color: Color) {
+private fun Ghost(text: AnnotatedString, style: TextStyle, color: Color, modifier: Modifier) {
     val p = remember { Animatable(1f) }
     HighFrameRate(p.isRunning)
     LaunchedEffect(Unit) { p.animateTo(0f, tween(170)) }
@@ -130,7 +147,7 @@ private fun Ghost(text: String, style: TextStyle, color: Color) {
         color = color,
         maxLines = 1,
         softWrap = false,
-        modifier = Modifier
+        modifier = modifier
             .layout { measurable, constraints ->
                 val placeable = measurable.measure(constraints)
                 layout((placeable.width * p.value).roundToInt(), placeable.height) { placeable.place(0, 0) }

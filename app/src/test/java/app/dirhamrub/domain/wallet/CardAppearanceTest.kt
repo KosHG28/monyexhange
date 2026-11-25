@@ -21,11 +21,12 @@ class CardAppearanceTest {
     @Test fun `appearance preserves the latest money data and selection`() {
         val latest = card.withNewTransfer(receipt.copy(sent = BigDecimal("9000")))
         val wallet = Wallet(cards = listOf(latest), selectedId = card.id, spend = Currency.USD)
-        val changed = wallet.withAppearance(card.id, 3, 0x376AC4)
-        assertEquals(wallet.copy(cards = listOf(latest.copy(style = 3, customColor = 0x376AC4))), changed)
+        val changed = wallet.withAppearance(card.id, 3, 0x376AC4, CardMaterial.CARBON)
+        assertEquals(wallet.copy(cards = listOf(latest.copy(style = 3, customColor = 0x376AC4, material = CardMaterial.CARBON))), changed)
         assertEquals(RateEngine.quoteAll(wallet, null).quotes.single().homePerUnit,
             RateEngine.quoteAll(changed, null).quotes.single().homePerUnit)
-        assertEquals(latest, changed.withAppearance(card.id, 0, null).cards.single())
+        assertEquals(latest.copy(material = CardMaterial.CARBON), changed.withAppearance(card.id, 0, null).cards.single())
+        assertEquals(latest, changed.withAppearance(card.id, 0, null, CardMaterial.SATIN).cards.single())
     }
 
     @Test fun `invalid and deleted targets cannot create cards or alter cash`() {
@@ -38,12 +39,13 @@ class CardAppearanceTest {
     }
 
     @Test fun `custom color persists and malformed or legacy properties use the old palette`() {
-        val wallet = Wallet(cards = listOf(card.copy(customColor = 0x00AB0C)), selectedId = card.id)
+        val wallet = Wallet(cards = listOf(card.copy(customColor = 0x00AB0C, material = CardMaterial.GLASS)), selectedId = card.id)
         assertEquals(wallet, WalletCodec.decode(WalletCodec.encode(wallet)))
         val base = "cards=1\ncard.0.id=usd\ncard.0.name=Travel\ncard.0.currency=USD\ncard.0.style=3\n"
-        for (suffix in listOf("", "card.0.color=oops", "card.0.color=ff123456", "card.0.color=-12345")) {
+        for (suffix in listOf("", "card.0.color=oops", "card.0.color=ff123456", "card.0.color=-12345", "card.0.material=UNKNOWN")) {
             val decoded = WalletCodec.decode(base + suffix)!!.cards.single()
             assertNull(decoded.customColor)
+            assertEquals(CardMaterial.SATIN, decoded.material)
             assertEquals(3, decoded.style)
             assertEquals(Currency.USD, decoded.currency)
         }

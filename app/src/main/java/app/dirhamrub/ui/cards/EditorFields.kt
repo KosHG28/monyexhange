@@ -96,10 +96,16 @@ internal fun FieldLabel(text: String, modifier: Modifier = Modifier) {
 
 /** Подзаголовок внутри блока: «Пополнение», «Покупки по карте». */
 @Composable
-internal fun SubTitle(text: String, modifier: Modifier = Modifier, trailing: String? = null) {
+internal fun SubTitle(
+    text: String,
+    modifier: Modifier = Modifier,
+    trailing: String? = null,
+    action: (@Composable () -> Unit)? = null,
+) {
     Row(modifier.fillMaxWidth().padding(top = 14.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(text, style = AppTheme.type.bodyStrong.copy(fontSize = 14.sp), color = AppTheme.colors.ink, modifier = Modifier.weight(1f))
         if (trailing != null) Text(trailing, style = AppTheme.type.caption, color = AppTheme.colors.muted)
+        if (action != null) action()
     }
 }
 

@@ -448,9 +448,10 @@ fun DirhamApp(
             official = state.reference,
             unionPay = state.activeUnionPay,
             cards = state.wallet.cards,
-            onSave = { card, images ->
+            onSave = { card, images, discardTransferShot ->
                 vm.saveCard(card)
-                if (images.isNotEmpty()) ioScope.launch(Dispatchers.IO) {
+                if (images.isNotEmpty() || discardTransferShot) ioScope.launch(Dispatchers.IO) {
+                    if (discardTransferShot) ReceiptShots.deleteTransfer(context.applicationContext, card.id)
                     for ((kind, uri) in images) ReceiptShots.save(context.applicationContext, uri, card.id, kind)
                 }
                 editing = null

@@ -104,7 +104,7 @@ internal fun PurchaseReceipts(
                     paidLabel, d.paid, { d.paid = it }, paidLabel, m,
                     imeAction = ImeAction.Next,
                     error = amountError(showErrors, d.paid, d.price),
-                    trailing = { FieldSuffix(cardCurrency.mark) },
+                    trailing = { FieldSuffix(cardCurrency.receiptMark) },
                 )
             },
             second = { m ->
@@ -119,7 +119,7 @@ internal fun PurchaseReceipts(
         val paid = Numbers.parse(d.paid)?.takeIf { it.signum() > 0 }
         val price = Numbers.parse(d.price)?.takeIf { it.signum() > 0 }
         if (paid != null && price != null) {
-            ReceiptRate(Numbers.transferRate(paid.divide(price, MC), cardCurrency.mark, d.spend.mark))
+            ReceiptRate(Numbers.transferRate(paid.divide(price, MC), cardCurrency.receiptMark, d.spend.receiptMark))
             ReceiptTypo(paid, price, official?.cross(d.spend, cardCurrency))
         }
     }
@@ -167,3 +167,6 @@ internal fun ReceiptTypo(paid: BigDecimal, got: BigDecimal, officialPaidPerGot: 
             .semantics { liveRegion = LiveRegionMode.Polite },
     )
 }
+
+/** Disambiguate yuan (¥) from yen in receipt amounts and cross-rates. */
+internal val Currency.receiptMark: String get() = if (this == Currency.CNY) code else mark

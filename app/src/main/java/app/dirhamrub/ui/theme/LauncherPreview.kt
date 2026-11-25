@@ -32,7 +32,7 @@ internal fun LauncherPreview(icon: AppIcon, size: Dp = 44.dp) {
         AppIcon.EMERALD -> R.drawable.ic_launcher_foreground_emerald
         AppIcon.PLATINUM -> R.drawable.ic_launcher_foreground_platinum
     }
-    val shape = RoundedCornerShape(11.dp)
+    val shape = RoundedCornerShape(14.dp)
     Box(Modifier.size(size).clip(shape)) {
         for (resource in listOf(background, foreground)) {
             Image(painterResource(resource), null, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.5f; scaleY = 1.5f })

@@ -10,11 +10,13 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -58,7 +60,7 @@ import kotlin.math.roundToInt
 
 /** A local visual draft; applying rebases it onto the latest saved card in MainViewModel. */
 @Composable
-internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?) -> Unit, onDismiss: () -> Unit) {
+internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?, CardMaterial) -> Unit, onDismiss: () -> Unit) {
     val cards = state.wallet.cards.filter { it.kind == CardKind.CARD }
     var chosenId by rememberSaveable { mutableStateOf(state.selectedCard?.id ?: cards.firstOrNull()?.id) }
     val card = cards.firstOrNull { it.id == chosenId } ?: cards.firstOrNull()
@@ -82,10 +84,12 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?) ->
                 var customOpen by rememberSaveable(card.id) { mutableStateOf(false) }
                 var hex by rememberSaveable(card.id, card.customColor) { mutableStateOf(CardAppearance.hex(card.customColor ?: (CardPalette.style(card).start.toArgb() and 0xFFFFFF))) }
                 val rgb = CardAppearance.parseHex(hex)
-                val draft = card.copy(style = preset, customColor = if (custom) rgb ?: card.customColor else null)
-                val changed = if (draft.customColor != null || card.customColor != null) {
+                var material by rememberSaveable(card.id, card.material) { mutableStateOf(card.material) }
+                val draft = card.copy(style = preset, customColor = if (custom) rgb ?: card.customColor else null, material = material)
+                val colorChanged = if (draft.customColor != null || card.customColor != null) {
                     draft.customColor != card.customColor
                 } else preset != savedPreset
+                val changed = colorChanged || material != card.material
                 val q = state.quote.of(card.id)
                 val sum = q?.let { Numbers.total(state.totals.spend.multiply(it.homePerUnit, MC), state.settings.rounding) }
                 val focus = LocalFocusManager.current
@@ -147,6 +151,13 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?) ->
                                 }
                             })
                         }
+                        HorizontalDivider(Modifier.padding(vertical = 10.dp), color = colors.line)
+                        MaterialOptions(draft, enabled = !applied && state.settings.pro) {
+                            if (material != it) {
+                                material = it
+                                sweepRequest++
+                            }
+                        }
                     }
                     Spacer(Modifier.height(16.dp))
                     Text(stringResource(R.string.style_main_preview), style = AppTheme.type.caption, color = colors.muted, modifier = Modifier.padding(bottom = 8.dp))
@@ -158,12 +169,54 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?) ->
                         if (!applied) {
                             applied = true
                             focus.clearFocus()
-                            onApply(card.id, preset, if (custom) rgb else null)
+                            onApply(card.id, preset, if (custom) rgb else null, material)
                         }
                     },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 16.dp),
                     enabled = state.settings.pro && changed && (!custom || rgb != null) && !applied,
                     confirmed = applied,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MaterialOptions(draft: BankCard, enabled: Boolean, onPick: (CardMaterial) -> Unit) {
+    val colors = AppTheme.colors
+    val style = CardPalette.style(draft)
+    Text(stringResource(R.string.style_materials), style = AppTheme.type.bodyStrong, color = colors.ink)
+    Spacer(Modifier.height(7.dp))
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        for (material in CardMaterial.entries) {
+            val selected = material == draft.material
+            val label = stringResource(when (material) {
+                CardMaterial.SATIN -> R.string.style_satin
+                CardMaterial.METAL -> R.string.style_metal
+                CardMaterial.CARBON -> R.string.style_carbon
+                CardMaterial.GLASS -> R.string.style_glass
+            })
+            val shape = RoundedCornerShape(12.dp)
+            val fill by animateColorAsState(if (selected) colors.accentSoft else colors.surface2, motion(180), label = "materialFill")
+            val outline by animateColorAsState(if (selected) colors.accent else Color.Transparent, motion(180), label = "materialOutline")
+            Column(
+                Modifier.widthIn(min = 65.dp).clip(shape).background(fill).border(1.dp, outline, shape)
+                    .selectable(selected, enabled = enabled, role = Role.RadioButton) { onPick(material) }
+                    .padding(horizontal = 6.dp, vertical = 7.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    Modifier.size(46.dp, 24.dp).clip(RoundedCornerShape(5.dp))
+                        .background(Brush.linearGradient(listOf(style.start, style.end)))
+                        .cardMaterial(material, 5.dp),
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    label, style = AppTheme.type.caption.copy(fontSize = 11.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal),
+                    color = if (selected) colors.accent else colors.ink, maxLines = 1, softWrap = false,
                 )
             }
         }
@@ -290,7 +343,11 @@ private val HUE_TRACK = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan,
 @Composable
 private fun MiniColorCard(card: BankCard) {
     val style = CardPalette.style(card)
-    Box(Modifier.size(44.dp, 30.dp).clip(RoundedCornerShape(5.dp)).background(Brush.linearGradient(listOf(style.start, style.end)))) {
+    Box(
+        Modifier.size(44.dp, 30.dp).clip(RoundedCornerShape(5.dp))
+            .background(Brush.linearGradient(listOf(style.start, style.end)))
+            .cardMaterial(card.material, 5.dp, grain = false),
+    ) {
         Box(Modifier.align(Alignment.CenterStart).padding(start = 6.dp).size(7.dp, 5.dp).clip(RoundedCornerShape(2.dp)).background(style.chip))
         Text(card.currency.code, color = style.ink, style = AppTheme.type.caption.copy(fontSize = 7.sp), modifier = Modifier.align(Alignment.BottomEnd).padding(3.dp))
     }

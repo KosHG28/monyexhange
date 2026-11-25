@@ -57,6 +57,10 @@ object ReceiptShots {
         }.getOrNull()
     }
 
+    fun deleteTransfer(context: Context, cardId: String) {
+        AtomicFile(file(context, cardId, TRANSFER_KIND)).delete()
+    }
+
     /** Карту удалили — её скриншоты тоже. */
     fun deleteCard(context: Context, cardId: String) {
         list(context, cardId).forEach { it.delete() }

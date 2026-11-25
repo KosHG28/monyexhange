@@ -1,5 +1,7 @@
 package app.dirhamrub.domain.wallet
 
+enum class CardMaterial { SATIN, METAL, CARBON, GLASS }
+
 /** Opaque RGB only; formatting and pricing never depend on this value. */
 object CardAppearance {
     fun parseHex(text: String): Int? {
@@ -12,8 +14,8 @@ object CardAppearance {
 }
 
 /** Rebase the visual change onto the current card rather than saving a stale financial snapshot. */
-fun Wallet.withAppearance(id: String, style: Int, rgb: Int?): Wallet {
+fun Wallet.withAppearance(id: String, style: Int, rgb: Int?, material: CardMaterial? = null): Wallet {
     if (style !in 0 until Wallet.CARD_STYLES || rgb != null && rgb !in 0..0xFFFFFF) return this
     val current = cards.firstOrNull { it.id == id && it.kind == CardKind.CARD } ?: return this
-    return upsert(current.copy(style = style, customColor = rgb))
+    return upsert(current.copy(style = style, customColor = rgb, material = material ?: current.material))
 }

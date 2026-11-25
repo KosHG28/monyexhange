@@ -74,7 +74,7 @@ import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.approximate
 import app.dirhamrub.ui.components.RollingText
 import app.dirhamrub.ui.theme.AppTheme
-import app.dirhamrub.ui.theme.cardGrain
+import app.dirhamrub.ui.theme.cardMaterial
 import app.dirhamrub.ui.theme.banknotePattern
 import app.dirhamrub.ui.theme.CardPalette
 import app.dirhamrub.ui.theme.LocalReduceMotion
@@ -111,9 +111,10 @@ internal fun BankCardView(
     val corner = if (cash) 8.dp else CARD_RADIUS
     val cardShape = if (cash) RoundedCornerShape(corner) else CARD_SHAPE
     val finish = if (reflectionTilt != null) {
-        Modifier.cardReflection(style, reflectionTilt, colorSweep, corner)
+        Modifier.cardReflection(style, card.material, reflectionTilt, colorSweep, corner)
     } else {
-        Modifier.background(Brush.linearGradient(listOf(style.start, style.end))).cardGrain().sheen(halfWidth = 46.dp)
+        Modifier.background(Brush.linearGradient(listOf(style.start, style.end)))
+            .cardMaterial(card.material, corner).sheen(halfWidth = 46.dp)
     }
     val surface = finish.then(if (cash) Modifier.banknotePattern(style.ink) else Modifier)
     val dim by animateFloatAsState(if (selected) 1f else 0.82f, motion(), label = "cardDim")

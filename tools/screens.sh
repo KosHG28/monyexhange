@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Check the calculator, wallet, cash editor and PRO visual polish.
+# Check card materials, transfer removal and the other changed screens.
 set -euo pipefail
 mkdir -p screens
 exec > >(tee screens/scenario.log) 2>&1
@@ -17,12 +17,12 @@ adb shell setprop debug.hwui.swap_with_damage false
 adb logcat -b crash -c
 timeout 180s adb logcat -b crash -b main -b system -v brief AndroidRuntime:E libc:F DEBUG:F OpenGLRenderer:E '*:S' > screens/app-log.txt 2>&1 &
 android_log_pid=$!
-python3 tools/ui-polish-158.py
+python3 tools/ui-polish-159.py
 kill "$android_log_pid" 2>/dev/null || true
 python3 - <<'PY'
 from pathlib import Path
 import struct, zlib
-for name in ('calculator-158.png', 'wallet-158.png', 'cash-158.png', 'pro-158.png'):
+for name in ('calculator-159.png', 'editor-159.png', 'settings-159.png', 'pro-159.png', 'materials-159.png'):
     path = Path('screens') / name
     data = path.read_bytes()
     assert data[:8] == b'\x89PNG\r\n\x1a\n', path

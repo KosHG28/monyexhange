@@ -12,6 +12,7 @@ import androidx.compose.ui.draw.alpha
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.ui.theme.CardPalette
+import app.dirhamrub.ui.theme.cardMaterial
 import app.dirhamrub.ui.theme.LauncherPreview
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -129,14 +130,14 @@ fun ProScreen(
                     modifier = Modifier.padding(top = 6.dp, bottom = 18.dp))
                 ProSurface {
                     FeatureRow(stringResource(R.string.pro_f_widget), stringResource(R.string.pro_f_widget_sub),
-                        shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
+                        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
                         onClick = if (pro) ({
                             if (!ProFeatures.requestWidget(context)) help = ProHelp.WIDGET
                         }) else null,
                     ) { WidgetPreview() }
                     FeatureDivider()
                     FeatureRow(stringResource(R.string.pro_f_tile), stringResource(R.string.pro_f_tile_sub),
-                        shape = RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp),
+                        shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp),
                         onClick = if (pro) ({ if (!ProFeatures.requestCameraTile(context)) help = ProHelp.TILE }) else null,
                     ) { TilePreview() }
                 }
@@ -217,7 +218,7 @@ private fun ActiveProBanner() {
 
 @Composable
 private fun ProSurface(content: @Composable ColumnScope.() -> Unit) {
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(16.dp)
     Column(Modifier.fillMaxWidth().clip(shape).background(AppTheme.colors.surface).surfaceOutline(shape), content = content)
 }
 
@@ -247,8 +248,9 @@ private fun FeatureRow(
 private fun WidgetPreview() {
     val colors = AppTheme.colors
     val description = stringResource(R.string.pro_widget_preview)
-    Column(Modifier.width(112.dp).clip(RoundedCornerShape(12.dp)).background(colors.paper)
-        .border(1.dp, colors.line, RoundedCornerShape(12.dp)).padding(10.dp)
+    val shape = RoundedCornerShape(16.dp)
+    Column(Modifier.width(112.dp).clip(shape).background(colors.paper)
+        .border(1.dp, colors.line, shape).padding(10.dp)
         .clearAndSetSemantics { contentDescription = description }) {
         Text(stringResource(R.string.pro_preview_place), style = AppTheme.type.caption.copy(fontSize = 10.sp), color = colors.muted)
         Text(stringResource(R.string.pro_preview_sum), style = AppTheme.type.number.copy(fontSize = 18.sp, lineHeight = 24.sp),
@@ -287,7 +289,7 @@ private fun StylePreview(
                 } else {
                     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max)) {
                         AmoledOption(settings, onPureBlack, Modifier.weight(1f).fillMaxHeight())
-                        VerticalDivider(Modifier.padding(horizontal = 12.dp).fillMaxHeight(), color = colors.line)
+                        VerticalDivider(Modifier.padding(start = 16.dp, end = 12.dp).fillMaxHeight(), color = colors.line)
                         CardColorsOption(settings.pro, cards, onStyles, Modifier.weight(1f).fillMaxHeight())
                     }
                 }
@@ -337,9 +339,11 @@ private fun CardColorsOption(pro: Boolean, cards: List<BankCard>, onClick: () ->
             }
             Text(stringResource(R.string.pro_per_card), style = AppTheme.type.caption, color = colors.muted)
         }
+        val bankCards = cards.filter { it.kind == CardKind.CARD }
         Row(Modifier.padding(top = 10.dp).height(38.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             for ((slot, index) in listOf(0, 1, 3, 6).withIndex()) {
-                val style = cards.filter { it.kind == app.dirhamrub.domain.wallet.CardKind.CARD }.getOrNull(slot)?.let(CardPalette::style) ?: CardPalette.style(index)
+                val card = bankCards.getOrNull(slot)
+                val style = card?.let(CardPalette::style) ?: CardPalette.style(index)
                 val shape = RoundedCornerShape(6.dp)
                 val metal = style.start.luminance() < 0.025f && style.end.luminance() < 0.025f
                 val fill = if (metal) {
@@ -348,7 +352,8 @@ private fun CardColorsOption(pro: Boolean, cards: List<BankCard>, onClick: () ->
                     Brush.linearGradient(listOf(style.start, style.end))
                 }
                 val edge = if (metal) Modifier.border(1.dp, Color.White.copy(alpha = 0.16f), shape) else Modifier
-                Box(Modifier.weight(1f).fillMaxHeight().clip(shape).background(fill).then(edge)) {
+                val material = if (card != null) Modifier.cardMaterial(card.material, 6.dp, grain = false) else Modifier
+                Box(Modifier.weight(1f).fillMaxHeight().clip(shape).background(fill).then(material).then(edge)) {
                     Box(Modifier.align(Alignment.CenterStart).padding(start = 6.dp).size(7.dp, 6.dp)
                         .clip(RoundedCornerShape(2.dp)).background(style.chip))
                 }

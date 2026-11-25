@@ -34,6 +34,7 @@ import app.dirhamrub.domain.RatesUpdate
 import app.dirhamrub.domain.Rounding
 import app.dirhamrub.domain.ThemeMode
 import app.dirhamrub.domain.wallet.BankCard
+import app.dirhamrub.domain.wallet.CardMaterial
 import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.CountryGuideParser
 import app.dirhamrub.domain.wallet.CountryGuides
@@ -354,8 +355,13 @@ class MainViewModel(
     }
 
     fun saveCard(card: BankCard) {
-        _state.update { s -> val current = s.wallet.cards.firstOrNull { it.id == card.id }
-            s.copy(wallet = s.wallet.upsert(if (current == null) card else card.copy(style = current.style, customColor = current.customColor))) }
+        _state.update { s ->
+            val current = s.wallet.cards.firstOrNull { it.id == card.id }
+            val rebased = if (current == null) card else card.copy(
+                style = current.style, customColor = current.customColor, material = current.material,
+            )
+            s.copy(wallet = s.wallet.upsert(rebased))
+        }
         refreshReceiptRates()
     }
 
@@ -525,8 +531,8 @@ class MainViewModel(
     fun setPureBlack(value: Boolean) = updateSettings { it.copy(pureBlack = value && it.pro) }
 
     /** Only appearance changes; newer receipts and current selection remain intact. */
-    fun setCardAppearance(id: String, style: Int, customColor: Int?) {
-        _state.update { s -> if (s.settings.pro) s.copy(wallet = s.wallet.withAppearance(id, style, customColor)) else s }
+    fun setCardAppearance(id: String, style: Int, customColor: Int?, material: CardMaterial) {
+        _state.update { s -> if (s.settings.pro) s.copy(wallet = s.wallet.withAppearance(id, style, customColor, material)) else s }
     }
 
     /** Проверка кода — до сохранения; состояние Pro переживает перезапуск через WalletRepository. */

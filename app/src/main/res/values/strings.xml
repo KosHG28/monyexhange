@@ -287,10 +287,9 @@
     <string name="settings_badge_week">7д</string>
     <string name="settings_week">Неделю назад</string>
     <string name="settings_week_sub">ЦБ на %1$s — для «↑ %% за неделю»</string>
-    <string name="settings_badge_receipts">Чек</string>
     <string name="settings_receipts">На даты чеков</string>
-    <string name="settings_receipts_sub">%1$s — для «чек устарел»</string>
-    <string name="settings_receipts_none">Чеков старше двух недель нет</string>
+    <string name="settings_receipts_sub">Загружено: %1$s</string>
+    <string name="settings_receipts_auto">Курсы для старых чеков загружаются автоматически</string>
     <string name="settings_badge_unionpay">UP</string>
     <string name="settings_unionpay">UnionPay</string>
     <string name="settings_refresh">Обновить сейчас</string>
@@ -385,6 +384,7 @@
     <string name="transfer_average">✓ В среднем по %2$d пополнениям: %1$s</string>
     <string name="transfer_history">Прежние пополнения</string>
     <string name="transfer_remove">Удалить пополнение</string>
+    <string name="transfer_remove_current">Удалить текущее пополнение</string>
     <string name="transfer_new">+ Новое пополнение</string>
     <string name="guide_cash_local">Принимают везде</string>
     <string name="guide_cash_exchange">Меняют везде; иногда принимают и напрямую</string>
@@ -565,6 +565,11 @@
     <string name="style_title">Оформление карты</string>
     <string name="style_card_picker">Карта для оформления</string>
     <string name="style_colors">Цвета карты</string>
+    <string name="style_materials">Фактура</string>
+    <string name="style_satin">Сатин</string>
+    <string name="style_metal">Металл</string>
+    <string name="style_carbon">Карбон</string>
+    <string name="style_glass">Стекло</string>
     <string name="style_custom">Свой цвет</string>
     <string name="style_hex">Цвет HEX</string>
     <string name="style_hex_error">Введите 6 символов: 0–9, A–F</string>

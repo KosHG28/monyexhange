@@ -16,7 +16,7 @@ class QuoteCacheTest {
         val cache = QuoteCache()
         val first = cache.quote(wallet, rates, null)
         assertSame(first, cache.quote(wallet.copy(selectedId = card.id, place = "GR"), rates, null))
-        val edited = wallet.copy(cards = listOf(card.copy(name = "New", style = 3, network = CardNetwork.MIR, customColor = 0x376AC4)))
+        val edited = wallet.copy(cards = listOf(card.copy(name = "New", style = 3, network = CardNetwork.MIR, customColor = 0x376AC4, material = CardMaterial.METAL)))
         val rebound = cache.quote(edited, rates, null)
         assertEquals(RateEngine.quoteAll(edited, rates), rebound)
         assertEquals("New", rebound.quotes.single().card.name)

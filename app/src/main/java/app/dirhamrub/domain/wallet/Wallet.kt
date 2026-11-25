@@ -107,6 +107,7 @@ data class BankCard(
     val transferMode: TransferMode = TransferMode.LAST,
     /** Optional opaque RGB appearance; never used in money calculations. */
     val customColor: Int? = null,
+    val material: CardMaterial = CardMaterial.SATIN,
 ) {
     /**
      * Пополнение, по которому считается курс: последнее, а в режиме «в среднем» — сводное по всем

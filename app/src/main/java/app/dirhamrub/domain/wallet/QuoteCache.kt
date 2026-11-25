@@ -34,7 +34,10 @@ class QuoteCache {
             if (old.wallet.cards.size == wallet.cards.size && old.wallet.cards.indices.all { index ->
                 val before = old.wallet.cards[index]
                 val after = wallet.cards[index]
-                before === after || before.copy(name = after.name, style = after.style, network = after.network, customColor = after.customColor) == after
+                before === after || before.copy(
+                    name = after.name, style = after.style, network = after.network,
+                    customColor = after.customColor, material = after.material,
+                ) == after
             }) {
                 val rebound = old.result.copy(quotes = old.result.quotes.map { q ->
                     q.copy(card = wallet.cards.first { it.id == q.card.id })

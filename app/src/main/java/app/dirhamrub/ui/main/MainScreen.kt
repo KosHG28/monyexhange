@@ -23,6 +23,7 @@ import androidx.compose.foundation.Canvas
 import app.dirhamrub.ui.theme.fieldGlow
 import app.dirhamrub.ui.theme.surfaceOutline
 import app.dirhamrub.ui.theme.banknotePattern
+import app.dirhamrub.ui.theme.cardMaterial
 import app.dirhamrub.ui.theme.HighFrameRate
 import app.dirhamrub.ui.components.*
 import app.dirhamrub.ui.components.TypingText
@@ -292,50 +293,55 @@ private fun Header(flag: String, name: String, onCountries: () -> Unit, onPlace:
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val placeA11y = stringResource(R.string.place_a11y, name)
-        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             Row(
-                Modifier
-                    .weight(1f, fill = false)
-                    .tripSharedBounds(TRIP_COUNTRY)
-                    .heightIn(min = 48.dp)
-                    .clip(RoundedCornerShape(50))
-                    .clickable(role = Role.Button, onClick = onCountries)
-                    .clearAndSetSemantics {
-                        contentDescription = placeA11y
-                        role = Role.Button
-                    },
+                Modifier.padding(end = 6.dp).clip(CircleShape).background(colors.surface),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Без подложки: страна, ⓘ и настройки лежат прямо на фоне, зоны касания — 48 dp.
                 Row(
-                    Modifier.padding(start = 6.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                    Modifier
+                        .weight(1f, fill = false)
+                        .tripSharedBounds(TRIP_COUNTRY)
+                        .heightIn(min = 48.dp)
+                        .clip(RoundedCornerShape(50))
+                        .clickable(role = Role.Button, onClick = onCountries)
+                        .clearAndSetSemantics {
+                            contentDescription = placeA11y
+                            role = Role.Button
+                        },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(flag, fontSize = 17.sp)
-                    Spacer(Modifier.width(7.dp))
-                    Text(
-                        name,
-                        style = AppTheme.type.bodyStrong.copy(fontWeight = FontWeight.Medium),
-                        color = colors.ink,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Icon(painterResource(R.drawable.ic_chevron_down), contentDescription = null, tint = colors.muted, modifier = Modifier.size(16.dp))
+                    Row(
+                        Modifier.padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(flag, fontSize = 17.sp)
+                        Spacer(Modifier.width(7.dp))
+                        Text(
+                            name,
+                            style = AppTheme.type.bodyStrong.copy(fontWeight = FontWeight.Medium),
+                            color = colors.ink,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Icon(painterResource(R.drawable.ic_chevron_down), contentDescription = null, tint = colors.muted, modifier = Modifier.size(16.dp))
+                    }
                 }
-            }
-            val tools = stringResource(R.string.place_tools_a11y, name)
-            Box(
-                Modifier
-                    .size(48.dp)
-                    .tripMainEnter(TripEnter.HEADER, 0)
-                    .clip(CircleShape)
-                    .clickable(role = Role.Button, onClickLabel = tools, onClick = onPlace)
-                    .semantics { contentDescription = tools },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(painterResource(R.drawable.ic_info), contentDescription = null, tint = colors.ink, modifier = Modifier.size(23.dp))
+                Box(Modifier.size(width = 1.dp, height = 20.dp).background(colors.line))
+                val tools = stringResource(R.string.place_tools_a11y, name)
+                Box(
+                    Modifier
+                        .size(48.dp)
+                        .tripMainEnter(TripEnter.HEADER, 0)
+                        .clip(CircleShape)
+                        .clickable(role = Role.Button, onClickLabel = tools, onClick = onPlace)
+                        .semantics { contentDescription = tools },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(painterResource(R.drawable.ic_info), contentDescription = null, tint = colors.ink, modifier = Modifier.size(21.dp))
+                }
             }
         }
         val settings = stringResource(R.string.settings_title)
@@ -860,7 +866,7 @@ internal fun PayIcon(card: BankCard, flight: Boolean = false) {
     ) {
         Box(Modifier.matchParentSize().then(sharedModifier).clip(RoundedCornerShape(if (cash) 3.dp else 5.dp))
             .background(Brush.linearGradient(listOf(style.start, style.end)))
-            .then(if (cash) Modifier.banknotePattern(style.ink) else Modifier.sheen(halfWidth = 9.dp)))
+            .then(if (cash) Modifier.banknotePattern(style.ink) else Modifier.cardMaterial(card.material, 5.dp, grain = false).sheen(halfWidth = 9.dp)))
         if (!cash) {
             Box(
                 Modifier.align(Alignment.CenterStart).padding(start = 5.dp)

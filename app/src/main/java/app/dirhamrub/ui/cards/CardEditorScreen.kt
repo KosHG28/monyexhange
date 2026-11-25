@@ -132,7 +132,7 @@ fun CardEditorScreen(
     spend: Currency,
     home: Currency,
     official: OfficialRates?,
-    onSave: (BankCard, Map<String, android.net.Uri>) -> Unit,
+    onSave: (BankCard, Map<String, android.net.Uri>, Boolean) -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
     /** Курсы UnionPay — для карт UnionPay. */
@@ -235,6 +235,23 @@ fun CardEditorScreen(
     var scan by remember(card.id) { mutableStateOf<ScanResult?>(null) }
     var bankReview by remember(card.id) { mutableStateOf<BankReview?>(null) }
     val stagedShots = remember(card.id) { mutableMapOf<String, StagedReceiptImage>() }
+    var transferRemoved by remember(card.id) { mutableStateOf(false) }
+    fun removeCurrentTransfer() {
+        focus.clearFocus()
+        transferRemoved = true
+        stagedShots.remove(ReceiptShots.TRANSFER_KIND)
+        val previous = history.removeFirstOrNull()
+        sent = previous?.sent?.let(::field).orEmpty()
+        got = previous?.got?.let(::field).orEmpty()
+        sentCurrency = previous?.sentCurrency ?: home
+        importedTransferDate = previous?.date
+        boughtAt = previous?.bought?.takeIf { it.second == home }?.first?.let {
+            Numbers.plain(it.multiply(boughtUnitFor(sentCurrency), MC), 4)
+        }.orEmpty()
+        if (history.isEmpty()) transferMode = TransferMode.LAST
+        transferOpen = previous != null
+    }
+
     // Карта, приложенная к телефону: система и валюта сразу в поля.
     val resources = LocalResources.current
     var nfc by remember(card.id) { mutableStateOf<NfcRead?>(null) }
@@ -350,7 +367,13 @@ fun CardEditorScreen(
           val images = stagedShots.mapNotNull { (key, image) ->
               if (image.matches(result)) key to image.uri else null
           }.toMap()
-          close { onSave(result, images) }
+          val savedTransfer = card.transfer
+          val discardTransferShot = transferRemoved && savedTransfer != null &&
+              (listOfNotNull(result.transfer) + result.history).none {
+                  it.date == savedTransfer.date && it.sentCurrency == savedTransfer.sentCurrency &&
+                      it.sent.compareTo(savedTransfer.sent) == 0 && it.got.compareTo(savedTransfer.got) == 0
+              }
+          close { onSave(result, images, discardTransferShot) }
       }
       Column(Modifier.fillMaxSize()) {
         ScreenBar(
@@ -570,7 +593,7 @@ fun CardEditorScreen(
                                         gotAtm, got, { got = it }, gotAtm, m,
                                         imeAction = ImeAction.Next,
                                         error = amountError(showErrors, got, sent),
-                                        trailing = { FieldSuffix(currency.mark) },
+                                        trailing = { FieldSuffix(currency.receiptMark) },
                                     )
                                 },
                                 second = { m ->
@@ -594,7 +617,7 @@ fun CardEditorScreen(
                             )
                             val transfer = draft.transfer
                             if (transfer != null) {
-                                ReceiptRate(Numbers.transferRate(transfer.got.divide(transfer.sent, MC), currency.mark, transfer.sentCurrency.mark))
+                                ReceiptRate(Numbers.transferRate(transfer.got.divide(transfer.sent, MC), currency.receiptMark, transfer.sentCurrency.receiptMark))
                                 ReceiptTypo(transfer.sent, transfer.got, official?.cross(currency, transfer.sentCurrency))
                                 // Итог в итоговой валюте — по курсу карты, с которой сняли.
                                 RateEngine.cardToHome(draft, home, official, cards)?.first?.let { perCash ->
@@ -602,7 +625,7 @@ fun CardEditorScreen(
                                     ReceiptRate(
                                         stringResource(
                                             R.string.receipt_bought_total,
-                                            "${Numbers.moneyWhole(u)} ${currency.mark}",
+                                            "${Numbers.moneyWhole(u)} ${currency.receiptMark}",
                                             "${Numbers.rate(perCash.multiply(u, MC))} ${home.mark}",
                                         ),
                                         whole = true,
@@ -618,7 +641,18 @@ fun CardEditorScreen(
                     } else {
                         SubTitle(
                             stringResource(if (cash) R.string.receipt_exchange else R.string.receipt_transfer),
-                            trailing = card.transfer?.date?.takeIf { sent.isNotBlank() }?.let(RuDates::short),
+                            trailing = draft.transfer?.date?.let(RuDates::short),
+                            action = if (!cash && (sent.isNotBlank() || got.isNotBlank())) {
+                                {
+                                    Icon(
+                                        painterResource(R.drawable.ic_close),
+                                        contentDescription = stringResource(R.string.transfer_remove_current),
+                                        tint = AppTheme.colors.muted,
+                                        modifier = Modifier.size(44.dp).clip(CircleShape)
+                                            .clickable(role = Role.Button, onClick = ::removeCurrentTransfer).padding(13.dp),
+                                    )
+                                }
+                            } else null,
                         )
                         val sentLabel = stringResource(if (cash) R.string.receipt_gave else R.string.receipt_sent)
                         val gotLabel = stringResource(if (cash) R.string.receipt_received else R.string.receipt_got)
@@ -650,14 +684,14 @@ fun CardEditorScreen(
                                 AmountField(
                                     gotLabel, got, { got = it }, gotLabel, m,
                                     error = amountError(showErrors, got, sent),
-                                    trailing = { FieldSuffix(currency.mark) },
+                                    trailing = { FieldSuffix(currency.receiptMark) },
                                 )
                             },
                         )
                         // Чек заполнен — курс по нему; пустой — что будет без него.
                         val transfer = draft.transfer
                         if (transfer != null) {
-                            ReceiptRate(Numbers.transferRate(transfer.got.divide(transfer.sent, MC), currency.mark, transfer.sentCurrency.mark))
+                            ReceiptRate(Numbers.transferRate(transfer.got.divide(transfer.sent, MC), currency.receiptMark, transfer.sentCurrency.receiptMark))
                             ReceiptTypo(transfer.sent, transfer.got, official?.cross(currency, transfer.sentCurrency))
                         } else {
                             Hint(stringResource(if (cash) R.string.receipt_exchange_hint else R.string.receipt_transfer_hint))
@@ -666,12 +700,15 @@ fun CardEditorScreen(
                         TransferHistory(
                             history = history,
                             mode = transferMode,
-                            cardSymbol = currency.mark,
+                            cardSymbol = currency.receiptMark,
                             average = draft.effectiveTransfer?.takeIf { history.isNotEmpty() && transferMode == TransferMode.AVERAGE },
                             canAddNew = transfer != null,
                             newLabel = stringResource(if (cash) R.string.exchange_new else R.string.transfer_new),
                             onMode = { transferMode = it },
-                            onRemove = { history.remove(it) },
+                            onRemove = {
+                                history.remove(it)
+                                transferRemoved = true
+                            },
                             onNew = {
                                 transfer?.let { history.add(0, it) }
                                 while (history.size > HISTORY_MAX) history.removeAt(history.lastIndex)
@@ -733,7 +770,7 @@ fun CardEditorScreen(
                             sub = when {
                                 exact -> null
                                 sentCurrency != home && boughtAt.isBlank() && draft.transfer != null && !(cash && atm) ->
-                                    stringResource(R.string.editor_result_why_bought, sentCurrency.mark)
+                                    stringResource(R.string.editor_result_why_bought, sentCurrency.receiptMark)
                                 else -> basisLabel(auto)
                             },
                             exact = exact,

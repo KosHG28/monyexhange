@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.dirhamrub.domain.wallet.CardMaterial
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -42,12 +43,10 @@ private val cardTexture by lazy {
     ShaderBrush(ImageShader(Bitmap.createBitmap(pixels, side, side, Bitmap.Config.ARGB_8888).asImageBitmap(), TileMode.Repeated, TileMode.Repeated))
 }
 
-private fun DrawScope.drawCardGrain() {
+internal fun DrawScope.drawCardGrain() {
     drawRect(cardTexture, alpha = 0.025f,
         blendMode = if (Build.VERSION.SDK_INT >= 29) BlendMode.Softlight else BlendMode.Overlay)
 }
-
-internal fun Modifier.cardGrain(): Modifier = drawWithCache { onDrawBehind { drawCardGrain() } }
 
 @Composable
 internal fun rememberReflectionTilt(active: Boolean): State<Offset> {
@@ -115,6 +114,7 @@ internal class CardTiltFilter {
 @Composable
 internal fun Modifier.cardReflection(
     style: CardStyle,
+    material: CardMaterial,
     tilt: State<Offset>,
     sweep: State<Float>?,
     radius: Dp,
@@ -124,6 +124,7 @@ internal fun Modifier.cardReflection(
     val dark = AppTheme.colors.isDark
     drawWithCache {
         val background = Brush.linearGradient(listOf(start, end))
+        val texture = cardMaterialLayer(material, radius)
         val edgeWidth = 1.dp.toPx()
         val inset = edgeWidth / 2f
         val edgeSize = Size(size.width - edgeWidth, size.height - edgeWidth)
@@ -139,8 +140,10 @@ internal fun Modifier.cardReflection(
             val hotspot = center + Offset(size.width * angle.x * 0.36f, size.height * angle.y * 0.41f)
             val spread = size.width * 0.48f
             drawRect(background)
-            drawCardGrain()
-            if (spotAlpha > 0.001f) withTransform({
+            texture(this)
+            if (material == CardMaterial.METAL && spotAlpha > 0.001f) {
+                drawRect(metalHighlight(size.width, hotspot, spotAlpha))
+            } else if (spotAlpha > 0.001f) withTransform({
                 rotate(-32f, pivot = hotspot)
                 scale(1f, 0.5f, pivot = hotspot)
             }) {

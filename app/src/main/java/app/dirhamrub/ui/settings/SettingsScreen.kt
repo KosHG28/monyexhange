@@ -198,6 +198,28 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
 }
 
 @Composable
+private fun ReceiptRatesInfo(days: List<LocalDate>) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp)
+            .clip(RoundedCornerShape(12.dp)).background(colors.surface2).padding(horizontal = 11.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Icon(painterResource(R.drawable.ic_info), contentDescription = null, tint = colors.muted, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(stringResource(R.string.settings_receipts), style = type.caption.copy(fontWeight = FontWeight.SemiBold), color = colors.ink)
+            Text(stringResource(R.string.settings_receipts_auto), style = type.caption, color = colors.muted)
+            if (days.isNotEmpty()) {
+                val dates = days.take(3).joinToString(", ") { RuDates.short(it) } + if (days.size > 3) "…" else ""
+                Text(stringResource(R.string.settings_receipts_sub, dates), style = type.caption, color = colors.muted)
+            }
+        }
+    }
+}
+
+@Composable
 private fun RatesSection(state: MainUiState, actions: SettingsActions) {
     val today = LocalDate.now()
     SectionTitle(stringResource(R.string.settings_rates))
@@ -227,20 +249,7 @@ private fun RatesSection(state: MainUiState, actions: SettingsActions) {
             enabled = week != null,
             subtitle = stringResource(R.string.settings_week_sub, week?.let { RuDates.short(it.date) } ?: "—"),
         )
-        Divider()
-        val days = state.ratesHistory.keys.sortedDescending()
-        SourceRow(
-            badge = stringResource(R.string.settings_badge_receipts),
-            title = stringResource(R.string.settings_receipts),
-            status = "✓ ${days.size}".takeIf { days.isNotEmpty() },
-            enabled = days.isNotEmpty(),
-            subtitle = if (days.isEmpty()) {
-                stringResource(R.string.settings_receipts_none)
-            } else {
-                stringResource(R.string.settings_receipts_sub, days.take(3).joinToString(", ") { RuDates.short(it) } + if (days.size > 3) "…" else "")
-            },
-        )
-        Divider()
+        ReceiptRatesInfo(state.ratesHistory.keys.sortedDescending())
         // UnionPay включается прямо в своей строке — отдельного переключателя нет.
         val up = state.unionPay?.takeIf { state.settings.unionPay }
         SourceRow(

@@ -203,7 +203,7 @@ internal fun TransferHistory(
             ReceiptRate(
                 stringResource(
                     R.string.transfer_average,
-                    Numbers.transferRate(average.got.divide(average.sent, MC), cardSymbol, average.sentCurrency.mark),
+                    Numbers.transferRate(average.got.divide(average.sent, MC), cardSymbol, average.sentCurrency.receiptMark),
                     history.size + 1,
                 ),
                 whole = true,
@@ -214,9 +214,9 @@ internal fun TransferHistory(
         for (t in history) {
             Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    RuDates.short(t.date) + " · " + Numbers.money(t.sent) + " " + t.sentCurrency.mark + " → " +
+                    RuDates.short(t.date) + " · " + Numbers.money(t.sent) + " " + t.sentCurrency.receiptMark + " → " +
                         Numbers.money(t.got) + " " + cardSymbol + " · " +
-                        Numbers.transferRate(t.got.divide(t.sent, MC), cardSymbol, t.sentCurrency.mark),
+                        Numbers.transferRate(t.got.divide(t.sent, MC), cardSymbol, t.sentCurrency.receiptMark),
                     style = type.caption,
                     color = colors.ink,
                     modifier = Modifier.weight(1f),

@@ -1,6 +1,7 @@
 """Verify saved material, editor transfer removal and the affected screens."""
 import re
 import subprocess
+import time
 from pathlib import Path
 
 from ui_tree import read_tree
@@ -9,6 +10,8 @@ PACKAGE = "ru.kurspocheku"
 
 
 def adb(*args):
+    if args[:3] == ("shell", "uiautomator", "dump"):
+        args = ("shell", "timeout", "12", *args[1:])
     return subprocess.check_output(["adb", *args], text=True, timeout=35)
 
 
@@ -61,6 +64,7 @@ def find(label, *, prefix=False, scroll=False):
 def tap(label, *, scroll=False):
     left, top, right, bottom = bounds(find(label, scroll=scroll))
     adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
+    time.sleep(0.75)
 
 
 def capture(name):
@@ -73,6 +77,7 @@ start("pro", "--ez", "receiptDemo", "true")
 find("Стиль карт")
 capture("pro")
 tap("Стиль карт")
+capture("materials")
 find("Оформление карты")
 tap("Графит", scroll=True)
 tap("Карбон", scroll=True)

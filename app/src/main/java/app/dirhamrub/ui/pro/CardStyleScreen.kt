@@ -215,7 +215,7 @@ private fun ColorPresets(preset: Int, custom: Boolean, onPreset: (Int) -> Unit, 
                     Box(Modifier.size(50.dp, 32.dp).clip(RoundedCornerShape(6.dp))
                         .background(if (own) Brush.horizontalGradient(CardPalette.hueStops) else Brush.linearGradient(listOf(style.start, style.end))), contentAlignment = Alignment.Center) {
                         if (own) Text("+", fontSize = 20.sp, color = Color.White)
-                        else Box(Modifier.align(Alignment.TopStart).padding(6.dp).size(7.dp, 5.dp).clip(RoundedCornerShape(2.dp)).background(style.chip))
+                        else Box(Modifier.align(Alignment.CenterStart).padding(start = 6.dp).size(7.dp, 5.dp).clip(RoundedCornerShape(2.dp)).background(style.chip))
                     }
                     Spacer(Modifier.height(7.dp))
                     Text(label, color = if (selected) colors.accent else colors.muted, style = AppTheme.type.caption.copy(fontSize = 11.sp,
@@ -291,7 +291,7 @@ private val HUE_TRACK = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan,
 private fun MiniColorCard(card: BankCard) {
     val style = CardPalette.style(card)
     Box(Modifier.size(44.dp, 30.dp).clip(RoundedCornerShape(5.dp)).background(Brush.linearGradient(listOf(style.start, style.end)))) {
-        Box(Modifier.padding(6.dp).size(7.dp, 5.dp).clip(RoundedCornerShape(2.dp)).background(style.chip))
+        Box(Modifier.align(Alignment.CenterStart).padding(start = 6.dp).size(7.dp, 5.dp).clip(RoundedCornerShape(2.dp)).background(style.chip))
         Text(card.currency.code, color = style.ink, style = AppTheme.type.caption.copy(fontSize = 7.sp), modifier = Modifier.align(Alignment.BottomEnd).padding(3.dp))
     }
 }

@@ -215,6 +215,19 @@ class CalculatorTest {
     }
 
     @Test
+    fun `double zero fits the last two whole digits and never appends partially`() {
+        val input = type(*digits("1234567890"))
+        assertEquals("123456789000", input.press(Key.DoubleZero, fractionDigits = 0).serialize())
+        val almostFull = input.press(Key.Digit(1))
+        assertEquals(InputLimit.WHOLE, almostFull.limitFor(Key.DoubleZero))
+        assertEquals(almostFull, almostFull.press(Key.DoubleZero))
+        for (unsupported in listOf("0", "12+", "2,1")) {
+            val expression = type(*digits(unsupported))
+            assertEquals(expression, expression.press(Key.DoubleZero))
+        }
+    }
+
+    @Test
     fun `third decimal and equals preserve their original precision`() {
         var e = Expression()
         for (key in digits("1,234")) e = e.press(key, fractionDigits = 3)

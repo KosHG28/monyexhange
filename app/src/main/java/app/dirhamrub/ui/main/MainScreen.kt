@@ -1,5 +1,17 @@
 package app.dirhamrub.ui.main
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.onLongClick
+import kotlinx.coroutines.delay
+
 import app.dirhamrub.diag.RecompositionProbe
 import kotlinx.coroutines.flow.StateFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -10,6 +22,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.foundation.Canvas
 import app.dirhamrub.ui.theme.fieldGlow
 import app.dirhamrub.ui.theme.surfaceOutline
+import app.dirhamrub.ui.theme.banknotePattern
 import app.dirhamrub.ui.theme.HighFrameRate
 import app.dirhamrub.ui.components.*
 import app.dirhamrub.ui.components.TypingText
@@ -115,6 +128,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.rateLabel
 import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.domain.InputLimit
 import app.dirhamrub.domain.Key
@@ -209,7 +223,7 @@ fun MainScreen(
                 InputLimit.WHOLE -> stringResource(R.string.key_limit_whole)
                 InputLimit.FRACTION -> stringResource(R.string.key_limit_fraction, state.fractionDigits)
                 InputLimit.TERMS -> stringResource(R.string.key_limit_terms)
-                InputLimit.TRIPLE_ZERO -> stringResource(R.string.key_limit_triple_zero)
+                InputLimit.MULTIPLE_ZEROS -> stringResource(R.string.key_limit_multiple_zeros)
                 null -> state.pendingConversion?.let { stringResource(R.string.key_pending_conversion, it.currency.code) }
             }
             if (hint != null) Text(
@@ -257,7 +271,8 @@ fun MainScreen(
             Spacer(Modifier.height(6.dp))
             Keypad(
                 onKey = onKey, onCamera = onOpenCamera, onCameraPlaced = onCameraPlaced,
-                showTripleZero = state.inputCurrency.magnitude >= 4,
+                showTripleZero = state.inputCurrency.magnitude >= 4 || state.inputCurrency.digits == 0,
+                showDoubleZero = state.inputCurrency.digits == 0,
             )
             Spacer(Modifier.height(8.dp))
         }
@@ -370,6 +385,26 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
     }
     val a11y = stringResource(R.string.hero_a11y, (if (approx) "≈ " else "") + number, currency.mark)
     val switchLabel = stringResource(if (homeInput) R.string.hero_switch_spend else R.string.hero_switch_home, state.wallet.spend.code)
+    val context = LocalContext.current
+    val copyLabel = stringResource(R.string.hero_copy)
+    val copiedLabel = stringResource(R.string.hero_copied)
+    val haptics = rememberHaptics()
+    var copied by remember { mutableStateOf(false) }
+    var copyCount by remember { mutableIntStateOf(0) }
+    val copy: (() -> Unit)? = if (empty) null else ({
+        context.getSystemService(ClipboardManager::class.java)?.let { clipboard ->
+            clipboard.setPrimaryClip(ClipData.newPlainText(copyLabel, number.filterNot(Char::isWhitespace).replace('−', '-')))
+            haptics.play(Haptic.TICK)
+            copied = true
+            copyCount++
+        }
+    })
+    LaunchedEffect(copyCount) {
+        if (copyCount > 0) {
+            delay(1100)
+            copied = false
+        }
+    }
     val maxSize = if (short) 72f else 92f
     // Сумма сменилась — цифры на миг «наливаются»: становятся плотнее и возвращаются к тонким.
     val pour = remember { Animatable(0f) }
@@ -388,10 +423,12 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
             .fillMaxWidth()
             .height(if (short) 104.dp else 136.dp)
             .tripClip(RoundedCornerShape(20.dp))
-            .clickable(role = Role.Button, onClickLabel = switchLabel) { onSelectLine(if (homeInput) Line.SPEND else Line.HOME) }
+            .combinedClickable(role = Role.Button, onClickLabel = switchLabel, onLongClickLabel = copyLabel, onLongClick = copy,
+                onClick = { onSelectLine(if (homeInput) Line.SPEND else Line.HOME) })
             .clearAndSetSemantics {
-                contentDescription = a11y
+                contentDescription = if (copied) "$a11y. $copiedLabel" else a11y
                 liveRegion = LiveRegionMode.Polite
+                if (copy != null) onLongClick(copyLabel) { copy(); true }
                 role = Role.Button
             },
         contentAlignment = Alignment.Center,
@@ -408,12 +445,19 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
             Row(Modifier.then(if (LocalTripSharedTransition.current?.primaryCardId != null) Modifier.tripSharedBounds(TRIP_HERO) else Modifier.tripMainEnter()).alpha(if (empty) 0.25f else 1f), verticalAlignment = Alignment.CenterVertically) {
                 if (approx) {
                     HeroPart("≈", style, size * APPROX_SCALE, approxColor)
-                    Spacer(Modifier.width((size * 0.12f).dp))
+                    Spacer(Modifier.width((size * 0.075f).dp))
                 }
                 HeroPart(number, style, size, colors.ink, pour = pour.value)
-                Spacer(Modifier.width((size * 0.12f).dp))
+                Spacer(Modifier.width((size * 0.09f).dp))
                 HeroPart(sign, style.copy(fontWeight = FontWeight.Light), size * SIGN_SCALE, signColor)
             }
+        }
+        AnimatedVisibility(copied, modifier = Modifier.align(Alignment.BottomCenter),
+            enter = if (reducePour) EnterTransition.None else fadeIn(tween(100)),
+            exit = if (reducePour) ExitTransition.None else fadeOut(tween(135))) {
+            Text(copiedLabel, style = AppTheme.type.label, color = colors.ink,
+                modifier = Modifier.clip(CircleShape).background(colors.surface2).padding(horizontal = 12.dp, vertical = 5.dp)
+                    .semantics { liveRegion = LiveRegionMode.Polite })
         }
     }
 }
@@ -647,7 +691,6 @@ private fun PayRow(
     val network = networkName(card.paymentNetwork)
     val sub: String
     val right: String
-    var rightSub: String? = null
     when {
         q == null -> {
             sub = stringResource(R.string.money_no_rate, wallet.spend.code)
@@ -682,9 +725,7 @@ private fun PayRow(
         else -> {
             // Ничего не набрано: курс способа и когда пополняли.
             sub = join(network, lastTopUp(card)) ?: ""
-            val unit = Numbers.unitFor(q.homePerUnit)
-            right = (if (approx) "≈ " else "") + Numbers.rateShort(q.homePerUnit.multiply(unit, MC)) + " " + wallet.home.mark
-            rightSub = Numbers.moneyWhole(unit) + " " + wallet.spend.code
+            right = rateLabel(q.homePerUnit, wallet.spend, wallet.home, approximate = approx)
         }
     }
     val shape = RoundedCornerShape(16.dp)
@@ -750,7 +791,7 @@ private fun PayRow(
             .padding(start = 12.dp, end = 18.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PayIcon(card, isBest, flight = true)
+        PayIcon(card, flight = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(card.name, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -779,7 +820,6 @@ private fun PayRow(
                 maxLines = 1,
                 softWrap = false,
             )
-            rightSub?.let { Text(it, style = type.caption, color = colors.muted, maxLines = 1) }
         }
     }
 }
@@ -808,33 +848,28 @@ private fun SelectedMark(color: androidx.compose.ui.graphics.Color, progress: Fl
  * [flight] — на главном: отсюда карта «перелетает» в настройку карты ([flightOrigin]).
  */
 @Composable
-internal fun PayIcon(card: BankCard, best: Boolean, flight: Boolean = false) {
+internal fun PayIcon(card: BankCard, flight: Boolean = false) {
     RecompositionProbe("PayIcon")
-    val colors = AppTheme.colors
     val shared = flight && card.id == LocalTripSharedTransition.current?.primaryCardId
     val sharedModifier = if (shared) Modifier.tripSharedBounds(TRIP_CARD) else Modifier
-    if (card.kind == CardKind.CASH) {
-        Box(sharedModifier.then(if (flight) Modifier.flightOrigin(card.id) else Modifier).size(width = 38.dp, height = 26.dp), contentAlignment = Alignment.Center) {
-            Icon(painterResource(R.drawable.ic_cash), contentDescription = null, tint = if (best) colors.good else colors.ink, modifier = Modifier.size(28.dp))
-        }
-        return
-    }
+    val cash = card.kind == CardKind.CASH
     val style = CardPalette.style(card)
     Box(
         Modifier.then(if (flight) Modifier.flightOrigin(card.id) else Modifier)
             .size(width = 38.dp, height = 26.dp),
     ) {
-        // Only the colored rectangle is shared. Chip and currency/network badge stay in the target slot.
-        Box(Modifier.matchParentSize().then(sharedModifier).clip(RoundedCornerShape(5.dp))
-            .background(Brush.linearGradient(listOf(style.start, style.end))).sheen(halfWidth = 9.dp))
-        Box(
-            Modifier
-                .padding(start = 5.dp, top = 6.dp)
-                .size(width = 8.dp, height = 6.dp)
-                .clip(RoundedCornerShape(1.5.dp))
-                .background(style.chip),
-        )
-        (networkMark(card.paymentNetwork) ?: card.currency.code).let { mark ->
+        Box(Modifier.matchParentSize().then(sharedModifier).clip(RoundedCornerShape(if (cash) 3.dp else 5.dp))
+            .background(Brush.linearGradient(listOf(style.start, style.end)))
+            .then(if (cash) Modifier.banknotePattern(style.ink) else Modifier.sheen(halfWidth = 9.dp)))
+        if (!cash) {
+            Box(
+                Modifier.align(Alignment.CenterStart).padding(start = 5.dp)
+                    .size(width = 8.dp, height = 6.dp)
+                    .clip(RoundedCornerShape(1.5.dp))
+                    .background(style.chip),
+            )
+        }
+        ((if (cash) null else networkMark(card.paymentNetwork)) ?: card.currency.code).let { mark ->
             Text(
                 mark,
                 style = AppTheme.type.caption.copy(fontSize = 7.sp, lineHeight = 8.sp, fontWeight = FontWeight.Bold),
@@ -884,9 +919,8 @@ private fun CbrLine(rate: BigDecimal?, viaUnionPay: Boolean, spend: Currency, ho
         loading -> stringResource(R.string.cbr_loading)
         rate == null -> stringResource(R.string.cbr_none)
         else -> {
-            val (unit, value) = rateSides(rate, spend, home)
             val label = stringResource(if (viaUnionPay) R.string.cbr_label_unionpay else R.string.cbr_label)
-            val pair = "$unit = $value"
+            val pair = rateLabel(rate, spend, home, approximate = viaUnionPay)
             val time = fetchedAt(fetchedAtMillis, todayEpochDay, zone)
             if (time == null) stringResource(R.string.cbr_line, label, pair) else stringResource(R.string.cbr_line_time, label, pair, time)
         }
@@ -922,12 +956,6 @@ private fun fetchedAt(at: Long, todayEpochDay: Long, zone: String): String? {
         today.minusDays(1) -> stringResource(R.string.cbr_yesterday, time)
         else -> RuDates.short(day)
     }
-}
-
-/** «1 AMD» и «22,19 ₽»; у дешёвых валют — «100 AMD», «1 000 VND». */
-internal fun rateSides(homePerUnit: BigDecimal, spend: Currency, home: Currency): Pair<String, String> {
-    val unit = Numbers.unitFor(homePerUnit)
-    return "${Numbers.moneyWhole(unit)} ${spend.code}" to "${Numbers.rateShort(homePerUnit.multiply(unit, MC))} ${home.mark}"
 }
 
 /** Призрачная кнопка «＋ Добавить карту или наличные» — без рамки и подложки. */

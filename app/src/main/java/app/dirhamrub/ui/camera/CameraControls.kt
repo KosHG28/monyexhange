@@ -172,7 +172,7 @@ internal fun TopControls(
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RoundButton(R.drawable.ic_arrow_back, stringResource(R.string.camera_back), onBack)
+        RoundButton(R.drawable.ic_camera_back, stringResource(R.string.camera_back), onBack)
         Spacer(Modifier.width(6.dp))
         // Карта занимает свободное место; длинное название сокращается, кнопки справа на месте.
         Box(Modifier.weight(1f)) { CardSwitch(wallet, viaUnionPay, onSelectCard) }

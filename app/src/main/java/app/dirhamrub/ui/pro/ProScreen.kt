@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -200,13 +201,17 @@ private enum class ProHelp { WIDGET, TILE }
 @Composable
 private fun ActiveProBanner() {
     val palette = AppTheme.colors.proPalette
-    val shape = RoundedCornerShape(16.dp)
-    Row(Modifier.fillMaxWidth().clip(shape).background(palette.activeSurface)
-        .border(1.dp, palette.activeOutline, shape).heightIn(min = 56.dp).padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-        Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = palette.activeInk, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(stringResource(R.string.pro_active), style = AppTheme.type.bodyStrong, color = palette.activeInk)
+    val shape = RoundedCornerShape(50)
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Row(
+            Modifier.clip(shape).background(palette.activeSurface)
+                .border(1.dp, palette.activeOutline, shape).padding(horizontal = 13.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = palette.activeInk, modifier = Modifier.size(15.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(R.string.pro_active), style = AppTheme.type.caption.copy(fontWeight = FontWeight.SemiBold), color = palette.activeInk)
+        }
     }
 }
 
@@ -335,9 +340,17 @@ private fun CardColorsOption(pro: Boolean, cards: List<BankCard>, onClick: () ->
         Row(Modifier.padding(top = 10.dp).height(38.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             for ((slot, index) in listOf(0, 1, 3, 6).withIndex()) {
                 val style = cards.filter { it.kind == app.dirhamrub.domain.wallet.CardKind.CARD }.getOrNull(slot)?.let(CardPalette::style) ?: CardPalette.style(index)
-                Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(6.dp))
-                    .background(Brush.linearGradient(listOf(style.start, style.end)))) {
-                    Box(Modifier.padding(6.dp).size(7.dp, 6.dp).clip(RoundedCornerShape(2.dp)).background(style.chip))
+                val shape = RoundedCornerShape(6.dp)
+                val metal = style.start.luminance() < 0.025f && style.end.luminance() < 0.025f
+                val fill = if (metal) {
+                    Brush.linearGradient(0f to style.start, 0.35f to Color(0xFF303641), 0.66f to Color(0xFF1C2129), 1f to style.end)
+                } else {
+                    Brush.linearGradient(listOf(style.start, style.end))
+                }
+                val edge = if (metal) Modifier.border(1.dp, Color.White.copy(alpha = 0.16f), shape) else Modifier
+                Box(Modifier.weight(1f).fillMaxHeight().clip(shape).background(fill).then(edge)) {
+                    Box(Modifier.align(Alignment.CenterStart).padding(start = 6.dp).size(7.dp, 6.dp)
+                        .clip(RoundedCornerShape(2.dp)).background(style.chip))
                 }
             }
         }

@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -322,10 +323,19 @@ internal fun ResultBox(title: String, value: String, sub: String?, exact: Boolea
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = AppTheme.type.caption, color = if (exact) colors.good else colors.muted, modifier = Modifier.weight(1f))
-            Text(value, style = AppTheme.type.number.copy(fontSize = 18.sp, fontWeight = FontWeight.SemiBold), color = if (exact) colors.good else colors.ink)
+            Column(Modifier.weight(1f)) {
+                Text(title, style = AppTheme.type.caption, color = if (exact) colors.good else colors.muted)
+                if (sub != null) Text(sub, style = AppTheme.type.caption, color = colors.muted, modifier = Modifier.padding(top = 2.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                value,
+                style = AppTheme.type.number.copy(fontSize = 18.sp, fontWeight = FontWeight.SemiBold),
+                color = if (exact) colors.good else colors.ink,
+                modifier = Modifier.widthIn(max = 160.dp),
+                textAlign = TextAlign.End,
+            )
         }
-        if (sub != null) Text(sub, style = AppTheme.type.caption, color = colors.muted, modifier = Modifier.padding(top = 2.dp))
     }
 }
 

@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 
 /**
@@ -65,6 +66,31 @@ fun Modifier.fadingEdges(state: ScrollableState, edge: Dp = 24.dp, bottomEdge: D
 /** Вертикальная прокрутка с затуханием у краёв ([fadingEdges]). */
 fun Modifier.fadingScroll(state: ScrollState, bottomEdge: Dp = 24.dp): Modifier =
     fadingEdges(state, bottomEdge = bottomEdge).verticalScroll(state)
+
+/** Затухание у скрытых краёв горизонтально прокручиваемого ряда. */
+fun Modifier.fadingHorizontalEdges(state: ScrollableState, edge: Dp = 14.dp): Modifier = this
+    .graphicsLayer {
+        compositingStrategy = if (state.canScrollBackward || state.canScrollForward) {
+            CompositingStrategy.Offscreen
+        } else {
+            CompositingStrategy.Auto
+        }
+    }
+    .drawWithCache {
+        val width = edge.toPx().coerceAtMost(size.width / 3f)
+        val left = Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), endX = width)
+        val right = Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - width, endX = size.width)
+        val ltr = layoutDirection == LayoutDirection.Ltr
+        onDrawWithContent {
+            drawContent()
+            val fadeLeft = if (ltr) state.canScrollBackward else state.canScrollForward
+            val fadeRight = if (ltr) state.canScrollForward else state.canScrollBackward
+            if (fadeLeft) drawRect(brush = left, size = Size(width, size.height), blendMode = BlendMode.DstIn)
+            if (fadeRight) {
+                drawRect(brush = right, topLeft = Offset(size.width - width, 0f), size = Size(width, size.height), blendMode = BlendMode.DstIn)
+            }
+        }
+    }
 
 /**
  * Упёрлись в край прокрутки (пальцем или разлётом) — один мягкий щелчок вибрацией; снова — только после того,

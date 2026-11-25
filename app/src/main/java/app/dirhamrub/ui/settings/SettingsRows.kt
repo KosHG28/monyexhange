@@ -126,6 +126,7 @@ internal fun ChoiceRow(title: String, options: List<String>, selected: Int, onSe
             selected = selected,
             onSelect = onSelect,
             textStyle = type.caption.copy(fontSize = 13.sp),
+            showCheck = false,
         )
     }
 }

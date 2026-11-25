@@ -3,6 +3,8 @@ package app.dirhamrub.ui.currency
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -40,6 +42,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.layout.ime
@@ -55,6 +58,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
@@ -64,8 +68,8 @@ import app.dirhamrub.R
 import app.dirhamrub.ui.components.fadingEdges
 import app.dirhamrub.ui.components.FullScreen
 import app.dirhamrub.ui.components.ScreenBar
-import app.dirhamrub.domain.MC
-import app.dirhamrub.domain.Numbers
+import app.dirhamrub.ui.components.fadingHorizontalEdges
+import app.dirhamrub.ui.components.rateLabel
 import app.dirhamrub.domain.wallet.Countries
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.CurrencySearch
@@ -360,14 +364,7 @@ private fun LazyListScope.spendItems(
     item(key = "recent") {
         Column(Modifier.cascade(cascade, i)) {
             Section(texts.recent)
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                for (currency in last) {
-                    CurrencyChip(currency, currency == spend, Modifier.widthIn(min = 68.dp)) { onPick(currency, null) }
-                }
-            }
+            RecentCurrencies(last, spend) { onPick(it, null) }
         }
     }
     val byRegion = Countries.all.groupBy { it.region }
@@ -428,9 +425,27 @@ internal fun label(c: Currency): String = if (c.mark == c.code) c.code else "${c
 internal fun rateText(c: Currency, home: Currency, official: OfficialRates?): String? {
     if (c == home || official == null) return null
     val rate = official.cross(c, home) ?: return null
-    val unit = Numbers.unitFor(rate)
-    val sign = if (official.viaUnionPay(c, home)) "≈" else "="
-    return "${Numbers.moneyWhole(unit)} ${c.mark} $sign ${Numbers.rateShort(rate.multiply(unit, MC))} ${home.mark}"
+    return rateLabel(rate, c, home, approximate = official.viaUnionPay(c, home))
+}
+
+@Composable
+private fun RecentCurrencies(currencies: List<Currency>, spend: Currency, onPick: (Currency) -> Unit) {
+    val scroll = rememberScrollState()
+    val requester = remember(spend) { BringIntoViewRequester() }
+    var placed by remember(spend) { mutableStateOf(false) }
+    LaunchedEffect(requester, placed) {
+        if (placed) requester.bringIntoView()
+    }
+    Row(
+        Modifier.fillMaxWidth().fadingHorizontalEdges(scroll).horizontalScroll(scroll).selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        for (currency in currencies) {
+            val selected = currency == spend
+            val focus = if (selected) Modifier.bringIntoViewRequester(requester).onGloballyPositioned { placed = true } else Modifier
+            CurrencyChip(currency, selected, Modifier.widthIn(min = 68.dp).then(focus)) { onPick(currency) }
+        }
+    }
 }
 
 /** Курса нет: валюты нет ни в известном списке ЦБ, ни в загруженных курсах ЦБ, ни у UnionPay. */

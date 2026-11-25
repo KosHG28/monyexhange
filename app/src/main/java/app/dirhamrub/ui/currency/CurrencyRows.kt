@@ -202,8 +202,8 @@ internal fun CountryRow(
     onClick: () -> Unit,
 ) {
     val c = country.currency
-    val rate = rateText(c, home, official)
-    val note = unionPayLabel.takeIf { rate != null && official?.viaUnionPay(c, home) == true }
+    val rate = if (c == home) stringResource(R.string.currency_home_label) else rateText(c, home, official)
+    val note = unionPayLabel.takeIf { c != home && rate != null && official?.viaUnionPay(c, home) == true }
     val sub = "${c.noun} · ${label(c)}"
     PickRow(
         flag = country.flag,

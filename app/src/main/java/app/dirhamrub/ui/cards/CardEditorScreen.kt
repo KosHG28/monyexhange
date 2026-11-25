@@ -114,6 +114,7 @@ import app.dirhamrub.ui.components.rememberCascade
 import app.dirhamrub.ui.currency.CurrencyPickerScreen
 import app.dirhamrub.ui.main.BankCardView
 import app.dirhamrub.ui.main.basisLabel
+import app.dirhamrub.ui.components.rateLabel
 import app.dirhamrub.ui.theme.AppTheme
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -724,16 +725,10 @@ fun CardEditorScreen(
                     // Итог по чекам (без своего курса) — тот же расчёт, что на главном экране.
                     val auto = RateEngine.quote(draft.withoutManual(spend, home), spend, home, official, unionPay, cards)
                     if (auto != null) {
-                        val unit = Numbers.unitFor(auto.homePerUnit)
                         val exact = auto.basis == RateBasis.RECEIPTS
                         ResultBox(
                             title = stringResource(if (exact) R.string.editor_result_title else R.string.editor_result_estimate),
-                            value = stringResource(
-                                if (exact) R.string.editor_result else R.string.editor_result_approx,
-                                "${Numbers.moneyWhole(unit)} ${spend.mark}",
-                                Numbers.rateShort(auto.homePerUnit.multiply(unit, MC)),
-                                home.mark,
-                            ),
+                            value = rateLabel(auto.homePerUnit, spend, home, approximate = !exact),
                             // Почему примерно — словами: чаще всего не указано, почём купили отданную валюту.
                             sub = when {
                                 exact -> null

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -36,6 +37,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,8 +46,6 @@ import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.ui.components.finishCascadeOnTouch
 import app.dirhamrub.ui.components.rememberCascade
 import app.dirhamrub.ui.components.cascade
-import app.dirhamrub.domain.MC
-import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.wallet.Acceptance
 import app.dirhamrub.domain.wallet.BankCard
@@ -58,6 +58,7 @@ import app.dirhamrub.ui.guide.countryFlag
 import app.dirhamrub.ui.guide.countryName
 import app.dirhamrub.ui.main.MainUiState
 import app.dirhamrub.ui.main.PayIcon
+import app.dirhamrub.ui.components.rateLabel
 import app.dirhamrub.ui.settings.Divider
 import app.dirhamrub.ui.settings.Group
 import app.dirhamrub.ui.settings.LinkRow
@@ -95,6 +96,7 @@ fun MoneyScreen(state: MainUiState, actions: MoneyActions) {
         Column(
             Modifier
                 .fillMaxWidth()
+                .weight(1f)
                 .finishCascadeOnTouch(cascade)
                 .fadingScroll(scroll)
                 .padding(horizontal = 14.dp)
@@ -114,11 +116,16 @@ fun MoneyScreen(state: MainUiState, actions: MoneyActions) {
             }
             Box(Modifier.cascade(cascade, 1)) { AddRow(actions.onAddCard) }
         }
+        if (wallet.cards.size > 1) {
+            Text(stringResource(R.string.money_order_hint), style = type.caption, color = colors.muted,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp))
+        }
     }
 }
 
 /**
- * «Наличные дирхамы / точно · обменяли 7 ноя      22,19 ₽» — название, «1 AED стоит» справа,
+ * «Наличные дирхамы / точно · обменяли 7 ноя      22,19 ₽» — название, «1 AED ≈ 22,19 ₽» справа,
  * под названием — точно ли посчитан курс и дата последнего пополнения.
  */
 @Composable
@@ -130,20 +137,12 @@ private fun CardRow(state: MainUiState, card: BankCard, q: CardQuote?, onClick: 
     val date = card.transfer?.takeIf { it.isValid }?.date?.let(RuDates::short)?.let {
         stringResource(if (card.kind == CardKind.CASH) R.string.money_exchanged else R.string.money_topped_up, it)
     }
-    val accuracy = when {
-        q == null && !card.canPay(wallet.spend) -> stringResource(R.string.money_only_in, card.currency.code)
-        q == null -> stringResource(R.string.money_no_rate, wallet.spend.code)
-        exact -> ""
-        else -> stringResource(R.string.money_refine)
+    val status = when {
+        q != null -> null
+        !card.canPay(wallet.spend) -> stringResource(R.string.money_only_in, card.currency.code)
+        else -> stringResource(R.string.money_no_rate, wallet.spend.code)
     }
-    val rate = q?.let {
-        val unit = Numbers.unitFor(it.homePerUnit)
-        stringResource(
-            R.string.money_rate,
-            "${Numbers.moneyWhole(unit)} ${wallet.spend.code}",
-            (if (exact) "" else "≈ ") + "${Numbers.rateShort(it.homePerUnit.multiply(unit, MC))} ${wallet.home.mark}",
-        )
-    }
+    val rate = q?.let { rateLabel(it.homePerUnit, wallet.spend, wallet.home, approximate = !exact) }
     Row(
         Modifier
             .fillMaxWidth()
@@ -152,23 +151,17 @@ private fun CardRow(state: MainUiState, card: BankCard, q: CardQuote?, onClick: 
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PayIcon(card, best = false)
+        PayIcon(card)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(card.name, style = type.bodyStrong, color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            // Точный курс — только дата; примерный — «уточнить ›» (≈ стоит у курса справа).
-            Row {
-                if (accuracy.isNotEmpty()) {
-                    Text(accuracy, style = type.caption, color = if (q == null) colors.muted else colors.accent, maxLines = 1)
-                }
-                if (date != null) {
-                    Text((if (accuracy.isNotEmpty()) " · " else "") + date, style = type.caption, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
+            if (date != null) Text(date, style = type.caption, color = colors.muted)
+            if (status != null) Text(status, style = type.caption, color = colors.muted)
         }
         if (rate != null) {
             Spacer(Modifier.width(10.dp))
-            Text(rate, style = type.body.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1)
+            Text(rate, style = type.body.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium), color = colors.ink,
+                modifier = Modifier.widthIn(max = 156.dp), maxLines = 2, textAlign = TextAlign.End)
         }
     }
 }

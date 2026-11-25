@@ -8,6 +8,7 @@ enum class Line { SPEND, HOME, CARD }
 /** Клавиши своей клавиатуры калькулятора. */
 sealed interface Key {
     data class Digit(val digit: Int) : Key
+    data object DoubleZero : Key
     data object TripleZero : Key
     data object Comma : Key
     data object Backspace : Key
@@ -31,7 +32,7 @@ enum class Op(val symbol: Char, val stored: Char) {
  * (их на один меньше, чем чисел).
  * [fresh] — значение подставлено извне (чип, «=», смена строки): следующая цифра начинает число заново.
  */
-enum class InputLimit { WHOLE, FRACTION, TERMS, TRIPLE_ZERO }
+enum class InputLimit { WHOLE, FRACTION, TERMS, MULTIPLE_ZEROS }
 
 data class Expression(
     val terms: List<String> = listOf(""),
@@ -98,10 +99,10 @@ data class Expression(
                 comma < 0 && digits.length >= MAX_INT_DIGITS -> InputLimit.WHOLE
                 else -> null
             }
-            Key.TripleZero -> when {
+            Key.DoubleZero, Key.TripleZero -> when {
                 waitingAtLimit -> InputLimit.TERMS
-                fresh || last.isEmpty() || last == "0" || comma >= 0 -> InputLimit.TRIPLE_ZERO
-                digits.length + 3 > MAX_INT_DIGITS -> InputLimit.WHOLE
+                fresh || last.isEmpty() || last == "0" || comma >= 0 -> InputLimit.MULTIPLE_ZEROS
+                digits.length + (if (key == Key.DoubleZero) 2 else 3) > MAX_INT_DIGITS -> InputLimit.WHOLE
                 else -> null
             }
             Key.Comma -> if (waitingAtLimit) InputLimit.TERMS else null
@@ -116,6 +117,7 @@ data class Expression(
         if (limit != null) return if (limit == InputLimit.TERMS) copy(waitingAtLimit = true) else this
         return when (key) {
             is Key.Digit -> digit(key.digit)
+            Key.DoubleZero -> replaceLast(terms.last() + "00")
             Key.TripleZero -> replaceLast(terms.last() + "000")
             Key.Comma -> comma()
             Key.Backspace -> backspace()

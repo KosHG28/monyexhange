@@ -65,9 +65,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
-import app.dirhamrub.domain.MC
-import app.dirhamrub.domain.Numbers
+import app.dirhamrub.ui.components.rateLabel
 import app.dirhamrub.domain.wallet.BankCard
+import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.RateBasis
@@ -75,6 +75,7 @@ import app.dirhamrub.domain.wallet.approximate
 import app.dirhamrub.ui.components.RollingText
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.cardGrain
+import app.dirhamrub.ui.theme.banknotePattern
 import app.dirhamrub.ui.theme.CardPalette
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import app.dirhamrub.ui.theme.motion
@@ -106,11 +107,15 @@ internal fun BankCardView(
     val colors = AppTheme.colors
     val type = AppTheme.type
     val style = CardPalette.style(card)
-    val surface = if (reflectionTilt != null) {
-        Modifier.cardReflection(style, reflectionTilt, colorSweep, CARD_RADIUS)
+    val cash = card.kind == CardKind.CASH
+    val corner = if (cash) 8.dp else CARD_RADIUS
+    val cardShape = if (cash) RoundedCornerShape(corner) else CARD_SHAPE
+    val finish = if (reflectionTilt != null) {
+        Modifier.cardReflection(style, reflectionTilt, colorSweep, corner)
     } else {
         Modifier.background(Brush.linearGradient(listOf(style.start, style.end))).cardGrain().sheen(halfWidth = 46.dp)
     }
+    val surface = finish.then(if (cash) Modifier.banknotePattern(style.ink) else Modifier)
     val dim by animateFloatAsState(if (selected) 1f else 0.82f, motion(), label = "cardDim")
     // Невыбранные карты чуть меньше: выбранная — «впереди».
     val shrink by animateFloatAsState(if (selected) 1f else 0.96f, motion(260), label = "cardScale")
@@ -131,18 +136,15 @@ internal fun BankCardView(
         glow.animateTo(0f, tween(800))
     }
 
-    val rate = quote?.let {
-        val unit = Numbers.unitFor(it.homePerUnit)
-        stringResource(
-            R.string.card_rate_short,
-            Numbers.rateShort(it.homePerUnit.multiply(unit, MC)),
-            home.mark,
-            if (unit.compareTo(BigDecimal.ONE) == 0) spend.mark else "${Numbers.moneyWhole(unit)} ${spend.mark}",
-        )
-    } ?: stringResource(if (needsReceipt) R.string.card_need_receipt else R.string.card_no_rate)
-    val vs = quote?.takeIf { it.basis != RateBasis.OFFICIAL }?.vsOfficial
-    // Оценочный курс (нет чека или чистый ЦБ) — сумма со знаком «≈», как на главном.
-    val approx = if (quote?.basis?.let { it.approximate || it == RateBasis.OFFICIAL } == true) "≈ " else ""
+    val approximate = quote?.basis?.let { it != RateBasis.RECEIPTS && it != RateBasis.MANUAL } == true
+    val rate = quote?.let { rateLabel(it.homePerUnit, spend, home, approximate) }
+        ?: stringResource(if (needsReceipt) R.string.card_need_receipt else R.string.card_no_rate)
+    val hasRateEvidence = card.effectiveTransfer?.isValid == true || card.purchases.any { it.spend == spend && it.isValid } ||
+        quote?.basis == RateBasis.MANUAL
+    val vs = quote?.vsOfficial?.takeIf {
+        hasRateEvidence && quote.basis != RateBasis.OFFICIAL && it.setScale(1, java.math.RoundingMode.HALF_UP).signum() != 0
+    }
+    val approx = if (approximate) "≈ " else ""
     val sumText = sum?.let { "$approx$it ${home.mark}" } ?: "—"
     val a11y = buildString {
         append(stringResource(R.string.card_a11y, card.name, sumText, rate))
@@ -170,7 +172,7 @@ internal fun BankCardView(
                     rotationY = turn.value
                     cameraDistance = 12f * density
                     if (!colors.isDark && reflectionTilt != null) {
-                        shape = CARD_SHAPE
+                        shape = cardShape
                         shadowElevation = 9.dp.toPx()
                         ambientShadowColor = style.start.copy(alpha = 0.22f)
                         spotShadowColor = style.start.copy(alpha = 0.28f)
@@ -181,12 +183,12 @@ internal fun BankCardView(
                     if (glow.value > 0f) {
                         drawRoundRect(
                             color = CardPalette.goodOnCard.copy(alpha = glow.value),
-                            cornerRadius = CornerRadius(CARD_RADIUS.toPx()),
+                            cornerRadius = CornerRadius(corner.toPx()),
                             style = Stroke(2.5.dp.toPx()),
                         )
                     }
                 }
-                .then(if (tripPreview) Modifier else Modifier.clip(CARD_SHAPE).then(surface))
+                .then(if (tripPreview) Modifier else Modifier.clip(cardShape).then(surface))
                 .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = editLabel)
                 .clearAndSetSemantics {
                     contentDescription = a11y
@@ -195,7 +197,7 @@ internal fun BankCardView(
                 },
         ) {
             if (tripPreview) Box(Modifier.matchParentSize().tripSharedBounds(TRIP_CARD)
-                .clip(CARD_SHAPE).then(surface))
+                .clip(cardShape).then(surface))
             // Водяной знак валюты карты: при наклоне отстаёт на 6 dp — будто глубже в пластике.
             val mark = card.currency.mark
             val tilt = LocalTilt.current
@@ -221,7 +223,7 @@ internal fun BankCardView(
                     Text(mark, style = markStyle, color = style.mark.copy(alpha = 0.2f), maxLines = 1)
                 }
             }
-            if (tripPreview) Box(Modifier.matchParentSize().clip(CARD_SHAPE), content = watermark) else watermark()
+            if (tripPreview) Box(Modifier.matchParentSize().clip(cardShape), content = watermark) else watermark()
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -269,7 +271,8 @@ internal fun BankCardView(
                 val vsChip: @Composable () -> Unit = {
                     if (vs != null) {
                         Text(
-                            text = stringResource(R.string.percent_value, signedPercent(vs)),
+                            text = if (vs.signum() < 0) stringResource(R.string.card_savings, signedPercent(vs.abs()).removePrefix("+"))
+                            else stringResource(R.string.percent_value, signedPercent(vs)),
                             style = type.caption.copy(fontSize = 10.5.sp, lineHeight = 13.sp, fontWeight = FontWeight.SemiBold),
                             color = when (markupOf(vs)) {
                                 Markup.GOOD -> CardPalette.goodOnCard

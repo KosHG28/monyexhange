@@ -15,6 +15,7 @@ import android.graphics.Rect as BitmapRect
 import android.graphics.RectF
 import android.graphics.Shader
 import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import kotlin.math.roundToInt
 import androidx.compose.ui.unit.IntOffset
@@ -49,9 +50,13 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -131,16 +136,13 @@ private fun networkName(n: CardNetwork): String = stringResource(
     },
 )
 
-/** Коротко — в подписи вашей карты: «Зарубежная Visa/MC · принимают почти везде». */
-@Composable
-private fun networkShort(n: CardNetwork): String = stringResource(
-    when (n) {
-        CardNetwork.UNIONPAY -> R.string.guide_net_unionpay_ru
-        CardNetwork.UNIONPAY_FOREIGN -> R.string.guide_net_unionpay_foreign
-        CardNetwork.MIR -> R.string.network_mir
-        CardNetwork.VISA_MC_FOREIGN -> R.string.guide_net_visa_foreign
-    },
-)
+@StringRes
+private fun acceptanceLabel(acceptance: Acceptance?, exchangeOnly: Boolean): Int = when (acceptance) {
+    Acceptance.YES -> R.string.guide_status_yes
+    Acceptance.PARTIAL -> if (exchangeOnly) R.string.guide_status_exchange else R.string.guide_status_partial
+    Acceptance.NO -> R.string.guide_status_no
+    null -> R.string.guide_status_unknown
+}
 
 /**
  * Экран страны (ⓘ в шапке главного) — сразу «Чем платить». Сверху: страна мелко, валюта крупно, код и знак.
@@ -219,10 +221,13 @@ fun CountryGuideScreen(
                             card.kind == CardKind.CASH && verdict == Acceptance.PARTIAL -> stringResource(R.string.guide_cash_exchange)
                             card.kind == CardKind.CASH -> stringResource(R.string.guide_cash_local)
                             network == null -> stringResource(R.string.guide_card_unknown)
-                            note == null -> networkShort(network) + " · " + stringResource(R.string.guide_card_no_data)
-                            else -> networkShort(network) + " · " + lower(note)
+                            note == null -> networkName(network) + " · " + stringResource(R.string.guide_card_no_data)
+                            else -> networkName(network) + " · " + lower(note)
                         }
-                        Line(acceptanceIcon(verdict), acceptanceColor(verdict), card.name, sub)
+                        Line(
+                            acceptanceIcon(verdict), acceptanceColor(verdict), card.name, sub,
+                            status = stringResource(acceptanceLabel(verdict, exchangeOnly = card.kind == CardKind.CASH)),
+                        )
                 }
               }
             }
@@ -458,8 +463,9 @@ private fun Divider() = HorizontalDivider(color = AppTheme.colors.line, modifier
 private val LINE_PAD = 12.dp
 private val ICON_COLUMN = 36.dp
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Line(@DrawableRes icon: Int, tint: Color, title: String, text: String) {
+private fun Line(@DrawableRes icon: Int, tint: Color, title: String, text: String, status: String? = null) {
     val type = AppTheme.type
     Row(
         Modifier
@@ -472,7 +478,18 @@ private fun Line(@DrawableRes icon: Int, tint: Color, title: String, text: Strin
             Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
         }
         Column(Modifier.weight(1f)) {
-            Text(title, style = type.body, color = AppTheme.colors.ink)
+            if (status == null) {
+                Text(title, style = type.body, color = AppTheme.colors.ink)
+            } else {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(title, style = type.body, color = AppTheme.colors.ink, modifier = Modifier.align(Alignment.CenterVertically))
+                    Text(
+                        status, style = type.caption.copy(fontWeight = FontWeight.Medium), color = tint,
+                        modifier = Modifier.align(Alignment.CenterVertically).background(tint.copy(alpha = 0.12f), CircleShape)
+                            .padding(horizontal = 7.dp, vertical = 2.dp),
+                    )
+                }
+            }
             if (text.isNotEmpty()) Text(text, style = type.caption, color = AppTheme.colors.muted)
         }
     }

@@ -83,6 +83,7 @@ import app.dirhamrub.ui.main.MainUiState
 import app.dirhamrub.ui.theme.AppTheme
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 
 /** Что можно сделать на экране настроек. */
@@ -425,9 +426,10 @@ private fun AboutSection(onOnboarding: () -> Unit, onCrash: () -> Unit) {
         })
         Divider()
         val report = remember(context) { CrashLog.last(context) }
-        val sub = report?.let {
-            stringResource(R.string.settings_crash_last, it.lineSequence().firstOrNull().orEmpty().removePrefix("Время: ").take(16).replace('T', ' '))
-        } ?: stringResource(R.string.settings_crash_none)
+        val date = report?.let { crashDate(it) }
+        val sub = if (date != null) stringResource(R.string.settings_crash_last, date)
+            else if (report == null) stringResource(R.string.settings_crash_none)
+            else null
         LinkRow(stringResource(R.string.settings_crash), sub, null, onCrash)
     }
     Spacer(Modifier.height(4.dp))
@@ -482,8 +484,10 @@ private fun CrashLogScreen(onBack: () -> Unit) {
                 Group { LinkRow(stringResource(R.string.settings_crash_none), null, null, null) }
                 return@Column
             }
+            val date = crashDate(text)
+            val displayText = if (date != null) text.replaceFirst(text.substringBefore('\n'), "Время: $date") else text
             Text(
-                text,
+                displayText,
                 style = type.caption.copy(fontFamily = FontFamily.Monospace, fontSize = 11.5.sp, lineHeight = 16.sp),
                 color = colors.muted,
                 modifier = Modifier
@@ -521,9 +525,21 @@ private fun CrashLogScreen(onBack: () -> Unit) {
 
 /** «✓ сегодня 19:41», «✓ вчера 08:15», «✓ 3 ноя 12:00»; 0 — «—». */
 @Composable
+private fun crashDate(report: String): String? {
+    val firstLine = report.substringBefore('\n').removePrefix("Время: ").trim().replace(' ', 'T')
+    val dateTime = runCatching { LocalDateTime.parse(firstLine) }.getOrNull() ?: return null
+    return readableDateTime(dateTime, LocalDate.now())
+}
+
+@Composable
 private fun fetchedText(at: Long, today: LocalDate): String {
     if (at <= 0L) return "—"
-    val t = Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault())
+    val dateTime = Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()).toLocalDateTime()
+    return "✓ " + readableDateTime(dateTime, today)
+}
+
+@Composable
+private fun readableDateTime(t: LocalDateTime, today: LocalDate): String {
     val time = "%02d:%02d".format(t.hour, t.minute)
     return when (val day = t.toLocalDate()) {
         today -> stringResource(R.string.settings_fetched_today, time)

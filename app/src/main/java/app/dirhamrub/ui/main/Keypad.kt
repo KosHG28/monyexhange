@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -90,6 +91,7 @@ fun Keypad(
     /** Где на экране клавиша камеры (центр, в координатах окна): из неё раскрывается камера. */
     onCameraPlaced: (Offset) -> Unit = {},
     showTripleZero: Boolean = false,
+    showDoubleZero: Boolean = false,
 ) {
     RecompositionProbe("Keypad")
     val colors = AppTheme.colors
@@ -125,7 +127,9 @@ fun Keypad(
                         if (showTripleZero) TextKey("000", stringResource(R.string.key_triple_zero), Modifier.size(w, h)) {
                             onKey(Key.TripleZero)
                         }
-                        TextKey(",", stringResource(R.string.key_comma), Modifier.size(w, h)) { onKey(Key.Comma) }
+                        if (showDoubleZero) TextKey("00", stringResource(R.string.key_double_zero), Modifier.size(w, h)) {
+                            onKey(Key.DoubleZero)
+                        } else TextKey(",", stringResource(R.string.key_comma), Modifier.size(w, h)) { onKey(Key.Comma) }
                     }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(KEY_GAP)) {
@@ -236,7 +240,8 @@ private fun KeyBase(
 private fun TextKey(label: String, description: String, modifier: Modifier, onClick: () -> Unit) {
     val colors = AppTheme.colors
     KeyBase(description, colors.surface, modifier, tap = Haptic.KEY, onClick = onClick) {
-        Text(label, style = AppTheme.type.key, color = colors.ink)
+        Text(label, style = AppTheme.type.key, color = colors.ink,
+            modifier = if (label == ",") Modifier.offset(y = (-6).dp) else Modifier)
     }
 }
 

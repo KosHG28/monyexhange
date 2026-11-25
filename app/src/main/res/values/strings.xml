@@ -31,7 +31,6 @@
     <string name="country_offer_close">Не сейчас</string>
 
     <!-- Карты -->
-    <string name="card_rate_short">%1$s %2$s/%3$s</string>
     <string name="card_vs_official">%1$s %% к ЦБ</string>
     <string name="card_vs_unionpay">%1$s %% к UnionPay</string>
     <string name="card_basis_receipts">по чекам</string>
@@ -42,6 +41,7 @@
     <string name="card_no_rate">нет курса</string>
     <string name="card_need_receipt">нужен чек</string>
     <string name="card_edit_a11y">Изменить карту</string>
+    <string name="card_savings">Выгода %1$s %%</string>
     <string name="percent_value">%1$s %%</string>
     <string name="card_add">Добавить карту</string>
     <string name="card_default_name">Карта %1$s</string>
@@ -295,9 +295,9 @@
     <string name="settings_unionpay">UnionPay</string>
     <string name="settings_refresh">Обновить сейчас</string>
     <string name="settings_loading_button">Обновляем…</string>
-    <string name="settings_fetched_today">✓ сегодня %1$s</string>
-    <string name="settings_fetched_yesterday">✓ вчера %1$s</string>
-    <string name="settings_fetched_on">✓ %1$s %2$s</string>
+    <string name="settings_fetched_today">сегодня %1$s</string>
+    <string name="settings_fetched_yesterday">вчера %1$s</string>
+    <string name="settings_fetched_on">%1$s %2$s</string>
     <string name="settings_unionpay_switch_sub">Карты UnionPay и валюты, которых нет у ЦБ</string>
     <string name="settings_update">Обновлять курсы</string>
     <string name="settings_update_launch">При запуске</string>
@@ -355,10 +355,7 @@
     <string name="network_mir">МИР</string>
     <string name="network_unionpay_ru">UnionPay из РФ</string>
     <string name="network_unionpay_foreign">Зарубежная UnionPay</string>
-    <string name="guide_net_unionpay_ru">UnionPay РФ</string>
-    <string name="guide_net_unionpay_foreign">Зарубежная UnionPay</string>
     <string name="network_visa_foreign">Зарубежные Visa и Mastercard</string>
-    <string name="guide_net_visa_foreign">Зарубежная Visa/MC</string>
     <string name="guide_your_cards">Ваши карты здесь</string>
     <string name="guide_card_unknown">Укажите платёжную систему в карте — подскажем, примут ли её</string>
     <string name="guide_card_no_data">Нет сведений об этой платёжной системе</string>
@@ -394,14 +391,16 @@
     <!-- Пересчёт (главный экран) -->
 
     <!-- Карты и наличные -->
-    <string name="money_rate">%1$s стоит %2$s</string>
     <string name="money_no_rate">нет курса для %1$s</string>
     <string name="money_only_in">платят только в %1$s</string>
     <string name="money_topped_up">пополнение %1$s</string>
     <string name="money_exchanged">обмен %1$s</string>
+    <string name="money_order_hint">Чтобы изменить порядок, удерживайте и перетащите карту на главном экране.</string>
     <string name="money_add">＋ Добавить карту или наличные</string>
     <!-- Главный экран (вариант Б) -->
     <string name="place_a11y">Где тратите: %1$s. Сменить страну</string>
+    <string name="hero_copy">Скопировать итог</string>
+    <string name="hero_copied">Скопировано</string>
     <string name="hero_a11y">Итог: %1$s %2$s</string>
     <string name="hero_switch_home">ввести сумму в рублях</string>
     <string name="hero_switch_spend">ввести цену в %1$s</string>
@@ -425,7 +424,6 @@
     <string name="cbr_yesterday">вчера %1$s</string>
     <string name="cbr_loading">Курс ЦБ: обновляем…</string>
     <string name="cbr_none">Курса ЦБ пока нет · обновить</string>
-    <string name="money_refine">уточнить ›</string>
     <string name="money_add_short">Добавить карту или наличные</string>
     <string name="nocards_text">Добавьте карту или наличные — посчитаем по их курсу. Пока — по курсу ЦБ</string>
     <string name="cards_title">Карты и наличные</string>
@@ -448,7 +446,6 @@
     <string name="editor_block_cash">Обмен</string>
     <string name="editor_result_title">Итог по чекам</string>
     <string name="editor_result_estimate">Пока примерно</string>
-    <string name="editor_result_approx">%1$s ≈ %2$s %3$s</string>
     <string name="editor_manual_toggle">Задать курс вручную</string>
     <string name="editor_manual_off_hint">Обычно не нужно — считаем по чекам</string>
     <string name="editor_manual_on_hint">Чеки не используются, пока включено</string>
@@ -589,8 +586,9 @@
     <string name="key_limit_whole">До 12 цифр до запятой</string>
     <string name="key_limit_fraction">До %1$d знаков после запятой</string>
     <string name="key_limit_terms">До 30 позиций. Удерживайте «+», чтобы свернуть итог.</string>
-    <string name="key_limit_triple_zero">Введите целое число, затем нажмите 000</string>
+    <string name="key_limit_multiple_zeros">Сначала введите целое число</string>
     <string name="key_pending_conversion">Курс недоступен. Исходная сумма в %1$s сохранена.</string>
+    <string name="key_double_zero">Допишите два нуля</string>
     <string name="key_triple_zero">Допишите три нуля</string>
     <string name="scan_read_error">Не удалось прочитать изображение. Попробуйте другой файл.</string>
     <string name="scan_review_title">Проверьте операцию</string>
@@ -609,4 +607,10 @@
     <string name="camera_review_currency">В калькуляторе будет выбрана валюта %1$s.</string>
     <string name="camera_photo_reading">Читаем снимок…</string>
     <string name="camera_photo_retry">Цена не найдена. Возобновите камеру и заморозьте новый кадр.</string>
+    <string name="currency_home_label">Домашняя валюта</string>
+    <string name="guide_status_yes">Принимают</string>
+    <string name="guide_status_partial">Принимают местами</string>
+    <string name="guide_status_no">Не принимают</string>
+    <string name="guide_status_unknown">Нет данных</string>
+    <string name="guide_status_exchange">Можно обменять</string>
 </resources>

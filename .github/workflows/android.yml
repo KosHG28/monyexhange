@@ -162,22 +162,54 @@ jobs:
             VERSION=$(sed -n 's/.*versionName = "\([0-9][0-9.]*\)".*/\1/p' app/build.gradle.kts)
             [ -n "$VERSION" ] || { echo "::error::versionName не найдена"; exit 1; }
             TAG="v$VERSION"
-            # Повторная сборка той же версии не заменяет уже выпущенный APK.
-            if gh release view "$TAG" > /dev/null 2>&1; then
-              echo "Релиз $TAG уже существует"
-              exit 0
-            fi
           fi
           # Выпуск — только с ключом из секретов: APK с отладочным ключом поверх установленного не встанет.
           if [ -z "${SIGNING_KEYSTORE_FILE:-}" ]; then
             echo "::error::нет ключа подписи из секретов (KEYSTORE_BASE64, SIGNING_*) — выпуск отменён"
             exit 1
           fi
-          cp out/dirhamrub-release.apk "out/dirhamrub-$TAG.apk"
-          gh release create "$TAG" "out/dirhamrub-$TAG.apk" \
-            --target "$GITHUB_SHA" \
-            --title "Курс по чеку $TAG" \
-            --notes "APK для Android 8.0+. Как установить — см. README."
+
+          ASSET="dirhamrub-$TAG.apk"
+          cp out/dirhamrub-release.apk "out/$ASSET"
+          release_state() {
+            gh release view "$TAG" --json isDraft,assets \
+              --jq "if .isDraft then \"draft\" elif any(.assets[]; .name == \"$ASSET\") then \"published\" else \"incomplete\" end"
+          }
+          state=$(release_state 2>/dev/null || true)
+          if [ "$state" = published ]; then
+            echo "Релиз $TAG уже опубликован"
+            exit 0
+          fi
+          if [ "$state" = incomplete ]; then
+            echo "::error::релиз $TAG уже опубликован без $ASSET"
+            exit 1
+          fi
+
+          retry_release() {
+            local output
+            for attempt in 1 2 3 4; do
+              if output=$("$@" 2>&1); then
+                printf '%s\n' "$output"
+                return 0
+              fi
+              printf '%s\n' "$output"
+              sleep "$((attempt * 5))"
+            done
+            printf '::error title=GitHub Release::%s\n' "${output%%$'\n'*}"
+            return 1
+          }
+          create_draft() {
+            [ "$(release_state 2>/dev/null || true)" = draft ] || gh release create "$TAG" \
+              --draft --target "$GITHUB_SHA" \
+              --title "Курс по чеку $TAG" \
+              --notes "APK для Android 8.0+. Как установить — см. README."
+          }
+          publish_draft() {
+            [ "$(release_state 2>/dev/null || true)" = published ] || gh release edit "$TAG" --draft=false
+          }
+          retry_release create_draft
+          retry_release gh release upload "$TAG" "out/$ASSET" --clobber
+          retry_release publish_draft
 
   # Перед выпуском — снимки только изменённых экранов. Информация о стране исключена.
   screens:

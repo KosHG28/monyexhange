@@ -72,6 +72,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -165,6 +166,7 @@ fun CardEditorScreen(
 
     val initialTemplate = stringResource(if (card.kind == CardKind.CASH) R.string.cash_default_name else R.string.card_default_name, card.currency.code)
     var name by remember(card.id) { mutableStateOf(card.name.takeUnless { isNew && it == initialTemplate }.orEmpty()) }
+    var nameEdited by remember(card.id) { mutableStateOf(false) }
     var currency by remember(card.id) { mutableStateOf(card.currency) }
     var newKind by remember(card.id) { mutableStateOf(card.kind) }
     val kind = if (isNew) newKind else card.kind
@@ -233,12 +235,18 @@ fun CardEditorScreen(
     var bankReview by remember(card.id) { mutableStateOf<BankReview?>(null) }
     val stagedShots = remember(card.id) { mutableMapOf<String, StagedReceiptImage>() }
     // Карта, приложенная к телефону: система и валюта сразу в поля.
+    val resources = LocalResources.current
     var nfc by remember(card.id) { mutableStateOf<NfcRead?>(null) }
     val nfcAvailability = rememberNfcAvailability(observe = !cash)
     NfcCardReader(enabled = nfcAvailability == NfcAvailability.READY && !cash && pendingSave == null) { result ->
         nfc = result
         if (result is NfcRead.Found) {
-            result.info.currency?.let { currency = it }
+            result.info.currency?.let { detected ->
+                val oldTemplate = resources.getString(R.string.card_default_name, currency.code)
+                name = nameAfterNfcRead(name, nameEdited, oldTemplate,
+                    resources.getString(R.string.card_default_name, detected.code))
+                currency = detected
+            }
             network = result.info.network
             haptics.play(Haptic.TICK)
         } else {
@@ -447,7 +455,13 @@ fun CardEditorScreen(
                 FieldLabel(stringResource(R.string.editor_name))
                 BasicTextField(
                     value = name,
-                    onValueChange = { name = it.take(MAX_NAME) },
+                    onValueChange = {
+                        val value = it.take(MAX_NAME)
+                        if (value != name) {
+                            name = value
+                            nameEdited = true
+                        }
+                    },
                     singleLine = true,
                     textStyle = type.body.copy(fontSize = 16.sp, color = colors.ink),
                     cursorBrush = SolidColor(colors.accent),
@@ -878,6 +892,9 @@ fun CardEditorScreen(
         )
     }
 }
+
+internal fun nameAfterNfcRead(name: String, edited: Boolean, oldTemplate: String, newTemplate: String): String =
+    if (name == oldTemplate && !edited) newTemplate else name
 
 /** Карта без своего курса для этой пары — чтобы показать, сколько выходит по чекам. */
 private fun BankCard.withoutManual(spend: Currency, home: Currency): BankCard =

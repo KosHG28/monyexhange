@@ -48,11 +48,15 @@ def scroll_down(current):
             return
 
 
-def find(label, *, prefix=False, scroll=False):
+def find(label, *, prefix=False, scroll=False, selected=False):
     for _ in range(7):
         current = nodes()
         for node in current:
-            if any(value.startswith(label) if prefix else value == label for value in labels(node)):
+            if selected and "true" not in (node.get("checked"), node.get("selected")):
+                continue
+            # Compose can expose the text as a child of the selectable control.
+            names = (value for child in node.iter("node") for value in labels(child)) if selected else labels(node)
+            if any(value.startswith(label) if prefix else value == label for value in names):
                 left, top, right, bottom = bounds(node)
                 if left < right and top < bottom:
                     return node
@@ -88,8 +92,7 @@ capture("materials")
 tap("Применить")
 find("Итог:", prefix=True)
 start("card-style", seed=False)
-material = find("Карбон", scroll=True)
-assert "true" in (material.get("checked"), material.get("selected")), material.attrib
+find("Карбон", scroll=True, selected=True)
 print("The selected card material stayed selected after applying and reopening.", flush=True)
 
 adb("shell", "cmd", "uimode", "night", "yes")

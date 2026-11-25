@@ -97,7 +97,7 @@ fun Keypad(
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val w = (maxWidth - KEY_GAP * 3) / 4
         val tall = h * 2 + KEY_GAP
-        val ops = if (colors.isDark) lerp(colors.surface, Color.Black, 0.22f) else colors.surface2
+        val ops = if (colors.isDark) lerp(colors.surface, colors.bg, 0.22f) else colors.surface2
         Column(verticalArrangement = Arrangement.spacedBy(KEY_GAP)) {
             Row(Modifier.tripMainEnter(TripEnter.KEYPAD, 0), horizontalArrangement = Arrangement.spacedBy(KEY_GAP)) {
                 KeyBase(stringResource(R.string.key_clear), ops, Modifier.size(w, h), onClick = { onKey(Key.Clear) }) {

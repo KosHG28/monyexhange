@@ -271,23 +271,33 @@ jobs:
           echo "$GITHUB_SHA $GITHUB_REF_NAME" > screens/commit.txt
           gh release view screens > /dev/null 2>&1 || gh release create screens --prerelease --target "$GITHUB_SHA" \
             --title "Скриншоты CI" --notes "Снимки экранов последней сборки, обновляются автоматически."
-          # Пустой crash.txt нельзя загружать как release asset: GitHub отклоняет файлы нулевого размера.
-          # PNG уже проверены; метку коммита отправляем отдельно от диагностических журналов.
-          if ls screens/*.png > /dev/null 2>&1; then
-            gh release upload screens screens/*.png --clobber
+          upload_screens() {
+            for attempt in 1 2 3; do
+              if gh release upload screens "$@" --clobber; then return 0; fi
+              sleep "$((attempt * 3))"
+            done
+            return 1
+          }
+          # PNG и метка текущего коммита обязательны для визуальной проверки.
+          if compgen -G 'screens/*.png' >/dev/null; then
+            upload_screens screens/*.png
           fi
           for video in screens/*.mp4; do
             if [ -s "$video" ]; then
-              gh release upload screens "$video" --clobber
+              upload_screens "$video"
             fi
           done
-          gh release upload screens screens/commit.txt --clobber
+          # Метка конкретной сборки доступна даже при сбое замены общего commit.txt.
+          cp screens/commit.txt "screens/commit-$GITHUB_SHA.txt"
+          upload_screens "screens/commit-$GITHUB_SHA.txt"
+          upload_screens screens/commit.txt || echo "::warning::Не удалось обновить общую метку скриншотов"
           if [ -s screens/crash.txt ]; then
-            gh release upload screens screens/crash.txt --clobber
+            upload_screens screens/crash.txt || echo "::warning::Не удалось загрузить журнал сбоев"
           fi
           for report in screens/transition-error.txt screens/transition-ui.xml screens/font130-ui.xml screens/network-chips.txt screens/network-chips-ui.xml screens/startup-check.txt screens/startup-error-ui.xml screens/recomposition-check.txt screens/long-session-memory.txt screens/long-session-frames.txt screens/long-session-error.xml screens/long-session-meminfo-5.txt screens/long-session-meminfo-10.txt screens/long-session-meminfo-15.txt screens/long-session-meminfo-20.txt screens/pro-check.txt screens/pro-error-ui.xml screens/idle-frame-stats.txt screens/scenario.log screens/emulator-health.txt screens/activity-state.txt screens/app-log.txt; do
             if [ -s "$report" ]; then
-              gh release upload screens "$report" --clobber
+              upload_screens "$report" || echo "::warning::Не удалось загрузить $report"
             fi
           done
-          gh release edit screens --notes "Снимки экранов сборки ${GITHUB_SHA::7} (${GITHUB_REF_NAME}), обновляются автоматически."
+          gh release edit screens --notes "Снимки экранов сборки ${GITHUB_SHA::7} (${GITHUB_REF_NAME}), обновляются автоматически." \
+            || echo "::warning::Не удалось обновить описание пререлиза скриншотов"

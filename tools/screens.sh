@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Check the four card materials and the previews affected by their renderer.
+# Check material optics and placement of the settings refresh action.
 set -euo pipefail
 mkdir -p screens
 exec > >(tee screens/scenario.log) 2>&1
@@ -22,7 +22,7 @@ kill "$android_log_pid" 2>/dev/null || true
 python3 - <<'PY'
 from pathlib import Path
 import struct, zlib
-for name in ('materials-1591.png', 'material-picker-1591.png', 'material-calculator-1591.png'):
+for name in ('materials-1592.png', 'material-calculator-1592.png', 'settings-1592.png'):
     path = Path('screens') / name
     data = path.read_bytes()
     assert data[:8] == b'\x89PNG\r\n\x1a\n', path

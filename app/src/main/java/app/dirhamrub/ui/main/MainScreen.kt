@@ -43,7 +43,7 @@ import app.dirhamrub.ui.theme.Springs
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.animateFloatAsState
 import app.dirhamrub.ui.components.flightOrigin
-import app.dirhamrub.ui.theme.LocalTilt
+import app.dirhamrub.ui.theme.LocalCardTilt
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
@@ -798,7 +798,7 @@ private fun PayRow(
             .padding(start = 12.dp, end = 18.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PayIcon(card, flight = true)
+        PayIcon(card, flight = true, lightMoves = selected)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(card.name, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -855,7 +855,7 @@ private fun SelectedMark(color: androidx.compose.ui.graphics.Color, progress: Fl
  * [flight] — на главном: отсюда карта «перелетает» в настройку карты ([flightOrigin]).
  */
 @Composable
-internal fun PayIcon(card: BankCard, flight: Boolean = false) {
+internal fun PayIcon(card: BankCard, flight: Boolean = false, lightMoves: Boolean = false) {
     RecompositionProbe("PayIcon")
     val shared = flight && card.id == LocalTripSharedTransition.current?.primaryCardId
     val sharedModifier = if (shared) Modifier.tripSharedBounds(TRIP_CARD) else Modifier
@@ -865,7 +865,7 @@ internal fun PayIcon(card: BankCard, flight: Boolean = false) {
     val finish = if (cash) {
         Modifier.background(Brush.linearGradient(listOf(style.start, style.end))).banknotePattern(style.ink)
     } else {
-        Modifier.cardMaterial(style, card.material, 5.dp, tilt = LocalTilt.current)
+        Modifier.cardMaterial(style, card.material, 5.dp, tilt = if (lightMoves) LocalCardTilt.current else null)
     }
     Box(
         Modifier.then(if (flight) Modifier.flightOrigin(card.id) else Modifier)

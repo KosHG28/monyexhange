@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.wrapContentSize
 import app.dirhamrub.ui.theme.sheen
 import app.dirhamrub.ui.theme.parallaxOf
 import app.dirhamrub.ui.theme.LocalTilt
+import app.dirhamrub.ui.theme.LocalCardTilt
 import app.dirhamrub.ui.theme.cardReflection
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -44,11 +45,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -115,7 +118,7 @@ internal fun BankCardView(
     val cardShape = if (cash) RoundedCornerShape(corner) else CARD_SHAPE
     val finish = when {
         reflectionTilt != null -> Modifier.cardReflection(style, material, reflectionTilt, colorSweep, corner)
-        material != null -> Modifier.cardMaterial(style, material, corner, tilt = LocalTilt.current)
+        material != null -> Modifier.cardMaterial(style, material, corner, tilt = LocalCardTilt.current)
         else -> Modifier.cardMaterial(style, CardMaterial.SATIN, corner).sheen(halfWidth = 46.dp)
     }
     val surface = finish.then(if (cash) Modifier.banknotePattern(style.ink) else Modifier)
@@ -157,6 +160,13 @@ internal fun BankCardView(
     val editLabel = stringResource(R.string.card_edit_a11y)
     // Узкая карта (три в ряд): сумма мельче, наценка — строкой под курсом, а не рядом.
     val compact = width < COMPACT_CARD_WIDTH
+    val physicalCard = !cash && !compact
+    val inlineChip = physicalCard && LocalDensity.current.fontScale >= 1.3f
+    val contactShadow = if (physicalCard) Modifier.shadow(
+        elevation = 3.dp, shape = cardShape, clip = false,
+        ambientColor = Color.Black.copy(alpha = 0.18f),
+        spotColor = Color.Black.copy(alpha = 0.28f),
+    ) else Modifier
     val sumSize = when {
         compact -> if (sumText.length > 11) 15.sp else 18.sp
         sumText.length > 11 -> 17.sp
@@ -174,13 +184,14 @@ internal fun BankCardView(
                     scaleY = shrink
                     rotationY = turn.value
                     cameraDistance = 12f * density
-                    if (!colors.isDark && reflectionTilt != null) {
+                    if (physicalCard || !colors.isDark && reflectionTilt != null) {
                         shape = cardShape
-                        shadowElevation = 9.dp.toPx()
-                        ambientShadowColor = style.start.copy(alpha = 0.22f)
-                        spotShadowColor = style.start.copy(alpha = 0.28f)
+                        shadowElevation = (if (colors.isDark) 7.dp else 11.dp).toPx()
+                        ambientShadowColor = if (colors.isDark) Color.Black.copy(alpha = 0.34f) else style.start.copy(alpha = 0.22f)
+                        spotShadowColor = if (colors.isDark) Color.Black.copy(alpha = 0.62f) else style.start.copy(alpha = 0.29f)
                     }
                 }
+                .then(contactShadow)
                 .drawWithContent {
                     drawContent()
                     if (glow.value > 0f) {
@@ -233,19 +244,35 @@ internal fun BankCardView(
                     .graphicsLayer { alpha = textAlpha() }
                     .padding(horizontal = if (compact) 10.dp else 13.dp, vertical = if (compact) 9.dp else 11.dp),
             ) {
+                val decoration = if (tripPreview) Modifier.tripExit(TripExit.DECORATION) else Modifier
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                    Text(
-                        text = card.name,
-                        style = type.label.copy(fontSize = if (compact) 11.5.sp else 12.5.sp),
-                        color = style.ink.copy(alpha = 0.92f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = if (tripPreview) Modifier.tripSharedTitle() else Modifier,
-                    )
+                        Text(
+                            text = card.name,
+                            style = type.label.copy(fontSize = if (compact) 11.5.sp else 12.5.sp),
+                            color = style.ink.copy(alpha = 0.92f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = if (tripPreview) Modifier.tripSharedTitle() else Modifier,
+                        )
+                    }
+                    if (inlineChip) {
+                        Spacer(Modifier.width(8.dp))
+                        EmvChip(style.chip, decoration.size(width = 22.dp, height = 15.dp))
+                    }
+                    if (physicalCard) {
+                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            painterResource(R.drawable.ic_nfc), contentDescription = null,
+                            modifier = decoration.size(18.dp), tint = style.ink.copy(alpha = 0.72f),
+                        )
                     }
                     // Звезду лучшей карты рисует ряд: при смене лучшей она перелетает к другой карте.
                     if (best != null) Spacer(Modifier.width(STAR_SLOT))
+                }
+                if (physicalCard && !inlineChip) {
+                    Spacer(Modifier.height(7.dp))
+                    EmvChip(style.chip, decoration.size(width = 26.dp, height = 19.dp))
                 }
                 Spacer(Modifier.weight(1f))
                 // Сумма меняется на каждом нажатии — перекатываются только изменившиеся цифры.

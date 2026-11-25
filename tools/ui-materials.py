@@ -1,4 +1,4 @@
-"""Review the four card materials and their live selector previews on Android."""
+"""Review the four card materials and the card preview and settings on Android."""
 import re
 import subprocess
 import time
@@ -66,8 +66,8 @@ def find(label, *, prefix=False, scroll=False, selected=False):
     raise AssertionError(f"{label!r} missing. Visible labels: {[pair for node in current if any(pair := labels(node))]}")
 
 
-def tap(label, *, scroll=False):
-    left, top, right, bottom = bounds(find(label, scroll=scroll))
+def tap(label, *, scroll=False, prefix=False):
+    left, top, right, bottom = bounds(find(label, scroll=scroll, prefix=prefix))
     adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
     time.sleep(0.75)
 
@@ -93,15 +93,10 @@ with TemporaryDirectory() as temp:
         frames.extend(["-i", str(frame)])
     subprocess.run(
         ["ffmpeg", "-v", "error", "-y", *frames, "-filter_complex", "hstack=inputs=4",
-         "-frames:v", "1", "-threads", "1", "-update", "1", str(out / "materials-1591.png")],
+         "-frames:v", "1", "-threads", "1", "-update", "1", str(out / "materials-1592.png")],
         check=True,
         timeout=30,
     )
-
-tap("Карта для оформления")
-find("Карта в юанях")
-capture(out / "material-picker-1591.png")
-adb("shell", "input", "keyevent", "KEYCODE_BACK")
 
 tap("Карбон")
 find("Карбон", selected=True)
@@ -109,11 +104,27 @@ tap("Применить")
 find("Итог:", prefix=True)
 adb("shell", "cmd", "uimode", "night", "yes")
 start("main", seed=False)
-find("Карта в тенге", prefix=True)
+card = find("Карта в тенге", prefix=True)
+if card.get("selected") != "true":
+    tap("Карта в тенге", prefix=True)
+find("Карта в тенге", prefix=True, selected=True)
 find("Итог:", prefix=True)
-capture(out / "material-calculator-1591.png")
+capture(out / "material-calculator-1592.png")
 
 start("card-style", seed=False)
 find("Карбон", scroll=True, selected=True)
 find("Изумруд", selected=True)
 print("The material and color stay selected after restarting the app.", flush=True)
+
+
+start("settings", seed=False)
+find("Настройки")
+assert not any(
+    label in ("Обновить сейчас", "Обновляем…") and bounds(node)[1] < bounds(node)[3]
+    for node in nodes() for label in labels(node)
+), "The refresh button must be off-screen at the top of Settings."
+refresh = find("Обновить сейчас", scroll=True)
+footer = find("Сеть — только для курсов", prefix=True)
+assert bounds(refresh)[1] >= bounds(footer)[3], "The refresh button must appear below the network note."
+capture(out / "settings-1592.png")
+print("The refresh button scrolls into view below the network note.", flush=True)

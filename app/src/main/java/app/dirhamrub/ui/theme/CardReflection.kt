@@ -4,8 +4,12 @@ import android.graphics.Bitmap
 import android.os.Build
 import android.view.Surface
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -31,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import app.dirhamrub.domain.wallet.CardMaterial
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.sqrt
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sin
@@ -49,15 +55,25 @@ internal fun DrawScope.drawCardGrain(alpha: Float = 0.02f) {
 }
 
 @Composable
-internal fun rememberReflectionTilt(active: Boolean): State<Offset> {
-    val tilt = remember { mutableStateOf(Offset.Zero) }
+internal fun rememberReflectionTilt(active: Boolean, trackWhenUnfocused: Boolean = false): State<Offset> {
+    val target = remember { mutableStateOf(Offset.Zero) }
     val filter = remember { CardTiltFilter() }
     val reduce = LocalReduceMotion.current
-    ObserveRotation(active && !reduce, onStart = { filter.reset(tilt.value) }) { matrix, timestamp, rotation ->
-        tilt.value = filter.read(matrix, timestamp, rotation)
+    ObserveRotation(
+        active && !reduce,
+        onStart = { filter.reset(target.value) },
+        onAcceleration = { values, time, rotation ->
+            target.value = filter.readAcceleration(values, time, rotation)
+        },
+        trackWhenUnfocused = trackWhenUnfocused,
+    ) { matrix, timestamp, rotation ->
+        target.value = filter.read(matrix, timestamp, rotation)
     }
-    SideEffect { if (reduce) tilt.value = Offset.Zero }
-    return tilt
+    SideEffect { if (reduce) target.value = Offset.Zero }
+    val damping = if (reduce) snap() else spring(dampingRatio = 0.87f, stiffness = 460f, visibilityThreshold = 0.003f)
+    val x = animateFloatAsState(if (reduce) 0f else target.value.x, damping, label = "cardTiltX")
+    val y = animateFloatAsState(if (reduce) 0f else target.value.y, damping, label = "cardTiltY")
+    return remember(x, y) { derivedStateOf { Offset(x.value, y.value) } }
 }
 
 /** The new resting orientation is recorded once on resume. Held angles keep their position. */
@@ -66,6 +82,7 @@ internal class CardTiltFilter {
     private val horizontal = TiltPublicationGate()
     private val vertical = TiltPublicationGate()
     private var lastTime: Long? = null
+    private var restGravity = Offset.Zero
     private var smooth = Offset.Zero
     private var published = Offset.Zero
 
@@ -88,9 +105,25 @@ internal class CardTiltFilter {
                 rest[axis + 3] = matrix[axis * 3 + 1]
             }
         }
+        val x = (rest[0] * matrix[2] + rest[1] * matrix[5] + rest[2] * matrix[8]) / TILT_RANGE
+        val y = -(rest[3] * matrix[2] + rest[4] * matrix[5] + rest[5] * matrix[8]) / TILT_RANGE
+        return publish(x, y, timestamp, rotation)
+    }
+
+    fun readAcceleration(gravity: FloatArray, timestamp: Long, rotation: Int): Offset {
+        val (x, y, z) = gravity
+        val norm = sqrt(x * x + y * y + z * z)
+        if (norm !in 5f..15f) return published
+        val angles = Offset(-atan2(x, sqrt(y * y + z * z)), -atan2(y, z))
+        if (lastTime == null) restGravity = angles
+        val pitch = angles.y - restGravity.y
+        val wrappedPitch = atan2(sin(pitch), cos(pitch))
+        return publish((angles.x - restGravity.x) / TILT_RANGE, wrappedPitch / TILT_RANGE, timestamp, rotation)
+    }
+
+    private fun publish(x: Float, y: Float, timestamp: Long, rotation: Int): Offset {
+        val time = lastTime
         lastTime = timestamp
-        val x = (rest[0] * matrix[2] + rest[1] * matrix[5] + rest[2] * matrix[8]) / 0.38f
-        val y = -(rest[3] * matrix[2] + rest[4] * matrix[5] + rest[5] * matrix[8]) / 0.38f
         val target = when (rotation) {
             Surface.ROTATION_90 -> Offset(-y, x)
             Surface.ROTATION_180 -> Offset(-x, -y)
@@ -124,7 +157,7 @@ internal fun Modifier.cardReflection(
     val dark = AppTheme.colors.isDark
     drawWithCache {
         val background = Brush.linearGradient(listOf(start, end))
-        val texture = material?.let { cardMaterialLayer(it, radius) }
+        val finish = material?.let { cardMaterialLayer(it, radius, tilt, sweep) }
         val edgeWidth = 1.dp.toPx()
         val inset = edgeWidth / 2f
         val edgeSize = Size(size.width - edgeWidth, size.height - edgeWidth)
@@ -133,21 +166,11 @@ internal fun Modifier.cardReflection(
         val clearLight = Color.White.copy(alpha = 0f)
         onDrawBehind {
             drawRect(background)
-            texture?.invoke(this)
-
-            if (material == CardMaterial.METAL) {
-                val angle = tilt.value
-                val strength = maxOf(abs(angle.x), abs(angle.y))
-                val progress = sweep?.value ?: 1f
-                val hotspot = center + Offset(size.width * angle.x * 0.36f, size.height * angle.y * 0.41f)
-                val position = if (progress < 1f) {
-                    Offset(size.width * (-0.19f + 1.38f * progress), hotspot.y)
-                } else hotspot
-                drawRect(metalHighlight(size.minDimension, position, 0.43f + 0.13f * strength))
+            if (finish != null) {
+                finish(this)
                 return@onDrawBehind
             }
             // Наличные имеют собственные динамические блики поверх бумажного рисунка.
-            if (material != null) return@onDrawBehind
             drawCardGrain(alpha = 0.025f)
             val angle = tilt.value
             val strength = maxOf(abs(angle.x), abs(angle.y))
@@ -203,4 +226,5 @@ internal fun Modifier.cardReflection(
     }
 }
 
+private const val TILT_RANGE = 0.38f
 private const val REFLECTION_PEAK = 0.22f

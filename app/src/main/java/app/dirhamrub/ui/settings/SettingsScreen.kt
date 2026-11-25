@@ -110,7 +110,7 @@ class SettingsActions(
 
 /**
  * Настройки (значок в шапке главного). Основные (карты и наличные); курсы — одна карточка: источники,
- * UnionPay в своей строке, частота, «только по Wi-Fi», «Обновить сейчас» закреплена внизу; валюты (итог, округление,
+ * UnionPay в своей строке, частота, «только по Wi-Fi»; валюты (итог, округление,
  * подсказка о стране); камера; оформление (тема, анимации, вибрация); о приложении (журнал ошибок — отдельным экраном).
  */
 @Composable
@@ -171,13 +171,13 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
             Column(Modifier.cascade(cascade, 3)) { CameraSection(state, actions) }
             Column(Modifier.cascade(cascade, 4)) { LookSection(state, actions) }
             Column(Modifier.cascade(cascade, 5)) { AboutSection(onOnboarding = actions.onOnboarding, onCrash = { crashOpen = true }) }
+            ScreenAction(
+                label = stringResource(if (state.ratesLoading) R.string.settings_loading_button else R.string.settings_refresh),
+                onClick = actions.onRefresh,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                loading = state.ratesLoading,
+            )
         }
-        ScreenAction(
-            label = stringResource(if (state.ratesLoading) R.string.settings_loading_button else R.string.settings_refresh),
-            onClick = actions.onRefresh,
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
-            loading = state.ratesLoading,
-        )
     }
     if (roundingPicker) {
         RoundingSheet(state.settings.rounding, onPick = {

@@ -34,8 +34,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -93,8 +91,8 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?, Ca
                 val q = state.quote.of(card.id)
                 val sum = q?.let { Numbers.total(state.totals.spend.multiply(it.homePerUnit, MC), state.settings.rounding) }
                 val focus = LocalFocusManager.current
-                var previewVisible by remember { mutableStateOf(false) }
-                val reflectionTilt = rememberReflectionTilt(previewVisible && material == CardMaterial.METAL && !isClosing)
+                // Короткое меню выбора забирает фокус, но использует тот же наклон, что большая карта.
+                val reflectionTilt = rememberReflectionTilt(active = !isClosing, trackWhenUnfocused = true)
                 val reduce = LocalReduceMotion.current
                 var sweepRequest by remember(card.id) { mutableIntStateOf(0) }
                 var playedSweep by remember(card.id) { mutableIntStateOf(0) }
@@ -110,58 +108,59 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?, Ca
                     }
                 }
                 HighFrameRate(sweep.isRunning)
-                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
-                    CardChoice(cards, draft) { if (!applied) chosenId = it }
-                    Box(Modifier.fillMaxWidth().padding(vertical = 12.dp)
-                        .onGloballyPositioned { previewVisible = !it.boundsInWindow().isEmpty }
-                        .clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
-                        BankCardView(draft, q, state.wallet.spend, state.wallet.home, sum, true, null, {}, {},
-                            width = 270.dp, height = 142.dp, flipOnChange = false,
-                            reflectionTilt = reflectionTilt, colorSweep = sweep.asState())
-                    }
-                    val paletteShape = RoundedCornerShape(18.dp)
-                    Column(Modifier.fillMaxWidth().clip(paletteShape).background(colors.surface)
-                        .surfaceOutline(paletteShape).padding(12.dp)) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(stringResource(if (customOpen) R.string.style_custom else R.string.style_colors), style = AppTheme.type.bodyStrong,
-                                color = colors.ink, modifier = Modifier.weight(1f))
-                            if (customOpen) TextButton(onClick = { focus.clearFocus(); customOpen = false }) { Text(stringResource(R.string.style_ready), color = colors.accent) }
+                CompositionLocalProvider(LocalCardTilt provides reflectionTilt) {
+                    Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
+                        CardChoice(cards, draft) { if (!applied) chosenId = it }
+                        Box(Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                            .clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
+                            BankCardView(draft, q, state.wallet.spend, state.wallet.home, sum, true, null, {}, {},
+                                width = 270.dp, height = 142.dp, flipOnChange = false,
+                                reflectionTilt = reflectionTilt, colorSweep = sweep.asState())
                         }
-                        Spacer(Modifier.height(10.dp))
-                        if (customOpen) {
-                            CustomColorEditor(hex, { input ->
-                                if (!applied) {
-                                    hex = input
-                                    val presetRgb = CardPalette.style(preset).start.toArgb() and 0xFFFFFF
-                                    val entered = CardAppearance.parseHex(input)
-                                    custom = entered != presetRgb || card.customColor == entered
-                                }
-                            }, rgb)
-                        } else {
-                            ColorPresets(preset, custom, {
-                                if (!applied && (custom || preset != it)) {
-                                    preset = it
-                                    custom = false
+                        val paletteShape = RoundedCornerShape(18.dp)
+                        Column(Modifier.fillMaxWidth().clip(paletteShape).background(colors.surface)
+                            .surfaceOutline(paletteShape).padding(12.dp)) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text(stringResource(if (customOpen) R.string.style_custom else R.string.style_colors), style = AppTheme.type.bodyStrong,
+                                    color = colors.ink, modifier = Modifier.weight(1f))
+                                if (customOpen) TextButton(onClick = { focus.clearFocus(); customOpen = false }) { Text(stringResource(R.string.style_ready), color = colors.accent) }
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            if (customOpen) {
+                                CustomColorEditor(hex, { input ->
+                                    if (!applied) {
+                                        hex = input
+                                        val presetRgb = CardPalette.style(preset).start.toArgb() and 0xFFFFFF
+                                        val entered = CardAppearance.parseHex(input)
+                                        custom = entered != presetRgb || card.customColor == entered
+                                    }
+                                }, rgb)
+                            } else {
+                                ColorPresets(preset, custom, {
+                                    if (!applied && (custom || preset != it)) {
+                                        preset = it
+                                        custom = false
+                                        sweepRequest++
+                                    }
+                                }, {
+                                    if (!applied) {
+                                        if (!custom) hex = CardAppearance.hex(CardPalette.style(preset).start.toArgb() and 0xFFFFFF)
+                                        customOpen = true
+                                    }
+                                })
+                            }
+                            HorizontalDivider(Modifier.padding(vertical = 10.dp), color = colors.line)
+                            MaterialOptions(draft, enabled = !applied && state.settings.pro) {
+                                if (material != it) {
+                                    material = it
                                     sweepRequest++
                                 }
-                            }, {
-                                if (!applied) {
-                                    if (!custom) hex = CardAppearance.hex(CardPalette.style(preset).start.toArgb() and 0xFFFFFF)
-                                    customOpen = true
-                                }
-                            })
-                        }
-                        HorizontalDivider(Modifier.padding(vertical = 10.dp), color = colors.line)
-                        MaterialOptions(draft, enabled = !applied && state.settings.pro) {
-                            if (material != it) {
-                                material = it
-                                sweepRequest++
                             }
                         }
+                        Spacer(Modifier.height(16.dp))
+                        Text(stringResource(R.string.style_main_preview), style = AppTheme.type.caption, color = colors.muted, modifier = Modifier.padding(bottom = 8.dp))
+                        AppearanceRow(draft, sum, state.wallet.home)
                     }
-                    Spacer(Modifier.height(16.dp))
-                    Text(stringResource(R.string.style_main_preview), style = AppTheme.type.caption, color = colors.muted, modifier = Modifier.padding(bottom = 8.dp))
-                    AppearanceRow(draft, sum, state.wallet.home)
                 }
                 ScreenAction(
                     label = stringResource(if (applied) R.string.style_applied else R.string.style_apply),
@@ -185,6 +184,7 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?, Ca
 private fun MaterialOptions(draft: BankCard, enabled: Boolean, onPick: (CardMaterial) -> Unit) {
     val colors = AppTheme.colors
     val style = CardPalette.style(draft)
+    val tilt = LocalCardTilt.current
     Text(stringResource(R.string.style_materials), style = AppTheme.type.bodyStrong, color = colors.ink)
     Spacer(Modifier.height(7.dp))
     Row(
@@ -210,7 +210,7 @@ private fun MaterialOptions(draft: BankCard, enabled: Boolean, onPick: (CardMate
             ) {
                 Box(
                     Modifier.size(46.dp, 24.dp).clip(RoundedCornerShape(5.dp))
-                        .cardMaterial(style.forMaterial(material), material, 5.dp),
+                        .cardMaterial(style.forMaterial(material), material, 5.dp, tilt = tilt),
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
@@ -349,7 +349,7 @@ private val HUE_TRACK = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan,
 private fun MiniColorCard(card: BankCard) {
     val style = CardPalette.style(card).forMaterial(card.material)
     Box(
-        Modifier.size(44.dp, 30.dp).clip(RoundedCornerShape(5.dp)).cardMaterial(style, card.material, 5.dp),
+        Modifier.size(44.dp, 30.dp).clip(RoundedCornerShape(5.dp)).cardMaterial(style, card.material, 5.dp, tilt = LocalCardTilt.current),
     ) {
         Box(Modifier.align(Alignment.CenterStart).padding(start = 6.dp).size(7.dp, 5.dp).clip(RoundedCornerShape(2.dp)).background(style.chip))
         Text(card.currency.code, color = style.ink, style = AppTheme.type.caption.copy(fontSize = 7.sp), modifier = Modifier.align(Alignment.BottomEnd).padding(3.dp))

@@ -64,7 +64,7 @@ class MainActivity : ComponentActivity() {
             val settings by vm.settings.collectAsStateWithLifecycle()
             DirhamTheme(theme = settings.theme, motion = settings.motion, keyHaptics = settings.keyHaptics, pureBlack = settings.pureBlack, dynamicColor = settings.dynamicColor) {
                 AdaptiveFrameRate {
-                // Наклон телефона — для блика на картах (флагманы, Android 13+).
+                // Движение света на картах от общего датчика наклона.
                 ProvideTilt {
                     DirhamApp(
                         startScreen = screen,

@@ -8,6 +8,7 @@ import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -43,10 +44,16 @@ import kotlin.math.abs
  */
 val LocalTilt = staticCompositionLocalOf<State<Float>?> { null }
 
-/** Наклон для мини-карт и знакомства, пока окно приложения активно. */
+internal val LocalCardTilt = staticCompositionLocalOf<State<Offset>?> { null }
+
+/** Один датчик на главное окно, в том числе для прежних одноосевых эффектов. */
 @Composable
 fun ProvideTilt(content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalTilt provides rememberTilt(), content = content)
+    val tilt = rememberReflectionTilt(active = true)
+    val legacy: State<Float>? = if (LocalReduceMotion.current) null else remember(tilt) {
+        derivedStateOf { tilt.value.x }
+    }
+    CompositionLocalProvider(LocalCardTilt provides tilt, LocalTilt provides legacy, content = content)
 }
 
 @Composable
@@ -62,6 +69,8 @@ internal fun rememberTilt(active: Boolean = true): State<Float>? {
 internal fun ObserveRotation(
     active: Boolean,
     onStart: () -> Unit,
+    onAcceleration: ((FloatArray, Long, Int) -> Unit)? = null,
+    trackWhenUnfocused: Boolean = false,
     onReading: (matrix: FloatArray, timestamp: Long, rotation: Int) -> Unit,
 ): Boolean {
     val focused = LocalWindowInfo.current.isWindowFocused
@@ -71,22 +80,30 @@ internal fun ObserveRotation(
     val view = LocalView.current
     val manager = remember(context) { context.getSystemService(SensorManager::class.java) }
     // Предпочитаем вектор без компаса. На некоторых устройствах доступен только обычный вектор поворота.
-    val sensors = remember(manager) {
+    val useAcceleration = onAcceleration != null
+    val sensors = remember(manager, useAcceleration) {
         listOfNotNull(
             manager?.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR),
             manager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR),
+            if (useAcceleration) manager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) else null,
         )
     }
-    val enabled = active && focused && !reduceMotion
+    val enabled = active && (focused || trackWhenUnfocused) && !reduceMotion
     val start by rememberUpdatedState(onStart)
     val reading by rememberUpdatedState(onReading)
+    val acceleration by rememberUpdatedState(onAcceleration)
     DisposableEffect(enabled, manager, sensors, lifecycle, view) {
         if (!enabled || manager == null || sensors.isEmpty()) return@DisposableEffect onDispose { }
         val matrix = FloatArray(9)
         val listener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
-                SensorManager.getRotationMatrixFromVector(matrix, event.values)
-                reading(matrix, event.timestamp, view.display?.rotation ?: 0)
+                val rotation = view.display?.rotation ?: 0
+                if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
+                    acceleration?.invoke(event.values, event.timestamp, rotation)
+                } else {
+                    SensorManager.getRotationMatrixFromVector(matrix, event.values)
+                    reading(matrix, event.timestamp, rotation)
+                }
             }
 
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit

@@ -49,6 +49,28 @@ class CardReflectionTest {
         assertEquals(0f, landscape.y, 0.001f)
     }
 
+    @Test
+    fun `accelerometer fallback follows gravity and ignores sudden acceleration`() {
+        val filter = CardTiltFilter()
+        val rest = floatArrayOf(0f, 0f, 9.8f)
+        val tilt = floatArrayOf(-2.6f, -1.9f, 9.25f)
+        assertEquals(Offset.Zero, filter.readAcceleration(rest, 0, Surface.ROTATION_0))
+        for (sample in 1..30) {
+            filter.readAcceleration(tilt, sample * SAMPLE_NS, Surface.ROTATION_0)
+        }
+        val held = filter.readAcceleration(tilt, 31 * SAMPLE_NS, Surface.ROTATION_0)
+        assertTrue(held.x > 0.60f && held.y > 0.45f)
+        assertEquals(held, filter.readAcceleration(floatArrayOf(30f, 30f, 30f), 32 * SAMPLE_NS, Surface.ROTATION_0))
+    }
+
+    @Test
+    fun `accelerometer pitch crosses the angle boundary without jumping`() {
+        val filter = CardTiltFilter()
+        filter.readAcceleration(floatArrayOf(0f, 0.1f, -9.8f), 0, Surface.ROTATION_0)
+        val next = filter.readAcceleration(floatArrayOf(0f, -0.1f, -9.8f), SAMPLE_NS, Surface.ROTATION_0)
+        assertTrue(next.y in -0.1f..0.1f)
+    }
+
     private fun hold(filter: CardTiltFilter, pose: FloatArray, first: Int, last: Int): Offset {
         for (sample in first until last) filter.read(pose, sample * SAMPLE_NS)
         return filter.read(pose, last * SAMPLE_NS)

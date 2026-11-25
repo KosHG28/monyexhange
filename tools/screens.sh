@@ -11,6 +11,9 @@ diagnose() {
 }
 trap diagnose EXIT
 adb install -r app/build/outputs/apk/debug/app-debug.apk
+# Preserve phone layout while keeping the emulator framebuffer small.
+adb shell wm size 720x1600
+adb shell wm density 288
 adb shell setprop debug.hwui.renderer skiagl
 adb shell setprop debug.hwui.use_buffer_age false
 adb shell setprop debug.hwui.swap_with_damage false

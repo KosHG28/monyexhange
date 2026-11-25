@@ -45,7 +45,8 @@ def scroll_down(current):
         left, top, right, bottom = bounds(node)
         if bottom - top > 240:
             x = str((left + right) // 2)
-            adb("shell", "input", "swipe", x, str(bottom - 45), x, str(bottom - 305), "580")
+            end = top + (bottom - top) // 3
+            adb("shell", "input", "swipe", x, str(bottom - 45), x, str(end), "580")
             return
 
 
@@ -118,7 +119,7 @@ print("The material and color stay selected after restarting the app.", flush=Tr
 
 
 start("settings", seed=False)
-find("Настройки")
+find("Карты и наличные")
 assert not any(
     label in ("Обновить сейчас", "Обновляем…") and bounds(node)[1] < bounds(node)[3]
     for node in nodes() for label in labels(node)

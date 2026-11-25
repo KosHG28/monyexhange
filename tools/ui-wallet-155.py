@@ -73,7 +73,12 @@ adb("shell", "settings", "put", "global", "animator_duration_scale", "1")
 start("main", "--es", "spend", "VND")
 names = ["Карта в юанях", "Карта в тенге"]
 first, last = sorted(names, key=lambda label: bounds(payment(label))[1])
-adb("shell", "input", "draganddrop", *center(payment(last)), *center(payment(first)), "600")
+for attempt in range(3):
+    source, target = payment(last), payment(first)
+    if bounds(source)[1] < bounds(target)[1]:
+        break
+    adb("shell", "input", "draganddrop", *center(source), *center(target), "850")
+    time.sleep(0.4)
 assert bounds(payment(last))[1] < bounds(payment(first))[1], "Dragged card did not move up"
 start("main", demo=False)
 assert bounds(payment(last))[1] < bounds(payment(first))[1], "Manual order did not survive restart"

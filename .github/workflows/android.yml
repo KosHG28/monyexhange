@@ -269,6 +269,7 @@ jobs:
       - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
+          emulator-build: '11610631'
           arch: x86_64
           target: default
           profile: pixel_6

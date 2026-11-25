@@ -318,7 +318,7 @@ internal fun PrimaryButton(text: String, modifier: Modifier = Modifier, soft: Bo
 internal fun Label(text: String, modifier: Modifier = Modifier) {
     Text(
         text.uppercase(),
-        style = AppTheme.type.caption.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp),
+        style = AppTheme.type.section,
         color = AppTheme.colors.muted,
         modifier = modifier.padding(start = 2.dp, top = 18.dp, bottom = 8.dp),
     )

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compare the grabbed card on the calculator across the three themes.
+# Review the changed typography, settings selector and card preview.
 set -euo pipefail
 mkdir -p screens
 exec > >(tee screens/scenario.log) 2>&1
@@ -22,8 +22,7 @@ kill "$android_log_pid" 2>/dev/null || true
 python3 - <<'PY'
 from pathlib import Path
 import struct, zlib
-for theme in ('light', 'dark', 'amoled'):
-    name = f'payment-grab-{theme}.png'
+for name in ('design-157-calculator.png', 'design-157-settings.png', 'design-157-card.png'):
     path = Path('screens') / name
     data = path.read_bytes()
     assert data[:8] == b'\x89PNG\r\n\x1a\n', path

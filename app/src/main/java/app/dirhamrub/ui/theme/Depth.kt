@@ -16,16 +16,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 
-private val DARK_SURFACE_OUTLINE = Brush.verticalGradient(
-    listOf(Color.White.copy(alpha = 0.11f), Color.White.copy(alpha = 0.02f)),
+internal val DARK_SURFACE_OUTLINE = Brush.verticalGradient(
+    0f to Color.White.copy(alpha = 0.14f),
+    0.55f to Color.White.copy(alpha = 0.04f),
+    1f to Color.White.copy(alpha = 0f),
 )
+internal val DarkSurfaceOutlineWidth = 0.75.dp
 private val LIGHT_SURFACE_OUTLINE = Brush.verticalGradient(
     listOf(LightColors.ink.copy(alpha = 0.15f), LightColors.ink.copy(alpha = 0.045f)),
 )
 
 /** Градиентный контур матовых карточек во всех темах. Ставить после clip и фона. */
 fun Modifier.surfaceOutline(shape: Shape): Modifier = composed {
-    border(1.dp, if (AppTheme.colors.isDark) DARK_SURFACE_OUTLINE else LIGHT_SURFACE_OUTLINE, shape)
+    if (AppTheme.colors.isDark) border(DarkSurfaceOutlineWidth, DARK_SURFACE_OUTLINE, shape)
+    else border(1.dp, LIGHT_SURFACE_OUTLINE, shape)
 }
 
 /**

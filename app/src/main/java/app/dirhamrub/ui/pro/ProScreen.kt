@@ -109,7 +109,7 @@ fun ProScreen(
             }
         }
     }
-    FullScreen(onDismissRequest = onDismiss) {
+    FullScreen(onDismissRequest = onDismiss, slideFromRight = true) {
         Column(Modifier.fillMaxSize().imePadding()) {
             ScreenBar(onBack = { close() })
             // Единая прокрутка сохраняет доступ к активации на коротком экране и при крупном шрифте.

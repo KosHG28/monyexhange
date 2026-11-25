@@ -68,14 +68,6 @@ def payment(label):
     return find(lambda node: node.get("content-desc", "").startswith(label))
 
 
-def capture_grab(theme):
-    row = payment("Карта в юанях")
-    with subprocess.Popen(["adb", "shell", "input", "swipe", *center(row), *center(row), "2400"]) as hold:
-        time.sleep(1.0)
-        capture(f"payment-grab-{theme}.png")
-        assert hold.wait(timeout=12) == 0
-
-
 adb("shell", "cmd", "uimode", "night", "yes")
 adb("shell", "settings", "put", "global", "animator_duration_scale", "1")
 start("main", "--es", "spend", "VND")
@@ -108,6 +100,7 @@ adb("shell", "input", "swipe", x, str(top + (bottom - top) // 5), x, str(bottom 
 find(text("Наличные"))
 print("New cash name follows its kind. Existing cash has a fixed kind and the receipt was edited before saving.", flush=True)
 
+adb("shell", "cmd", "uimode", "night", "no")
 start("pro", "--ez", "receiptDemo", "true")
 tap(find(text("Стиль карт")))
 find(text("Оформление карты"))
@@ -124,23 +117,36 @@ original_hex = find(hex_field).get("text")
 adb("shell", "input", "swipe", *center(slider, 0.49), *center(slider, 0.96), "480")
 find(lambda node: hex_field(node) and node.get("text") != original_hex)
 apply = find(apply_button)
+capture("design-157-card.png")
 tap(apply)
 find(text("Курс по чеку"))
 print("Changing hue enabled Apply.")
 
-start("main", demo=False)
-tap(find(text("Запятая")))
-tap(find(text("5")))
-capture_grab("dark")
-
-adb("shell", "cmd", "uimode", "night", "no")
-start("main", demo=False)
-capture_grab("light")
 
 adb("shell", "cmd", "uimode", "night", "yes")
-start("pro", demo=False)
-amoled = lambda node: node.get("checkable") == "true" and any(text("AMOLED")(child) for child in node.iter("node"))
-tap(find(amoled))
-find(lambda node: amoled(node) and (node.get("checked") == "true" or node.get("selected") == "true"))
-start("main", demo=False)
-capture_grab("amoled")
+start("main", "--es", "spend", "VND", "--ez", "noamount", "true")
+digit = find(text("5"))
+for _ in range(2):
+    tap(digit)
+tap(find(text("Допишите три нуля")))
+
+def price(value):
+    return lambda node: re.sub(r"\s+", " ", node.get("content-desc", "")) == f"Цена на ценнике: {value} VND"
+
+find(price("55 000"))
+capture("design-157-calculator.png")
+tap(find(text("Очистить")))
+find(price("0"))
+assert not any(price("55 000")(node) for node in tree().iter("node"))
+
+tap(find(text("Настройки")))
+find(text("Обновлять курсы"))
+tap(find(text("Вручную")))
+find(text("✓ Вручную"))
+capture("design-157-settings.png")
+adb("shell", "input", "keyevent", "KEYCODE_BACK")
+tap(find(lambda node: node.get("content-desc", "").startswith("Где тратите:")))
+find(text("Где вы тратите?"))
+adb("shell", "input", "keyevent", "KEYCODE_BACK")
+find(price("0"))
+print("Verified grouped input, clearing C, settings selector and opening/closing the country chooser.")

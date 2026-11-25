@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.ButtonGroup
 import app.dirhamrub.domain.wallet.noun
 import app.dirhamrub.domain.wallet.Country
 import app.dirhamrub.domain.wallet.Currency
@@ -53,34 +54,16 @@ import app.dirhamrub.ui.theme.AppTheme
 @Composable
 internal fun Tabs(homeTab: Boolean, onChange: (Boolean) -> Unit) {
     val colors = AppTheme.colors
-    val type = AppTheme.type
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(colors.surface)
-            .padding(4.dp),
-    ) {
-        for (tab in listOf(false, true)) {
-            val selected = tab == homeTab
-            Box(
-                Modifier
-                    .weight(1f)
-                    .heightIn(min = 48.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) colors.accentSoft else Color.Transparent)
-                    .selectable(selected = selected, role = Role.Tab) { onChange(tab) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    stringResource(if (tab) R.string.currency_sheet_home else R.string.currency_sheet_spend),
-                    style = type.bodyStrong,
-                    color = if (selected) colors.accent else colors.muted,
-                    maxLines = 1,
-                )
-            }
-        }
-    }
+    ButtonGroup(
+        options = listOf(stringResource(R.string.currency_sheet_spend), stringResource(R.string.currency_sheet_home)),
+        selected = if (homeTab) 1 else 0,
+        onSelect = { onChange(it == 1) },
+        role = Role.Tab,
+        trackColor = colors.surface,
+        indicatorColor = colors.accentSoft,
+        indicatorText = colors.accent,
+        showCheck = false,
+    )
 }
 
 /** Поле поиска; системная клавиатура — только после касания поля. */
@@ -134,7 +117,7 @@ internal fun SearchField(value: String, onValueChange: (String) -> Unit, hint: S
 internal fun Section(text: String, modifier: Modifier = Modifier) {
     Text(
         text.uppercase(),
-        style = AppTheme.type.caption.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.4.sp),
+        style = AppTheme.type.section,
         color = AppTheme.colors.muted,
         modifier = modifier
             .padding(top = 14.dp, bottom = 8.dp)

@@ -3,7 +3,9 @@ package app.dirhamrub.ui.theme
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -35,7 +37,9 @@ object Springs {
     val screenIn: EnterTransition get() = slideInVertically(spatial()) { it / 4 } + fadeIn(effects())
     val screenOut: ExitTransition get() = slideOutVertically(exit()) { it / 4 } + fadeOut(fastEffects())
 
-    /** Настройки — справа. */
-    val sideIn: EnterTransition get() = slideInHorizontally(spatial()) { it / 3 } + fadeIn(effects())
-    val sideOut: ExitTransition get() = slideOutHorizontally(exit()) { it / 3 } + fadeOut(fastEffects())
+    /** Непрозрачный экран перемещается целиком, включая фон. */
+    val sideIn: EnterTransition get() = slideInHorizontally(tween(320, easing = FastOutSlowInEasing)) { it }
+    val sideOut: ExitTransition get() = slideOutHorizontally(tween(250, easing = FastOutSlowInEasing)) { it }
+    val bottomIn: EnterTransition get() = slideInVertically(tween(320, easing = FastOutSlowInEasing)) { it }
+    val bottomOut: ExitTransition get() = slideOutVertically(tween(250, easing = FastOutSlowInEasing)) { it }
 }

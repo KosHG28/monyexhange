@@ -361,10 +361,12 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
     // Самая крупная строка — единственное место, где валюта знаком у любой валюты, у которой он есть («800 ֏»):
     // крупно знак смотрится лучше кода. Везде ещё — код ([Currency.mark]); TalkBack читает код.
     val sign = currency.sign
+    val approxColor = colors.muted.copy(alpha = 0.55f)
+    val signColor = if (empty) colors.ink else colors.muted.copy(alpha = 0.85f)
     val text = buildAnnotatedString {
-        if (approx) withStyle(SpanStyle(color = colors.muted, fontSize = 0.6.em)) { append("≈ ") }
+        if (approx) withStyle(SpanStyle(color = approxColor, fontSize = APPROX_SCALE.em)) { append("≈ ") }
         append(number)
-        withStyle(SpanStyle(color = if (empty) colors.ink else colors.muted, fontSize = 0.62.em)) { append(" " + sign) }
+        withStyle(SpanStyle(color = signColor, fontSize = SIGN_SCALE.em, fontWeight = FontWeight.Light)) { append(" " + sign) }
     }
     val a11y = stringResource(R.string.hero_a11y, (if (approx) "≈ " else "") + number, currency.mark)
     val switchLabel = stringResource(if (homeInput) R.string.hero_switch_spend else R.string.hero_switch_home, state.wallet.spend.code)
@@ -373,8 +375,11 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
     val pour = remember { Animatable(0f) }
     val reducePour = LocalReduceMotion.current
     HighFrameRate(pour.isRunning)
-    LaunchedEffect(number) {
-        if (empty || reducePour) return@LaunchedEffect
+    LaunchedEffect(number, empty, reducePour) {
+        if (empty || reducePour) {
+            pour.snapTo(0f)
+            return@LaunchedEffect
+        }
         pour.animateTo(1f, tween(POUR_IN_MS))
         pour.animateTo(0f, Springs.effects())
     }
@@ -402,18 +407,19 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
             // и выровнены по центру ряда.
             Row(Modifier.then(if (LocalTripSharedTransition.current?.primaryCardId != null) Modifier.tripSharedBounds(TRIP_HERO) else Modifier.tripMainEnter()).alpha(if (empty) 0.25f else 1f), verticalAlignment = Alignment.CenterVertically) {
                 if (approx) {
-                    HeroPart("≈", style, size * SIGN_SCALE, colors.muted)
+                    HeroPart("≈", style, size * APPROX_SCALE, approxColor)
                     Spacer(Modifier.width((size * 0.12f).dp))
                 }
                 HeroPart(number, style, size, colors.ink, pour = pour.value)
                 Spacer(Modifier.width((size * 0.12f).dp))
-                HeroPart(sign, style, size * SIGN_SCALE, if (empty) colors.ink else colors.muted)
+                HeroPart(sign, style.copy(fontWeight = FontWeight.Light), size * SIGN_SCALE, signColor)
             }
         }
     }
 }
 
 /** Знаки «≈» и «₽» — мельче цифр. */
+private const val APPROX_SCALE = 0.67f
 private const val SIGN_SCALE = 0.6f
 
 @Composable
@@ -485,9 +491,8 @@ private fun PriceField(state: MainUiState) {
             else -> 32.sp
         }
         Row(Modifier.align(Alignment.End).tripSharedBounds(TRIP_VALUE), verticalAlignment = Alignment.CenterVertically) {
-            // Набранная цифра «впрыгивает» с пружинкой, стёртая сжимается и гаснет (Material 3 Expressive).
             TypingText(value, style = type.number.copy(fontSize = size, lineHeight = size * 1.2f),
-                color = colors.ink, fractionColor = colors.muted)
+                color = colors.ink, fractionColor = colors.muted, empty = state.expression.isEmpty)
             Spacer(Modifier.width(6.dp))
             Text(currency.code, style = type.bodyStrong.copy(fontSize = 16.sp, fontWeight = FontWeight.Medium), color = colors.muted, maxLines = 1)
         }

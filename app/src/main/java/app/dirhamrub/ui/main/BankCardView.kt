@@ -47,6 +47,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
@@ -73,6 +74,7 @@ import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.approximate
 import app.dirhamrub.ui.components.RollingText
 import app.dirhamrub.ui.theme.AppTheme
+import app.dirhamrub.ui.theme.cardGrain
 import app.dirhamrub.ui.theme.CardPalette
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import app.dirhamrub.ui.theme.motion
@@ -107,7 +109,7 @@ internal fun BankCardView(
     val surface = if (reflectionTilt != null) {
         Modifier.cardReflection(style, reflectionTilt, colorSweep, CARD_RADIUS)
     } else {
-        Modifier.background(Brush.linearGradient(listOf(style.start, style.end))).sheen(halfWidth = 46.dp)
+        Modifier.background(Brush.linearGradient(listOf(style.start, style.end))).cardGrain().sheen(halfWidth = 46.dp)
     }
     val dim by animateFloatAsState(if (selected) 1f else 0.82f, motion(), label = "cardDim")
     // Невыбранные карты чуть меньше: выбранная — «впереди».
@@ -167,6 +169,12 @@ internal fun BankCardView(
                     scaleY = shrink
                     rotationY = turn.value
                     cameraDistance = 12f * density
+                    if (!colors.isDark && reflectionTilt != null) {
+                        shape = CARD_SHAPE
+                        shadowElevation = 9.dp.toPx()
+                        ambientShadowColor = style.start.copy(alpha = 0.22f)
+                        spotShadowColor = style.start.copy(alpha = 0.28f)
+                    }
                 }
                 .drawWithContent {
                     drawContent()
@@ -193,22 +201,25 @@ internal fun BankCardView(
             val tilt = LocalTilt.current
             val markY = (if (mark.length > 2) 4.dp else 24.dp) - if (vs != null) 16.dp else 0.dp
             val watermark: @Composable BoxScope.() -> Unit = {
-            Text(
-                text = mark,
-                style = type.hero.copy(fontSize = if (mark.length > 2) 40.sp else 88.sp, lineHeight = 92.sp, letterSpacing = 0.sp),
-                color = style.mark.copy(alpha = 0.2f),
-                maxLines = 1,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .then(if (tripPreview) Modifier.tripExit(TripExit.DECORATION) else Modifier)
-                    .offset(x = 6.dp, y = markY)
-                    .graphicsLayer {
-                        val angle = reflectionTilt?.value
-                        translationX = if (angle == null) parallaxOf(tilt, 6.dp.toPx()) else -angle.x * 6.dp.toPx()
-                        translationY = -(angle?.y ?: 0f) * 3.dp.toPx()
-                        alpha = textAlpha()
-                    },
-            )
+                val markStyle = type.hero.copy(fontSize = if (mark.length > 2) 40.sp else 88.sp,
+                    lineHeight = 92.sp, letterSpacing = 0.sp)
+                Box(
+                    Modifier.align(Alignment.BottomEnd)
+                        .then(if (tripPreview) Modifier.tripExit(TripExit.DECORATION) else Modifier)
+                        .offset(x = 6.dp, y = markY)
+                        .graphicsLayer {
+                            val angle = reflectionTilt?.value
+                            translationX = if (angle == null) parallaxOf(tilt, 6.dp.toPx()) else -angle.x * 6.dp.toPx()
+                            translationY = -(angle?.y ?: 0f) * 3.dp.toPx()
+                            alpha = textAlpha()
+                        },
+                ) {
+                    Text(mark, style = markStyle, color = Color.Black.copy(alpha = 0.25f),
+                        maxLines = 1, modifier = Modifier.offset(y = (-1).dp))
+                    Text(mark, style = markStyle, color = Color.White.copy(alpha = 0.26f),
+                        maxLines = 1, modifier = Modifier.offset(y = 1.dp))
+                    Text(mark, style = markStyle, color = style.mark.copy(alpha = 0.2f), maxLines = 1)
+                }
             }
             if (tripPreview) Box(Modifier.matchParentSize().clip(CARD_SHAPE), content = watermark) else watermark()
             Column(

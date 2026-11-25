@@ -60,10 +60,17 @@ fun CurrencyChips(
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val perRow = ((maxWidth + CHIP_GAP) / (CHIP_MIN * fontScale + CHIP_GAP)).toInt().coerceIn(3, options.size.coerceAtLeast(3))
         Column(verticalArrangement = Arrangement.spacedBy(CHIP_GAP)) {
-            for (row in options.chunked(perRow)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(CHIP_GAP)) {
-                    for (c in row) CurrencyChip(c, c == selected, Modifier.weight(1f)) { onSelect(c) }
-                    repeat(perRow - row.size) { Spacer(Modifier.weight(1f)) }
+            SlidingSelection(options.indexOf(selected), AppTheme.colors.accent, Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(CHIP_GAP)) {
+                    for (row in options.withIndex().chunked(perRow)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(CHIP_GAP)) {
+                            for ((index, currency) in row) {
+                                CurrencyChip(currency, currency == selected, Modifier.weight(1f).then(position(index)),
+                                    drawFill = false, highlighted = covers(index)) { onSelect(currency) }
+                            }
+                            repeat(perRow - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
                 }
             }
             if (onMore != null) {
@@ -89,13 +96,20 @@ private val CHIP_GAP = 6.dp
 private val CHIP_MIN = 62.dp
 
 @Composable
-fun CurrencyChip(currency: Currency, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun CurrencyChip(
+    currency: Currency,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    drawFill: Boolean = true,
+    highlighted: Boolean = selected,
+    onClick: () -> Unit,
+) {
     val colors = AppTheme.colors
     Box(
         modifier = modifier
             .heightIn(min = 44.dp)
             .clip(RoundedCornerShape(50))
-            .background(if (selected) colors.accent else colors.surface)
+            .then(if (drawFill) Modifier.background(if (selected) colors.accent else colors.surface) else Modifier)
             .border(1.dp, if (selected) colors.accent else colors.line, RoundedCornerShape(50))
             .clickable(role = Role.RadioButton, onClick = onClick)
             .semantics {
@@ -108,7 +122,7 @@ fun CurrencyChip(currency: Currency, selected: Boolean, modifier: Modifier = Mod
         Text(
             text = "${currency.flag} ${currency.code}",
             style = AppTheme.type.monoStrong.copy(fontSize = 14.sp),
-            color = if (selected) colors.onAccent else colors.ink,
+            color = if (highlighted) colors.onAccent else colors.ink,
             maxLines = 1,
             softWrap = false,
         )

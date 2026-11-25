@@ -322,8 +322,8 @@ fun DirhamApp(
     // «Где вы тратите?» — полноэкранный выбор страны, въезжает снизу.
     AnimatedVisibility(
         visible = currenciesOpen,
-        enter = if (reduceMotion) EnterTransition.None else Springs.screenIn,
-        exit = if (reduceMotion) ExitTransition.None else Springs.screenOut,
+        enter = if (reduceMotion) EnterTransition.None else Springs.bottomIn,
+        exit = if (reduceMotion) ExitTransition.None else Springs.bottomOut,
     ) {
         CountryScreen(
             spend = state.wallet.spend,

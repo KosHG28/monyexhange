@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.animateFloatAsState
 import app.dirhamrub.ui.components.ButtonGroup
+import app.dirhamrub.ui.components.SlidingSelection
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,7 +32,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -121,39 +121,43 @@ private val NETWORK_ROWS = listOf(
 internal fun NetworkChips(network: CardNetwork?, onChange: (CardNetwork?) -> Unit, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (row in NETWORK_ROWS) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (option in row) {
-                    val selected = option == network
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 44.dp)
-                            .clip(RoundedCornerShape(50))
-                            .background(if (selected) colors.accent else colors.surface)
-                            .border(1.dp, if (selected) colors.accent else colors.line, RoundedCornerShape(50))
-                            .selectable(selected = selected, role = Role.RadioButton) { onChange(if (selected) null else option) }
-                            .padding(horizontal = 10.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            stringResource(
-                                when (option) {
-                                    CardNetwork.UNIONPAY -> R.string.network_short_unionpay_ru
-                                    CardNetwork.UNIONPAY_FOREIGN -> R.string.network_short_unionpay_foreign
-                                    CardNetwork.MIR -> R.string.network_mir
-                                    CardNetwork.VISA_MC_FOREIGN -> R.string.network_short_visa_foreign
-                                },
-                            ),
-                            modifier = Modifier.fillMaxWidth(),
-                            style = type.bodyStrong.copy(fontSize = 13.5.sp),
-                            color = if (selected) colors.onAccent else colors.ink,
-                            textAlign = TextAlign.Center,
-                            softWrap = false,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+    val selectedIndex = NETWORK_ROWS.flatten().indexOf(network)
+    SlidingSelection(selectedIndex, colors.accent, modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            for ((rowIndex, row) in NETWORK_ROWS.withIndex()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for ((columnIndex, option) in row.withIndex()) {
+                        val positionIndex = rowIndex * 2 + columnIndex
+                        val selected = option == network
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 44.dp)
+                                .then(position(positionIndex))
+                                .clip(RoundedCornerShape(50))
+                                .border(1.dp, if (selected) colors.accent else colors.line, RoundedCornerShape(50))
+                                .selectable(selected = selected, role = Role.RadioButton) { onChange(if (selected) null else option) }
+                                .padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                stringResource(
+                                    when (option) {
+                                        CardNetwork.UNIONPAY -> R.string.network_short_unionpay_ru
+                                        CardNetwork.UNIONPAY_FOREIGN -> R.string.network_short_unionpay_foreign
+                                        CardNetwork.MIR -> R.string.network_mir
+                                        CardNetwork.VISA_MC_FOREIGN -> R.string.network_short_visa_foreign
+                                    },
+                                ),
+                                modifier = Modifier.fillMaxWidth(),
+                                style = type.bodyStrong.copy(fontSize = 13.5.sp),
+                                color = if (covers(positionIndex)) colors.onAccent else colors.ink,
+                                textAlign = TextAlign.Center,
+                                softWrap = false,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
             }
@@ -182,33 +186,19 @@ internal fun TransferHistory(
     val type = AppTheme.type
     if (history.isNotEmpty()) {
         Spacer(Modifier.height(8.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(colors.surface)
-                .padding(3.dp)
-                .selectableGroup(),
-        ) {
-            for (option in TransferMode.entries) {
-                val selected = option == mode
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 44.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (selected) colors.accentSoft else colors.surface)
-                        .selectable(selected = selected, role = Role.RadioButton) { onMode(option) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        stringResource(if (option == TransferMode.LAST) R.string.transfer_mode_last else R.string.transfer_mode_average),
-                        style = type.bodyStrong.copy(fontSize = 13.5.sp),
-                        color = if (selected) colors.accent else colors.muted,
-                    )
-                }
-            }
-        }
+        ButtonGroup(
+            options = TransferMode.entries.map {
+                stringResource(if (it == TransferMode.LAST) R.string.transfer_mode_last else R.string.transfer_mode_average)
+            },
+            selected = mode.ordinal,
+            onSelect = { onMode(TransferMode.entries[it]) },
+            minHeight = 44.dp,
+            textStyle = type.bodyStrong.copy(fontSize = 13.5.sp),
+            trackColor = colors.surface,
+            indicatorColor = colors.accentSoft,
+            indicatorText = colors.accent,
+            showCheck = false,
+        )
         if (average != null) {
             ReceiptRate(
                 stringResource(
@@ -599,34 +589,18 @@ internal fun BoughtPlate(
 @Composable
 internal fun CashSourceSwitch(atm: Boolean, onChange: (Boolean) -> Unit) {
     val colors = AppTheme.colors
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(bottom = 6.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(colors.bg)
-            .padding(3.dp)
-            .selectableGroup(),
-    ) {
-        for ((value, label) in listOf(false to R.string.receipt_source_exchange, true to R.string.receipt_source_atm)) {
-            val on = value == atm
-            Box(
-                Modifier
-                    .weight(1f)
-                    .heightIn(min = 44.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (on) colors.accentSoft else Color.Transparent)
-                    .selectable(selected = on, role = Role.RadioButton) { onChange(value) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    stringResource(label),
-                    style = AppTheme.type.body.copy(fontWeight = FontWeight.Medium),
-                    color = if (on) colors.accent else colors.muted,
-                )
-            }
-        }
-    }
+    ButtonGroup(
+        options = listOf(stringResource(R.string.receipt_source_exchange), stringResource(R.string.receipt_source_atm)),
+        selected = if (atm) 1 else 0,
+        onSelect = { onChange(it == 1) },
+        modifier = Modifier.padding(bottom = 6.dp),
+        minHeight = 44.dp,
+        textStyle = AppTheme.type.body,
+        trackColor = colors.bg,
+        indicatorColor = colors.accentSoft,
+        indicatorText = colors.accent,
+        showCheck = false,
+    )
 }
 
 /** Карта, с которой сняли в банкомате: в строке — «¥ ▾», в списке — названия карт. */

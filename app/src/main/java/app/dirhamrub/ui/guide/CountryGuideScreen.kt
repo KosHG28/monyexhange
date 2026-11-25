@@ -167,7 +167,7 @@ fun CountryGuideScreen(
     val titleHeight = with(LocalDensity.current) { headerHeight.toDp() }.coerceAtLeast(56.dp)
     val collapsing = rememberCollapsingTitle(scroll, titleHeight)
     val titleCollapsed by remember(collapsing) { derivedStateOf { collapsing.progress >= 0.5f } }
-    FullScreen(onDismissRequest = onDismiss, backdrop = {
+    FullScreen(onDismissRequest = onDismiss, slideFromRight = true, backdrop = {
         FlagBackdrop(place.first, Modifier.align(Alignment.TopEnd)) { 1f - collapsing.progress }
     }) {
       Box(Modifier.fillMaxSize()) {
@@ -426,7 +426,7 @@ private fun Items(title: String, @DrawableRes icon: Int, tint: Color, items: Lis
 private fun Section(text: String) {
     Text(
         text.uppercase(),
-        style = AppTheme.type.label.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp),
+        style = AppTheme.type.section.copy(fontSize = 13.sp, lineHeight = 16.sp),
         color = AppTheme.colors.muted,
         // Заголовок отделён от карточки воздухом: 12 dp снизу.
         modifier = Modifier.padding(start = 4.dp, top = 18.dp, bottom = 12.dp),

@@ -89,6 +89,7 @@ fun FullScreen(
      * ([CardMorph]); закрытие — в обратную сторону. Без анимаций в системе — как обычный экран.
      */
     morph: CardMorph? = null,
+    slideFromRight: Boolean = false,
     content: @Composable FullScreenScope.() -> Unit,
 ) {
     val reduceMotion = LocalReduceMotion.current
@@ -142,11 +143,16 @@ fun FullScreen(
         val plain = reduceMotion || flight != null
         AnimatedVisibility(
             visibleState = visible,
-            enter = if (plain) EnterTransition.None else Springs.screenIn,
+            enter = when {
+                plain -> EnterTransition.None
+                slideFromRight -> Springs.sideIn
+                else -> Springs.screenIn
+            },
             exit = when {
                 reduceMotion -> ExitTransition.None
                 flight?.fallback == true -> fadeOut(tween(120))
                 plain -> ExitTransition.None
+                slideFromRight -> Springs.sideOut
                 else -> Springs.screenOut
             },
         ) {

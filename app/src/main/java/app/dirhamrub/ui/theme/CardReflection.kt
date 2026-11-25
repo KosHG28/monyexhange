@@ -1,5 +1,7 @@
 package app.dirhamrub.ui.theme
 
+import android.graphics.Bitmap
+import android.os.Build
 import android.view.Surface
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.runtime.Composable
@@ -15,15 +17,37 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageShader
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sin
+import kotlin.random.Random
+
+private val cardTexture by lazy {
+    val random = Random(24)
+    val side = 96
+    val pixels = IntArray(side * side) { if (random.nextBoolean()) 0xFF000000.toInt() else 0xFFFFFFFF.toInt() }
+    ShaderBrush(ImageShader(Bitmap.createBitmap(pixels, side, side, Bitmap.Config.ARGB_8888).asImageBitmap(), TileMode.Repeated, TileMode.Repeated))
+}
+
+private fun DrawScope.drawCardGrain() {
+    drawRect(cardTexture, alpha = 0.025f,
+        blendMode = if (Build.VERSION.SDK_INT >= 29) BlendMode.Softlight else BlendMode.Overlay)
+}
+
+internal fun Modifier.cardGrain(): Modifier = drawWithCache { onDrawBehind { drawCardGrain() } }
 
 @Composable
 internal fun rememberReflectionTilt(active: Boolean): State<Offset> {
@@ -97,9 +121,10 @@ internal fun Modifier.cardReflection(
 ): Modifier = key(style.ink) {
     val start by animateColorAsState(style.start, motion(240), label = "cardSurfaceStart")
     val end by animateColorAsState(style.end, motion(240), label = "cardSurfaceEnd")
+    val dark = AppTheme.colors.isDark
     drawWithCache {
         val background = Brush.linearGradient(listOf(start, end))
-        val edgeWidth = 1.25.dp.toPx()
+        val edgeWidth = 1.dp.toPx()
         val inset = edgeWidth / 2f
         val edgeSize = Size(size.width - edgeWidth, size.height - edgeWidth)
         val corner = CornerRadius(radius.toPx() - inset)
@@ -114,6 +139,7 @@ internal fun Modifier.cardReflection(
             val hotspot = center + Offset(size.width * angle.x * 0.36f, size.height * angle.y * 0.41f)
             val spread = size.width * 0.48f
             drawRect(background)
+            drawCardGrain()
             if (spotAlpha > 0.001f) withTransform({
                 rotate(-32f, pivot = hotspot)
                 scale(1f, 0.5f, pivot = hotspot)
@@ -137,14 +163,20 @@ internal fun Modifier.cardReflection(
                     Brush.linearGradient(listOf(clearLight, Color.White.copy(alpha = sweepAlpha), clearLight), band - feather, band + feather),
                 )
             }
-            val edgePosition = center + Offset(
-                size.width * (0.54f * angle.x - 0.22f * (1f - strength)),
-                size.height * 0.52f * (angle.y * 0.62f + angle.x * 0.78f - 0.64f * (1f - strength)).coerceIn(-1f, 1f),
-            )
+            val phase = PI * (-0.5 + 0.64 * angle.x + 0.36 * angle.y)
+            val direction = Offset(cos(phase).toFloat(), sin(phase).toFloat())
+            val edgeScale = maxOf(abs(direction.x), abs(direction.y))
+            val edgePosition = center + Offset(direction.x * edgeSize.width, direction.y * edgeSize.height) / (2f * edgeScale)
+            if (dark) {
+                val baseWidth = DarkSurfaceOutlineWidth.toPx()
+                drawRoundRect(DARK_SURFACE_OUTLINE, Offset(baseWidth / 2f, baseWidth / 2f),
+                    Size(size.width - baseWidth, size.height - baseWidth), CornerRadius(radius.toPx() - baseWidth / 2f),
+                    style = Stroke(baseWidth))
+            }
             drawRoundRect(
                 brush = Brush.radialGradient(
-                    listOf(Color.White.copy(alpha = 0.15f + 0.07f * strength), Color.White.copy(alpha = 0.045f)),
-                    edgePosition, size.width * 0.62f,
+                    listOf(Color.White.copy(alpha = 0.14f + 0.18f * strength), clearLight),
+                    edgePosition, size.height * 0.66f,
                 ),
                 topLeft = Offset(inset, inset),
                 size = edgeSize,

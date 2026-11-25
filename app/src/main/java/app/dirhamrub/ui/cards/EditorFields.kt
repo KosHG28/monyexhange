@@ -77,7 +77,7 @@ internal fun EditorBlock(title: String, modifier: Modifier = Modifier, content: 
     ) {
         Text(
             title.uppercase(),
-            style = AppTheme.type.caption.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp),
+            style = AppTheme.type.section,
             color = colors.muted,
             modifier = Modifier
                 .padding(bottom = 8.dp)

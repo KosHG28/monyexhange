@@ -7,6 +7,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
 
@@ -37,7 +38,10 @@ data class AppType(
     /** Курсы и суммы в строку: тот же шрифт, цифры одинаковой ширины. */
     val mono: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 20.sp, fontFeatureSettings = TNUM),
     val monoStrong: TextStyle = TextStyle(fontFamily = InterTight, fontWeight = FontWeight.Medium, fontSize = 15.sp, lineHeight = 20.sp, fontFeatureSettings = TNUM),
-)
+) {
+    val section: TextStyle
+        get() = caption.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 0.08.em)
+}
 
 val LocalAppType = staticCompositionLocalOf { AppType() }
 

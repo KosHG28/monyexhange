@@ -52,7 +52,7 @@ import app.dirhamrub.ui.theme.AppTheme
 internal fun SectionTitle(text: String) {
     Text(
         text.uppercase(),
-        style = AppTheme.type.caption.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp),
+        style = AppTheme.type.section,
         color = AppTheme.colors.muted,
         modifier = Modifier
             .padding(start = 4.dp, top = 18.dp, bottom = 7.dp)

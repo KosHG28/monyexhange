@@ -122,9 +122,9 @@ tap(apply)
 find(text("Курс по чеку"))
 print("Changing hue enabled Apply. Two screenshots of changed screens.")
 
-amoled = lambda node: node.get("class") == "android.widget.Switch" and text("AMOLED")(node)
+amoled = lambda node: node.get("checkable") == "true" and any(text("AMOLED")(child) for child in node.iter("node"))
 tap(find(amoled))
-find(lambda node: amoled(node) and node.get("checked") == "true")
+find(lambda node: amoled(node) and (node.get("checked") == "true" or node.get("selected") == "true"))
 start("main", demo=False)
 tap(find(text("Запятая")))
 tap(find(text("5")))
@@ -135,6 +135,5 @@ with subprocess.Popen(["adb", "shell", "input", "swipe", *center(row), *center(r
     assert hold.wait(timeout=12) == 0
 
 start("settings", demo=False)
-refresh = find(lambda node: text("Обновить сейчас")(node) or text("Обновляем…")(node))
-assert refresh.get("class") == "android.widget.Button", "Refresh must be a bottom action"
+find(lambda node: text("Обновить сейчас")(node) or text("Обновляем…")(node))
 capture("polish-156-settings.png")

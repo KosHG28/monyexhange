@@ -1,8 +1,9 @@
-"""Verify saved material, editor transfer removal and the affected screens."""
+"""Review the four card materials and their live selector previews on Android."""
 import re
 import subprocess
 import time
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from ui_tree import read_tree
 
@@ -33,7 +34,7 @@ def labels(node):
 
 
 def nodes():
-    root = read_tree(adb, "/sdcard/kpc-polish-159.xml")
+    root = read_tree(adb, "/sdcard/kpc-materials.xml")
     return [node for node in root.iter("node") if node.get("package") == PACKAGE]
 
 
@@ -71,54 +72,48 @@ def tap(label, *, scroll=False):
     time.sleep(0.75)
 
 
-def capture(name):
+def capture(path):
     data = subprocess.check_output(["adb", "exec-out", "screencap", "-p"], timeout=20)
-    assert data.startswith(b"\x89PNG\r\n\x1a\n"), f"Invalid screencap: {name}"
-    (Path("screens") / f"{name}-159.png").write_bytes(data)
+    assert data.startswith(b"\x89PNG\r\n\x1a\n"), f"Invalid screencap: {path}"
+    path.write_bytes(data)
 
 
+out = Path("screens")
 adb("shell", "cmd", "uimode", "night", "no")
-start("pro", "--ez", "receiptDemo", "true")
-find("Стиль карт")
-capture("pro")
-start("card-style", seed=False)
-time.sleep(4)
-capture("materials")
+start("card-style", "--ez", "receiptDemo", "true")
 find("Оформление карты")
-tap("Графит", scroll=True)
-tap("Карбон", scroll=True)
-find("Фактура")
-capture("materials")
+tap("Изумруд", scroll=True)
+with TemporaryDirectory() as temp:
+    frames = []
+    for index, label in enumerate(("Сатин", "Металл", "Карбон", "Стекло")):
+        tap(label, scroll=True)
+        find(label, selected=True)
+        frame = Path(temp) / f"{index}.png"
+        capture(frame)
+        frames.extend(["-i", str(frame)])
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", *frames, "-filter_complex", "hstack=inputs=4",
+         "-frames:v", "1", "-threads", "1", "-update", "1", str(out / "materials-1591.png")],
+        check=True,
+        timeout=30,
+    )
+
+tap("Карта для оформления")
+find("Карта в юанях")
+capture(out / "material-picker-1591.png")
+adb("shell", "input", "keyevent", "KEYCODE_BACK")
+
+tap("Карбон")
+find("Карбон", selected=True)
 tap("Применить")
 find("Итог:", prefix=True)
-start("card-style", seed=False)
-find("Карбон", scroll=True, selected=True)
-print("The selected card material stayed selected after applying and reopening.", flush=True)
-
 adb("shell", "cmd", "uimode", "night", "yes")
 start("main", seed=False)
-country = bounds(find("Где тратите:", prefix=True))
-guide = bounds(find("О стране", prefix=True))
-assert country[2] <= guide[0] and abs(guide[1] - country[1]) < 6, (country, guide)
+find("Карта в тенге", prefix=True)
 find("Итог:", prefix=True)
-capture("calculator")
+capture(out / "material-calculator-1591.png")
 
-start("editor", "--es", "card", "demo-cny", "--es", "spend", "JPY")
-find("Удалить текущее пополнение", scroll=True)
-find("CNY")
-capture("editor")
-tap("Удалить текущее пополнение")
-find("Отправил")
-tap("Удалить текущее пополнение")
-find("+ Добавить пополнение")
-tap("Сохранить")
-find("Итог:", prefix=True)
-start("editor", "--es", "card", "demo-cny", seed=False)
-find("+ Добавить пополнение", scroll=True)
-print("Removing the latest transfer exposed the previous one. Removing both stayed saved after restart.", flush=True)
-
-start("settings")
-auto = "Курсы для старых чеков загружаются автоматически"
-find(auto, scroll=True)
-assert find("На даты чеков").get("clickable") != "true"
-capture("settings")
+start("card-style", seed=False)
+find("Карбон", scroll=True, selected=True)
+find("Изумруд", selected=True)
+print("The material and color stay selected after restarting the app.", flush=True)

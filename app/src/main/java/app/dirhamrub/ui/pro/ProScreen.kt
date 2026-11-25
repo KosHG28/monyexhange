@@ -7,12 +7,13 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.Image
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.alpha
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
+import app.dirhamrub.domain.wallet.CardMaterial
 import app.dirhamrub.ui.theme.CardPalette
 import app.dirhamrub.ui.theme.cardMaterial
+import app.dirhamrub.ui.theme.forMaterial
 import app.dirhamrub.ui.theme.LauncherPreview
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,7 +44,6 @@ import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -343,17 +343,10 @@ private fun CardColorsOption(pro: Boolean, cards: List<BankCard>, onClick: () ->
         Row(Modifier.padding(top = 10.dp).height(38.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             for ((slot, index) in listOf(0, 1, 3, 6).withIndex()) {
                 val card = bankCards.getOrNull(slot)
-                val style = card?.let(CardPalette::style) ?: CardPalette.style(index)
+                val material = card?.material ?: CardMaterial.SATIN
+                val style = (card?.let(CardPalette::style) ?: CardPalette.style(index)).forMaterial(material)
                 val shape = RoundedCornerShape(6.dp)
-                val metal = style.start.luminance() < 0.025f && style.end.luminance() < 0.025f
-                val fill = if (metal) {
-                    Brush.linearGradient(0f to style.start, 0.35f to Color(0xFF303641), 0.66f to Color(0xFF1C2129), 1f to style.end)
-                } else {
-                    Brush.linearGradient(listOf(style.start, style.end))
-                }
-                val edge = if (metal) Modifier.border(1.dp, Color.White.copy(alpha = 0.16f), shape) else Modifier
-                val material = if (card != null) Modifier.cardMaterial(card.material, 6.dp, grain = false) else Modifier
-                Box(Modifier.weight(1f).fillMaxHeight().clip(shape).background(fill).then(material).then(edge)) {
+                Box(Modifier.weight(1f).fillMaxHeight().clip(shape).cardMaterial(style, material, 6.dp)) {
                     Box(Modifier.align(Alignment.CenterStart).padding(start = 6.dp).size(7.dp, 6.dp)
                         .clip(RoundedCornerShape(2.dp)).background(style.chip))
                 }

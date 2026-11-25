@@ -46,7 +46,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -68,6 +67,7 @@ import app.dirhamrub.R
 import app.dirhamrub.ui.components.rateLabel
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
+import app.dirhamrub.domain.wallet.CardMaterial
 import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.RateBasis
@@ -75,6 +75,7 @@ import app.dirhamrub.domain.wallet.approximate
 import app.dirhamrub.ui.components.RollingText
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.cardMaterial
+import app.dirhamrub.ui.theme.forMaterial
 import app.dirhamrub.ui.theme.banknotePattern
 import app.dirhamrub.ui.theme.CardPalette
 import app.dirhamrub.ui.theme.LocalReduceMotion
@@ -106,15 +107,16 @@ internal fun BankCardView(
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
-    val style = CardPalette.style(card)
     val cash = card.kind == CardKind.CASH
+    val material = card.material.takeUnless { cash }
+    val palette = CardPalette.style(card)
+    val style = if (material == null) palette else palette.forMaterial(material)
     val corner = if (cash) 8.dp else CARD_RADIUS
     val cardShape = if (cash) RoundedCornerShape(corner) else CARD_SHAPE
-    val finish = if (reflectionTilt != null) {
-        Modifier.cardReflection(style, card.material, reflectionTilt, colorSweep, corner)
-    } else {
-        Modifier.background(Brush.linearGradient(listOf(style.start, style.end)))
-            .cardMaterial(card.material, corner).sheen(halfWidth = 46.dp)
+    val finish = when {
+        reflectionTilt != null -> Modifier.cardReflection(style, material, reflectionTilt, colorSweep, corner)
+        material != null -> Modifier.cardMaterial(style, material, corner, tilt = LocalTilt.current)
+        else -> Modifier.cardMaterial(style, CardMaterial.SATIN, corner).sheen(halfWidth = 46.dp)
     }
     val surface = finish.then(if (cash) Modifier.banknotePattern(style.ink) else Modifier)
     val dim by animateFloatAsState(if (selected) 1f else 0.82f, motion(), label = "cardDim")

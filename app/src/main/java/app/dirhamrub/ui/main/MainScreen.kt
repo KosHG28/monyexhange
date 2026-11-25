@@ -24,6 +24,7 @@ import app.dirhamrub.ui.theme.fieldGlow
 import app.dirhamrub.ui.theme.surfaceOutline
 import app.dirhamrub.ui.theme.banknotePattern
 import app.dirhamrub.ui.theme.cardMaterial
+import app.dirhamrub.ui.theme.forMaterial
 import app.dirhamrub.ui.theme.HighFrameRate
 import app.dirhamrub.ui.components.*
 import app.dirhamrub.ui.components.TypingText
@@ -42,7 +43,7 @@ import app.dirhamrub.ui.theme.Springs
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.animateFloatAsState
 import app.dirhamrub.ui.components.flightOrigin
-import app.dirhamrub.ui.theme.sheen
+import app.dirhamrub.ui.theme.LocalTilt
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
@@ -859,14 +860,18 @@ internal fun PayIcon(card: BankCard, flight: Boolean = false) {
     val shared = flight && card.id == LocalTripSharedTransition.current?.primaryCardId
     val sharedModifier = if (shared) Modifier.tripSharedBounds(TRIP_CARD) else Modifier
     val cash = card.kind == CardKind.CASH
-    val style = CardPalette.style(card)
+    val palette = CardPalette.style(card)
+    val style = if (cash) palette else palette.forMaterial(card.material)
+    val finish = if (cash) {
+        Modifier.background(Brush.linearGradient(listOf(style.start, style.end))).banknotePattern(style.ink)
+    } else {
+        Modifier.cardMaterial(style, card.material, 5.dp, tilt = LocalTilt.current)
+    }
     Box(
         Modifier.then(if (flight) Modifier.flightOrigin(card.id) else Modifier)
             .size(width = 38.dp, height = 26.dp),
     ) {
-        Box(Modifier.matchParentSize().then(sharedModifier).clip(RoundedCornerShape(if (cash) 3.dp else 5.dp))
-            .background(Brush.linearGradient(listOf(style.start, style.end)))
-            .then(if (cash) Modifier.banknotePattern(style.ink) else Modifier.cardMaterial(card.material, 5.dp, grain = false).sheen(halfWidth = 9.dp)))
+        Box(Modifier.matchParentSize().then(sharedModifier).clip(RoundedCornerShape(if (cash) 3.dp else 5.dp)).then(finish))
         if (!cash) {
             Box(
                 Modifier.align(Alignment.CenterStart).padding(start = 5.dp)

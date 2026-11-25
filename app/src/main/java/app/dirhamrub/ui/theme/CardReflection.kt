@@ -43,8 +43,8 @@ private val cardTexture by lazy {
     ShaderBrush(ImageShader(Bitmap.createBitmap(pixels, side, side, Bitmap.Config.ARGB_8888).asImageBitmap(), TileMode.Repeated, TileMode.Repeated))
 }
 
-internal fun DrawScope.drawCardGrain() {
-    drawRect(cardTexture, alpha = 0.025f,
+internal fun DrawScope.drawCardGrain(alpha: Float = 0.02f) {
+    drawRect(cardTexture, alpha = alpha,
         blendMode = if (Build.VERSION.SDK_INT >= 29) BlendMode.Softlight else BlendMode.Overlay)
 }
 
@@ -114,7 +114,7 @@ internal class CardTiltFilter {
 @Composable
 internal fun Modifier.cardReflection(
     style: CardStyle,
-    material: CardMaterial,
+    material: CardMaterial?,
     tilt: State<Offset>,
     sweep: State<Float>?,
     radius: Dp,
@@ -124,7 +124,7 @@ internal fun Modifier.cardReflection(
     val dark = AppTheme.colors.isDark
     drawWithCache {
         val background = Brush.linearGradient(listOf(start, end))
-        val texture = cardMaterialLayer(material, radius)
+        val texture = material?.let { cardMaterialLayer(it, radius) }
         val edgeWidth = 1.dp.toPx()
         val inset = edgeWidth / 2f
         val edgeSize = Size(size.width - edgeWidth, size.height - edgeWidth)
@@ -132,6 +132,23 @@ internal fun Modifier.cardReflection(
         val stroke = Stroke(edgeWidth)
         val clearLight = Color.White.copy(alpha = 0f)
         onDrawBehind {
+            drawRect(background)
+            texture?.invoke(this)
+
+            if (material == CardMaterial.METAL) {
+                val angle = tilt.value
+                val strength = maxOf(abs(angle.x), abs(angle.y))
+                val progress = sweep?.value ?: 1f
+                val hotspot = center + Offset(size.width * angle.x * 0.36f, size.height * angle.y * 0.41f)
+                val position = if (progress < 1f) {
+                    Offset(size.width * (-0.19f + 1.38f * progress), hotspot.y)
+                } else hotspot
+                drawRect(metalHighlight(size.minDimension, position, 0.43f + 0.13f * strength))
+                return@onDrawBehind
+            }
+            // Наличные имеют собственные динамические блики поверх бумажного рисунка.
+            if (material != null) return@onDrawBehind
+            drawCardGrain(alpha = 0.025f)
             val angle = tilt.value
             val strength = maxOf(abs(angle.x), abs(angle.y))
             val progress = sweep?.value ?: 1f
@@ -139,11 +156,7 @@ internal fun Modifier.cardReflection(
             val spotAlpha = (0.15f + 0.07f * strength).coerceAtMost(REFLECTION_PEAK - sweepAlpha)
             val hotspot = center + Offset(size.width * angle.x * 0.36f, size.height * angle.y * 0.41f)
             val spread = size.width * 0.48f
-            drawRect(background)
-            texture(this)
-            if (material == CardMaterial.METAL && spotAlpha > 0.001f) {
-                drawRect(metalHighlight(size.width, hotspot, spotAlpha))
-            } else if (spotAlpha > 0.001f) withTransform({
+            if (spotAlpha > 0.001f) withTransform({
                 rotate(-32f, pivot = hotspot)
                 scale(1f, 0.5f, pivot = hotspot)
             }) {

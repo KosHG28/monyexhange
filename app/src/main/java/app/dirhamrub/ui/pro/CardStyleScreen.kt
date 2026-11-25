@@ -94,13 +94,13 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?, Ca
                 val sum = q?.let { Numbers.total(state.totals.spend.multiply(it.homePerUnit, MC), state.settings.rounding) }
                 val focus = LocalFocusManager.current
                 var previewVisible by remember { mutableStateOf(false) }
-                val reflectionTilt = rememberReflectionTilt(previewVisible && !isClosing)
+                val reflectionTilt = rememberReflectionTilt(previewVisible && material == CardMaterial.METAL && !isClosing)
                 val reduce = LocalReduceMotion.current
                 var sweepRequest by remember(card.id) { mutableIntStateOf(0) }
                 var playedSweep by remember(card.id) { mutableIntStateOf(0) }
                 val sweep = remember(card.id) { Animatable(1f) }
-                LaunchedEffect(sweepRequest, reduce, isClosing) {
-                    if (sweepRequest == playedSweep || reduce || isClosing) {
+                LaunchedEffect(sweepRequest, material, reduce, isClosing) {
+                    if (sweepRequest == playedSweep || material != CardMaterial.METAL || reduce || isClosing) {
                         playedSweep = sweepRequest
                         sweep.snapTo(1f)
                     } else {
@@ -111,7 +111,7 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?, Ca
                 }
                 HighFrameRate(sweep.isRunning)
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
-                    CardChoice(cards, card, { if (!applied) chosenId = it })
+                    CardChoice(cards, draft) { if (!applied) chosenId = it }
                     Box(Modifier.fillMaxWidth().padding(vertical = 12.dp)
                         .onGloballyPositioned { previewVisible = !it.boundsInWindow().isEmpty }
                         .clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
@@ -210,8 +210,7 @@ private fun MaterialOptions(draft: BankCard, enabled: Boolean, onPick: (CardMate
             ) {
                 Box(
                     Modifier.size(46.dp, 24.dp).clip(RoundedCornerShape(5.dp))
-                        .background(Brush.linearGradient(listOf(style.start, style.end)))
-                        .cardMaterial(material, 5.dp, grain = false),
+                        .cardMaterial(style.forMaterial(material), material, 5.dp),
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
@@ -241,7 +240,13 @@ private fun CardChoice(cards: List<BankCard>, current: BankCard, onPick: (String
             Text("⌄", color = colors.muted, fontSize = 20.sp)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            for (card in cards) DropdownMenuItem(text = { Text(card.name) }, onClick = { open = false; onPick(card.id) })
+            for (card in cards) {
+                DropdownMenuItem(
+                    text = { Text(card.name) },
+                    leadingIcon = { MiniColorCard(if (card.id == current.id) current else card) },
+                    onClick = { open = false; onPick(card.id) },
+                )
+            }
         }
     }
 }
@@ -342,11 +347,9 @@ private val HUE_TRACK = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan,
 
 @Composable
 private fun MiniColorCard(card: BankCard) {
-    val style = CardPalette.style(card)
+    val style = CardPalette.style(card).forMaterial(card.material)
     Box(
-        Modifier.size(44.dp, 30.dp).clip(RoundedCornerShape(5.dp))
-            .background(Brush.linearGradient(listOf(style.start, style.end)))
-            .cardMaterial(card.material, 5.dp, grain = false),
+        Modifier.size(44.dp, 30.dp).clip(RoundedCornerShape(5.dp)).cardMaterial(style, card.material, 5.dp),
     ) {
         Box(Modifier.align(Alignment.CenterStart).padding(start = 6.dp).size(7.dp, 5.dp).clip(RoundedCornerShape(2.dp)).background(style.chip))
         Text(card.currency.code, color = style.ink, style = AppTheme.type.caption.copy(fontSize = 7.sp), modifier = Modifier.align(Alignment.BottomEnd).padding(3.dp))

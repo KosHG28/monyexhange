@@ -94,7 +94,9 @@ print("The selected card material stayed selected after applying and reopening."
 
 adb("shell", "cmd", "uimode", "night", "yes")
 start("main", seed=False)
-find("О стране", prefix=True)
+country = bounds(find("Где тратите:", prefix=True))
+guide = bounds(find("О стране", prefix=True))
+assert country[2] <= guide[0] and abs(guide[1] - country[1]) < 6, (country, guide)
 find("Итог:", prefix=True)
 capture("calculator")
 

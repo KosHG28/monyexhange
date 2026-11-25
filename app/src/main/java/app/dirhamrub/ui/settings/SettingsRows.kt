@@ -1,6 +1,6 @@
 package app.dirhamrub.ui.settings
 
-import app.dirhamrub.ui.theme.topLight
+import app.dirhamrub.ui.theme.surfaceOutline
 import app.dirhamrub.ui.components.ButtonGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -69,7 +69,7 @@ internal fun Group(modifier: Modifier = Modifier, content: @Composable ColumnSco
             .fillMaxWidth()
             .clip(shape)
             .background(AppTheme.colors.surface)
-            .topLight(shape),
+            .surfaceOutline(shape),
         content = content,
     )
 }

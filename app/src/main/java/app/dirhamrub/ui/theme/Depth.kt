@@ -11,35 +11,21 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.composed
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 
-private val AMOLED_OUTLINE = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.11f), Color.White.copy(alpha = 0.02f)))
+private val DARK_SURFACE_OUTLINE = Brush.verticalGradient(
+    listOf(Color.White.copy(alpha = 0.11f), Color.White.copy(alpha = 0.02f)),
+)
+private val LIGHT_SURFACE_OUTLINE = Brush.verticalGradient(
+    listOf(LightColors.ink.copy(alpha = 0.15f), LightColors.ink.copy(alpha = 0.045f)),
+)
 
-/** Замкнутый световой контур матовых поверхностей на чисто чёрном фоне. */
-fun Modifier.amoledOutline(shape: Shape): Modifier = composed {
-    if (AppTheme.colors.bg == Color.Black) border(1.dp, AMOLED_OUTLINE, shape) else this
-}
-
-/**
- * Глубина в тёмной теме: у верхнего края карточки — тонкая светлая полоса, как свет сверху. Слои читаются без
- * резких рамок. В светлой теме — ничего. Ставить после clip и фона карточки.
- */
-fun Modifier.topLight(shape: Shape): Modifier = composed {
-    if (!AppTheme.colors.isDark) return@composed this
-    if (AppTheme.colors.bg == Color.Black) return@composed amoledOutline(shape)
-    drawWithContent {
-        drawContent()
-        val h = 1.5.dp.toPx()
-        drawRect(
-            Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.09f), Color.Transparent), startY = 0f, endY = h * 2),
-            size = Size(size.width, h * 2),
-        )
-    }
+/** Градиентный контур матовых карточек во всех темах. Ставить после clip и фона. */
+fun Modifier.surfaceOutline(shape: Shape): Modifier = composed {
+    border(1.dp, if (AppTheme.colors.isDark) DARK_SURFACE_OUTLINE else LIGHT_SURFACE_OUTLINE, shape)
 }
 
 /**

@@ -3,7 +3,7 @@ package app.dirhamrub.ui.cards
 import app.dirhamrub.ui.components.*
 import androidx.compose.foundation.layout.RowScope
 
-import app.dirhamrub.ui.theme.topLight
+import app.dirhamrub.ui.theme.surfaceOutline
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -72,7 +72,7 @@ internal fun EditorBlock(title: String, modifier: Modifier = Modifier, content: 
             .fillMaxWidth()
             .clip(shape)
             .background(colors.surface)
-            .topLight(shape)
+            .surfaceOutline(shape)
             .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 14.dp),
     ) {
         Text(

@@ -1,6 +1,6 @@
 package app.dirhamrub.ui.guide
 
-import app.dirhamrub.ui.theme.amoledOutline
+import app.dirhamrub.ui.theme.surfaceOutline
 import androidx.compose.ui.graphics.Color
 
 import android.content.Intent
@@ -448,7 +448,7 @@ private fun <T> Group(items: List<T>, content: @Composable (T) -> Unit) {
 private fun Modifier.guideCard(): Modifier {
     val colors = AppTheme.colors
     val shape = RoundedCornerShape(16.dp)
-    return fillMaxWidth().clip(shape).background(colors.surface).amoledOutline(shape)
+    return fillMaxWidth().clip(shape).background(colors.surface).surfaceOutline(shape)
 }
 
 /** Разделитель от края текста: колонка значков остаётся чистой. */

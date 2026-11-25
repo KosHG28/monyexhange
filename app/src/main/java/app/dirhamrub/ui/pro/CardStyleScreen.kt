@@ -1,7 +1,7 @@
 package app.dirhamrub.ui.pro
 
 import app.dirhamrub.ui.components.ScreenAction
-import app.dirhamrub.ui.theme.amoledOutline
+import app.dirhamrub.ui.theme.surfaceOutline
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -117,7 +117,7 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?) ->
                     }
                     val paletteShape = RoundedCornerShape(18.dp)
                     Column(Modifier.fillMaxWidth().clip(paletteShape).background(colors.surface)
-                        .amoledOutline(paletteShape).padding(12.dp)) {
+                        .surfaceOutline(paletteShape).padding(12.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(if (customOpen) R.string.style_custom else R.string.style_colors), style = AppTheme.type.bodyStrong,
                                 color = colors.ink, modifier = Modifier.weight(1f))
@@ -177,7 +177,7 @@ private fun CardChoice(cards: List<BankCard>, current: BankCard, onPick: (String
     val label = stringResource(R.string.style_card_picker)
     val shape = RoundedCornerShape(14.dp)
     Box {
-        Row(Modifier.fillMaxWidth().clip(shape).background(colors.surface).amoledOutline(shape)
+        Row(Modifier.fillMaxWidth().clip(shape).background(colors.surface).surfaceOutline(shape)
             .clickable(role = Role.Button) { open = true }.semantics { contentDescription = label }
             .padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             MiniColorCard(current)
@@ -300,7 +300,7 @@ private fun MiniColorCard(card: BankCard) {
 private fun AppearanceRow(card: BankCard, sum: String?, home: Currency) {
     val colors = AppTheme.colors
     val shape = RoundedCornerShape(17.dp)
-    Row(Modifier.fillMaxWidth().clip(shape).background(colors.payRowSurface(true, false)).amoledOutline(shape).padding(12.dp),
+    Row(Modifier.fillMaxWidth().clip(shape).background(colors.payRowSurface(true, false)).surfaceOutline(shape).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically) {
         MiniColorCard(card)
         Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {

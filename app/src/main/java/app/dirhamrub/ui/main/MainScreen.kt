@@ -9,7 +9,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.foundation.Canvas
 import app.dirhamrub.ui.theme.fieldGlow
-import app.dirhamrub.ui.theme.amoledOutline
+import app.dirhamrub.ui.theme.surfaceOutline
 import app.dirhamrub.ui.theme.HighFrameRate
 import app.dirhamrub.ui.components.*
 import app.dirhamrub.ui.components.TypingText
@@ -33,7 +33,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -475,7 +474,7 @@ private fun PriceField(state: MainUiState) {
             .fieldGlow(corner = 18.dp)
             .clip(shape)
             .background(colors.surface)
-            .then(if (colors.bg == Color.Black) Modifier.amoledOutline(shape) else Modifier.border(1.dp, colors.line, shape))
+            .surfaceOutline(shape)
             .padding(start = 16.dp, end = 18.dp, top = 10.dp, bottom = 10.dp)
             .clearAndSetSemantics { contentDescription = a11y },
     ) {
@@ -685,8 +684,8 @@ private fun PayRow(
     }
     val shape = RoundedCornerShape(16.dp)
     val reduce = LocalReduceMotion.current
-    val amoled = colors.bg == Color.Black
-    val grab by animateFloatAsState(if (dragged && amoled) 1f else 0f,
+    val grabTint = if (colors.isDark) Color.White.copy(alpha = 0.08f) else colors.accent.copy(alpha = 0.07f)
+    val grab by animateFloatAsState(if (dragged) 1f else 0f,
         if (reduce) snap() else tween(if (dragged) 120 else 180), label = "paymentGrab")
     val bg by animateColorAsState(
         colors.payRowSurface(selected, isBest),
@@ -723,10 +722,10 @@ private fun PayRow(
             .paymentRowShadow(enabled = !colors.isDark, opacity = { shadowAlpha.value })
             .clip(shape)
             .background(bg)
-            .amoledOutline(shape)
-            .then(if (amoled) Modifier.drawWithContent {
+            .surfaceOutline(shape)
+            .drawWithContent {
                 val amount = grab
-                if (amount > 0f) drawRect(Color.White.copy(alpha = 0.08f * amount))
+                if (amount > 0f) drawRect(grabTint.copy(alpha = grabTint.alpha * amount))
                 drawContent()
                 if (amount > 0f) {
                     val half = 0.5.dp.toPx()
@@ -735,7 +734,7 @@ private fun PayRow(
                             cornerRadius = CornerRadius(16.dp.toPx() - half), style = Stroke(half * 2f))
                     }
                 }
-            } else Modifier)
+            }
             .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = editLabel)
             .clearAndSetSemantics {
                 contentDescription = a11y

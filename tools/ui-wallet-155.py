@@ -68,6 +68,14 @@ def payment(label):
     return find(lambda node: node.get("content-desc", "").startswith(label))
 
 
+def capture_grab(theme):
+    row = payment("Карта в юанях")
+    with subprocess.Popen(["adb", "shell", "input", "swipe", *center(row), *center(row), "2400"]) as hold:
+        time.sleep(1.0)
+        capture(f"payment-grab-{theme}.png")
+        assert hold.wait(timeout=12) == 0
+
+
 adb("shell", "cmd", "uimode", "night", "yes")
 adb("shell", "settings", "put", "global", "animator_duration_scale", "1")
 start("main", "--es", "spend", "VND")
@@ -98,7 +106,6 @@ left, top, right, bottom = bounds(find(lambda node: node.get("class") == "androi
 x = str((left + right) // 2)
 adb("shell", "input", "swipe", x, str(top + (bottom - top) // 5), x, str(bottom - 10), "320")
 find(text("Наличные"))
-capture("wallet-155-cash.png")
 print("New cash name follows its kind. Existing cash has a fixed kind and the receipt was edited before saving.", flush=True)
 
 start("pro", "--ez", "receiptDemo", "true")
@@ -117,23 +124,23 @@ original_hex = find(hex_field).get("text")
 adb("shell", "input", "swipe", *center(slider, 0.49), *center(slider, 0.96), "480")
 find(lambda node: hex_field(node) and node.get("text") != original_hex)
 apply = find(apply_button)
-capture("wallet-155-hue.png")
 tap(apply)
 find(text("Курс по чеку"))
-print("Changing hue enabled Apply. Two screenshots of changed screens.")
+print("Changing hue enabled Apply.")
 
+start("main", demo=False)
+tap(find(text("Запятая")))
+tap(find(text("5")))
+capture_grab("dark")
+
+adb("shell", "cmd", "uimode", "night", "no")
+start("main", demo=False)
+capture_grab("light")
+
+adb("shell", "cmd", "uimode", "night", "yes")
+start("pro", demo=False)
 amoled = lambda node: node.get("checkable") == "true" and any(text("AMOLED")(child) for child in node.iter("node"))
 tap(find(amoled))
 find(lambda node: amoled(node) and (node.get("checked") == "true" or node.get("selected") == "true"))
 start("main", demo=False)
-tap(find(text("Запятая")))
-tap(find(text("5")))
-row = payment("Карта в юанях")
-with subprocess.Popen(["adb", "shell", "input", "swipe", *center(row), *center(row), "2400"]) as hold:
-    time.sleep(1.0)
-    capture("polish-156-grab.png")
-    assert hold.wait(timeout=12) == 0
-
-start("settings", demo=False)
-find(lambda node: text("Обновить сейчас")(node) or text("Обновляем…")(node))
-capture("polish-156-settings.png")
+capture_grab("amoled")

@@ -274,7 +274,7 @@ jobs:
           profile: pixel_6
           ram-size: 2048M
           heap-size: 256M
-          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -noaudio -no-boot-anim -camera-back emulated
+          emulator-options: -no-window -gpu swiftshader_indirect -feature -Vulkan -noaudio -no-boot-anim -camera-back emulated
           disk-size: 4096M
           disable-animations: true
           script: ./tools/screens.sh
@@ -310,6 +310,9 @@ jobs:
             done
             return 1
           }
+          if [ -s screens/scenario.log ]; then
+            upload_screens screens/scenario.log || echo "::warning::Не удалось загрузить сценарий эмулятора"
+          fi
           # PNG и метка текущего коммита обязательны для визуальной проверки.
           if compgen -G 'screens/*.png' >/dev/null; then
             upload_screens screens/*.png
@@ -326,7 +329,7 @@ jobs:
           if [ -s screens/crash.txt ]; then
             upload_screens screens/crash.txt || echo "::warning::Не удалось загрузить журнал сбоев"
           fi
-          for report in screens/transition-error.txt screens/transition-ui.xml screens/font130-ui.xml screens/network-chips.txt screens/network-chips-ui.xml screens/startup-check.txt screens/startup-error-ui.xml screens/recomposition-check.txt screens/long-session-memory.txt screens/long-session-frames.txt screens/long-session-error.xml screens/long-session-meminfo-5.txt screens/long-session-meminfo-10.txt screens/long-session-meminfo-15.txt screens/long-session-meminfo-20.txt screens/pro-check.txt screens/pro-error-ui.xml screens/idle-frame-stats.txt screens/scenario.log screens/emulator-health.txt screens/activity-state.txt screens/app-log.txt; do
+          for report in screens/transition-error.txt screens/transition-ui.xml screens/font130-ui.xml screens/network-chips.txt screens/network-chips-ui.xml screens/startup-check.txt screens/startup-error-ui.xml screens/recomposition-check.txt screens/long-session-memory.txt screens/long-session-frames.txt screens/long-session-error.xml screens/long-session-meminfo-5.txt screens/long-session-meminfo-10.txt screens/long-session-meminfo-15.txt screens/long-session-meminfo-20.txt screens/pro-check.txt screens/pro-error-ui.xml screens/idle-frame-stats.txt screens/emulator-health.txt screens/activity-state.txt screens/app-log.txt; do
             if [ -s "$report" ]; then
               upload_screens "$report" || echo "::warning::Не удалось загрузить $report"
             fi

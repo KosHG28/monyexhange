@@ -107,6 +107,7 @@ class MainActivity : ComponentActivity() {
 
         /** Экран Pro (касание виджета без Pro). */
         const val SCREEN_PRO = "pro"
+        const val SCREEN_CARD_STYLE = "card-style"
 
         /** Знакомство поверх демо-данных — для снимков CI; [EXTRA_STEP] — с какого шага. */
         const val SCREEN_ONBOARDING = "onboarding"

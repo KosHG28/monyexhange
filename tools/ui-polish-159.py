@@ -68,24 +68,25 @@ def tap(label, *, scroll=False):
 
 
 def capture(name):
-    with (Path("screens") / f"{name}-159.png").open("wb") as output:
-        subprocess.run(["adb", "exec-out", "screencap", "-p"], check=True, stdout=output, timeout=30)
+    data = subprocess.check_output(["adb", "exec-out", "screencap", "-p"], timeout=20)
+    assert data.startswith(b"\x89PNG\r\n\x1a\n"), f"Invalid screencap: {name}"
+    (Path("screens") / f"{name}-159.png").write_bytes(data)
 
 
 adb("shell", "cmd", "uimode", "night", "no")
 start("pro", "--ez", "receiptDemo", "true")
 find("Стиль карт")
 capture("pro")
-tap("Стиль карт")
-capture("materials")
+start("card-style", seed=False)
 find("Оформление карты")
+capture("materials")
 tap("Графит", scroll=True)
 tap("Карбон", scroll=True)
 find("Фактура")
 capture("materials")
 tap("Применить")
-find("Стиль карт")
-tap("Стиль карт")
+find("Итог:", prefix=True)
+start("card-style", seed=False)
 material = find("Карбон", scroll=True)
 assert "true" in (material.get("checked"), material.get("selected")), material.attrib
 print("The selected card material stayed selected after applying and reopening.", flush=True)

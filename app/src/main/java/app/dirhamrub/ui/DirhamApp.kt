@@ -76,6 +76,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.dirhamrub.CameraTileService
+import app.dirhamrub.BuildConfig
 import app.dirhamrub.MainActivity
 import app.dirhamrub.R
 import app.dirhamrub.domain.wallet.Countries
@@ -146,7 +147,7 @@ fun DirhamApp(
     var settingsOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_SETTINGS) }
     // «Курс по чеку Pro» — из настроек, из закрытых Pro-строк и с виджета без Pro.
     var proOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_PRO) }
-    var cardStyleOpen by rememberSaveable { mutableStateOf(false) }
+    var cardStyleOpen by rememberSaveable { mutableStateOf(BuildConfig.DEBUG && startScreen == MainActivity.SCREEN_CARD_STYLE) }
     // Снимки CI: знакомство поверх демо-данных, с нужного шага.
     var onboardingForced by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_ONBOARDING) }
     // Знакомство открыли повторно из настроек: валюту трат по стране сети уже не подставляем.

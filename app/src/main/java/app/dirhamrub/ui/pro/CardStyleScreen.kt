@@ -211,7 +211,7 @@ private fun MaterialOptions(draft: BankCard, enabled: Boolean, onPick: (CardMate
                 Box(
                     Modifier.size(46.dp, 24.dp).clip(RoundedCornerShape(5.dp))
                         .background(Brush.linearGradient(listOf(style.start, style.end)))
-                        .cardMaterial(material, 5.dp),
+                        .cardMaterial(material, 5.dp, grain = false),
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(

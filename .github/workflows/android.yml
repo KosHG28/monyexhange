@@ -269,13 +269,12 @@ jobs:
       - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          emulator-build: '11610631'
           arch: x86_64
           target: default
           profile: pixel_6
           ram-size: 2048M
           heap-size: 256M
-          emulator-options: -no-window -gpu swiftshader_indirect -feature -Vulkan -noaudio -no-boot-anim -camera-back emulated
+          emulator-options: -no-window -gpu off -feature -Vulkan -noaudio -no-boot-anim -camera-back emulated
           disk-size: 4096M
           disable-animations: true
           script: ./tools/screens.sh

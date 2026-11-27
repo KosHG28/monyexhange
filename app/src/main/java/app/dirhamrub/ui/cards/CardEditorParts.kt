@@ -572,18 +572,21 @@ internal fun CashSourceSwitch(atm: Boolean, onChange: (Boolean) -> Unit) {
 
 /** Карта, с которой сняли в банкомате: в строке — «¥ ▾», в списке — названия карт. */
 @Composable
-internal fun CardDropdown(selected: BankCard?, cards: List<BankCard>, onSelect: (BankCard) -> Unit, description: String) {
+internal fun CardDropdown(currency: Currency, cards: List<BankCard>, onSelect: (BankCard) -> Unit, description: String) {
     var open by remember { mutableStateOf(false) }
     Box {
         Box(
             modifier = Modifier
                 .heightIn(min = 44.dp)
                 .clip(RoundedCornerShape(20))
-                .clickable(role = Role.DropdownList, onClickLabel = description) { open = true }
+                .clickable(enabled = cards.isNotEmpty(), role = Role.DropdownList, onClickLabel = description) { open = true }
                 .padding(horizontal = 6.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text("${selected?.currency?.mark ?: "?"} ▾", style = AppTheme.type.mono, color = AppTheme.colors.accent, maxLines = 1, softWrap = false)
+            Text(
+                currency.receiptMark + if (cards.isNotEmpty()) " ▾" else "",
+                style = AppTheme.type.mono, color = AppTheme.colors.accent, maxLines = 1, softWrap = false,
+            )
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             for (c in cards) {

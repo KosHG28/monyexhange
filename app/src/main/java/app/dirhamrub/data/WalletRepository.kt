@@ -145,7 +145,6 @@ class WalletRepository(
             guideText = r[GUIDE],
             selectionAuto = p[SELECTION_AUTO] == true,
             settings = AppSettings(
-                unionPay = p[SET_UNIONPAY] ?: true,
                 ratesUpdate = RatesUpdate.entries.firstOrNull { it.name == p[SET_RATES_UPDATE] } ?: RatesUpdate.EVERY_6H,
                 countryHint = p[SET_COUNTRY_HINT] ?: true,
                 theme = ThemeMode.entries.firstOrNull { it.name == p[SET_THEME] } ?: ThemeMode.SYSTEM,
@@ -164,7 +163,6 @@ class WalletRepository(
 
     suspend fun saveSettings(settings: AppSettings) {
         store.edit { p ->
-            p[SET_UNIONPAY] = settings.unionPay
             p[SET_RATES_UPDATE] = settings.ratesUpdate.name
             p[SET_COUNTRY_HINT] = settings.countryHint
             p[SET_THEME] = settings.theme.name
@@ -382,7 +380,6 @@ class WalletRepository(
 
         /** Ключи курсов ЦБ: живут в своём файле (до 1.20 — в общем с кошельком). */
         val RATE_KEYS: List<Preferences.Key<*>> = listOf(OFFICIAL, OFFICIAL_AT, OFFICIAL_SOURCE, OFFICIAL_WEEK, RATES_HISTORY)
-        val SET_UNIONPAY = booleanPreferencesKey("settings_unionpay")
         val SET_RATES_UPDATE = stringPreferencesKey("settings_rates_update")
         val SET_COUNTRY_HINT = booleanPreferencesKey("settings_country_hint")
         val SET_THEME = stringPreferencesKey("settings_theme")

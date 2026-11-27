@@ -1,5 +1,6 @@
 package app.dirhamrub.ui.components
 
+import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.animateRectAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
@@ -44,6 +45,8 @@ import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.HighFrameRate
 import app.dirhamrub.ui.theme.LocalReduceMotion
 
+private val DefaultIndicatorAnimation = spring<Rect>(dampingRatio = 0.78f, stiffness = 420f)
+
 /** Единая подложка перемещается между измеренными позициями, в том числе между рядами чипов. */
 @Composable
 internal fun SlidingSelection(
@@ -52,6 +55,7 @@ internal fun SlidingSelection(
     modifier: Modifier = Modifier,
     corner: Dp = 50.dp,
     onIndicatorSettled: ((Int) -> Unit)? = null,
+    indicatorAnimation: FiniteAnimationSpec<Rect> = DefaultIndicatorAnimation,
     content: @Composable SlidingSelectionScope.() -> Unit,
 ) {
     val positions = remember { mutableStateMapOf<Int, Rect>() }
@@ -61,7 +65,7 @@ internal fun SlidingSelection(
     val indicator = if (target != null) {
         animateRectAsState(
             target,
-            if (reduced) snap() else spring(dampingRatio = 0.78f, stiffness = 420f),
+            if (reduced) snap() else indicatorAnimation,
             label = "segment",
             finishedListener = onIndicatorSettled?.let { onSettled ->
                 { bounds -> if (bounds == target) onSettled(selected) }
@@ -114,12 +118,13 @@ fun ButtonGroup(
     indicatorText: Color = AppTheme.colors.onAccent,
     showCheck: Boolean = true,
     onIndicatorSettled: ((Int) -> Unit)? = null,
+    indicatorAnimation: FiniteAnimationSpec<Rect> = DefaultIndicatorAnimation,
 ) {
     val colors = AppTheme.colors
     val shape = RoundedCornerShape(14.dp)
     SlidingSelection(
         selected, indicatorColor, modifier.fillMaxWidth().clip(shape).background(trackColor).padding(3.dp),
-        corner = 11.dp, onIndicatorSettled = onIndicatorSettled,
+        corner = 11.dp, onIndicatorSettled = onIndicatorSettled, indicatorAnimation = indicatorAnimation,
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             options.forEachIndexed { index, label ->

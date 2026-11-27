@@ -18,8 +18,8 @@ enum class RateBasis {
     OFFICIAL,
 
     /**
-     * Карта UnionPay без чека в этой валюте: курс UnionPay в валюту расчёта, а из неё в валюту карты —
-     * по чеку покупки в валюте расчёта (или валюты совпадают). Комиссии банка в курс не входят.
+     * Покупка оценена по курсам UnionPay в валюту карты, пополнение известно точно.
+     * Комиссия банка за покупку может изменить итог.
      */
     UNIONPAY,
 }
@@ -105,7 +105,7 @@ private val HUNDRED = BigDecimal(100)
  * - Итоговая за единицу карты: 1, если валюты совпадают; иначе по чеку пополнения
  *   (отправленная валюта приводится к итоговой по курсу ЦБ); без чека — по курсу ЦБ.
  * - Валюта карты за единицу трат: 1, если совпадают; иначе по последнему чеку покупки в этой валюте;
- *   у карты UnionPay без такого чека — по курсу UnionPay в валюту расчёта (и по чеку в валюте расчёта);
+ *   у карты UnionPay без такого чека — по прямому или кросс-курсу UnionPay в валюту карты;
  *   иначе — курс ЦБ с наценкой карты (средняя наценка её чеков покупок к курсу ЦБ).
  *
  * [official] — курсы ЦБ или справочные ([OfficialRates.withUnionPay]); [unionPay] — курсы UnionPay.
@@ -212,28 +212,10 @@ object RateEngine {
         if (card.currency == spend) return BigDecimal.ONE to RateBasis.RECEIPTS
         val p = card.purchaseFor(spend)
         if (p != null) return p.paid.divide(p.price, MC) to RateBasis.RECEIPTS
-        return viaUnionPay(card, spend, official, unionPay) ?: byOfficial(card, spend, official)
-    }
-
-    /**
-     * Карта UnionPay без чека в [spend]: UnionPay пересчитывает покупку в валюту расчёта по своему курсу,
-     * банк — из валюты расчёта в валюту карты (по чеку покупки в валюте расчёта; без него — оценка).
-     */
-    private fun viaUnionPay(
-        card: BankCard,
-        spend: Currency,
-        official: OfficialRates?,
-        unionPay: UnionPayRates?,
-    ): Pair<BigDecimal, RateBasis>? {
-        if (!card.unionPay || card.kind != CardKind.CARD || unionPay == null) return null
-        val settlement = card.settlementCurrency
-        if (spend == settlement) return null
-        val toSettlement = unionPay.rate(spend, settlement) ?: return null
-        if (settlement == card.currency) return toSettlement to RateBasis.UNIONPAY
-        val receipt = card.purchaseFor(settlement)
-        if (receipt != null) return toSettlement.multiply(receipt.paid.divide(receipt.price, MC), MC) to RateBasis.UNIONPAY
-        val (leg, _) = byOfficial(card, settlement, official) ?: return null
-        return toSettlement.multiply(leg, MC) to RateBasis.ESTIMATE
+        if (card.unionPay && card.kind == CardKind.CARD) {
+            unionPay?.cardRate(spend, card.currency)?.let { return it to RateBasis.UNIONPAY }
+        }
+        return byOfficial(card, spend, official)
     }
 
     /** Без чека: курс ЦБ (или справочный) с наценкой карты по её чекам. */

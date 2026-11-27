@@ -31,7 +31,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,11 +48,8 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.font.FontFamily
-import java.time.Year
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -265,10 +261,7 @@ internal fun BankCardView(
                     }
                     if (physicalCard) {
                         Spacer(Modifier.width(8.dp))
-                        Icon(
-                            painterResource(R.drawable.ic_nfc), contentDescription = null,
-                            modifier = decoration.size(18.dp), tint = style.ink.copy(alpha = 0.72f),
-                        )
+                        ContactlessIcon(style.ink.copy(alpha = 0.65f), decoration)
                     }
                     // Звезду лучшей карты рисует ряд: при смене лучшей она перелетает к другой карте.
                     if (best != null) Spacer(Modifier.width(STAR_SLOT))
@@ -356,16 +349,9 @@ private fun PaymentPreviewFace(
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 autoSize = TextAutoSize.StepBased(10.sp, 14.sp, 0.5.sp),
             )
-            Spacer(Modifier.width(5.dp))
-            if (cash) {
-                Text(
-                    "№ ${remember { Year.now().value }}·$designCode",
-                    style = type.caption.copy(fontFamily = FontFamily.Monospace, fontSize = 8.sp),
-                    color = ink.copy(alpha = 0.45f), maxLines = 1,
-                )
-            } else {
-                Icon(painterResource(R.drawable.ic_card_contactless), null, Modifier.size(20.dp),
-                    tint = ink.copy(alpha = 0.65f))
+            if (!cash) {
+                Spacer(Modifier.width(5.dp))
+                ContactlessIcon(ink.copy(alpha = 0.65f))
             }
         }
         if (!cash) {

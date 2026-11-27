@@ -74,6 +74,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.key
@@ -116,6 +117,7 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -195,6 +197,7 @@ fun MainScreen(
     val wallet = state.wallet
     val quote = state.quote
     val short = LocalConfiguration.current.screenHeightDp < SHORT_SCREEN_DP
+    val compactAdd = wallet.cards.size >= 2
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -209,7 +212,7 @@ fun MainScreen(
                 countryOffer != null -> CountryBanner(countryOffer, onCountry)
                 tileOffer -> TileBanner(onTileOffer)
             }
-            Hero(state, short, onSelectLine)
+            Hero(state, short, compactAdd, onSelectLine)
             PriceField(state)
             val hint = when (state.inputLimit) {
                 InputLimit.WHOLE -> stringResource(R.string.key_limit_whole)
@@ -253,10 +256,27 @@ fun MainScreen(
             } else {
                 PayList(state, cards, paymentsScroll, onSelectCard, onEditCard, onReorderPayments)
             }
-            CbrLine(quote.official, quote.viaUnionPay, wallet.spend, wallet.home,
-                state.ratesLoading, state.officialFetchedAt, LocalDate.now().toEpochDay(),
-                ZoneId.systemDefault().id, onRefreshRates)
-            Box(Modifier.tripMainEnter(TripEnter.ADD)) { AddButton(onAddCard) }
+            Row(
+                Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val fetchedAt = if (quote.viaUnionPay) state.unionPayFetchedAt else state.officialFetchedAt
+                CbrLine(
+                    quote.official, quote.viaUnionPay, wallet.spend, wallet.home, state.ratesLoading,
+                    fetchedAt, LocalDate.now().toEpochDay(), ZoneId.systemDefault().id,
+                    Modifier.weight(1f).padding(end = if (compactAdd) 8.dp else 0.dp), onRefreshRates,
+                )
+                if (compactAdd) {
+                    RoundAction(
+                        R.drawable.ic_plus, stringResource(R.string.money_add_short), 28.dp, 16.dp, onAddCard,
+                        modifier = Modifier.tripMainEnter(TripEnter.ADD),
+                        background = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            if (!compactAdd) Box(Modifier.tripMainEnter(TripEnter.ADD)) { AddButton(onAddCard) }
             Spacer(Modifier.height(4.dp))
         }
         Column(Modifier.padding(horizontal = 16.dp)) {
@@ -271,81 +291,78 @@ fun MainScreen(
     }
 }
 
-/** «🇦🇲 Армения ⌄» (сменить страну), рядом ⓘ (всё о стране), справа — настройки. У каждой кнопки одно действие. */
+/** Выбор страны, памятка по оплате в этой стране и настройки. */
 @Composable
 private fun Header(flag: String, name: String, onCountries: () -> Unit, onPlace: () -> Unit, onSettings: () -> Unit) {
     RecompositionProbe("Header")
     val colors = AppTheme.colors
     Row(
-        Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .padding(horizontal = 6.dp),
+        Modifier.fillMaxWidth().height(56.dp).padding(start = 16.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val placeA11y = stringResource(R.string.place_a11y, name)
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+        Row(
+            Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Row(
-                Modifier.padding(end = 6.dp).clip(CircleShape).background(colors.surface),
+                Modifier.weight(1f, fill = false).tripSharedBounds(TRIP_COUNTRY)
+                    .heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+                    .clickable(role = Role.Button, onClickLabel = placeA11y, onClick = onCountries)
+                    .clearAndSetSemantics {
+                        contentDescription = placeA11y
+                        role = Role.Button
+                    },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    Modifier
-                        .weight(1f, fill = false)
-                        .tripSharedBounds(TRIP_COUNTRY)
-                        .heightIn(min = 48.dp)
-                        .clip(RoundedCornerShape(50))
-                        .clickable(role = Role.Button, onClick = onCountries)
-                        .clearAndSetSemantics {
-                            contentDescription = placeA11y
-                            role = Role.Button
-                        },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Row(
-                        Modifier.padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(flag, fontSize = 17.sp)
-                        Spacer(Modifier.width(7.dp))
-                        Text(
-                            name,
-                            style = AppTheme.type.bodyStrong.copy(fontWeight = FontWeight.Medium),
-                            color = colors.ink,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Icon(painterResource(R.drawable.ic_chevron_down), contentDescription = null, tint = colors.muted, modifier = Modifier.size(16.dp))
-                    }
-                }
-                Box(Modifier.size(width = 1.dp, height = 20.dp).background(colors.line))
-                val tools = stringResource(R.string.place_tools_a11y, name)
-                Box(
-                    Modifier
-                        .size(48.dp)
-                        .tripMainEnter(TripEnter.HEADER, 0)
-                        .clip(CircleShape)
-                        .clickable(role = Role.Button, onClickLabel = tools, onClick = onPlace)
-                        .semantics { contentDescription = tools },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(painterResource(R.drawable.ic_info), contentDescription = null, tint = colors.ink, modifier = Modifier.size(21.dp))
-                }
+                Text(flag, fontSize = 18.sp)
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    name,
+                    style = AppTheme.type.bodyStrong.copy(fontSize = 18.sp, fontWeight = FontWeight.SemiBold),
+                    color = colors.ink,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Spacer(Modifier.width(4.dp))
+                Icon(painterResource(R.drawable.ic_chevron_down), null, Modifier.size(16.dp), tint = colors.muted)
             }
+            RoundAction(
+                R.drawable.ic_card, stringResource(R.string.place_tools_a11y, name), 32.dp, 18.dp, onPlace,
+                modifier = Modifier.tripMainEnter(TripEnter.HEADER, 0),
+                background = colors.surface2,
+                tint = colors.ink,
+            )
         }
-        val settings = stringResource(R.string.settings_title)
-        Box(
-            Modifier
-                .size(48.dp)
-                .tripMainEnter(TripEnter.HEADER, 1)
-                .clip(CircleShape)
-                .clickable(role = Role.Button, onClickLabel = settings, onClick = onSettings)
-                .semantics { contentDescription = settings },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(R.drawable.ic_tune), contentDescription = null, tint = colors.ink, modifier = Modifier.size(24.dp))
+        RoundAction(
+            R.drawable.ic_tune, stringResource(R.string.settings_title), 38.dp, 22.dp, onSettings,
+            modifier = Modifier.tripMainEnter(TripEnter.HEADER, 1),
+            background = colors.surface,
+            tint = colors.ink,
+        )
+    }
+}
+
+@Composable
+private fun RoundAction(
+    icon: Int,
+    label: String,
+    diameter: Dp,
+    iconSize: Dp,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    background: Color,
+    tint: Color,
+) {
+    Box(
+        modifier.size(48.dp).clip(CircleShape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(Modifier.size(diameter).background(background, CircleShape), contentAlignment = Alignment.Center) {
+            Icon(painterResource(icon), null, Modifier.size(iconSize), tint = tint)
         }
     }
 }
@@ -362,7 +379,7 @@ private fun approxNow(state: MainUiState): Boolean =
  * Длинное число уменьшает шрифт, чтобы остаться в одну строку. Касание — ввод в рублях (и обратно).
  */
 @Composable
-private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Unit) {
+private fun Hero(state: MainUiState, short: Boolean, airy: Boolean, onSelectLine: (Line) -> Unit) {
     val colors = AppTheme.colors
     val homeInput = state.active == Line.HOME
     val currency = if (homeInput) state.wallet.spend else state.wallet.home
@@ -418,7 +435,7 @@ private fun Hero(state: MainUiState, short: Boolean, onSelectLine: (Line) -> Uni
     Box(
         Modifier
             .fillMaxWidth()
-            .height(if (short) 104.dp else 136.dp)
+            .height((if (short) 104.dp else 136.dp) + if (airy) (if (short) 8.dp else 18.dp) else 0.dp)
             .tripClip(RoundedCornerShape(20.dp))
             .combinedClickable(role = Role.Button, onClickLabel = switchLabel, onLongClickLabel = copyLabel, onLongClick = copy,
                 onClick = { onSelectLine(if (homeInput) Line.SPEND else Line.HOME) })
@@ -880,7 +897,9 @@ private fun join(a: String?, b: String?): String? = listOfNotNull(a?.takeIf { it
 /** «Курс ЦБ: 100 AMD = 22,00 ₽ · сегодня 09:40» — мелко серым под списком; касание — обновить курсы. */
 @Composable
 private fun CbrLine(rate: BigDecimal?, viaUnionPay: Boolean, spend: Currency, home: Currency,
-    loading: Boolean, fetchedAtMillis: Long, todayEpochDay: Long, zone: String, onRefresh: () -> Unit) {
+    loading: Boolean, fetchedAtMillis: Long, todayEpochDay: Long, zone: String,
+    modifier: Modifier, onRefresh: () -> Unit,
+) {
     RecompositionProbe("CbrLine")
     val colors = AppTheme.colors
     val text = when {
@@ -898,12 +917,11 @@ private fun CbrLine(rate: BigDecimal?, viaUnionPay: Boolean, spend: Currency, ho
         text,
         style = AppTheme.type.caption.copy(fontSize = 12.5.sp),
         color = colors.muted,
-        textAlign = TextAlign.Center,
+        textAlign = TextAlign.Start,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier
+        modifier = modifier
             .then(if (LocalTripSharedTransition.current?.primaryCardId != null) Modifier.tripSharedBounds(TRIP_RATE) else Modifier.tripMainEnter())
-            .padding(top = 8.dp)
             .fillMaxWidth()
             .heightIn(min = 32.dp)
             .clip(RoundedCornerShape(10.dp))

@@ -130,6 +130,7 @@
     <string name="editor_title_new">Новая карта</string>
     <string name="editor_title_edit">Карта</string>
     <string name="editor_title_cash">Наличные</string>
+    <string name="editor_title_new_cash">Новые наличные</string>
     <string name="kind_card">Карта</string>
     <string name="kind_cash">Наличные</string>
     <string name="cash_default_name">Наличные %1$s</string>
@@ -153,7 +154,6 @@
     <string name="receipt_estimate_hint_unionpay">Чека покупки в %1$s нет — курс оценён по курсу UnionPay с наценкой карты по её чекам. Чек в %1$s сделает его точным.</string>
     <string name="receipt_source_exchange">Обменник</string>
     <string name="receipt_source_atm">Банкомат</string>
-    <string name="receipt_atm">Снятие в банкомате</string>
     <string name="receipt_atm_got">Сняли</string>
     <string name="receipt_atm_paid">Списали с карты</string>
     <string name="receipt_atm_no_cards">Сначала добавьте карту, с которой снимаете, — курс наличных посчитаем по ней.</string>
@@ -164,10 +164,7 @@
     <string name="receipt_bought_total">✓ Итог: %1$s = %2$s</string>
     <string name="receipt_bought_hint_empty">Пусто — по курсу ЦБ (серым). Курс, по которому покупали, сделает итог точным.</string>
     <string name="receipt_bought_hint">Итог по обоим чекам: обмен и покупка валюты.</string>
-    <string name="receipt_unionpay_hint">Чека покупки в %1$s нет — курс UnionPay в %2$s, без комиссий банка. Чек в %1$s сделает курс точным.</string>
-    <string name="editor_unionpay_hint">Покупку в любой валюте UnionPay пересчитывает по своему курсу — курс есть и без чека.</string>
-    <string name="editor_settlement">Валюта расчёта UnionPay</string>
-    <string name="editor_settlement_hint">Обычно юань. Из %1$s в %2$s — по курсу банка: его даст чек покупки в %1$s.</string>
+    <string name="receipt_unionpay_hint">Чека покупки в %1$s нет — ориентируемся на курс UnionPay без комиссий банка. Чек в %1$s сделает курс точным.</string>
     <string name="editor_result">%1$s = %2$s %3$s</string>
     <string name="editor_no_result">Добавьте чек или обновите курсы ЦБ</string>
     <string name="editor_delete">Удалить карту</string>
@@ -280,14 +277,20 @@
     <string name="settings_offline">нет связи</string>
     <string name="settings_badge_cbr">ЦБ</string>
     <string name="settings_cbr">ЦБ РФ</string>
-    <string name="settings_cbr_sub">Курсы на %1$s · валют: %2$d · %3$s</string>
-    <string name="settings_cbr_empty">Нажмите «Обновить сейчас»</string>
+    <string name="settings_cbr_sub">%1$s · %2$s · %3$s</string>
+    <plurals name="settings_currency_count">
+        <item quantity="one">%d валюта</item>
+        <item quantity="few">%d валюты</item>
+        <item quantity="many">%d валют</item>
+        <item quantity="other">%d валют</item>
+    </plurals>
+    <string name="settings_cbr_empty">Нажмите «Обновить»</string>
     <string name="settings_badge_week">7д</string>
     <string name="settings_week">Неделю назад</string>
-    <string name="settings_week_sub">ЦБ на %1$s — для «↑ %% за неделю»</string>
+    <string name="settings_week_sub">Для индикатора «↑ % за неделю»</string>
     <string name="settings_receipts">На даты чеков</string>
-    <string name="settings_receipts_sub">Загружено: %1$s</string>
-    <string name="settings_receipts_auto">Курсы для старых чеков загружаются автоматически</string>
+    <string name="settings_badge_receipts">Чек</string>
+    <string name="settings_receipts_auto">Загружаются автоматически для старых чеков</string>
     <string name="settings_badge_unionpay">UP</string>
     <string name="settings_unionpay">UnionPay</string>
     <string name="settings_refresh">Обновить</string>
@@ -295,7 +298,7 @@
     <string name="settings_fetched_today">сегодня %1$s</string>
     <string name="settings_fetched_yesterday">вчера %1$s</string>
     <string name="settings_fetched_on">%1$s %2$s</string>
-    <string name="settings_unionpay_switch_sub">Карты UnionPay и валюты, которых нет у ЦБ</string>
+    <string name="settings_unionpay_sub">Карты UnionPay и валюты без ЦБ</string>
     <string name="settings_update">Обновлять курсы</string>
     <string name="settings_update_launch">При запуске</string>
     <string name="settings_update_6h">Раз в 6 ч</string>
@@ -440,7 +443,6 @@
     <string name="rounding_whole">До целых</string>
     <string name="rounding_tens">До десятков</string>
     <string name="settings_onboarding_sub">Три экрана о том, как считаем</string>
-    <string name="settings_unionpay_on">Карты UnionPay и валюты без ЦБ · %1$s</string>
     <string name="crash_hint">Журнал хранится только на телефоне. Отправьте его разработчику, если что-то сломалось.</string>
     <string name="editor_block_main">Основное</string>
     <string name="editor_block_rate">Курс карты</string>
@@ -456,7 +458,8 @@
     <string name="field_zero">Сумма должна быть больше 0</string>
     <string name="transfer_empty">Сколько отправили и сколько пришло на карту — из уведомления банка</string>
     <string name="transfer_add_first">+ Добавить пополнение</string>
-    <string name="purchases_empty">Пока чеков нет — считаем по курсу ЦБ с пометкой «≈»</string>
+    <string name="purchases_empty_unionpay">Пока чеков нет — ориентируемся на курс UnionPay (≈)</string>
+    <string name="purchases_empty">Пока чеков нет — ориентируемся на курс ЦБ (≈)</string>
     <string name="purchases_add_first">+ Добавить первый чек</string>
     <string name="exchange_new">+ Новый обмен</string>
     <string name="editor_result_why_bought">%1$s — по курсу ЦБ. Укажите, почём покупали, — станет точно</string>

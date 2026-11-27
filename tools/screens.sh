@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Check the payment wallet, previews and the updated rate controls.
+# Check the new carrier transition, calculator actions, wallet and rate sources.
 set -euo pipefail
 mkdir -p screens
 exec > >(tee screens/scenario.log) 2>&1
@@ -17,12 +17,12 @@ adb shell wm density 288
 adb logcat -b crash -c
 timeout 180s adb logcat -b crash -b main -b system -v brief AndroidRuntime:E libc:F DEBUG:F OpenGLRenderer:E '*:S' > screens/app-log.txt 2>&1 &
 android_log_pid=$!
-python3 tools/ui-wallet-160.py
+python3 tools/ui-editor-161.py
 kill "$android_log_pid" 2>/dev/null || true
 python3 - <<'PY'
 from pathlib import Path
 import struct, zlib
-for name in ('wallet-160.png', 'payment-previews-160.png', 'calculator-notes-160.png', 'settings-rates-160.png'):
+for name in ('calculator-161.png', 'cash-atm-161.png', 'wallet-161.png', 'rate-sources-161.png'):
     path = Path('screens') / name
     data = path.read_bytes()
     assert data[:8] == b'\x89PNG\r\n\x1a\n', path

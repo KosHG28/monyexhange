@@ -24,12 +24,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
@@ -70,6 +72,7 @@ import app.dirhamrub.ui.theme.banknoteTheme
 import app.dirhamrub.ui.theme.cardMaterial
 import app.dirhamrub.ui.theme.forMaterial
 import app.dirhamrub.ui.theme.motion
+import app.dirhamrub.ui.theme.LocalCardTilt
 import app.dirhamrub.ui.theme.surfaceOutline
 
 class MoneyActions(
@@ -90,6 +93,7 @@ fun MoneyScreen(state: MainUiState, actions: MoneyActions) {
             wallet.cards.sortedWith(compareBy(nullsLast()) { quote.of(it.id)?.homePerUnit })
     }
     val ids = remember(cards) { cards.map { it.id } }
+    val tilt = LocalCardTilt.current
     val byId = remember(cards) { cards.associateBy { it.id } }
     val drag = remember(ids, wallet.spend) { PaymentDrag(ids) }
     val bestId = quote.best?.card?.id?.takeIf { quote.quotes.size > 1 }
@@ -124,7 +128,7 @@ fun MoneyScreen(state: MainUiState, actions: MoneyActions) {
                         }
                         Box(Modifier.zIndex(if (held) 1f else 0f).paymentDragSlot(drag, id)) {
                             WalletCard(
-                                state, card, quote.of(id), id == bestId, held,
+                                state, card, quote.of(id), id == bestId, held, tilt,
                                 Modifier.graphicsLayer {
                                     translationY = drag.translationOf(id)
                                     scaleX = scale
@@ -159,6 +163,7 @@ private fun WalletCard(
     quote: CardQuote?,
     best: Boolean,
     held: Boolean,
+    tilt: State<Offset>?,
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
@@ -179,8 +184,8 @@ private fun WalletCard(
     val shape = RoundedCornerShape(corner)
     val style = CardPalette.style(card).forMaterial(card.material)
     val ink = if (cash) Color.White else style.ink
-    val surface = if (cash) Modifier.banknoteSurface(banknoteTheme(card.currency), corner)
-    else Modifier.cardMaterial(style, card.material, corner)
+    val surface = if (cash) Modifier.banknoteSurface(banknoteTheme(card.currency), corner, tilt = tilt)
+    else Modifier.cardMaterial(style, card.material, corner, tilt = tilt)
     Row(
         modifier.fillMaxWidth().heightIn(min = 84.dp)
             .clip(shape).then(surface)

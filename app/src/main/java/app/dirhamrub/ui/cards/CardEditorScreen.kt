@@ -12,7 +12,17 @@ import app.dirhamrub.ui.theme.Haptic
 import app.dirhamrub.ui.theme.rememberHaptics
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import app.dirhamrub.ui.theme.rememberReflectionTilt
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.runtime.State
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.shrinkVertically
@@ -93,6 +103,7 @@ import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.Rounding
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
+import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.CardNetwork
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.HISTORY_MAX
@@ -113,6 +124,7 @@ import app.dirhamrub.ui.components.cascade
 import app.dirhamrub.ui.components.rememberCascade
 import app.dirhamrub.ui.currency.CurrencyPickerScreen
 import app.dirhamrub.ui.main.BankCardView
+import app.dirhamrub.ui.main.RING_GAP
 import app.dirhamrub.ui.main.basisLabel
 import app.dirhamrub.ui.components.rateLabel
 import app.dirhamrub.ui.theme.AppTheme
@@ -176,8 +188,6 @@ fun CardEditorScreen(
     // Прежние пополнения и какой курс считать: по последнему или в среднем.
     val history = remember(card.id) { mutableStateListOf<TransferReceipt>().apply { addAll(card.history) } }
     var transferMode by remember(card.id) { mutableStateOf(card.transferMode) }
-    var settlement by remember(card.id) { mutableStateOf(card.settlement) }
-    var settlementPicker by remember(card.id) { mutableStateOf(false) }
     val cash = kind == CardKind.CASH
     var sent by remember(card.id) { mutableStateOf(card.transfer?.sent?.let(::field).orEmpty()) }
     var sentCurrency by remember(card.id) { mutableStateOf(card.transfer?.sentCurrency ?: home) }
@@ -340,7 +350,6 @@ fun CardEditorScreen(
             network = network?.takeIf { kind == CardKind.CARD && it != CardNetwork.UNIONPAY },
             history = history.toList(),
             transferMode = if (history.isEmpty()) TransferMode.LAST else transferMode,
-            settlement = settlement,
             transfer = transfer,
             purchases = receipts,
             manual = otherManual + listOfNotNull(manualValue?.let { ManualRate(spend, home, it, manualDate) }),
@@ -380,6 +389,7 @@ fun CardEditorScreen(
             onBack = { back() },
             title = stringResource(
                 when {
+                    cash && isNew -> R.string.editor_title_new_cash
                     cash -> R.string.editor_title_cash
                     isNew -> R.string.editor_title_new
                     else -> R.string.editor_title_edit
@@ -400,7 +410,7 @@ fun CardEditorScreen(
             }
         }
         // Блоки редактора появляются каскадом.
-        val cascade = rememberCascade(lastIndex = 2)
+        val cascade = rememberCascade(lastIndex = 1)
         // «Сохранить» всегда внизу экрана, прокручивается только содержимое над ней: последний элемент
         // докручивается выше кнопки. Касание мимо полей убирает клавиатуру.
         Column(
@@ -422,45 +432,57 @@ fun CardEditorScreen(
             val previewHome = if (receipt != null && (travelQuote == null || currency == home)) receipt.sentCurrency else home
             val q = if (previewHome == home) travelQuote else RateEngine.quote(draft, previewSpend, previewHome, official, unionPay, cards)
             val amountInPreview = if (previewSpend == spend) previewAmount else PREVIEW_AMOUNT
+            val preview = EditorCardPreview(
+                draft, q, previewSpend, previewHome,
+                q?.let { Numbers.total(amountInPreview.multiply(it.homePerUnit, MC), rounding) },
+                needsReceipt = official?.cross(previewSpend, previewHome) == null,
+            )
             var previewVisible by remember { mutableStateOf(false) }
             val reflectionTilt = rememberReflectionTilt(previewVisible && !isClosing && morph?.flying != true)
-            // Живая карточка: как карта будет выглядеть на главном экране с тем, что уже введено.
-            val preview: @Composable (() -> Float) -> Unit = { textAlpha ->
-                BankCardView(
-                    card = draft,
-                    quote = q,
-                    spend = previewSpend,
-                    home = previewHome,
-                    sum = q?.let { Numbers.total(amountInPreview.multiply(it.homePerUnit, MC), rounding) },
-                    selected = true,
-                    best = null,
-                    onClick = {},
-                    onLongClick = {},
-                    width = PREVIEW_WIDTH,
-                    height = PREVIEW_HEIGHT,
-                    needsReceipt = official?.cross(previewSpend, previewHome) == null,
-                    flipOnChange = false,
-                    textAlpha = textAlpha,
-                    reflectionTilt = reflectionTilt,
-                )
+            if (morph != null) SideEffect {
+                morph.card = { textAlpha -> PreviewCard(preview, reflectionTilt, textAlpha) }
             }
-            // Перелёт: та же карточка летит поверх экрана, а здесь она спрятана, пока не сядет на место.
-            if (morph != null) SideEffect { morph.card = preview }
             Box(
-                Modifier
-                    .fillMaxWidth()
+                Modifier.fillMaxWidth().height(PREVIEW_HEIGHT + RING_GAP * 2)
                     .clearAndSetSemantics { },
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
-                    Modifier
-                        .onGloballyPositioned {
-                            val bounds = it.boundsInWindow()
-                            previewVisible = !bounds.isEmpty
-                            if (morph != null) morph.target = bounds
-                        }
-                        .graphicsLayer { if (morph?.flying == true && !saveReduce) alpha = 0f },
-                ) { preview { 1f } }
+                    Modifier.onGloballyPositioned {
+                        val bounds = it.boundsInWindow()
+                        previewVisible = !bounds.isEmpty
+                        if (morph != null) morph.target = bounds
+                    }.graphicsLayer { if (morph?.flying == true && !saveReduce) alpha = 0f },
+                ) {
+                    if (isNew) {
+                        AnimatedContent(
+                            targetState = preview,
+                            contentKey = { it.card.kind },
+                            contentAlignment = Alignment.Center,
+                            transitionSpec = {
+                                if (saveReduce) {
+                                    EnterTransition.None togetherWith ExitTransition.None
+                                } else {
+                                    val direction = if (targetState.card.kind == CardKind.CASH) 1 else -1
+                                    val easing = FastOutSlowInEasing
+                                    val enter = slideInHorizontally(tween(EDITOR_KIND_MOTION_MS, easing = easing)) {
+                                        (it * 0.24f * direction).toInt()
+                                    } + fadeIn(tween(EDITOR_KIND_MOTION_MS, easing = easing)) +
+                                        scaleIn(tween(EDITOR_KIND_MOTION_MS, easing = easing), initialScale = 0.94f)
+                                    val exit = slideOutHorizontally(tween(EDITOR_KIND_MOTION_MS, easing = easing)) {
+                                        (-it * 0.18f * direction).toInt()
+                                    } + fadeOut(tween(EDITOR_KIND_MOTION_MS, easing = easing)) +
+                                        scaleOut(tween(EDITOR_KIND_MOTION_MS, easing = easing), targetScale = 0.92f)
+                                    (enter togetherWith exit).apply { targetContentZIndex = 1f }
+                                        .using(SizeTransform(clip = false))
+                                }
+                            },
+                            label = "CardKindPreview",
+                        ) { shown -> PreviewCard(shown, reflectionTilt) }
+                    } else {
+                        PreviewCard(preview, reflectionTilt)
+                    }
+                }
             }
             Spacer(Modifier.height(8.dp))
             // Карта или наличные из обменника: у наличных вместо пополнения — обмен, покупок по чекам нет.
@@ -530,22 +552,9 @@ fun CardEditorScreen(
                 }
             }
 
-            // Блок 2. UnionPay — только если выбрана эта система.
-            if (!cash && network.isUnionPay()) {
-                Spacer(Modifier.height(10.dp))
-                EditorBlock(stringResource(R.string.network_unionpay), Modifier.cascade(cascade, 1)) {
-                    UnionPaySection(
-                        settlement = settlement ?: UnionPayRates.defaultSettlement(currency),
-                        cardCurrency = currency,
-                        onSettlement = { settlement = it },
-                        onMoreSettlements = { settlementPicker = true },
-                    )
-                }
-            }
-
-            // Блок 3. Курс карты: скриншот, пополнение, покупки, итог, свой курс.
+            // Блок 2. Курс карты или наличных и чеки.
             Spacer(Modifier.height(10.dp))
-            EditorBlock(stringResource(if (cash) R.string.editor_block_cash else R.string.editor_block_rate), Modifier.cascade(cascade, 2)) {
+            EditorBlock(stringResource(if (cash) R.string.editor_block_cash else R.string.editor_block_rate), Modifier.cascade(cascade, 1)) {
                 // Свой курс включён — чеки не нужны: блок с ними сворачивается, поле курса сразу на виду.
                 val reduceMotion = LocalReduceMotion.current
                 AnimatedVisibility(
@@ -580,7 +589,7 @@ fun CardEditorScreen(
                         }
                     }
                     if (cash && atm) {
-                        SubTitle(stringResource(R.string.receipt_atm))
+                        Spacer(Modifier.height(10.dp))
                         if (atmSources.isEmpty()) {
                             Hint(stringResource(R.string.receipt_atm_no_cards))
                         } else {
@@ -748,11 +757,12 @@ fun CardEditorScreen(
                             cardCurrency = currency,
                             spend = spend,
                             pick = pick,
+                            usesUnionPayRate = draft.unionPay && currency != spend && unionPay?.cardRate(spend, currency) != null,
                             // Подсказка — только если курс для валюты трат оценочный или идёт через UnionPay.
                             hint = when {
                                 draft.purchases.isEmpty() -> null
                                 q?.basis == RateBasis.UNIONPAY ->
-                                    stringResource(R.string.receipt_unionpay_hint, spend.mark, draft.settlementCurrency.code)
+                                    stringResource(R.string.receipt_unionpay_hint, spend.mark)
                                 q != null && q.basis == RateBasis.ESTIMATE && q.viaUnionPay ->
                                     stringResource(R.string.receipt_estimate_hint_unionpay, spend.mark)
                                 q?.basis == RateBasis.ESTIMATE -> stringResource(R.string.receipt_estimate_hint, spend.mark)
@@ -898,15 +908,6 @@ fun CardEditorScreen(
             onDismiss = { cardPicker = false },
         )
     }
-    if (settlementPicker) {
-        CurrencyPickerScreen(
-            title = stringResource(R.string.editor_settlement),
-            selected = settlement ?: UnionPayRates.defaultSettlement(currency),
-            options = UnionPayRates.BASES,
-            onPick = { settlement = it },
-            onDismiss = { settlementPicker = false },
-        )
-    }
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
@@ -951,6 +952,25 @@ private val EXCHANGE_FROM = listOf(Currency.RUB, Currency.USD, Currency.EUR, Cur
 private const val EDITOR_CHIPS = 4
 
 /** Карточка-предпросмотр в редакторе. */
+private data class EditorCardPreview(
+    val card: BankCard,
+    val quote: CardQuote?,
+    val spend: Currency,
+    val home: Currency,
+    val sum: String?,
+    val needsReceipt: Boolean,
+)
+
+@Composable
+private fun PreviewCard(preview: EditorCardPreview, tilt: State<Offset>, textAlpha: () -> Float = { 1f }) {
+    BankCardView(
+        card = preview.card, quote = preview.quote, spend = preview.spend, home = preview.home,
+        sum = preview.sum, selected = true, best = null, onClick = {}, onLongClick = {},
+        width = PREVIEW_WIDTH, height = PREVIEW_HEIGHT, needsReceipt = preview.needsReceipt,
+        flipOnChange = false, textAlpha = textAlpha, reflectionTilt = tilt,
+    )
+}
+
 private val PREVIEW_WIDTH = 190.dp
 private val PREVIEW_HEIGHT = 120.dp
 private val PREVIEW_AMOUNT = BigDecimal(100)

@@ -246,7 +246,7 @@ fun DirhamApp(
             },
             recent = state.wallet.recent,
             official = state.reference,
-            unionPay = state.activeUnionPay,
+            unionPay = state.unionPay,
             onSpend = { currency, iso -> if (showOnboarding) vm.setSpend(currency, iso) },
             newCard = vm::newCard,
             onFinish = { card, amount ->
@@ -348,7 +348,6 @@ fun DirhamApp(
             actions = SettingsActions(
                 onBack = { settingsOpen = false },
                 onRefresh = vm::refreshRates,
-                onUnionPay = vm::setUnionPayEnabled,
                 onRatesUpdate = vm::setRatesUpdate,
                 onHome = vm::setHome,
                 onCountryHint = vm::setCountryHint,
@@ -449,7 +448,7 @@ fun DirhamApp(
             spend = state.wallet.spend,
             home = state.wallet.home,
             official = state.reference,
-            unionPay = state.activeUnionPay,
+            unionPay = state.unionPay,
             cards = state.wallet.cards,
             onSave = { card, images, discardTransferShot ->
                 vm.saveCard(card)

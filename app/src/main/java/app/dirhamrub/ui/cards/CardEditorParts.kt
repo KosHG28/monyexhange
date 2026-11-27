@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -70,6 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.ContactlessIcon
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.RuDates
@@ -81,8 +83,6 @@ import app.dirhamrub.domain.wallet.EmvBrand
 import app.dirhamrub.domain.wallet.ScannedReceipt
 import app.dirhamrub.domain.wallet.TransferMode
 import app.dirhamrub.domain.wallet.TransferReceipt
-import app.dirhamrub.domain.wallet.UnionPayRates
-import app.dirhamrub.ui.components.CurrencyChips
 import app.dirhamrub.ui.components.NumberField
 import app.dirhamrub.ui.theme.AppTheme
 import java.math.BigDecimal
@@ -95,6 +95,8 @@ internal sealed interface ScanResult {
     data class Found(val receipt: ScannedReceipt) : ScanResult
 }
 
+internal const val EDITOR_KIND_MOTION_MS = 270
+
 /** «Карта | Наличные» в редакторе: группа кнопок Expressive. */
 @Composable
 internal fun KindSwitch(kind: CardKind, onChange: (CardKind) -> Unit) {
@@ -104,6 +106,7 @@ internal fun KindSwitch(kind: CardKind, onChange: (CardKind) -> Unit) {
         selected = options.indexOf(kind),
         onSelect = { onChange(options[it]) },
         role = Role.Tab,
+        indicatorAnimation = tween(EDITOR_KIND_MOTION_MS, easing = FastOutSlowInEasing),
     )
 }
 
@@ -357,20 +360,21 @@ internal fun NfcHint(read: NfcRead?, enabled: Boolean, animate: Boolean) {
     ) {
         Crossfade(targetState = found, modifier = Modifier.size(24.dp),
             animationSpec = if (reduce) snap() else tween(180), label = "nfcIcon") { success ->
-            Icon(
-                painterResource(if (success) R.drawable.ic_check else R.drawable.ic_nfc), contentDescription = null,
-                tint = when {
-                    success -> colors.good
-                    enabled -> colors.accent
-                    else -> colors.muted
-                },
-                modifier = Modifier.size(24.dp).graphicsLayer {
-                    val breathing = if (success) 0f else pulse?.value ?: 0f
-                    scaleX = 1f + 0.10f * breathing
-                    scaleY = scaleX
-                    alpha = 1f - 0.24f * breathing
-                },
-            )
+            Box(contentAlignment = Alignment.Center) {
+                if (success) {
+                    Icon(painterResource(R.drawable.ic_check), null, Modifier.size(24.dp), tint = colors.good)
+                } else {
+                    ContactlessIcon(
+                        tint = if (enabled) MaterialTheme.colorScheme.primary else colors.muted,
+                        modifier = Modifier.graphicsLayer {
+                            val breathing = pulse?.value ?: 0f
+                            scaleX = 1f + 0.10f * breathing
+                            scaleY = scaleX
+                            alpha = 1f - 0.24f * breathing
+                        },
+                    )
+                }
+            }
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -526,37 +530,6 @@ internal fun ManualRatePanel(
 }
 
 /**
- * Валюта расчёта UnionPay (блок появляется, только если выбрана система UnionPay): UnionPay пересчитывает
- * покупку в любой валюте по своему курсу в валюту расчёта (обычно юань), банк — из неё в валюту карты.
- */
-@Composable
-internal fun UnionPaySection(
-    settlement: Currency,
-    cardCurrency: Currency,
-    onSettlement: (Currency) -> Unit,
-    onMoreSettlements: () -> Unit,
-) {
-    FieldLabel(stringResource(R.string.editor_settlement))
-    CurrencyChips(
-        options = (UnionPayRates.BASES.take(SETTLEMENT_CHIPS) + settlement).distinct(),
-        selected = settlement,
-        onSelect = onSettlement,
-        onMore = onMoreSettlements,
-        moreLabel = stringResource(R.string.currency_more),
-    )
-    Hint(
-        if (settlement != cardCurrency) {
-            stringResource(R.string.editor_settlement_hint, settlement.code, cardCurrency.code)
-        } else {
-            stringResource(R.string.editor_unionpay_hint)
-        },
-    )
-}
-
-/** Частые валюты расчёта чипами: юань, доллар, евро, гонконгский доллар; остальные — в списке. */
-private const val SETTLEMENT_CHIPS = 4
-
-/**
  * «Почём купили доллары»: отдавали в обменнике (или переводили на карту) не итоговую валюту — её курс
  * покупки делает итог точным. Пусто — по курсу ЦБ (серым в поле). Ниже — итог: единица карты в итоговой.
  */
@@ -588,18 +561,12 @@ internal fun BoughtPlate(
 /** Откуда наличные: «Обменник | Банкомат». */
 @Composable
 internal fun CashSourceSwitch(atm: Boolean, onChange: (Boolean) -> Unit) {
-    val colors = AppTheme.colors
     ButtonGroup(
         options = listOf(stringResource(R.string.receipt_source_exchange), stringResource(R.string.receipt_source_atm)),
         selected = if (atm) 1 else 0,
         onSelect = { onChange(it == 1) },
         modifier = Modifier.padding(bottom = 6.dp),
-        minHeight = 44.dp,
-        textStyle = AppTheme.type.body,
-        trackColor = colors.bg,
-        indicatorColor = colors.accentSoft,
-        indicatorText = colors.accent,
-        showCheck = false,
+        role = Role.Tab,
     )
 }
 

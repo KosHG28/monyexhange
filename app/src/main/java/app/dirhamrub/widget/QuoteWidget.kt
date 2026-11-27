@@ -56,7 +56,7 @@ class QuoteWidget : AppWidgetProvider() {
         val wallet = state.wallet
         val spend = wallet.spend
         val home = wallet.home
-        val unionPay = state.unionPay.takeIf { state.settings.unionPay }
+        val unionPay = state.unionPay
         val reference = state.official?.withUnionPay(unionPay)
         val quote = RateEngine.quoteAll(wallet, reference, unionPay)
         val best = quote.best

@@ -33,7 +33,6 @@ import app.dirhamrub.ui.theme.Haptic
 import app.dirhamrub.ui.theme.rememberHaptics
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
@@ -171,51 +170,37 @@ internal fun LinkRow(
     }
 }
 
-/**
- * Источник курсов: текстовый значок («ЦБ», «7д»), название, справа — когда скачан («✓ сегодня 19:41», зелёным;
- * жёлтым при [warn]) или [trailing] (переключатель UnionPay). Данных нет — строка полупрозрачная ([enabled]),
- * без «—»: это состояние, а не выбор.
- */
+/** Источник курсов с отметкой о загрузке или предупреждением в правой колонке. */
 @Composable
-internal fun SourceRow(
-    badge: String,
-    title: String,
-    status: String?,
-    subtitle: String,
-    warn: Boolean = false,
-    enabled: Boolean = true,
-    trailing: (@Composable () -> Unit)? = null,
-    modifier: Modifier = Modifier,
-) {
+internal fun SourceRow(badge: String, title: String, status: String?, subtitle: String, warn: Boolean = false) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .alpha(if (enabled) 1f else 0.42f)
-            .padding(horizontal = 14.dp, vertical = 11.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(11.dp))
-                .background(colors.surface2),
+            Modifier.size(36.dp).clip(RoundedCornerShape(11.dp)).background(colors.surface2),
             contentAlignment = Alignment.Center,
         ) {
             Text(badge, style = type.caption.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold), color = colors.ink)
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink)
-            Text(subtitle, style = type.caption, color = colors.muted)
-        }
-        if (trailing != null) {
-            Spacer(Modifier.width(10.dp))
-            trailing()
-        } else if (status != null) {
-            Spacer(Modifier.width(10.dp))
-            Text(status, style = type.caption.copy(fontSize = 13.sp), color = if (warn) colors.warn else colors.good, maxLines = 1)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, modifier = Modifier.weight(1f), style = type.body.copy(fontWeight = FontWeight.Medium),
+                    color = colors.ink)
+                if (status != null) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(status, style = type.caption.copy(fontSize = 12.sp), maxLines = 1,
+                        color = when {
+                            warn -> colors.warn
+                            status.startsWith("✓") -> colors.good
+                            else -> colors.muted
+                        })
+                }
+            }
+            Text(subtitle, style = type.caption, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

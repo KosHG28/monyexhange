@@ -139,6 +139,7 @@ internal fun CacheDrawScope.cardMaterialLayer(
                     blendMode = BlendMode.Screen,
                 )
                 inner.draw(this, bevel)
+                if (tilt != null) inner.drawGlance(this, bounds, angle, peak = 0.24f)
             }
             draw
         }
@@ -201,6 +202,7 @@ internal fun CacheDrawScope.cardMaterialLayer(
                 )
                 outside.draw(this, SolidColor(Color(0xBF080C12)))
                 inner.draw(this, bevel)
+                if (tilt != null) inner.drawGlance(this, bounds, angle, peak = 0.35f)
             }
             draw
         }
@@ -228,6 +230,14 @@ internal fun CacheDrawScope.cardMaterialLayer(
         }
     }
     return finish
+}
+
+private fun CardEdge.drawGlance(scope: DrawScope, bounds: Size, angle: Offset, peak: Float) {
+    val rim = rimPoint(bounds, Offset(-0.45f + angle.x * 1.6f, -0.85f + angle.y * 1.8f))
+    draw(scope, Brush.radialGradient(
+        listOf(Color.White.copy(alpha = peak), Color.Transparent),
+        center = rim, radius = bounds.minDimension * 0.65f,
+    ))
 }
 
 private fun rimPoint(bounds: Size, direction: Offset): Offset {

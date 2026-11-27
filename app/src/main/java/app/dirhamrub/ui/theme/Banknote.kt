@@ -140,7 +140,7 @@ internal fun Modifier.banknoteSurface(
         }
     }
     val foilWidth = (if (miniature) 3.dp else 16.dp).toPx()
-    val foilX = size.width * 0.68f
+    val foilX = size.width * 0.61f - foilWidth / 2f
     val foilTop = margin
     val foilHeight = (size.height - margin * 2f).coerceAtLeast(0f)
     val foilSize = Size(foilWidth, foilHeight)

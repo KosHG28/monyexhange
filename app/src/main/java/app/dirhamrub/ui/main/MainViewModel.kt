@@ -114,11 +114,8 @@ data class MainUiState(
     val guides: CountryGuides? = null,
     val pricing: QuoteCache = QuoteCache(),
 ) {
-    /** Курсы UnionPay, если они включены в настройках. */
-    val activeUnionPay: UnionPayRates? get() = unionPay.takeIf { settings.unionPay }
-
     /** Справочные курсы: ЦБ, а валюты без ЦБ — по UnionPay к доллару и ЦБ доллара (они в [OfficialRates.derived]). */
-    val reference: OfficialRates? by lazy { pricing.reference(official, activeUnionPay) }
+    val reference: OfficialRates? by lazy { pricing.reference(official, unionPay) }
 
     /** Устаревший чек выбранной карты: давно, а ЦБ с тех пор заметно сдвинулся. */
     val staleReceipt: StaleReceipt?
@@ -127,7 +124,7 @@ data class MainUiState(
     /** Изменение курса ЦБ валюты трат к итоговой за неделю, в процентах. */
     val weekTrend: BigDecimal? get() = official?.trendPercent(officialWeekAgo, wallet.spend, wallet.home)
 
-    val quote: WalletQuote by lazy { pricing.quote(wallet, reference, activeUnionPay) }
+    val quote: WalletQuote by lazy { pricing.quote(wallet, reference, unionPay) }
     /** Чем считаем: выбранный вручную способ, а без ручного выбора — самый выгодный ([Wallet.pick]). */
     val selectedCard: BankCard? get() = wallet.pick(quote.best?.card?.id)
     val selectedQuote: CardQuote? get() = quote.of(selectedCard?.id)
@@ -425,7 +422,7 @@ class MainViewModel(
         val now = System.currentTimeMillis()
         val update = s.settings.ratesUpdate
         val upAt = if (s.unionPay == null) 0L else s.unionPayFetchedAt
-        if (s.settings.unionPay && RatesPolicy.due(update, trigger, upAt, now)) refreshUnionPay()
+        if (RatesPolicy.due(update, trigger, upAt, now)) refreshUnionPay()
         if (s.ratesLoading) return
         val allow = trigger == Trigger.BUTTON || RatesPolicy.auto(update)
         val cbrAt = if (s.official == null) 0L else s.officialFetchedAt
@@ -507,17 +504,15 @@ class MainViewModel(
         }
     }
 
-    /** Настройки: сохраняются сразу; включили UnionPay, а его курсов нет — скачиваем (если не «вручную»). */
+    /** Настройки сохраняются сразу. */
     private fun updateSettings(transform: (AppSettings) -> AppSettings) {
         val before = _state.value.settings
         val next = transform(before)
         if (next == before) return
         _state.update { it.copy(settings = next) }
         viewModelScope.launch { repository.saveSettings(next) }
-        if (next.unionPay && !before.unionPay && _state.value.unionPay == null && autoNetwork()) refreshUnionPay()
     }
 
-    fun setUnionPayEnabled(value: Boolean) = updateSettings { it.copy(unionPay = value) }
     fun setRatesUpdate(value: RatesUpdate) = updateSettings { it.copy(ratesUpdate = value) }
     fun setCountryHint(value: Boolean) = updateSettings { it.copy(countryHint = value) }
     fun setTheme(value: ThemeMode) = updateSettings { it.copy(theme = value) }

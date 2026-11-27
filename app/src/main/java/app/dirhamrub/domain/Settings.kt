@@ -26,8 +26,6 @@ enum class Rounding { NONE, WHOLE, TENS }
 
 /** Настройки приложения (экран «Настройки»). */
 data class AppSettings(
-    /** Курсы UnionPay: карты UnionPay и справочный курс валют, которых нет у ЦБ. */
-    val unionPay: Boolean = true,
     val ratesUpdate: RatesUpdate = RatesUpdate.EVERY_6H,
     /** Подсказка «Вы в Армении — считать в драмах?» по стране сотовой сети. */
     val countryHint: Boolean = true,

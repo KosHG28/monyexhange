@@ -84,8 +84,8 @@ enum class CardKind {
 
 /**
  * Карта пользователя (или наличные — [kind]). [style] — номер оформления (градиент).
- * У карты UnionPay ([unionPay]) покупка в любой валюте пересчитывается по курсу UnionPay в валюту
- * расчёта [settlementCurrency], а из неё в валюту карты — по курсу банка.
+ * Для карты UnionPay ([unionPay]) курс в валюту карты оценивается по курсам платёжной системы,
+ * пока нет чека покупки в выбранной валюте.
  */
 data class BankCard(
     val id: String,
@@ -97,8 +97,6 @@ data class BankCard(
     val manual: List<ManualRate> = emptyList(),
     val kind: CardKind = CardKind.CARD,
     val unionPay: Boolean = false,
-    /** Валюта расчёта UnionPay, если пользователь её выбрал; иначе — [UnionPayRates.defaultSettlement]. */
-    val settlement: Currency? = null,
     /** Платёжная система, если пользователь её указал (у UnionPay-карты — UnionPay и без этого). */
     val network: CardNetwork? = null,
     /** Прежние пополнения (без последнего — он в [transfer]), новые — первыми. */
@@ -140,9 +138,6 @@ data class BankCard(
 
     /** Платёжная система для справочника: указанная, а у карты UnionPay без указанной — UnionPay российского банка. */
     val paymentNetwork: CardNetwork? get() = network ?: CardNetwork.UNIONPAY.takeIf { unionPay }
-
-    /** В какую валюту UnionPay пересчитывает покупки по этой карте. */
-    val settlementCurrency: Currency get() = settlement ?: UnionPayRates.defaultSettlement(currency)
 
     /** Можно ли заплатить в [spend]: картой — всегда (банк пересчитает), наличными — только в их валюте. */
     fun canPay(spend: Currency): Boolean = kind != CardKind.CASH || currency == spend

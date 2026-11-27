@@ -27,7 +27,7 @@ class QuoteCacheTest {
         val transfer = TransferReceipt(BigDecimal("80"), Currency.RUB, BigDecimal.ONE, day)
         val changes = listOf(
             card.copy(currency = Currency.EUR), card.copy(kind = CardKind.CASH), card.copy(unionPay = true),
-            card.copy(settlement = Currency.EUR), card.copy(transfer = transfer),
+            card.copy(transfer = transfer),
             card.copy(history = listOf(transfer)), card.copy(transferMode = TransferMode.AVERAGE),
             card.copy(purchases = listOf(PurchaseReceipt(Currency.EUR, BigDecimal("1.1"), BigDecimal.ONE, day))),
             card.copy(manual = listOf(ManualRate(Currency.EUR, Currency.RUB, BigDecimal("91"), day))),

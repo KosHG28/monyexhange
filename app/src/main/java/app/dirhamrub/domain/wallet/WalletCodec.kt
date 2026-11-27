@@ -45,7 +45,6 @@ object WalletCodec {
             if (c.material != CardMaterial.SATIN) p[k + "material"] = c.material.name
             p[k + "kind"] = c.kind.name
             if (c.unionPay) p[k + "unionpay"] = "1"
-            c.settlement?.let { p[k + "settlement"] = it.code }
             c.network?.let { p[k + "network"] = it.name }
             c.transfer?.let { t -> putTransfer(p, k + "transfer.", t) }
             if (c.history.isNotEmpty()) {
@@ -145,7 +144,6 @@ object WalletCodec {
             manual = manual,
             kind = CardKind.entries.firstOrNull { it.name == p.getProperty(k + "kind") } ?: CardKind.CARD,
             unionPay = p.getProperty(k + "unionpay") == "1",
-            settlement = Currency.byCode(p.getProperty(k + "settlement"))?.takeIf { it in UnionPayRates.BASES },
             network = CardNetwork.entries.firstOrNull { it.name == p.getProperty(k + "network") },
             history = history,
             transferMode = TransferMode.entries.firstOrNull { it.name == p.getProperty(k + "transferMode") } ?: TransferMode.LAST,

@@ -42,12 +42,14 @@ class UnionPayTest {
     }
 
     @Test
-    fun `валюта расчёта по умолчанию`() {
-        assertEquals(Currency.CNY, UnionPayRates.defaultSettlement(Currency.RUB))
-        assertEquals(Currency.CNY, UnionPayRates.defaultSettlement(Currency.KZT))
-        assertEquals(Currency.USD, UnionPayRates.defaultSettlement(Currency.USD))
-        assertEquals(Currency.CNY, BankCard("c", "UnionPay", Currency.RUB, 0, unionPay = true).settlementCurrency)
-        assertEquals(Currency.USD, BankCard("c", "UnionPay", Currency.RUB, 0, unionPay = true, settlement = Currency.USD).settlementCurrency)
+    fun `прямая обратная и кросс котировки в валюту карты`() {
+        val rates = up.copy(rates = up.rates + (
+            Currency.CNY to (up.rates.getValue(Currency.CNY) + (Currency.RUB to BigDecimal("0.083")))
+        ))
+        assertEquals(BigDecimal("0.02015521"), rates.cardRate(Currency.LKR, Currency.CNY))
+        assertEquals(BigDecimal.ONE.divide(BigDecimal("0.083"), MC), rates.cardRate(Currency.CNY, Currency.RUB))
+        assertEquals(BigDecimal("0.02015521").divide(BigDecimal("0.083"), MC), rates.cardRate(Currency.LKR, Currency.RUB))
+        assertNull(rates.cardRate(Currency.LKR, Currency.KZT))
     }
 
     @Test
@@ -82,31 +84,26 @@ class UnionPayTest {
     }
 
     @Test
-    fun `рублёвая карта UnionPay — курс банка из чека в юанях`() {
-        val withReceipt = BankCard(
-            "rub", "Рубли", Currency.RUB, 0, unionPay = true,
-            purchases = listOf(PurchaseReceipt(Currency.CNY, BigDecimal("1180"), BigDecimal("100"), day)),
+    fun `фактические пополнение и покупка замещают оценку для соответствующих звеньев`() {
+        val card = BankCard(
+            "cny", "Юани", Currency.CNY, 0, unionPay = true,
+            transfer = TransferReceipt(BigDecimal("1180"), Currency.RUB, BigDecimal("100"), day),
         )
-        val q = RateEngine.quote(withReceipt, Currency.LKR, Currency.RUB, cbr.withUnionPay(up), up)!!
-        assertEquals(RateBasis.UNIONPAY, q.basis)
-        assertEquals(0, BigDecimal("0.02015521").multiply(BigDecimal("11.8"), MC).compareTo(q.homePerUnit))
+        val estimate = RateEngine.quote(card, Currency.LKR, Currency.RUB, cbr, up)!!
+        assertEquals(RateBasis.UNIONPAY, estimate.basis)
+        assertEquals(0, BigDecimal("0.02015521").multiply(BigDecimal("11.8"), MC).compareTo(estimate.homePerUnit))
+        val receipt = PurchaseReceipt(Currency.LKR, BigDecimal("21"), BigDecimal("1000"), day)
+        val actual = RateEngine.quote(card.copy(purchases = listOf(receipt)), Currency.LKR, Currency.RUB, cbr, up)!!
+        assertEquals(RateBasis.RECEIPTS, actual.basis)
+        assertEquals(0, BigDecimal("0.2478").compareTo(actual.homePerUnit))
+    }
 
-        // Без чека в юанях — оценка: юань по ЦБ с наценкой карты (чеков нет — без наценки).
-        val bare = withReceipt.copy(purchases = emptyList())
-        val e = RateEngine.quote(bare, Currency.LKR, Currency.RUB, cbr.withUnionPay(up), up)!!
-        assertEquals(RateBasis.ESTIMATE, e.basis)
-        assertEquals(0, BigDecimal("0.02015521").multiply(BigDecimal("11.38"), MC).compareTo(e.homePerUnit))
-
-        // Чек в валюте трат точнее всего.
-        val lkr = withReceipt.copy(purchases = withReceipt.purchases + PurchaseReceipt(Currency.LKR, BigDecimal("620"), BigDecimal("2500"), day))
-        assertEquals(RateBasis.RECEIPTS, RateEngine.quote(lkr, Currency.LKR, Currency.RUB, cbr.withUnionPay(up), up)!!.basis)
-
-        // Покупка в самой валюте расчёта — как у обычной карты.
-        assertEquals(RateBasis.RECEIPTS, RateEngine.quote(withReceipt, Currency.CNY, Currency.RUB, cbr, up)!!.basis)
-        assertEquals(
-            RateEngine.quote(bare.copy(unionPay = false), Currency.CNY, Currency.RUB, cbr, up),
-            RateEngine.quote(bare, Currency.CNY, Currency.RUB, cbr, up)?.let { it.copy(card = it.card.copy(unionPay = false)) },
-        )
+    @Test
+    fun `если нет пары UnionPay используем прямой курс ЦБ`() {
+        val card = BankCard("rub", "Рубли", Currency.RUB, 0, unionPay = true)
+        val q = RateEngine.quote(card, Currency.THB, Currency.RUB, cbr, up)!!
+        assertEquals(BigDecimal("2.45"), q.homePerUnit)
+        assertTrue(q.basis.approximate)
     }
 
     @Test
@@ -131,9 +128,11 @@ class UnionPayTest {
 
     @Test
     fun `карта UnionPay и курсы UnionPay сохраняются`() {
-        val card = BankCard("rub", "Рубли", Currency.RUB, 0, unionPay = true, settlement = Currency.USD)
+        val card = BankCard("rub", "Рубли", Currency.RUB, 0, unionPay = true)
         val wallet = Wallet(cards = listOf(card, BankCard("p", "Обычная", Currency.KZT, 1)))
-        assertEquals(wallet.cards, WalletCodec.decode(WalletCodec.encode(wallet))!!.cards)
+        val saved = WalletCodec.encode(wallet)
+        assertEquals(wallet.cards, WalletCodec.decode(saved)!!.cards)
+        assertEquals(wallet.cards, WalletCodec.decode(saved + "\ncard.0.settlement=USD\n")!!.cards)
 
         val text = WalletCodec.encodeUnionPay(up)
         assertTrue(WalletCodec.isCurrentTable(text))

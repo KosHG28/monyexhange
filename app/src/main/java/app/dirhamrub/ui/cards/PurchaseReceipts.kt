@@ -64,13 +64,15 @@ internal fun PurchaseReceipts(
     spend: Currency,
     pick: String,
     hint: String?,
+    usesUnionPayRate: Boolean,
     onAdd: () -> Unit,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     SubTitle(stringResource(R.string.receipt_purchases))
     if (purchases.isEmpty()) {
-        EmptyReceipts(stringResource(R.string.purchases_empty), stringResource(R.string.purchases_add_first), onAdd)
+        val message = if (usesUnionPayRate) R.string.purchases_empty_unionpay else R.string.purchases_empty
+        EmptyReceipts(stringResource(message), stringResource(R.string.purchases_add_first), onAdd)
         return
     }
     purchases.forEachIndexed { i, d ->

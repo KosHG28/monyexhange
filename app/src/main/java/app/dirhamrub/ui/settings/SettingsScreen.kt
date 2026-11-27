@@ -15,7 +15,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.ui.platform.LocalConfiguration
@@ -57,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -91,7 +91,6 @@ import java.time.ZoneId
 class SettingsActions(
     val onBack: () -> Unit,
     val onRefresh: () -> Unit,
-    val onUnionPay: (Boolean) -> Unit,
     val onRatesUpdate: (RatesUpdate) -> Unit,
     val onHome: (Currency) -> Unit,
     val onCountryHint: (Boolean) -> Unit,
@@ -193,28 +192,6 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
 }
 
 @Composable
-private fun ReceiptRatesInfo(days: List<LocalDate>) {
-    val colors = AppTheme.colors
-    val type = AppTheme.type
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp)
-            .clip(RoundedCornerShape(12.dp)).background(colors.surface2).padding(horizontal = 11.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Icon(painterResource(R.drawable.ic_info), contentDescription = null, tint = colors.muted, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(8.dp))
-        Column {
-            Text(stringResource(R.string.settings_receipts), style = type.caption.copy(fontWeight = FontWeight.SemiBold), color = colors.ink)
-            Text(stringResource(R.string.settings_receipts_auto), style = type.caption, color = colors.muted)
-            if (days.isNotEmpty()) {
-                val dates = days.take(3).joinToString(", ") { RuDates.short(it) } + if (days.size > 3) "…" else ""
-                Text(stringResource(R.string.settings_receipts_sub, dates), style = type.caption, color = colors.muted)
-            }
-        }
-    }
-}
-
-@Composable
 private fun RatesSection(state: MainUiState, actions: SettingsActions) {
     val today = LocalDate.now()
     SectionTitle(stringResource(R.string.settings_rates))
@@ -230,34 +207,36 @@ private fun RatesSection(state: MainUiState, actions: SettingsActions) {
             badge = stringResource(R.string.settings_badge_cbr),
             title = stringResource(R.string.settings_cbr),
             status = cbrStatus,
-            warn = official == null || state.ratesFailed,
+            warn = !state.ratesLoading && (official == null || state.ratesFailed),
             subtitle = official?.let {
-                stringResource(R.string.settings_cbr_sub, RuDates.short(it.date), it.rubPerUnit.size, state.officialSource ?: "—")
+                val count = it.rubPerUnit.size
+                val currencies = pluralStringResource(R.plurals.settings_currency_count, count, count)
+                stringResource(R.string.settings_cbr_sub, RuDates.short(it.date), currencies, state.officialSource ?: "—")
             } ?: stringResource(R.string.settings_cbr_empty),
         )
         Divider()
-        val week = state.officialWeekAgo
-        SourceRow(
-            badge = stringResource(R.string.settings_badge_week),
-            title = stringResource(R.string.settings_week),
-            status = "✓".takeIf { week != null },
-            enabled = week != null,
-            subtitle = stringResource(R.string.settings_week_sub, week?.let { RuDates.short(it.date) } ?: "—"),
-        )
-        ReceiptRatesInfo(state.ratesHistory.keys.sortedDescending())
-        // UnionPay включается прямо в своей строке — отдельного переключателя нет.
-        val up = state.unionPay?.takeIf { state.settings.unionPay }
+        val up = state.unionPay
         SourceRow(
             badge = stringResource(R.string.settings_badge_unionpay),
             title = stringResource(R.string.settings_unionpay),
-            status = null,
-            subtitle = if (up != null) {
-                stringResource(R.string.settings_unionpay_on, fetchedText(state.unionPayFetchedAt, today).removePrefix("✓ "))
-            } else {
-                stringResource(R.string.settings_unionpay_switch_sub)
-            },
-            trailing = { AppSwitch(state.settings.unionPay) },
-            modifier = Modifier.toggleable(value = state.settings.unionPay, role = Role.Switch, onValueChange = actions.onUnionPay),
+            status = if (up != null) fetchedText(state.unionPayFetchedAt, today)
+                else stringResource(R.string.settings_no_rates),
+            warn = up == null,
+            subtitle = stringResource(R.string.settings_unionpay_sub),
+        )
+        Divider()
+        SourceRow(
+            badge = stringResource(R.string.settings_badge_week),
+            title = stringResource(R.string.settings_week),
+            status = state.officialWeekAgo?.date?.let { "✓ ${RuDates.short(it)}" },
+            subtitle = stringResource(R.string.settings_week_sub),
+        )
+        Divider()
+        SourceRow(
+            badge = stringResource(R.string.settings_badge_receipts),
+            title = stringResource(R.string.settings_receipts),
+            status = state.ratesHistory.keys.maxOrNull()?.let { "✓ ${RuDates.short(it)}" },
+            subtitle = stringResource(R.string.settings_receipts_auto),
         )
         Divider()
         val updates = RatesUpdate.entries

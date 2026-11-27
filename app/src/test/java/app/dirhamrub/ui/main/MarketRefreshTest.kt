@@ -21,11 +21,15 @@ class MarketRefreshTest {
     private val wallet = Wallet(cards = listOf(card), spend = Currency.EUR, selectedId = card.id, place = "GR")
     private class Sources : RateSources {
         var calls = 0
+        var unionPayCalls = 0
         var fail = false
         val result = CompletableDeferred<CbrClient.Fetched?>()
         override suspend fun official(): CbrClient.Fetched? { calls++; if (fail) throw java.io.IOException("offline"); return result.await() }
         override suspend fun onDate(date: LocalDate): OfficialRates? = null
-        override suspend fun unionPay(): UnionPayRates? = null
+        override suspend fun unionPay(): UnionPayRates? {
+            unionPayCalls++
+            return null
+        }
         override suspend fun guide(): Pair<String, CountryGuides>? = null
     }
     private fun preferences() = MemoryPreferences(preferencesOf(
@@ -47,6 +51,7 @@ class MarketRefreshTest {
                 calculationDispatcher = StandardTestDispatcher(calculate), sources = source)
             store.put("vm", vm); runCurrent()
             vm.refreshRates(); runCurrent()
+            assertEquals(1, source.unionPayCalls)
             vm.press(Key.Digit(1)); vm.press(Key.Digit(2)); runCurrent()
             val fresh = oldRates.copy(rubPerUnit = oldRates.rubPerUnit + (Currency.USD to BigDecimal("85")))
             source.result.complete(CbrClient.Fetched(fresh, "test")); runCurrent()

@@ -1,12 +1,13 @@
 package app.dirhamrub.domain.wallet
 
+import app.dirhamrub.domain.MC
 import java.math.BigDecimal
 import java.time.LocalDate
 
 /**
  * Курсы платёжной системы UnionPay на дату [date]: сколько единиц валюты расчёта стоит 1 единица
  * валюты покупки. UnionPay публикует их по будним дням (в выходные действует пятничный курс)
- * для ~160 валют покупки и 15 валют расчёта ([BASES]). Комиссии банка-эмитента в курс не входят.
+ * для ~160 валют покупки и 15 валют расчёта. Комиссии банка-эмитента в курс не входят.
  */
 data class UnionPayRates(
     val date: LocalDate,
@@ -17,15 +18,13 @@ data class UnionPayRates(
     fun rate(trans: Currency, base: Currency): BigDecimal? =
         if (trans == base) BigDecimal.ONE else rates[base]?.get(trans)?.takeIf { it.signum() > 0 }
 
-    companion object {
-        /** Валюты расчёта UnionPay: сначала частые у карт российских банков. */
-        val BASES: List<Currency> = listOf(
-            Currency.CNY, Currency.USD, Currency.EUR, Currency.HKD, Currency.GBP, Currency.JPY, Currency.SGD,
-            Currency.THB, Currency.AUD, Currency.CAD, Currency.NZD, Currency.HUF, Currency.MNT, Currency.MOP, Currency.VND,
-        )
-
-        /** Валюта расчёта по умолчанию для карты в [card]: она сама, если UnionPay в ней рассчитывается, иначе юань. */
-        fun defaultSettlement(card: Currency): Currency = if (card in BASES) card else Currency.CNY
+    /** Прямой курс, обратная котировка или кросс по общей опубликованной базе. */
+    fun cardRate(spend: Currency, card: Currency): BigDecimal? {
+        rate(spend, card)?.let { return it }
+        rate(card, spend)?.let { return BigDecimal.ONE.divide(it, MC) }
+        val base = rates.keys.sortedBy { it.code }.firstOrNull { rate(spend, it) != null && rate(card, it) != null }
+            ?: return null
+        return rate(spend, base)!!.divide(rate(card, base)!!, MC)
     }
 }
 

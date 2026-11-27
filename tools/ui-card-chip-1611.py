@@ -91,12 +91,12 @@ def expect_sensors(expected, screen):
         dump = adb("shell", "dumpsys", "sensorservice")
         active = re.search(r"(?ms)^ *\d+ active connections[^\n]*\n(.*?)^ *\d+ direct connections", dump)
         assert active, "Android did not report active sensor connections"
-        count = len(re.findall(rf"(?m)^\s*{re.escape(PACKAGE)}\s+\|\s*WakeLockRefCount", active[1]))
+        count = len(re.findall(rf"\| uid {app_uid} \|", active[1]))
         if count == expected:
             print(f"{screen}: {count} active sensor connections", flush=True)
             return
         time.sleep(0.25)
-    raise AssertionError(f"{screen}: expected {expected} active app sensor connections, got {count}")
+    raise AssertionError(f"{screen}: expected {expected} active app sensor connections, got {count}\n{active[1]}")
 
 
 def record_sheet(action):
@@ -121,6 +121,10 @@ def record_sheet(action):
 
 
 out = Path("screens")
+installed = adb("shell", "cmd", "package", "list", "packages", "-U", PACKAGE)
+uid = re.search(rf"(?m)^package:{re.escape(PACKAGE)} uid:(\d+)$", installed)
+assert uid, "Cannot read the app UID from Android"
+app_uid = uid[1]
 adb("shell", "settings", "put", "global", "animator_duration_scale", "1")
 adb("shell", "cmd", "uimode", "night", "yes")
 start("main")

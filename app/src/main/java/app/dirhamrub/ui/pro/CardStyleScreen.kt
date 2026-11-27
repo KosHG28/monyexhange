@@ -51,6 +51,7 @@ import app.dirhamrub.domain.wallet.*
 import app.dirhamrub.ui.components.FullScreen
 import app.dirhamrub.ui.components.ScreenBar
 import app.dirhamrub.ui.main.BankCardView
+import app.dirhamrub.ui.main.EmvChip
 import app.dirhamrub.ui.main.MainUiState
 import app.dirhamrub.ui.theme.*
 import kotlinx.coroutines.delay
@@ -91,8 +92,7 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?, Ca
                 val q = state.quote.of(card.id)
                 val sum = q?.let { Numbers.total(state.totals.spend.multiply(it.homePerUnit, MC), state.settings.rounding) }
                 val focus = LocalFocusManager.current
-                // Короткое меню выбора забирает фокус, но использует тот же наклон, что большая карта.
-                val reflectionTilt = rememberReflectionTilt(active = !isClosing, trackWhenUnfocused = true)
+                val reflectionTilt = rememberReflectionTilt(active = !isClosing)
                 val reduce = LocalReduceMotion.current
                 var sweepRequest by remember(card.id) { mutableIntStateOf(0) }
                 var playedSweep by remember(card.id) { mutableIntStateOf(0) }
@@ -273,7 +273,7 @@ private fun ColorPresets(preset: Int, custom: Boolean, onPreset: (Int) -> Unit, 
                     Box(Modifier.size(50.dp, 32.dp).clip(RoundedCornerShape(6.dp))
                         .background(if (own) Brush.horizontalGradient(CardPalette.hueStops) else Brush.linearGradient(listOf(style.start, style.end))), contentAlignment = Alignment.Center) {
                         if (own) Text("+", fontSize = 20.sp, color = Color.White)
-                        else Box(Modifier.align(Alignment.CenterStart).padding(start = 6.dp).size(7.dp, 5.dp).clip(RoundedCornerShape(2.dp)).background(style.chip))
+                        else EmvChip(style.ink, Modifier.align(Alignment.CenterStart).padding(start = 6.dp).size(7.dp, 5.dp))
                     }
                     Spacer(Modifier.height(7.dp))
                     Text(label, color = if (selected) colors.accent else colors.muted, style = AppTheme.type.caption.copy(fontSize = 11.sp,
@@ -351,7 +351,7 @@ private fun MiniColorCard(card: BankCard) {
     Box(
         Modifier.size(44.dp, 30.dp).clip(RoundedCornerShape(5.dp)).cardMaterial(style, card.material, 5.dp, tilt = LocalCardTilt.current),
     ) {
-        Box(Modifier.align(Alignment.CenterStart).padding(start = 6.dp).size(7.dp, 5.dp).clip(RoundedCornerShape(2.dp)).background(style.chip))
+        EmvChip(style.ink, Modifier.align(Alignment.CenterStart).padding(start = 6.dp).size(7.dp, 5.dp))
         Text(card.currency.code, color = style.ink, style = AppTheme.type.caption.copy(fontSize = 7.sp), modifier = Modifier.align(Alignment.BottomEnd).padding(3.dp))
     }
 }

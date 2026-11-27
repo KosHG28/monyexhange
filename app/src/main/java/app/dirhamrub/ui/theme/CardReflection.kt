@@ -49,17 +49,16 @@ internal fun DrawScope.drawCardGrain(alpha: Float = 0.02f) {
 }
 
 @Composable
-internal fun rememberReflectionTilt(active: Boolean, trackWhenUnfocused: Boolean = false): State<Offset> {
+internal fun rememberReflectionTilt(active: Boolean): State<Offset> {
     val target = remember { mutableStateOf(Offset.Zero) }
     val filter = remember { CardTiltFilter() }
     val reduce = LocalReduceMotion.current
     ObserveRotation(
-        active && !reduce,
+        active,
         onStart = { filter.reset(target.value) },
         onAcceleration = { values, time, rotation ->
             target.value = filter.readAcceleration(values, time, rotation)
         },
-        trackWhenUnfocused = trackWhenUnfocused,
     ) { matrix, timestamp, rotation ->
         target.value = filter.read(matrix, timestamp, rotation)
     }

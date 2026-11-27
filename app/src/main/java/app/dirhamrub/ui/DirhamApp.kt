@@ -232,6 +232,7 @@ fun DirhamApp(
         Box(Modifier.fillMaxSize().background(AppTheme.colors.bg)) {
         OnboardingScreen(
             startStep = startStep,
+            reflectLight = showOnboarding,
             spend = state.wallet.spend,
             home = state.wallet.home,
             place = placeOf(state.wallet.spend, state.wallet.place, country),
@@ -378,6 +379,7 @@ fun DirhamApp(
         BackHandler { moneyOpen = false }
         MoneyScreen(
             state = state,
+            reflectLight = moneyOpen && !showOnboarding && editing == null && !cameraOpen && !proOpen && !cardStyleOpen,
             actions = MoneyActions(
                 onBack = { moneyOpen = false },
                 onEditCard = { editing = Editing(it, isNew = false) },

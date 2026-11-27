@@ -72,7 +72,7 @@ import app.dirhamrub.ui.theme.banknoteTheme
 import app.dirhamrub.ui.theme.cardMaterial
 import app.dirhamrub.ui.theme.forMaterial
 import app.dirhamrub.ui.theme.motion
-import app.dirhamrub.ui.theme.LocalCardTilt
+import app.dirhamrub.ui.theme.rememberReflectionTilt
 import app.dirhamrub.ui.theme.surfaceOutline
 
 class MoneyActions(
@@ -84,7 +84,7 @@ class MoneyActions(
 )
 
 @Composable
-fun MoneyScreen(state: MainUiState, actions: MoneyActions) {
+fun MoneyScreen(state: MainUiState, actions: MoneyActions, reflectLight: Boolean) {
     val colors = AppTheme.colors
     val wallet = state.wallet
     val quote = state.quote
@@ -93,7 +93,7 @@ fun MoneyScreen(state: MainUiState, actions: MoneyActions) {
             wallet.cards.sortedWith(compareBy(nullsLast()) { quote.of(it.id)?.homePerUnit })
     }
     val ids = remember(cards) { cards.map { it.id } }
-    val tilt = LocalCardTilt.current
+    val tilt = rememberReflectionTilt(active = reflectLight && cards.isNotEmpty())
     val byId = remember(cards) { cards.associateBy { it.id } }
     val drag = remember(ids, wallet.spend) { PaymentDrag(ids) }
     val bestId = quote.best?.card?.id?.takeIf { quote.quotes.size > 1 }
@@ -163,7 +163,7 @@ private fun WalletCard(
     quote: CardQuote?,
     best: Boolean,
     held: Boolean,
-    tilt: State<Offset>?,
+    tilt: State<Offset>,
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
@@ -195,7 +195,7 @@ private fun WalletCard(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (!cash) {
-            EmvChip(style.chip, Modifier.size(width = 20.dp, height = 14.dp))
+            EmvChip(style.ink, Modifier.size(width = 20.dp, height = 14.dp))
             Spacer(Modifier.width(10.dp))
         }
         Column(Modifier.weight(1f)) {

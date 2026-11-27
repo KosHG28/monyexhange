@@ -438,7 +438,9 @@ fun CardEditorScreen(
                 needsReceipt = official?.cross(previewSpend, previewHome) == null,
             )
             var previewVisible by remember { mutableStateOf(false) }
-            val reflectionTilt = rememberReflectionTilt(previewVisible && !isClosing && morph?.flying != true)
+            val reflectionTilt = rememberReflectionTilt(
+                active = previewVisible && !isClosing && !cardPicker && !confirmExit && !confirmDelete && morph?.flying != true,
+            )
             if (morph != null) SideEffect {
                 morph.card = { textAlpha -> PreviewCard(preview, reflectionTilt, textAlpha) }
             }

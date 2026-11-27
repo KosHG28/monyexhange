@@ -26,7 +26,7 @@ import androidx.core.view.WindowCompat
 import app.dirhamrub.domain.MotionMode
 import app.dirhamrub.domain.ThemeMode
 
-/** true, если в системе отключены анимации («уменьшить анимацию»). */
+/** true, если анимации отключены системой или настройкой приложения. */
 val LocalReduceMotion = staticCompositionLocalOf { false }
 
 /** Виброотклик в приложении (настройка «Виброотклик»): клавиши, выбор карты, камера, скриншоты — см. [Haptics]. */
@@ -60,6 +60,7 @@ fun DirhamTheme(
     pureBlack: Boolean = false,
     /** Pro: синий акцент — из цветов обоев (Android 12+); цвета карт, «лучшая» и предупреждения — свои. */
     dynamicColor: Boolean = false,
+    onMotionScaleChanged: (Float) -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     val systemDark = isSystemInDarkTheme()
@@ -81,8 +82,10 @@ fun DirhamTheme(
         base
     }
     // Анимации выключены в системе или включено энергосбережение — без анимаций (слабые устройства).
-    val systemReduce = rememberSystemMotionReduction()
-    val reduceMotion = motion == MotionMode.OFF || systemReduce
+    val systemScale = rememberSystemMotionScale()
+    val scale = if (motion == MotionMode.OFF) 0f else systemScale
+    val reduceMotion = scale == 0f
+    SideEffect { onMotionScaleChanged(scale) }
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -136,4 +139,3 @@ fun DirhamTheme(
         MaterialTheme(colorScheme = scheme, typography = materialTypography(type), content = content)
     }
 }
-

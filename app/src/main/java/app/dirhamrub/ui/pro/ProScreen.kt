@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
+import app.dirhamrub.ui.main.EmvChip
 import app.dirhamrub.domain.AppSettings
 import app.dirhamrub.domain.AppIcon
 import app.dirhamrub.data.ProFeatures
@@ -347,8 +348,7 @@ private fun CardColorsOption(pro: Boolean, cards: List<BankCard>, onClick: () ->
                 val style = (card?.let(CardPalette::style) ?: CardPalette.style(index)).forMaterial(material)
                 val shape = RoundedCornerShape(6.dp)
                 Box(Modifier.weight(1f).fillMaxHeight().clip(shape).cardMaterial(style, material, 6.dp)) {
-                    Box(Modifier.align(Alignment.CenterStart).padding(start = 6.dp).size(7.dp, 6.dp)
-                        .clip(RoundedCornerShape(2.dp)).background(style.chip))
+                    EmvChip(style.ink, Modifier.align(Alignment.CenterStart).padding(start = 6.dp).size(7.dp, 6.dp))
                 }
             }
         }

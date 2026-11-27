@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
+import app.dirhamrub.ui.main.EmvChip
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.Currency
@@ -168,13 +169,7 @@ private fun WayRow(style: CardStyle, badge: String, name: String, sub: String, s
                 .background(Brush.linearGradient(listOf(style.start, style.end)))
                 .sheen(halfWidth = 9.dp),
         ) {
-            Box(
-                Modifier
-                    .padding(start = 5.dp, top = 5.dp)
-                    .size(width = 9.dp, height = 6.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(style.chip),
-            )
+            EmvChip(style.ink, Modifier.padding(start = 5.dp, top = 5.dp).size(9.dp, 6.dp))
             Text(
                 badge,
                 style = type.caption.copy(fontSize = 8.sp, lineHeight = 9.sp, fontWeight = FontWeight.Bold),

@@ -847,12 +847,7 @@ internal fun PayIcon(card: BankCard, flight: Boolean = false) {
     ) {
         Box(Modifier.matchParentSize().then(sharedModifier).clip(RoundedCornerShape(if (cash) 3.dp else 5.dp)).then(finish))
         if (!cash) {
-            Box(
-                Modifier.align(Alignment.CenterStart).padding(start = 5.dp)
-                    .size(width = 8.dp, height = 6.dp)
-                    .clip(RoundedCornerShape(1.5.dp))
-                    .background(style.chip),
-            )
+            EmvChip(style.ink, Modifier.align(Alignment.CenterStart).padding(start = 5.dp).size(8.dp, 6.dp))
         }
         ((if (cash) null else networkMark(card.paymentNetwork)) ?: card.currency.code).let { mark ->
             Text(

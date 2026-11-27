@@ -72,6 +72,7 @@ import app.dirhamrub.ui.currency.CountryScreen
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.Haptic
 import app.dirhamrub.ui.theme.LocalReduceMotion
+import app.dirhamrub.ui.theme.ProvideTilt
 import app.dirhamrub.ui.theme.rememberHaptics
 import kotlinx.coroutines.launch
 
@@ -104,6 +105,7 @@ fun OnboardingScreen(
     onOpenEditor: (BankCard) -> Unit,
     /** С какого шага начать (снимки CI). */
     startStep: Int = 0,
+    reflectLight: Boolean = true,
 ) {
     val colors = AppTheme.colors
     val reduceMotion = LocalReduceMotion.current
@@ -138,34 +140,36 @@ fun OnboardingScreen(
             }
             // Шаги листаются свайпом и кнопками; появившийся шаг собирается каскадом — блоки выплывают
             // снизу друг за другом (страница заново входит в композицию — волна заново).
-            HorizontalPager(
-                state = pager,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
-            ) { step ->
-                val wave = rememberCascade(CascadeTiming.Step)
-                val enter: (Int) -> Modifier = { Modifier.cascade(wave, it, CascadeTiming.Step, fade = step != STEPS - 1) }
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .finishCascadeOnTouch(wave)
-                        .padding(horizontal = 20.dp),
-                ) {
-                    when (step) {
-                        0 -> ValueStep(official, enter) { go(1) }
-                        1 -> RulesStep(home, enter) { go(2) }
-                        else -> SetupStep(
-                            spend = spend,
-                            home = home,
-                            place = place,
-                            official = official,
-                            unionPay = unionPay,
-                            newCard = newCard,
-                            onCountry = { countryOpen = true },
-                            onFinish = onFinish,
-                            onOpenEditor = onOpenEditor,
-                            enter = enter,
-                        )
+            ProvideTilt(active = reflectLight && !countryOpen && pager.currentPage != 1) {
+                HorizontalPager(
+                    state = pager,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                ) { step ->
+                    val wave = rememberCascade(CascadeTiming.Step)
+                    val enter: (Int) -> Modifier = { Modifier.cascade(wave, it, CascadeTiming.Step, fade = step != STEPS - 1) }
+                    Column(
+                        Modifier
+                            .fillMaxSize()
+                            .finishCascadeOnTouch(wave)
+                            .padding(horizontal = 20.dp),
+                    ) {
+                        when (step) {
+                            0 -> ValueStep(official, enter) { go(1) }
+                            1 -> RulesStep(home, enter) { go(2) }
+                            else -> SetupStep(
+                                spend = spend,
+                                home = home,
+                                place = place,
+                                official = official,
+                                unionPay = unionPay,
+                                newCard = newCard,
+                                onCountry = { countryOpen = true },
+                                onFinish = onFinish,
+                                onOpenEditor = onOpenEditor,
+                                enter = enter,
+                            )
+                        }
                     }
                 }
             }

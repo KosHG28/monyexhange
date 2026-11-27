@@ -46,10 +46,10 @@ val LocalTilt = staticCompositionLocalOf<State<Float>?> { null }
 
 internal val LocalCardTilt = staticCompositionLocalOf<State<Offset>?> { null }
 
-/** Один датчик на главное окно, в том числе для прежних одноосевых эффектов. */
+/** Один датчик для эффектов видимой страницы знакомства. */
 @Composable
-fun ProvideTilt(content: @Composable () -> Unit) {
-    val tilt = rememberReflectionTilt(active = true)
+internal fun ProvideTilt(active: Boolean, content: @Composable () -> Unit) {
+    val tilt = rememberReflectionTilt(active)
     val legacy: State<Float>? = if (LocalReduceMotion.current) null else remember(tilt) {
         derivedStateOf { tilt.value.x }
     }
@@ -70,7 +70,6 @@ internal fun ObserveRotation(
     active: Boolean,
     onStart: () -> Unit,
     onAcceleration: ((FloatArray, Long, Int) -> Unit)? = null,
-    trackWhenUnfocused: Boolean = false,
     onReading: (matrix: FloatArray, timestamp: Long, rotation: Int) -> Unit,
 ): Boolean {
     val focused = LocalWindowInfo.current.isWindowFocused
@@ -88,7 +87,7 @@ internal fun ObserveRotation(
             if (useAcceleration) manager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) else null,
         )
     }
-    val enabled = active && (focused || trackWhenUnfocused) && !reduceMotion
+    val enabled = active && focused && !reduceMotion
     val start by rememberUpdatedState(onStart)
     val reading by rememberUpdatedState(onReading)
     val acceleration by rememberUpdatedState(onAcceleration)

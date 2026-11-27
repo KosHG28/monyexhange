@@ -1,10 +1,10 @@
 package app.dirhamrub
 
-import app.dirhamrub.ui.theme.ProvideTilt
 import app.dirhamrub.ui.theme.AdaptiveFrameRate
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.createLifecycleAwareWindowRecomposer
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.lifecycleScope
@@ -21,6 +21,7 @@ import app.dirhamrub.diag.Demo
 import app.dirhamrub.diag.CrashReportDialog
 import app.dirhamrub.ui.DirhamApp
 import app.dirhamrub.ui.main.MainViewModel
+import app.dirhamrub.ui.theme.AppMotionDurationScale
 import app.dirhamrub.ui.theme.DirhamTheme
 import kotlinx.coroutines.runBlocking
 
@@ -59,13 +60,22 @@ class MainActivity : ComponentActivity() {
                     .saveSettings(app.dirhamrub.domain.AppSettings(pro = true))
             }
         }
-        setContent {
+        // Compose and Material components use this window's scale, including sheets and popups.
+        val motionScale = AppMotionDurationScale()
+        val view = ComposeView(this)
+        view.setParentCompositionContext(view.createLifecycleAwareWindowRecomposer(motionScale, lifecycle))
+        view.setContent {
             val vm: MainViewModel = viewModel(factory = MainViewModel.Factory)
             val settings by vm.settings.collectAsStateWithLifecycle()
-            DirhamTheme(theme = settings.theme, motion = settings.motion, keyHaptics = settings.keyHaptics, pureBlack = settings.pureBlack, dynamicColor = settings.dynamicColor) {
+            DirhamTheme(
+                theme = settings.theme,
+                motion = settings.motion,
+                keyHaptics = settings.keyHaptics,
+                pureBlack = settings.pureBlack,
+                dynamicColor = settings.dynamicColor,
+                onMotionScaleChanged = { motionScale.scaleFactor = it },
+            ) {
                 AdaptiveFrameRate {
-                // Движение света на картах от общего датчика наклона.
-                ProvideTilt {
                     DirhamApp(
                         startScreen = screen,
                         startCard = intent?.getStringExtra(EXTRA_CARD),
@@ -73,11 +83,11 @@ class MainActivity : ComponentActivity() {
                         startCurrency = intent?.getStringExtra(EXTRA_CURRENCY),
                         vm = vm,
                     )
-                }
-                CrashReportDialog()
+                    CrashReportDialog()
                 }
             }
         }
+        setContentView(view)
     }
 
     companion object {

@@ -207,7 +207,7 @@ internal fun BankCardView(
                 },
         ) {
             if (!tripPreview) {
-                PaymentPreviewFace(card, style.ink, style.chip, sumText, textAlpha)
+                PaymentPreviewFace(card, style.ink, sumText, textAlpha)
                 return@Box
             }
             Box(Modifier.matchParentSize().tripSharedBounds(TRIP_CARD).clip(cardShape).then(surface))
@@ -257,7 +257,7 @@ internal fun BankCardView(
                     }
                     if (inlineChip) {
                         Spacer(Modifier.width(8.dp))
-                        EmvChip(style.chip, decoration.size(width = 22.dp, height = 15.dp))
+                        EmvChip(style.ink, decoration.size(width = 22.dp, height = 15.dp))
                     }
                     if (physicalCard) {
                         Spacer(Modifier.width(8.dp))
@@ -268,7 +268,7 @@ internal fun BankCardView(
                 }
                 if (physicalCard && !inlineChip) {
                     Spacer(Modifier.height(7.dp))
-                    EmvChip(style.chip, decoration.size(width = 26.dp, height = 19.dp))
+                    EmvChip(style.ink, decoration.size(width = 26.dp, height = 19.dp))
                 }
                 Spacer(Modifier.weight(1f))
                 // Сумма меняется на каждом нажатии — перекатываются только изменившиеся цифры.
@@ -332,7 +332,6 @@ internal fun BankCardView(
 private fun PaymentPreviewFace(
     card: BankCard,
     ink: Color,
-    chip: Color,
     sum: String,
     textAlpha: () -> Float,
 ) {
@@ -356,7 +355,7 @@ private fun PaymentPreviewFace(
         }
         if (!cash) {
             Spacer(Modifier.height(5.dp))
-            EmvChip(chip, Modifier.size(width = 28.dp, height = 20.dp))
+            EmvChip(ink, Modifier.size(width = 28.dp, height = 20.dp))
         }
         Spacer(Modifier.weight(1f))
         Row(verticalAlignment = Alignment.Bottom) {

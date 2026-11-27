@@ -11,6 +11,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.selection.selectable
@@ -56,7 +57,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -86,6 +86,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.util.Locale
 
 /** Что можно сделать на экране настроек. */
 class SettingsActions(
@@ -194,6 +195,13 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
 @Composable
 private fun RatesSection(state: MainUiState, actions: SettingsActions) {
     val today = LocalDate.now()
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    // The UI text is Russian even when the system language uses different plural rules.
+    val russianResources = remember(context, configuration) {
+        val russian = Configuration(configuration).apply { setLocale(Locale.forLanguageTag("ru")) }
+        context.createConfigurationContext(russian).resources
+    }
     SectionTitle(stringResource(R.string.settings_rates))
     Group {
         val official = state.official
@@ -210,7 +218,7 @@ private fun RatesSection(state: MainUiState, actions: SettingsActions) {
             warn = !state.ratesLoading && (official == null || state.ratesFailed),
             subtitle = official?.let {
                 val count = it.rubPerUnit.size
-                val currencies = pluralStringResource(R.plurals.settings_currency_count, count, count)
+                val currencies = russianResources.getQuantityString(R.plurals.settings_currency_count, count, count)
                 stringResource(R.string.settings_cbr_sub, RuDates.short(it.date), currencies, state.officialSource ?: "—")
             } ?: stringResource(R.string.settings_cbr_empty),
         )

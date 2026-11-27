@@ -87,4 +87,37 @@ class CalculatorSessionTest {
         repo.saveInput(Line.SPEND, Expression.of(BigDecimal(12)))
         assertEquals("3", repo.load().expression.press(Key.Digit(3)).serialize())
     }
+    @Test fun addingManualRateRecoversPendingAmountWithoutRefresh() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        Dispatchers.setMain(dispatcher)
+        val store = ViewModelStore()
+        try {
+            val wallet = Wallet(spend = Currency.AED)
+            val date = LocalDate.of(2026, 11, 27)
+            val rates = OfficialRates(date, mapOf(Currency.AED to BigDecimal("22")))
+            val settings = MemoryPreferences(preferencesOf(
+                stringPreferencesKey("wallet") to WalletCodec.encode(wallet),
+                stringPreferencesKey("settings_rates_update") to RatesUpdate.MANUAL.name,
+                stringPreferencesKey("expression") to "250",
+            ))
+            val market = MemoryPreferences(preferencesOf(stringPreferencesKey("official_rates") to WalletCodec.encodeRates(rates)))
+            val vm = MainViewModel(WalletRepository(settings, MemoryPreferences(), market, dispatcher),
+                guideDispatcher = dispatcher, calculationDispatcher = dispatcher, sources = Offline)
+            store.put("vm", vm)
+            runCurrent()
+            vm.setSpend(Currency.VND, "VN")
+            assertNotNull(vm.state.value.pendingConversion)
+            vm.saveCard(BankCard("manual", "manual", Currency.RUB, 0,
+                manual = listOf(ManualRate(Currency.VND, Currency.RUB, BigDecimal("0.005"), date))))
+            assertEquals(0, BigDecimal("1100000").compareTo(vm.state.value.totals.spend))
+            assertNull(vm.state.value.pendingConversion)
+        } finally { store.clear(); runCurrent(); Dispatchers.resetMain() }
+    }
+
+    @Test fun sameCurrencyNeedsNeitherCardsNorDownloadedRates() {
+        val state = MainUiState(wallet = Wallet(spend = Currency.RUB), expression = Expression.of(BigDecimal("250")))
+        assertEquals(BigDecimal.ONE, state.homePerUnit)
+        assertEquals(BigDecimal("250"), state.totals.home)
+    }
+
 }

@@ -372,7 +372,8 @@ private fun big(value: BigDecimal, rounding: Rounding): String = Numbers.total(v
 
 /** Приблизительный ли курс выбранного способа (оценка, UnionPay, ЦБ или карт нет вовсе). */
 private fun approxNow(state: MainUiState): Boolean =
-    state.selectedQuote?.basis?.let { it.approximate || it == RateBasis.OFFICIAL } != false
+    state.selectedQuote?.basis?.let { it.approximate || it == RateBasis.OFFICIAL }
+        ?: (state.wallet.spend != state.wallet.home)
 
 /**
  * Итог — самые крупные цифры экрана, без подписей: «67 ₽», «≈ 72 ₽». Ничего не набрано — тусклый «0 ₽».

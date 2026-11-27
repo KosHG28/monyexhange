@@ -127,4 +127,10 @@ class CountryGuideTest {
         assertTrue(all.getValue("DE").export.any { it.title.contains("10 000 €") })
         assertNotNull(all.getValue("TN").notes)
     }
+    @Test fun `a known country without a guide does not borrow the network country's guide`() {
+        val guides = CountryGuideParser.parse("version=2026-11-11\n[US]\nupdated=2026-11-11\nvisa=yes|Принимают")!!
+        assertNotNull(guides.forSpend(Currency.USD, "US"))
+        assertNull(guides.forSpend(Currency.USD, "US", "PA"))
+    }
+
 }

@@ -102,10 +102,11 @@ fun OnboardingScreen(
     onSpend: (Currency, String?) -> Unit,
     newCard: () -> BankCard,
     onFinish: (BankCard?, BigDecimal?) -> Unit,
-    onOpenEditor: (BankCard) -> Unit,
+    onOpenEditor: (BankCard, BigDecimal?) -> Unit,
     /** С какого шага начать (снимки CI). */
     startStep: Int = 0,
     reflectLight: Boolean = true,
+    selectedPlaceIso: String? = null,
 ) {
     val colors = AppTheme.colors
     val reduceMotion = LocalReduceMotion.current
@@ -188,6 +189,7 @@ fun OnboardingScreen(
                 onBack = { countryOpen = false },
                 recent = recent,
                 country = country,
+                selectedPlaceIso = selectedPlaceIso,
                 official = official,
             )
         }

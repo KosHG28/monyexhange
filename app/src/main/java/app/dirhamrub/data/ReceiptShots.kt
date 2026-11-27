@@ -6,6 +6,8 @@ import android.net.Uri
 import android.util.AtomicFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 /**
@@ -17,6 +19,7 @@ data class ReceiptFile(val file: File, val revision: Long)
 
 object ReceiptShots {
     private const val MAX_SIDE = 1600
+    private val writes = Mutex()
 
     private fun dir(context: Context): File = File(context.noBackupFilesDir, "receipt-shots").apply { mkdirs() }
 
@@ -31,8 +34,11 @@ object ReceiptShots {
         dir(context).listFiles { f -> f.name.startsWith("${safe(cardId)}-") }?.sortedByDescending { it.lastModified() }.orEmpty()
 
     /** File metadata is acquired off-main, not during composition of image thumbnails. */
-    suspend fun entries(context: Context, cardId: String): List<ReceiptFile> = withContext(Dispatchers.IO) {
-        list(context, cardId).map { ReceiptFile(it, it.lastModified()) }
+    suspend fun entries(context: Context, cardId: String, kinds: Set<String>): List<ReceiptFile> = withContext(Dispatchers.IO) {
+        val prefix = "${safe(cardId)}-"
+        list(context, cardId).filter {
+            it.extension == "jpg" && it.nameWithoutExtension.removePrefix(prefix) in kinds
+        }.map { ReceiptFile(it, it.lastModified()) }
     }
 
     /** Уменьшить и сохранить скриншот [uri] к чеку; null — не получилось прочитать картинку. */
@@ -57,13 +63,18 @@ object ReceiptShots {
         }.getOrNull()
     }
 
-    fun deleteTransfer(context: Context, cardId: String) {
-        AtomicFile(file(context, cardId, TRANSFER_KIND)).delete()
+    suspend fun update(context: Context, cardId: String, images: Map<String, Uri>, stale: Set<String>) = writes.withLock {
+        withContext(Dispatchers.IO) {
+            val replaced = images.mapNotNull { (kind, uri) -> kind.takeIf { save(context, uri, cardId, kind) != null } }
+            (stale - replaced.toSet()).forEach { kind -> AtomicFile(file(context, cardId, kind)).delete() }
+        }
     }
 
     /** Карту удалили — её скриншоты тоже. */
-    fun deleteCard(context: Context, cardId: String) {
-        list(context, cardId).forEach { it.delete() }
+    suspend fun deleteCard(context: Context, cardId: String) = writes.withLock {
+        withContext(Dispatchers.IO) {
+            list(context, cardId).forEach { AtomicFile(it).delete() }
+        }
     }
 
     /** Скриншоты карт, которых больше нет (удалили, или новую карту не сохранили). */

@@ -25,7 +25,12 @@ class MarketRefreshTest {
         var fail = false
         val result = CompletableDeferred<CbrClient.Fetched?>()
         override suspend fun official(): CbrClient.Fetched? { calls++; if (fail) throw java.io.IOException("offline"); return result.await() }
-        override suspend fun onDate(date: LocalDate): OfficialRates? = null
+        val archiveRequests = mutableListOf<LocalDate>()
+        var archive: Map<LocalDate, OfficialRates> = emptyMap()
+        override suspend fun onDate(date: LocalDate): OfficialRates? {
+            archiveRequests.add(date)
+            return archive[date]
+        }
         override suspend fun unionPay(): UnionPayRates? {
             unionPayCalls++
             return null
@@ -108,4 +113,56 @@ class MarketRefreshTest {
             assertEquals("4", vm.state.value.expression.value.toPlainString())
         } finally { store.clear(); Dispatchers.resetMain() }
     }
+    @Test fun `refresh from an older mirror keeps the newer downloaded table`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        Dispatchers.setMain(dispatcher)
+        val store = ViewModelStore()
+        val source = Sources()
+        try {
+            val market = MemoryPreferences(preferencesOf(
+                stringPreferencesKey("official_rates") to WalletCodec.encodeRates(oldRates),
+                longPreferencesKey("official_fetched_at") to 123L,
+            ))
+            val repo = WalletRepository(preferences(), MemoryPreferences(), market, dispatcher)
+            val vm = MainViewModel(repo, guideDispatcher = dispatcher, calculationDispatcher = dispatcher, sources = source)
+            store.put("vm", vm)
+            runCurrent()
+            val older = oldRates.copy(date = oldRates.date.minusDays(2))
+            source.result.complete(CbrClient.Fetched(older, CbrClient.SOURCE_MIRROR))
+            vm.refreshRates()
+            runCurrent()
+            assertEquals(oldRates.date, vm.state.value.official?.date)
+            assertEquals(oldRates.date, repo.load().official?.date)
+            assertEquals(123L, vm.state.value.officialFetchedAt)
+        } finally { store.clear(); runCurrent(); Dispatchers.resetMain() }
+    }
+
+    @Test fun `missing historic tables never prevent loading another receipt date`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        Dispatchers.setMain(dispatcher)
+        val store = ViewModelStore()
+        try {
+            val days = (0L..5L).map { LocalDate.now().minusDays(40 + it) }
+            val available = days.last()
+            val source = Sources().apply { archive = mapOf(available to oldRates.copy(date = available)) }
+            val cards = days.mapIndexed { i, date ->
+                BankCard("card-$i", "card-$i", Currency.EUR, i,
+                    transfer = TransferReceipt(BigDecimal("1000"), Currency.RUB, BigDecimal.TEN, date))
+            }
+            val settings = preferences().also { it.updateData { current ->
+                current.toMutablePreferences().apply { this[stringPreferencesKey("wallet")] = WalletCodec.encode(wallet.copy(cards = cards)) }
+            } }
+            val market = MemoryPreferences(preferencesOf(stringPreferencesKey("official_rates") to WalletCodec.encodeRates(oldRates)))
+            val vm = MainViewModel(WalletRepository(settings, MemoryPreferences(), market, dispatcher),
+                guideDispatcher = dispatcher, calculationDispatcher = dispatcher, sources = source)
+            store.put("vm", vm)
+            runCurrent()
+            source.result.complete(null)
+            vm.refreshRates()
+            runCurrent()
+            assertTrue(source.archiveRequests.containsAll(days))
+            assertNotNull(vm.state.value.ratesHistory[available])
+        } finally { store.clear(); runCurrent(); Dispatchers.resetMain() }
+    }
+
 }

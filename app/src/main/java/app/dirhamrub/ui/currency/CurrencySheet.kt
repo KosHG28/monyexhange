@@ -153,7 +153,7 @@ fun CurrencyScreen(
                 if (homeTab && onHome != null) {
                     homeItems(query, home, official, cascade, texts, onHome)
                 } else {
-                    spendItems(query, spend, home, recent, country, official, cascade, texts) { c, _ ->
+                    spendItems(query, spend, home, recent, country, null, official, cascade, texts) { c, _ ->
                         onSpend(c)
                         close()
                     }
@@ -179,6 +179,7 @@ fun CountryScreen(
     recent: List<Currency> = emptyList(),
     country: String? = null,
     official: OfficialRates? = null,
+    selectedPlaceIso: String? = null,
 ) {
     val colors = AppTheme.colors
     val keyboard = LocalSoftwareKeyboardController.current
@@ -253,7 +254,7 @@ fun CountryScreen(
                 .fadingEdges(listState),
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {
-            spendItems(query, spend, home, recent, country, official, cascade, texts) { c, iso ->
+            spendItems(query, spend, home, recent, country, selectedPlaceIso, official, cascade, texts) { c, iso ->
                 if (!closing) {
                     onSpend(c, iso)
                     closeAfterKeyboard()
@@ -335,16 +336,18 @@ private fun LazyListScope.spendItems(
     home: Currency,
     recent: List<Currency>,
     country: String?,
+    selectedPlaceIso: String?,
     official: OfficialRates?,
     cascade: State<Float>,
     texts: SheetTexts,
     onPick: (Currency, String?) -> Unit,
 ) {
+    val selectedIso = Countries.placeFor(spend, selectedPlaceIso, country)?.iso
     if (query.isNotBlank()) {
         val found = CurrencySearch.countries(query)
         item(key = "found") { Section(texts.found.format(found.size)) }
         if (found.isEmpty()) item(key = "nothing") { Note(texts.nothing) }
-        items(found, key = { "f-" + it.iso }) { c -> CountryRow(c, c.currency == spend, home, official, texts.noCbr, texts.unionPay) { onPick(c.currency, c.iso) } }
+        items(found, key = { "f-" + it.iso }) { c -> CountryRow(c, c.iso == selectedIso, home, official, texts.noCbr, texts.unionPay) { onPick(c.currency, c.iso) } }
         return
     }
     var index = 0
@@ -355,7 +358,7 @@ private fun LazyListScope.spendItems(
         item(key = "here") {
             Column(Modifier.cascade(cascade, i)) {
                 Section(texts.here)
-                HereCard(here, selected = here.currency == spend, home, official) { onPick(here.currency, here.iso) }
+                HereCard(here, selected = here.iso == selectedIso, home, official) { onPick(here.currency, here.iso) }
             }
         }
     }
@@ -375,7 +378,7 @@ private fun LazyListScope.spendItems(
         for (c in list) {
             val r = index++
             item(key = "c-" + c.iso) {
-                CountryRow(c, c.currency == spend, home, official, texts.noCbr, texts.unionPay, Modifier.cascade(cascade, r)) { onPick(c.currency, c.iso) }
+                CountryRow(c, c.iso == selectedIso, home, official, texts.noCbr, texts.unionPay, Modifier.cascade(cascade, r)) { onPick(c.currency, c.iso) }
             }
         }
     }

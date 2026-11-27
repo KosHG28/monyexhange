@@ -6,7 +6,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SelectionOrderTest {
-    @Test fun `latest valid receipt keeps first on tied dates and skips invalid values`() {
+    @Test fun `latest valid receipt takes the later entry on tied dates and skips invalid values`() {
         val day = LocalDate.of(2026, 11, 14)
         val first = PurchaseReceipt(Currency.EUR, BigDecimal("11"), BigDecimal.TEN, day)
         val tie = first.copy(paid = BigDecimal("12"))
@@ -15,7 +15,7 @@ class SelectionOrderTest {
             first.copy(date = day.plusDays(1), paid = BigDecimal.ZERO),
             first.copy(date = day.plusDays(1), spend = Currency.AED),
         ))
-        assertSame(first, card.purchaseFor(Currency.EUR))
+        assertSame(tie, card.purchaseFor(Currency.EUR))
     }
     @Test fun `comparison tie keeps wallet order and ignores the selected card`() {
         val cards = List(3) { BankCard(it.toString(), it.toString(), Currency.RUB, 0) }

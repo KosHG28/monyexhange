@@ -85,7 +85,7 @@ internal fun ColumnScope.SetupStep(
     newCard: () -> BankCard,
     onCountry: () -> Unit,
     onFinish: (BankCard?, BigDecimal?) -> Unit,
-    onOpenEditor: (BankCard) -> Unit,
+    onOpenEditor: (BankCard, BigDecimal?) -> Unit,
     enter: (Int) -> Modifier,
 ) {
     val colors = AppTheme.colors
@@ -120,7 +120,8 @@ internal fun ColumnScope.SetupStep(
     val hasReceipt = draft != null && (draft.purchases.isNotEmpty() || draft.transfer != null)
     val quote = draft?.let { RateEngine.quote(it, spend, home, official, unionPay) }
 
-    val price = Numbers.parse(first)?.takeIf { it.signum() > 0 && way != PayWay.CASH } ?: QuickSums.chips(spend)[4]
+    val enteredPrice = Numbers.parse(first)?.takeIf { it.signum() >= 0 && way != PayWay.CASH }
+    val price = enteredPrice?.takeIf { it.signum() > 0 } ?: QuickSums.chips(spend)[4]
     val preview: @Composable (() -> Float) -> Unit = { textAlpha ->
         draft?.let {
             BankCardView(
@@ -142,7 +143,7 @@ internal fun ColumnScope.SetupStep(
                 soft = false,
             ) {
                 haptics.play(if (hasReceipt) Haptic.CONFIRM else Haptic.TICK)
-                onFinish(draft, Numbers.parse(first)?.takeIf { way != PayWay.CASH && it.signum() >= 0 })
+                onFinish(draft, enteredPrice)
             }
         },
     ) {
@@ -173,12 +174,12 @@ internal fun ColumnScope.SetupStep(
                 PayWay.HOME_CARD, PayWay.NOTHING -> if (spend == home) {
                     Note(stringResource(R.string.onboarding_pay_same))
                 } else {
-                    draft?.let { d -> Box(Modifier.tripExit(TripExit.SCREENSHOT)) { ScreenshotButton(null, home) { onOpenEditor(d) } } }
+                    draft?.let { d -> Box(Modifier.tripExit(TripExit.SCREENSHOT)) { ScreenshotButton(null, home) { onOpenEditor(d, enteredPrice) } } }
                     Spacer(Modifier.height(10.dp))
                     PurchaseFields(first, { first = it }, second, { second = it }, spend) { FieldSuffix(home.mark) }
                 }
                 PayWay.CURRENCY_CARD -> {
-                    draft?.let { d -> Box(Modifier.tripExit(TripExit.SCREENSHOT)) { ScreenshotButton(null, cardCurrency) { onOpenEditor(d) } } }
+                    draft?.let { d -> Box(Modifier.tripExit(TripExit.SCREENSHOT)) { ScreenshotButton(null, cardCurrency) { onOpenEditor(d, enteredPrice) } } }
                     Spacer(Modifier.height(10.dp))
                     val pick = stringResource(R.string.onboarding_pay_card_currency)
                     PurchaseFields(first, { first = it }, second, { second = it }, spend, selectable = true) {

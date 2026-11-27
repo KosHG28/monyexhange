@@ -161,6 +161,7 @@ object WalletCodec {
             boughtAt = p.decimal(k + "boughtAt"),
             boughtIn = Currency.byCode(p.getProperty(k + "boughtIn")),
             fromCard = p.getProperty(k + "fromCard")?.takeIf { it.isNotBlank() },
+            sourceRateEstimated = p.getProperty(k + "sourceRateEstimated") == "1",
         )
     }
 
@@ -170,6 +171,7 @@ object WalletCodec {
         p[k + "got"] = t.got.toPlainString()
         p[k + "date"] = t.date.toString()
         t.fromCard?.let { p[k + "fromCard"] = it }
+        if (t.sourceRateEstimated) p[k + "sourceRateEstimated"] = "1"
         t.bought?.let { (rate, inCurrency) ->
             p[k + "boughtAt"] = rate.toPlainString()
             p[k + "boughtIn"] = inCurrency.code

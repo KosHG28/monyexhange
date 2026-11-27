@@ -434,6 +434,10 @@ private fun CameraContent(
     LaunchedEffect(hasLabels, embedded) {
         if (hasLabels && embedded && !holdHintShown) {
             holdHintShown = true
+        }
+    }
+    LaunchedEffect(holdHintShown) {
+        if (holdHintShown) {
             holdHint = true
             delay(HOLD_HINT_MS)
             holdHint = false
@@ -624,7 +628,7 @@ private fun CameraContent(
                 text = when {
                     modeToast == true -> stringResource(R.string.camera_mode_now_embed)
                     modeToast == false -> stringResource(R.string.camera_mode_now_bubbles)
-                    holdHint -> stringResource(R.string.camera_hold_hint)
+                    holdHint && embedded -> stringResource(R.string.camera_hold_hint)
                     else -> null
                 },
                 modifier = Modifier.align(Alignment.CenterHorizontally),

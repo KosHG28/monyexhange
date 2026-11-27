@@ -611,6 +611,8 @@
     <string name="scan_date">Дата (ГГГГ-ММ-ДД)</string>
     <string name="scan_apply">Заполнить чек</string>
     <string name="scan_fragment">Фрагмент банковского скриншота</string>
+    <string name="scan_unsuccessful">Операция не завершена. Для расчёта нужен чек успешной операции.</string>
+    <string name="editor_currency_receipts_protected">Для смены валюты создайте отдельный способ оплаты или сначала уберите суммы чеков. Валюта сохранённых чеков должна остаться прежней.</string>
     <string name="scan_fee_included">Сумма отправления включает комиссию, если она указана банком.</string>
     <string name="camera_review_price">Проверьте цену</string>
     <string name="camera_review_currency">В калькуляторе будет выбрана валюта %1$s.</string>

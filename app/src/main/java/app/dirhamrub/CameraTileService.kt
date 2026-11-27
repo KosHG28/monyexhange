@@ -27,8 +27,7 @@ class CameraTileService : TileService() {
     private fun openCamera() {
         val intent = Intent(this, MainActivity::class.java)
             .putExtra(MainActivity.EXTRA_SCREEN, MainActivity.SCREEN_CAMERA)
-            // Приложение уже открыто — пересоздаём экран, чтобы сразу попасть в камеру.
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             val pending = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             startActivityAndCollapse(pending)

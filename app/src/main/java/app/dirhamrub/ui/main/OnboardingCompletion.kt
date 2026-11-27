@@ -10,5 +10,8 @@ internal fun MainUiState.withCompletedOnboarding(card: BankCard?, spendAmount: B
     wallet = card?.let { wallet.upsert(it).copy(selectedId = it.id) } ?: wallet,
     active = if (spendAmount != null) Line.SPEND else active,
     expression = spendAmount?.let(Expression::of) ?: expression,
+    inputSnapshot = inputSnapshot.takeIf { spendAmount == null },
+    pendingConversion = pendingConversion.takeIf { spendAmount == null },
+    inputLimit = inputLimit.takeIf { spendAmount == null },
     onboardingDone = true,
 )

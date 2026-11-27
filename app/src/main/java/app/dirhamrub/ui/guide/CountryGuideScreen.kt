@@ -37,6 +37,7 @@ import app.dirhamrub.ui.components.cascade
 import app.dirhamrub.ui.components.FullScreen
 import app.dirhamrub.domain.wallet.noun
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.layout.onSizeChanged
@@ -50,13 +51,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -121,9 +119,6 @@ internal fun acceptanceIcon(a: Acceptance?): Int = when (a) {
     Acceptance.NO -> R.drawable.ic_mark_no
     null -> R.drawable.ic_mark_unknown
 }
-
-/** «Карты российских банков не работают» → «карты российских банков не работают»: после «·» в подписи. */
-private fun lower(text: String): String = text.replaceFirstChar { it.lowercase() }
 
 /** Название платёжной системы в разделе «Карты»: «Visa и Mastercard из РФ». */
 @Composable
@@ -214,20 +209,11 @@ fun CountryGuideScreen(
               Column(Modifier.cascade(cascade, step++)) {
                 Section(stringResource(R.string.guide_your_cards))
                 Group(shown) { card ->
-                        val verdict = guide.verdict(card, local)
-                        val network = card.paymentNetwork
-                        val note = network?.let { guide.networks[it]?.text }
-                        val sub = when {
-                            card.kind == CardKind.CASH && verdict == Acceptance.PARTIAL -> stringResource(R.string.guide_cash_exchange)
-                            card.kind == CardKind.CASH -> stringResource(R.string.guide_cash_local)
-                            network == null -> stringResource(R.string.guide_card_unknown)
-                            note == null -> networkName(network) + " · " + stringResource(R.string.guide_card_no_data)
-                            else -> networkName(network) + " · " + lower(note)
-                        }
-                        Line(
-                            acceptanceIcon(verdict), acceptanceColor(verdict), card.name, sub,
-                            status = stringResource(acceptanceLabel(verdict, exchangeOnly = card.kind == CardKind.CASH)),
-                        )
+                    val verdict = guide.verdict(card, local)
+                    CardStatus(
+                        acceptanceIcon(verdict), acceptanceColor(verdict), card.name,
+                        stringResource(acceptanceLabel(verdict, exchangeOnly = card.kind == CardKind.CASH)),
+                    )
                 }
               }
             }
@@ -463,9 +449,34 @@ private fun Divider() = HorizontalDivider(color = AppTheme.colors.line, modifier
 private val LINE_PAD = 12.dp
 private val ICON_COLUMN = 36.dp
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Line(@DrawableRes icon: Int, tint: Color, title: String, text: String, status: String? = null) {
+private fun CardStatus(@DrawableRes icon: Int, tint: Color, title: String, status: String) {
+    val colors = AppTheme.colors
+    val type = AppTheme.type
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) { }
+            .padding(horizontal = LINE_PAD, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(ICON_COLUMN)) {
+            Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+        }
+        Text(title, Modifier.weight(1f), style = type.body, color = colors.ink,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            status,
+            style = type.caption.copy(fontWeight = FontWeight.Medium),
+            color = tint,
+            modifier = Modifier.background(tint.copy(alpha = 0.12f), CircleShape).padding(horizontal = 7.dp, vertical = 2.dp),
+        )
+    }
+}
+
+@Composable
+private fun Line(@DrawableRes icon: Int, tint: Color, title: String, text: String) {
     val type = AppTheme.type
     Row(
         Modifier
@@ -473,23 +484,11 @@ private fun Line(@DrawableRes icon: Int, tint: Color, title: String, text: Strin
             .semantics(mergeDescendants = true) { }
             .padding(horizontal = LINE_PAD, vertical = 11.dp),
     ) {
-        // Значок — к первой строке заголовка; смысл несут заголовок и подпись, TalkBack их и читает.
         Box(Modifier.width(ICON_COLUMN).padding(top = 1.dp)) {
             Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
         }
         Column(Modifier.weight(1f)) {
-            if (status == null) {
-                Text(title, style = type.body, color = AppTheme.colors.ink)
-            } else {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(title, style = type.body, color = AppTheme.colors.ink, modifier = Modifier.align(Alignment.CenterVertically))
-                    Text(
-                        status, style = type.caption.copy(fontWeight = FontWeight.Medium), color = tint,
-                        modifier = Modifier.align(Alignment.CenterVertically).background(tint.copy(alpha = 0.12f), CircleShape)
-                            .padding(horizontal = 7.dp, vertical = 2.dp),
-                    )
-                }
-            }
+            Text(title, style = type.body, color = AppTheme.colors.ink)
             if (text.isNotEmpty()) Text(text, style = type.caption, color = AppTheme.colors.muted)
         }
     }

@@ -57,6 +57,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -69,6 +72,8 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** Одна сумма в трёх валютах: трат, итоговой и выбранной карты (null — курса нет). */
@@ -185,6 +190,8 @@ class MainViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, _state.value.settings)
     private var unionPayLoading = false
     private var localGuideJob: Job? = null
+    private val historyLoading = HashSet<LocalDate>()
+    private val historyWrites = Mutex()
 
     init {
         viewModelScope.launch {
@@ -212,7 +219,7 @@ class MainViewModel(
                 officialFetchedAt = stored.officialFetchedAt,
                 officialSource = stored.officialSource,
                 unionPayFetchedAt = stored.unionPayFetchedAt,
-            )
+            ).resolvePendingConversion()
             // Карты и чеки пишем сразу: сохранил карту и тут же закрыл приложение — она не пропадёт.
             // Изменения, не касающиеся кошелька (курсы загружаются, настройки), запись не вызывают.
             launch(start = CoroutineStart.UNDISPATCHED) {
@@ -283,7 +290,7 @@ class MainViewModel(
     /** Коснулись плитки способа: выбрать его; лучший — снова автовыбор ([Wallet.choose]). */
     fun selectCard(id: String) = _state.update { s ->
         val next = s.wallet.choose(id, s.quote.best?.card?.id)
-        if (next == s.wallet) s else s.copy(wallet = next)
+        if (next == s.wallet) s else s.copy(wallet = next).resolvePendingConversion()
     }
 
     /**
@@ -307,7 +314,7 @@ class MainViewModel(
                     expression = Expression.of(divideOrZero(source.homeAmount, next.homePerUnit!!)),
                     pendingConversion = null,
                 )
-                else -> next.copy(expression = Expression(), pendingConversion = source)
+                else -> next.copy(expression = Expression(), pendingConversion = source).resolvePendingConversion()
             }
         }
         refreshReceiptRates()
@@ -324,7 +331,7 @@ class MainViewModel(
                     wallet = s.wallet.copy(home = currency), active = Line.SPEND, expression = expression,
                     inputSnapshot = null, inputLimit = null,
                     pendingConversion = s.pendingConversion?.copy(homeAmount = null),
-                )
+                ).resolvePendingConversion()
             }
         }
         refreshReceiptRates()
@@ -357,14 +364,14 @@ class MainViewModel(
             val rebased = if (current == null) card else card.copy(
                 style = current.style, customColor = current.customColor, material = current.material,
             )
-            s.copy(wallet = s.wallet.upsert(rebased))
+            s.copy(wallet = s.wallet.upsert(rebased)).resolvePendingConversion()
         }
         refreshReceiptRates()
     }
 
     fun deleteCard(id: String) = _state.update { s ->
-        val wallet = s.wallet.remove(id)
-        s.copy(wallet = wallet)
+        val wallet = s.wallet.remove(id, s.reference)
+        s.copy(wallet = wallet).resolvePendingConversion()
     }
 
     fun reorderPaymentWays(ids: List<String>) = _state.update { s ->
@@ -389,22 +396,7 @@ class MainViewModel(
     private suspend fun publishMarket(change: (MainUiState) -> MainUiState) {
         while (true) {
             val before = _state.value
-            val prepared = withContext(calculationDispatcher) {
-                val updated = change(before)
-                val pending = updated.pendingConversion
-                val rate = updated.homePerUnit
-                val sourceValue = pending?.homeAmount ?: pending?.let {
-                    if (it.line == Line.SPEND) {
-                        val original = updated.copy(wallet = updated.wallet.withSpend(it.currency))
-                        original.homePerUnit?.let { r -> it.expression.value.multiply(r, MC) }
-                    } else updated.reference?.cross(it.currency, updated.wallet.home)?.let { r ->
-                        it.expression.value.multiply(r, MC)
-                    }
-                }
-                if (rate != null && sourceValue != null && pending != null) updated.copy(
-                    expression = Expression.of(divideOrZero(sourceValue, rate)), pendingConversion = null,
-                ) else updated
-            }
+            val prepared = withContext(calculationDispatcher) { change(before).resolvePendingConversion() }
             if (_state.compareAndSet(before, prepared)) return
         }
     }
@@ -435,7 +427,9 @@ class MainViewModel(
         refreshGuide()
         viewModelScope.launch {
             try {
-                val fetched = sources.official()
+                val incoming = sources.official()
+                val latestDate = _state.value.official?.date
+                val fetched = incoming?.takeUnless { latestDate != null && it.rates.date.isBefore(latestDate) }
                 val at = System.currentTimeMillis()
                 if (fetched != null) repository.saveOfficial(fetched.rates, at, fetched.source)
                 publishMarket {
@@ -444,7 +438,7 @@ class MainViewModel(
                         officialFetchedAt = if (fetched != null) at else it.officialFetchedAt,
                         officialSource = fetched?.source ?: it.officialSource,
                         ratesLoading = false,
-                        ratesFailed = fetched == null,
+                        ratesFailed = incoming == null,
                     )
                 }
                 refreshWeekAgo(allow)
@@ -551,8 +545,6 @@ class MainViewModel(
         viewModelScope.launch { repository.saveOnboardingDone(false) }
     }
 
-    private val historyLoading = HashSet<LocalDate>()
-
     /**
      * Курсы ЦБ на даты старых чеков (для «чек устарел»): качаем недостающие, не больше нескольких за раз.
      * При обновлении «вручную» — только по кнопке ([allow]).
@@ -563,18 +555,35 @@ class MainViewModel(
         val today = LocalDate.now()
         val missing = s.wallet.cards
             .flatMap { ReceiptAge.datesToCheck(it, s.wallet.spend, s.wallet.home, today) }
-            .distinct()
+            .distinct().sortedDescending().take(HISTORY_MAX)
             .filter { it !in s.ratesHistory && it !in historyLoading }
-            .take(HISTORY_BATCH)
         if (missing.isEmpty()) return
         historyLoading += missing
         viewModelScope.launch {
             try {
-                for (day in missing) {
-                    val rates = sources.onDate(day) ?: continue
-                    _state.update { st -> st.copy(ratesHistory = (st.ratesHistory + (day to rates)).entries.sortedByDescending { it.key }.take(HISTORY_MAX).associate { it.key to it.value }) }
+                for (batch in missing.chunked(HISTORY_BATCH)) {
+                    val loaded = coroutineScope {
+                        batch.map { day ->
+                            async {
+                                val rates = try {
+                                    sources.onDate(day)
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (_: Exception) {
+                                    null
+                                }
+                                rates?.let { day to it }
+                            }
+                        }.awaitAll().filterNotNull()
+                    }
+                    if (loaded.isNotEmpty()) {
+                        _state.update { st ->
+                            val recent = (st.ratesHistory + loaded).entries.sortedByDescending { it.key }.take(HISTORY_MAX)
+                            st.copy(ratesHistory = recent.associate { it.key to it.value })
+                        }
+                    }
                 }
-                repository.saveRatesHistory(_state.value.ratesHistory)
+                historyWrites.withLock { repository.saveRatesHistory(_state.value.ratesHistory) }
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (_: Exception) { /* Retry still-missing dates on the next refresh. */
             } finally { historyLoading.removeAll(missing) }
@@ -654,6 +663,19 @@ class MainViewModel(
             }
         }
     }
+}
+
+private fun MainUiState.resolvePendingConversion(): MainUiState {
+    val pending = pendingConversion ?: return this
+    val rate = homePerUnit ?: return this
+    val sourceValue = pending.homeAmount ?: when (pending.line) {
+        Line.SPEND -> copy(wallet = wallet.withSpend(pending.currency)).homePerUnit
+        else -> if (pending.currency == wallet.home) BigDecimal.ONE else reference?.cross(pending.currency, wallet.home)
+    }?.let { pending.expression.value.multiply(it, MC) } ?: return this
+    return copy(
+        active = Line.SPEND, expression = Expression.of(divideOrZero(sourceValue, rate)),
+        pendingConversion = null, inputSnapshot = null, inputLimit = null,
+    )
 }
 
 internal fun divideOrZero(value: BigDecimal, divisor: BigDecimal): BigDecimal =

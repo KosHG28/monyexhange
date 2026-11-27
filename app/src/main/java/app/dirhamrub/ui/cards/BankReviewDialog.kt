@@ -35,9 +35,9 @@ internal data class StagedReceiptImage(val uri: Uri, val receipt: ScannedReceipt
     fun matches(card: BankCard): Boolean {
         if (card.currency != currency) return false
         return when (val r = receipt) {
-            is ScannedReceipt.Purchase -> card.purchases.any {
-                it.spend == r.spend && it.paid.compareTo(r.paid) == 0 && it.price.compareTo(r.price) == 0 && it.date == date
-            }
+            is ScannedReceipt.Purchase -> card.purchaseFor(r.spend)?.let {
+                it.paid.compareTo(r.paid) == 0 && it.price.compareTo(r.price) == 0 && it.date == date
+            } == true
             is ScannedReceipt.Transfer -> card.transfer?.let {
                 it.sentCurrency == r.sentCurrency && it.sent.compareTo(r.sent) == 0 && it.got.compareTo(r.got) == 0 && it.date == date
             } == true
@@ -65,7 +65,7 @@ internal fun BankReviewDialog(
     val paid = Numbers.parse(counterpart)?.takeIf { it.signum() > 0 }
     val received = Numbers.parse(onCard)?.takeIf { it.signum() > 0 }
     val date = remember(dateText) { runCatching { LocalDate.parse(dateText.trim()) }.getOrNull() }
-    val accepted = (operation == BankOperation.TRANSFER || operation == BankOperation.PURCHASE && allowPurchase) &&
+    val accepted = (operation == BankOperation.TRANSFER || operation == BankOperation.PURCHASE && allowPurchase) && !candidate.operation.blocked &&
         paid != null && received != null && date != null
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -80,8 +80,9 @@ internal fun BankReviewDialog(
                     }
                 }
                 ScreenshotFragment(review, candidate.sourceLines)
-                if (candidate.operation == BankOperation.REFUND) {
-                    Text(stringResource(R.string.scan_refund), color = colors.muted)
+                if (candidate.operation.blocked) {
+                    val message = if (candidate.operation == BankOperation.REFUND) R.string.scan_refund else R.string.scan_unsuccessful
+                    Text(stringResource(message), color = colors.muted)
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (allowPurchase) FilterChip(operation == BankOperation.PURCHASE, { operation = BankOperation.PURCHASE },
@@ -109,7 +110,7 @@ internal fun BankReviewDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
         confirmButton = {
-            if (candidate.operation != BankOperation.REFUND) {
+            if (!candidate.operation.blocked) {
                 TextButton(
                     enabled = accepted,
                     onClick = {

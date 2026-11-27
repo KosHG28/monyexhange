@@ -45,6 +45,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -97,6 +103,7 @@ import app.dirhamrub.ui.settings.SettingsActions
 import app.dirhamrub.ui.settings.SettingsScreen
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.LocalReduceMotion
+import java.math.BigDecimal
 import kotlin.math.hypot
 
 /** Карта в редакторе: новая или существующая; [addPurchase] — сразу добавить чек покупки в этой валюте. */
@@ -108,6 +115,8 @@ private data class Editing(
     val morph: CardMorph? = null,
     /** Сразу открыть выбор скриншота банка (Pro: ярлык «Чек из скриншота»). */
     val scan: Boolean = false,
+    val fromOnboarding: Boolean = false,
+    val onboardingAmount: BigDecimal? = null,
 )
 
 /** Страна сотовой сети («KZ»); без SIM, в авиарежиме или на планшете — null. Интернет не нужен. */
@@ -128,6 +137,8 @@ fun DirhamApp(
     /** Ярлык «Вернуться в …» (Pro): код валюты трат. */
     startCurrency: String? = null,
     vm: MainViewModel = viewModel(factory = MainViewModel.Factory),
+    incomingScreen: android.content.Intent? = null,
+    onScreenHandled: () -> Unit = {},
 ) {
     val state by vm.navigation.collectAsStateWithLifecycle()
     app.dirhamrub.diag.RecompositionProbe("Navigation")
@@ -144,6 +155,7 @@ fun DirhamApp(
     var guideOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_GUIDE) }
     var currenciesOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CURRENCIES) }
     var cameraOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_CAMERA) }
+    var cameraFromTile by rememberSaveable { mutableStateOf(false) }
     var settingsOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_SETTINGS) }
     // «Курс по чеку Pro» — из настроек, из закрытых Pro-строк и с виджета без Pro.
     var proOpen by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_PRO) }
@@ -192,6 +204,26 @@ fun DirhamApp(
         return
     }
 
+    LaunchedEffect(incomingScreen, state.loaded) {
+        if (incomingScreen == null || !state.loaded) return@LaunchedEffect
+        when (incomingScreen.getStringExtra(MainActivity.EXTRA_SCREEN)) {
+            MainActivity.SCREEN_CAMERA -> if (!cameraOpen) cameraFromTile = true
+            MainActivity.SCREEN_PRO -> proOpen = true
+        }
+        onScreenHandled()
+    }
+
+    fun finishOnboarding(card: BankCard? = null, amount: BigDecimal? = null) {
+        onboardingForced = false
+        vm.finishOnboarding(card, amount)
+        country?.takeIf { Currency.forCountry(it) != null }?.let { vm.handleCountry(it, accept = null) }
+    }
+
+    fun sendPrices(items: List<BigDecimal>, currency: Currency) {
+        if (currency != vm.state.value.wallet.spend) vm.setSpend(currency)
+        vm.putItems(items)
+    }
+
     val offer = country?.takeIf { state.settings.countryHint }?.let { iso ->
         Currency.forCountry(iso)
             ?.takeIf { it != state.wallet.spend && iso != state.countryHandled }
@@ -223,12 +255,6 @@ fun DirhamApp(
     Box(transitionInput.fillMaxSize()) {
     CompositionLocalProvider(LocalTripSharedTransition provides tripShared) {
     if (onboarding) {
-        fun finish(card: BankCard? = null, amount: java.math.BigDecimal? = null) {
-            onboardingForced = false
-            vm.finishOnboarding(card, amount)
-            // Валюту трат только что выбрали сами — плашку «вы в другой стране» сразу не показываем.
-            country?.takeIf { Currency.forCountry(it) != null }?.let { vm.handleCountry(it, accept = null) }
-        }
         Box(Modifier.fillMaxSize().background(AppTheme.colors.bg)) {
         OnboardingScreen(
             startStep = startStep,
@@ -237,6 +263,7 @@ fun DirhamApp(
             home = state.wallet.home,
             place = placeOf(state.wallet.spend, state.wallet.place, country),
             country = country,
+            selectedPlaceIso = state.wallet.place,
             // Первый запуск: страна сотовой сети, а с российской SIM (или без неё) — Турция, самое частое
             // направление. Знакомство из настроек страну не трогает.
             // Исходящий экран ещё живёт во время shared transition, но уже не выбирает страну SIM.
@@ -255,13 +282,14 @@ fun DirhamApp(
                     focus.clearFocus(force = true)
                     keyboard?.hide()
                     completionCardId = card?.id
-                    finish(card, amount)
+                    finishOnboarding(card, amount)
                 }
             },
-            onOpenEditor = { card ->
+            onOpenEditor = { card, amount ->
                 if (showOnboarding && !transitioning) {
-                    finish()
-                    editing = Editing(card, isNew = true)
+                    focus.clearFocus(force = true)
+                    keyboard?.hide()
+                    editing = Editing(card, isNew = true, scan = true, fromOnboarding = true, onboardingAmount = amount)
                 }
             },
         )
@@ -277,7 +305,7 @@ fun DirhamApp(
         Countries.placeFor(state.wallet.spend, state.wallet.place, country)?.iso
     }
     val guide = remember(placeIso, state.guides, state.wallet.spend, country) {
-        placeIso?.let { state.guides?.countries?.get(it) } ?: state.guides?.forSpend(state.wallet.spend, country)
+        state.guides?.forSpend(state.wallet.spend, country, placeIso)
     }
     val place = remember(state.wallet.spend, state.wallet.place, country) {
         placeOf(state.wallet.spend, state.wallet.place, country)
@@ -334,6 +362,7 @@ fun DirhamApp(
             onBack = { currenciesOpen = false },
             recent = state.wallet.recent,
             country = country,
+            selectedPlaceIso = state.wallet.place,
             official = state.reference,
         )
     }
@@ -379,7 +408,7 @@ fun DirhamApp(
         BackHandler { moneyOpen = false }
         MoneyScreen(
             state = state,
-            reflectLight = moneyOpen && !showOnboarding && editing == null && !cameraOpen && !proOpen && !cardStyleOpen,
+            reflectLight = moneyOpen && !showOnboarding && editing == null && !cameraOpen && !cameraFromTile && !proOpen && !cardStyleOpen,
             actions = MoneyActions(
                 onBack = { moneyOpen = false },
                 onEditCard = { editing = Editing(it, isNew = false) },
@@ -433,52 +462,12 @@ fun DirhamApp(
                 onEmbeddedChange = vm::setCameraEmbedded,
                 onSelectCard = vm::selectCard,
                 onToCalculator = { items, currency ->
-                    if (currency != state.wallet.spend) vm.setSpend(currency)
-                    vm.putItems(items)
+                    sendPrices(items, currency)
                     cameraOpen = false
                 },
                 onBack = { cameraOpen = false },
             )
         }
-    }
-    editing?.let { e ->
-      key(e) {
-        val editorState by vm.state.collectAsStateWithLifecycle()
-        CardEditorScreen(
-            card = e.card,
-            isNew = e.isNew,
-            spend = state.wallet.spend,
-            home = state.wallet.home,
-            official = state.reference,
-            unionPay = state.unionPay,
-            cards = state.wallet.cards,
-            onSave = { card, images, discardTransferShot ->
-                vm.saveCard(card)
-                if (images.isNotEmpty() || discardTransferShot) ioScope.launch(Dispatchers.IO) {
-                    if (discardTransferShot) ReceiptShots.deleteTransfer(context.applicationContext, card.id)
-                    for ((kind, uri) in images) ReceiptShots.save(context.applicationContext, uri, card.id, kind)
-                }
-                editing = null
-                cardFlight.flying = null
-            },
-            onDelete = {
-                vm.deleteCard(e.card.id)
-                ioScope.launch(Dispatchers.IO) { ReceiptShots.deleteCard(context.applicationContext, e.card.id) }
-                editing = null
-                cardFlight.flying = null
-            },
-            onDismiss = {
-                editing = null
-                cardFlight.flying = null
-            },
-            addPurchaseFor = e.addPurchase,
-            amount = editorState.totals.spend,
-            rounding = state.settings.rounding,
-            morph = e.morph,
-            pro = state.settings.pro,
-            startScan = e.scan,
-        )
-      }
     }
     if (proOpen) {
         ProScreen(
@@ -519,6 +508,79 @@ fun DirhamApp(
     } // CompositionLocalProvider
     } // Transition input and semantics
     } // AnimatedContent
+    editing?.let { e ->
+      key(e) {
+        val editorState by vm.state.collectAsStateWithLifecycle()
+        val (editorSpend, editorHome) = remember(e) { state.wallet.spend to state.wallet.home }
+        CardEditorScreen(
+            card = e.card,
+            isNew = e.isNew,
+            spend = editorSpend,
+            home = editorHome,
+            official = state.reference,
+            unionPay = state.unionPay,
+            cards = state.wallet.cards,
+            onSave = { card, images, staleShots ->
+                if (e.fromOnboarding) {
+                    completionCardId = null
+                    finishOnboarding(card, e.onboardingAmount ?: card.purchaseFor(editorSpend)?.price)
+                } else vm.saveCard(card)
+                if (images.isNotEmpty() || staleShots.isNotEmpty()) ioScope.launch {
+                    ReceiptShots.update(context.applicationContext, card.id, images, staleShots)
+                }
+                editing = null
+                cardFlight.flying = null
+            },
+            onDelete = {
+                vm.deleteCard(e.card.id)
+                ioScope.launch { ReceiptShots.deleteCard(context.applicationContext, e.card.id) }
+                editing = null
+                cardFlight.flying = null
+            },
+            onDismiss = {
+                editing = null
+                cardFlight.flying = null
+            },
+            addPurchaseFor = e.addPurchase,
+            amount = editorState.totals.spend,
+            rounding = state.settings.rounding,
+            morph = e.morph,
+            pro = state.settings.pro,
+            startScan = e.scan,
+            coveredByCamera = cameraFromTile,
+        )
+      }
+    }
+    if (cameraFromTile) {
+        LaunchedEffect(Unit) { vm.markCameraUsed() }
+        Dialog(
+            onDismissRequest = { cameraFromTile = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+        ) {
+            val view = LocalView.current
+            SideEffect {
+                (view.parent as? DialogWindowProvider)?.window?.let { window ->
+                    window.setDimAmount(0f)
+                    WindowCompat.getInsetsController(window, view).apply {
+                        isAppearanceLightStatusBars = false
+                        isAppearanceLightNavigationBars = false
+                    }
+                }
+            }
+            CameraScreen(
+                wallet = state.wallet.copy(selectedId = state.selectedCard?.id),
+                quote = state.quote,
+                embedded = state.cameraEmbedded,
+                onEmbeddedChange = vm::setCameraEmbedded,
+                onSelectCard = vm::selectCard,
+                onToCalculator = { prices, currency ->
+                    sendPrices(prices, currency)
+                    cameraFromTile = false
+                },
+                onBack = { cameraFromTile = false },
+            )
+        }
+    }
     if (navigation.currentState != navigation.targetState || navigation.isRunning) {
         BackHandler { }
         Box(Modifier.fillMaxSize().pointerInput(Unit) {

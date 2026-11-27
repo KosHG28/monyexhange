@@ -64,7 +64,10 @@ class QuoteWidget : AppWidgetProvider() {
         val amount = QuickSums.chips(spend).getOrElse(4) { QuickSums.chips(spend).last() }
         val flag = Countries.placeFor(spend, wallet.place, null)?.flag ?: spend.flag
         views.setTextViewText(R.id.widget_place, "$flag ${Numbers.moneyWhole(amount)} ${spend.code}")
-        if (perUnit == null || spend == home) {
+        if (spend == home) {
+            views.setTextViewText(R.id.widget_sum, "${Numbers.moneyWhole(amount)} ${home.mark}")
+            views.setTextViewText(R.id.widget_card, context.getString(R.string.currency_home_label))
+        } else if (perUnit == null) {
             views.setTextViewText(R.id.widget_sum, "—")
             views.setTextViewText(R.id.widget_card, context.getString(R.string.widget_no_rate))
         } else {
@@ -82,7 +85,7 @@ class QuoteWidget : AppWidgetProvider() {
 
     private fun open(context: Context, screen: String?): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         if (screen != null) intent.putExtra(MainActivity.EXTRA_SCREEN, screen)
         return PendingIntent.getActivity(
             context,

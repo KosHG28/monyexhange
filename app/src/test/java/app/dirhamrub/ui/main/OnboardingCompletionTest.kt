@@ -4,6 +4,7 @@ import app.dirhamrub.domain.Expression
 import app.dirhamrub.domain.Line
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.Currency
+import app.dirhamrub.domain.wallet.InputSnapshot
 import app.dirhamrub.domain.wallet.Wallet
 import org.junit.Assert.*
 import org.junit.Test
@@ -43,4 +44,13 @@ class OnboardingCompletionTest {
         assertEquals(state.expression, blank.expression)
         assertEquals(first.id, blank.wallet.selectedId)
     }
+    @Test fun `onboarding price replaces stored input and unfinished conversions`() {
+        val previous = InputSnapshot(Currency.EUR, Line.SPEND, Expression.of(BigDecimal.TEN), null)
+        val ongoing = state.copy(inputSnapshot = previous, pendingConversion = previous)
+        val result = ongoing.withCompletedOnboarding(first, BigDecimal("250"))
+        assertNull(result.inputSnapshot)
+        assertNull(result.pendingConversion)
+        assertEquals(previous, ongoing.withCompletedOnboarding(first, null).pendingConversion)
+    }
+
 }

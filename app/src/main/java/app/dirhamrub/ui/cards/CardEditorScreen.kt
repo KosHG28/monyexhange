@@ -113,7 +113,6 @@ import app.dirhamrub.domain.wallet.PurchaseReceipt
 import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.RateEngine
 import app.dirhamrub.domain.wallet.BankImport
-import app.dirhamrub.domain.wallet.BankOperation
 import app.dirhamrub.domain.wallet.ScannedReceipt
 import app.dirhamrub.domain.wallet.TransferMode
 import app.dirhamrub.domain.wallet.TransferReceipt
@@ -144,7 +143,7 @@ fun CardEditorScreen(
     spend: Currency,
     home: Currency,
     official: OfficialRates?,
-    onSave: (BankCard, Map<String, android.net.Uri>, Boolean) -> Unit,
+    onSave: (BankCard, Map<String, android.net.Uri>, Set<String>) -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
     /** Курсы UnionPay — для карт UnionPay. */
@@ -163,6 +162,7 @@ fun CardEditorScreen(
     pro: Boolean = false,
     /** Сразу открыть выбор скриншота банка (Pro: ярлык «Чек из скриншота»). */
     startScan: Boolean = false,
+    coveredByCamera: Boolean = false,
 ) {
     val previewAmount = amount.takeIf { it.signum() > 0 } ?: PREVIEW_AMOUNT
     val colors = AppTheme.colors
@@ -185,37 +185,44 @@ fun CardEditorScreen(
     val kind = if (isNew) newKind else card.kind
     // UnionPay — одна из платёжных систем: выбрали её — карта считается картой UnionPay (без отдельного переключателя).
     var network by remember(card.id) { mutableStateOf(card.paymentNetwork) }
-    // Прежние пополнения и какой курс считать: по последнему или в среднем.
-    val history = remember(card.id) { mutableStateListOf<TransferReceipt>().apply { addAll(card.history) } }
-    var transferMode by remember(card.id) { mutableStateOf(card.transferMode) }
     val cash = kind == CardKind.CASH
-    // У обменника и банкомата независимые черновики. Сохранённый чек заполняет только свою вкладку.
-    val savedTransfer = card.transfer
-    val savedWithdrawal = savedTransfer?.takeIf { card.kind == CardKind.CASH && it.fromCard != null }
+    val savedTransfers = remember(card.id) {
+        (listOfNotNull(card.transfer) + card.history).sortedByDescending { it.date }
+    }
+    val savedTransfer = savedTransfers.firstOrNull()
+    val savedRegular = savedTransfers.firstOrNull { card.kind != CardKind.CASH || it.fromCard == null }
+    val savedWithdrawal = savedTransfers.firstOrNull { card.kind == CardKind.CASH && it.fromCard != null }
+    val history = remember(card.id) {
+        mutableStateListOf<TransferReceipt>().apply {
+            addAll(savedTransfers.filter { it !== savedRegular && it !== savedWithdrawal })
+        }
+    }
+    var transferMode by remember(card.id) { mutableStateOf(card.transferMode) }
     val atmSources = cards.filter { it.kind == CardKind.CARD && it.id != card.id }
-    // Отдавали не итоговую валюту (100 $ в иены) — цена её покупки на единицу курса ЦБ.
-    fun boughtUnitFor(c: Currency): BigDecimal =
-        Numbers.unitFor(official?.cross(c, home) ?: savedTransfer?.bought?.first ?: BigDecimal.ONE)
+    val referenceAtOpen = remember(card.id) { official }
+    fun boughtUnitFor(c: Currency, receipt: TransferReceipt?): BigDecimal = Numbers.unitFor(
+        referenceAtOpen?.cross(c, home)
+            ?: receipt?.bought?.takeIf { it.second == home && it.first.signum() > 0 }?.first
+            ?: BigDecimal.ONE,
+    )
+    fun displayBought(receipt: TransferReceipt?): String = receipt?.bought?.takeIf { it.second == home }?.let {
+        Numbers.plain(it.first.multiply(boughtUnitFor(receipt.sentCurrency, receipt), MC), 4)
+    }.orEmpty()
     val regular = remember(card.id) {
-        val receipt = savedTransfer.takeUnless { savedWithdrawal != null }
-        val boughtAt = receipt?.bought?.takeIf { it.second == home }?.first?.let {
-            Numbers.plain(it.multiply(boughtUnitFor(receipt.sentCurrency), MC), 4)
-        }.orEmpty()
-        FundingDraft(receipt, home, boughtAt = boughtAt)
+        FundingDraft(savedRegular, home, boughtAt = displayBought(savedRegular))
     }
     val withdrawal = remember(card.id) {
         val first = atmSources.firstOrNull()
         FundingDraft(savedWithdrawal, first?.currency ?: home, defaultCard = first?.id)
     }
-    var atm by remember(card.id) { mutableStateOf(savedWithdrawal != null) }
+    var atm by remember(card.id) { mutableStateOf(savedTransfer?.fromCard != null && card.kind == CardKind.CASH) }
     val funding = if (cash && atm) withdrawal else regular
     var sent by funding.sent
     var got by funding.got
     var sentCurrency by funding.sentCurrency
     var fromCard by funding.fromCard
     var boughtAt by funding.boughtAt
-    var importedTransferDate by funding.importedDate
-    val boughtUnit = boughtUnitFor(sentCurrency)
+    val boughtUnit = boughtUnitFor(sentCurrency, funding.original.value)
     val purchases = remember(card.id) {
         mutableStateListOf<PurchaseDraft>().apply {
             card.purchases.forEachIndexed { i, p -> add(PurchaseDraft(i, p.spend, field(p.paid), field(p.price), p.date)) }
@@ -252,19 +259,34 @@ fun CardEditorScreen(
     var scan by remember(card.id) { mutableStateOf<ScanResult?>(null) }
     var bankReview by remember(card.id) { mutableStateOf<BankReview?>(null) }
     val stagedShots = remember(card.id) { mutableMapOf<String, StagedReceiptImage>() }
-    var transferRemoved by remember(card.id) { mutableStateOf(false) }
+    var currencyConflict by remember(card.id) { mutableStateOf(false) }
+    fun hasReceiptAmounts(): Boolean =
+        history.isNotEmpty() || regular.hasAmounts || withdrawal.hasAmounts ||
+            purchases.any { it.paid.isNotBlank() || it.price.isNotBlank() }
+
+    fun changeCurrency(value: Currency): Boolean {
+        if (currency == value) return true
+        if (hasReceiptAmounts() || bankReview != null || scan == ScanResult.Reading) {
+            currencyConflict = true
+            return false
+        }
+        currency = value
+        return true
+    }
+
+    fun trimHistory() {
+        if (history.size <= HISTORY_MAX) return
+        val keep = history.sortedByDescending { it.date }.take(HISTORY_MAX)
+        history.clear()
+        history.addAll(keep)
+    }
+
     fun removeCurrentTransfer() {
         focus.clearFocus()
-        transferRemoved = true
         stagedShots.remove(ReceiptShots.TRANSFER_KIND)
-        val previous = history.removeFirstOrNull()
-        sent = previous?.sent?.let(::field).orEmpty()
-        got = previous?.got?.let(::field).orEmpty()
-        sentCurrency = previous?.sentCurrency ?: home
-        importedTransferDate = previous?.date
-        boughtAt = previous?.bought?.takeIf { it.second == home }?.first?.let {
-            Numbers.plain(it.multiply(boughtUnitFor(sentCurrency), MC), 4)
-        }.orEmpty()
+        val previous = history.maxByOrNull { it.date }
+        if (previous != null) history.remove(previous)
+        regular.replace(previous, home, displayBought(previous))
         if (history.isEmpty()) transferMode = TransferMode.LAST
         transferOpen = previous != null
     }
@@ -273,14 +295,19 @@ fun CardEditorScreen(
     val resources = LocalResources.current
     var nfc by remember(card.id) { mutableStateOf<NfcRead?>(null) }
     val nfcAvailability = rememberNfcAvailability(observe = !cash)
-    NfcCardReader(enabled = nfcAvailability == NfcAvailability.READY && !cash && pendingSave == null) { result ->
+    NfcCardReader(enabled = nfcAvailability == NfcAvailability.READY && !cash && pendingSave == null && !coveredByCamera) { result ->
         nfc = result
         if (result is NfcRead.Found) {
             result.info.currency?.let { detected ->
                 val oldTemplate = resources.getString(R.string.card_default_name, currency.code)
-                name = nameAfterNfcRead(name, nameEdited, oldTemplate,
-                    resources.getString(R.string.card_default_name, detected.code))
-                currency = detected
+                if (changeCurrency(detected)) {
+                    name = nameAfterNfcRead(name, nameEdited, oldTemplate,
+                        resources.getString(R.string.card_default_name, detected.code))
+                } else {
+                    nfc = null
+                    haptics.play(Haptic.REJECT)
+                    return@NfcCardReader
+                }
             }
             network = result.info.network
             haptics.play(Haptic.TICK)
@@ -291,7 +318,13 @@ fun CardEditorScreen(
     // Pro: сохранённые скриншоты чеков этой карты (новые первыми).
     var shots by remember(card.id) { mutableStateOf<List<app.dirhamrub.data.ReceiptFile>>(emptyList()) }
     LaunchedEffect(card.id, pro) {
-        shots = if (pro) ReceiptShots.entries(context.applicationContext, card.id) else emptyList()
+        shots = if (pro) {
+            val kinds = buildSet {
+                card.purchases.forEach { add(ReceiptShots.purchaseKind(it.spend.code)) }
+                if (savedTransfer != null) add(ReceiptShots.TRANSFER_KIND)
+            }
+            ReceiptShots.entries(context.applicationContext, card.id, kinds)
+        } else emptyList()
     }
     val pickScreenshot = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -313,34 +346,40 @@ fun CardEditorScreen(
     }
 
     val defaultName = stringResource(if (cash) R.string.cash_default_name else R.string.card_default_name, currency.code)
-    fun build(preserveSavedTransfer: Boolean = false): BankCard {
-        val today = LocalDate.now()
-        val sentValue = Numbers.parse(sent)
-        val gotValue = Numbers.parse(got)
-        val sourceId = fromCard.takeIf { cash && atm }
-        val transfer = if (sentValue != null && gotValue != null && sentValue.signum() > 0 && gotValue.signum() > 0) {
-            val unchanged = savedTransfer?.takeIf {
-                it.sent.compareTo(sentValue) == 0 && it.got.compareTo(gotValue) == 0 &&
-                    it.sentCurrency == sentCurrency && it.fromCard == sourceId
-            }
-            val bought = Numbers.parse(boughtAt)
-                ?.takeIf { it.signum() > 0 && sentCurrency != home && !(cash && atm) }
-                ?.divide(boughtUnit, MC)
-            TransferReceipt(
-                sentValue,
-                sentCurrency,
-                gotValue,
-                importedTransferDate ?: unchanged?.date ?: today,
-                bought,
-                bought?.let { home },
-                fromCard = sourceId,
-            )
-        } else if (preserveSavedTransfer && cash && sent.isBlank() && got.isBlank()) {
-            // Посмотрели пустую соседнюю вкладку — сохранённый чек остаётся на месте.
-            savedTransfer?.takeIf { (it.fromCard != null) != atm && it !in history }
-        } else {
-            null
+    fun fundingReceipt(data: FundingDraft, fromAtm: Boolean): TransferReceipt? {
+        val sentValue = Numbers.parse(data.sent.value)?.takeIf { it.signum() > 0 } ?: return null
+        val gotValue = Numbers.parse(data.got.value)?.takeIf { it.signum() > 0 } ?: return null
+        val sourceId = if (fromAtm) data.fromCard.value ?: return null else null
+        val sourceCurrency = data.sentCurrency.value
+        val original = data.original.value?.takeIf { it.sentCurrency == sourceCurrency && it.fromCard == sourceId }
+        val sameAmounts = original != null && original.sent.compareTo(sentValue) == 0 && original.got.compareTo(gotValue) == 0
+        val keptBought = original?.bought?.takeIf {
+            (fromAtm && sameAmounts) || (!fromAtm && data.boughtAt.value == displayBought(original))
         }
+        val newBought = if (fromAtm || sourceCurrency == home) null else
+            Numbers.parse(data.boughtAt.value)?.takeIf { it.signum() > 0 }?.divide(boughtUnitFor(sourceCurrency, original), MC)
+        val unchangedRate = original?.bought == keptBought && (keptBought != null || newBought == null)
+        if (sameAmounts && unchangedRate) return original
+        return TransferReceipt(
+            sentValue,
+            sourceCurrency,
+            gotValue,
+            if (sameAmounts) original.date else LocalDate.now(),
+            keptBought?.first ?: newBought,
+            keptBought?.second ?: newBought?.let { home },
+            fromCard = sourceId,
+            sourceRateEstimated = keptBought != null && original.sourceRateEstimated,
+        )
+    }
+
+    fun build(forSave: Boolean = false): BankCard {
+        val today = LocalDate.now()
+        val active = fundingReceipt(funding, cash && atm)
+        val inactive = if (cash && forSave) fundingReceipt(if (atm) regular else withdrawal, !atm) else null
+        val drafts = if (inactive != null && savedTransfer != null && inactive == savedTransfer &&
+            active == funding.original.value
+        ) listOfNotNull(inactive, active) else listOfNotNull(active, inactive)
+        val saved = drafts + if (forSave) history.toList() else history.filter { !cash || (it.fromCard != null) == atm }
         // У наличных покупок по чекам нет: платят ровно ценой в той же валюте.
         val receipts = if (kind == CardKind.CASH) emptyList() else purchases.mapNotNull { d ->
             val paid = Numbers.parse(d.paid) ?: return@mapNotNull null
@@ -348,13 +387,13 @@ fun CardEditorScreen(
             if (paid.signum() <= 0 || price.signum() <= 0) return@mapNotNull null
             val old = card.purchases.getOrNull(d.key)
             val unchanged = old != null && old.paid.compareTo(paid) == 0 && old.price.compareTo(price) == 0 && old.spend == d.spend
-            PurchaseReceipt(d.spend, paid, price, if (d.imported || unchanged) d.date else today)
+            if (unchanged) old else PurchaseReceipt(d.spend, paid, price, if (d.imported) d.date else today)
         }
         val manualValue = Numbers.parse(manual)?.takeIf { manualOn && it.signum() > 0 }?.divide(manualUnit, MC)
         val oldManual = card.manualFor(spend, home)
         val manualDate = if (oldManual != null && manualValue != null && oldManual.homePerUnit.compareTo(manualValue) == 0) oldManual.date else today
         val otherManual = card.manual.filterNot { it.spend == spend && it.home == home }
-        return card.copy(
+        val previewOrSaved = card.copy(
             name = name.trim().ifEmpty { defaultName },
             currency = currency,
             kind = kind,
@@ -362,21 +401,23 @@ fun CardEditorScreen(
             // без отдельной платёжной системы.
             unionPay = network.isUnionPay() && kind == CardKind.CARD,
             network = network?.takeIf { kind == CardKind.CARD && it != CardNetwork.UNIONPAY },
-            history = history.toList(),
-            transferMode = if (history.isEmpty()) TransferMode.LAST else transferMode,
-            transfer = transfer,
+            history = emptyList(),
+            transferMode = if (saved.size <= 1) TransferMode.LAST else transferMode,
+            transfer = null,
             purchases = receipts,
             manual = otherManual + listOfNotNull(manualValue?.let { ManualRate(spend, home, it, manualDate) }),
         )
+        if (forSave) return previewOrSaved.withTransfers(saved)
+        return previewOrSaved.copy(transfer = active, history = saved.drop(if (active != null) 1 else 0))
     }
 
-    // Ошибки в суммах: ноль или заполнена только одна из пары. По «Сохранить» — подсветить и прокрутить к первой.
-    fun invalid(): Boolean =
-        pairInvalid(sent, got) || (!cash && purchases.any { pairInvalid(it.paid, it.price) })
+    fun invalid(data: FundingDraft): Boolean = pairInvalid(data.sent.value, data.got.value)
+    fun invalid(): Boolean = invalid(regular) || (cash && invalid(withdrawal)) ||
+        (!cash && purchases.any { pairInvalid(it.paid, it.price) })
 
-    // Что было при открытии: «Назад» с несохранёнными правками спрашивает, выйти ли без сохранения.
-    val initial = remember(card.id) { build() }
-    fun dirty(): Boolean = build(preserveSavedTransfer = true) != initial
+    // A partially filled tab is dirty even when it contains no complete receipt yet.
+    val initial = remember(card.id) { build(forSave = true) }
+    fun dirty(): Boolean = invalid() || build(forSave = true) != initial
     fun back() {
         if (pendingSave != null) return
         if (dirty()) confirmExit = true else close()
@@ -390,12 +431,13 @@ fun CardEditorScreen(
           val images = stagedShots.mapNotNull { (key, image) ->
               if (image.matches(result)) key to image.uri else null
           }.toMap()
-          val discardTransferShot = transferRemoved && savedTransfer != null &&
-              (listOfNotNull(result.transfer) + result.history).none {
-                  it.date == savedTransfer.date && it.sentCurrency == savedTransfer.sentCurrency &&
-                      it.sent.compareTo(savedTransfer.sent) == 0 && it.got.compareTo(savedTransfer.got) == 0
-              }
-          close { onSave(result, images, discardTransferShot) }
+          val staleShots = card.purchases.map { it.spend }.distinct().mapNotNull { spend ->
+              ReceiptShots.purchaseKind(spend.code).takeIf { card.purchaseFor(spend) != result.purchaseFor(spend) }
+          }.toMutableSet()
+          if (savedTransfer != null && savedTransfer !in (listOfNotNull(result.transfer) + result.history)) {
+              staleShots += ReceiptShots.TRANSFER_KIND
+          }
+          close { onSave(result, images, staleShots) }
       }
       Column(Modifier.fillMaxSize()) {
         ScreenBar(
@@ -452,7 +494,7 @@ fun CardEditorScreen(
             )
             var previewVisible by remember { mutableStateOf(false) }
             val reflectionTilt = rememberReflectionTilt(
-                active = previewVisible && !isClosing && !cardPicker && !confirmExit && !confirmDelete && morph?.flying != true,
+                active = !coveredByCamera && previewVisible && !isClosing && !cardPicker && !confirmExit && !confirmDelete && morph?.flying != true,
             )
             if (morph != null) SideEffect {
                 morph.card = { textAlpha -> PreviewCard(preview, reflectionTilt, textAlpha) }
@@ -559,7 +601,7 @@ fun CardEditorScreen(
                 CurrencyChips(
                     options = (chipOptions + currency).distinct(),
                     selected = currency,
-                    onSelect = { currency = it },
+                    onSelect = { changeCurrency(it) },
                     onMore = { cardPicker = true },
                     moreLabel = stringResource(R.string.currency_more_count, Currency.entries.size),
                 )
@@ -626,6 +668,7 @@ fun CardEditorScreen(
                                                 sentCurrency,
                                                 atmSources,
                                                 {
+                                                    if (it.currency != sentCurrency) sent = ""
                                                     fromCard = it.id
                                                     sentCurrency = it.currency
                                                 },
@@ -727,7 +770,7 @@ fun CardEditorScreen(
                         }
                         // Прежние пополнения: «+ Новое пополнение» уносит заполненное в историю и очищает поля.
                         TransferHistory(
-                            history = history,
+                            history = history.filter { it.fromCard == null },
                             mode = transferMode,
                             cardSymbol = currency.receiptMark,
                             average = draft.effectiveTransfer?.takeIf { history.isNotEmpty() && transferMode == TransferMode.AVERAGE },
@@ -736,15 +779,11 @@ fun CardEditorScreen(
                             onMode = { transferMode = it },
                             onRemove = {
                                 history.remove(it)
-                                transferRemoved = true
                             },
                             onNew = {
                                 transfer?.let { history.add(0, it) }
-                                while (history.size > HISTORY_MAX) history.removeAt(history.lastIndex)
-                                sent = ""
-                                got = ""
-                                boughtAt = ""
-                                importedTransferDate = null
+                                trimHistory()
+                                regular.replace(null, sentCurrency)
                                 stagedShots.remove(ReceiptShots.TRANSFER_KIND)
                             },
                         )
@@ -852,10 +891,11 @@ fun CardEditorScreen(
                 onClick = {
                     if (invalid()) {
                         showErrors = true
+                        if (cash && !invalid(funding)) atm = !atm
                         haptics.play(Haptic.REJECT)
                     } else {
                         haptics.play(Haptic.CONFIRM)
-                        pendingSave = build(preserveSavedTransfer = true)
+                        pendingSave = build(forSave = true)
                     }
                 },
             )
@@ -868,27 +908,35 @@ fun CardEditorScreen(
             onApply = { receipt, date ->
                 when (receipt) {
                     is ScannedReceipt.Purchase -> {
-                        val draft = purchases.firstOrNull { it.spend == receipt.spend }
-                            ?: PurchaseDraft(nextKey++, receipt.spend, "", "", date).also { purchases.add(it) }
-                        draft.paid = field(receipt.paid)
-                        draft.price = field(receipt.price)
-                        draft.date = date
-                        draft.imported = true
-                        if (pro) stagedShots[ReceiptShots.purchaseKind(receipt.spend.code)] =
-                            StagedReceiptImage(review.uri, receipt, review.cardCurrency, date)
+                        val existing = purchases.lastOrNull {
+                            it.spend == receipt.spend && it.date == date &&
+                                Numbers.parse(it.paid)?.compareTo(receipt.paid) == 0 &&
+                                Numbers.parse(it.price)?.compareTo(receipt.price) == 0
+                        }
+                        if (existing == null) {
+                            purchases.add(PurchaseDraft(nextKey++, receipt.spend, field(receipt.paid), field(receipt.price), date).apply {
+                                imported = true
+                            })
+                        }
+                        if (pro && build().purchaseFor(receipt.spend)?.date == date) {
+                            stagedShots[ReceiptShots.purchaseKind(receipt.spend.code)] =
+                                StagedReceiptImage(review.uri, receipt, review.cardCurrency, date)
+                        }
                     }
                     is ScannedReceipt.Transfer -> {
-                        build().transfer?.let { old -> history.add(0, old) }
-                        while (history.size > HISTORY_MAX) history.removeAt(history.lastIndex)
+                        val imported = TransferReceipt(receipt.sent, receipt.sentCurrency, receipt.got, date)
+                        val current = fundingReceipt(regular, fromAtm = false)
+                        if (current != null && date.isBefore(current.date)) {
+                            if (imported !in history) history.add(0, imported)
+                        } else {
+                            if (current != null && current != imported) history.add(0, current)
+                            regular.replace(imported, home)
+                            if (pro) stagedShots[ReceiptShots.TRANSFER_KIND] =
+                                StagedReceiptImage(review.uri, receipt, review.cardCurrency, date)
+                        }
+                        trimHistory()
                         transferOpen = true
-                        sent = field(receipt.sent)
-                        boughtAt = ""
-                        sentCurrency = receipt.sentCurrency
-                        got = field(receipt.got)
                         atm = false
-                        importedTransferDate = date
-                        if (pro) stagedShots[ReceiptShots.TRANSFER_KIND] =
-                            StagedReceiptImage(review.uri, receipt, review.cardCurrency, date)
                     }
                 }
                 scan = ScanResult.Found(receipt)
@@ -917,8 +965,17 @@ fun CardEditorScreen(
             title = stringResource(if (cash) R.string.editor_currency_cash else R.string.editor_currency),
             selected = currency,
             options = Currency.entries,
-            onPick = { currency = it },
+            onPick = { changeCurrency(it) },
             onDismiss = { cardPicker = false },
+        )
+    }
+    if (currencyConflict) {
+        AlertDialog(
+            onDismissRequest = { currencyConflict = false },
+            text = { Text(stringResource(R.string.editor_currency_receipts_protected)) },
+            confirmButton = {
+                TextButton(onClick = { currencyConflict = false }) { Text(stringResource(android.R.string.ok)) }
+            },
         )
     }
     if (confirmDelete) {
@@ -965,7 +1022,17 @@ private class FundingDraft(
     val sentCurrency = mutableStateOf(receipt?.sentCurrency ?: defaultCurrency)
     val fromCard = mutableStateOf(receipt?.fromCard ?: defaultCard)
     val boughtAt = mutableStateOf(boughtAt)
-    val importedDate = mutableStateOf<LocalDate?>(null)
+    val original = mutableStateOf(receipt)
+    val hasAmounts: Boolean get() = sent.value.isNotBlank() || got.value.isNotBlank()
+
+    fun replace(receipt: TransferReceipt?, currency: Currency, bought: String = "") {
+        original.value = receipt
+        sent.value = receipt?.sent?.let(::field).orEmpty()
+        got.value = receipt?.got?.let(::field).orEmpty()
+        sentCurrency.value = receipt?.sentCurrency ?: currency
+        fromCard.value = receipt?.fromCard
+        boughtAt.value = bought
+    }
 }
 
 private fun field(value: BigDecimal): String = Numbers.exactInput(value)

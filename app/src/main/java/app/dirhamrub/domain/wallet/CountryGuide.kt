@@ -53,10 +53,11 @@ data class CountryGuide(
 /** Все страны справочника и версия файла (дата): из двух копий берём более свежую. */
 data class CountryGuides(val version: LocalDate, val countries: Map<String, CountryGuide>) {
     /**
-     * Справочник для валюты трат [spend]: страна сотовой сети [networkIso], если в ней платят этой валютой,
-     * иначе — единственная страна справочника с этой валютой (у доллара и евро их много — тогда ничего).
+     * Справочник для [placeIso]. Без выбранной страны — страна сети [networkIso] с валютой [spend]
+     * или единственная страна справочника с этой валютой.
      */
-    fun forSpend(spend: Currency, networkIso: String?): CountryGuide? {
+    fun forSpend(spend: Currency, networkIso: String?, placeIso: String? = null): CountryGuide? {
+        if (placeIso != null) return countries[placeIso]
         val iso = networkIso?.uppercase()
         iso?.let { countries[it] }?.takeIf { Countries.byIso(it.iso)?.currency == spend }?.let { return it }
         return countries.values.filter { Countries.byIso(it.iso)?.currency == spend }.singleOrNull()

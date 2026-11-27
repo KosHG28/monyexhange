@@ -13,6 +13,7 @@ import app.dirhamrub.domain.price.PriceParser
 import app.dirhamrub.domain.price.PriceTracker
 import app.dirhamrub.domain.price.TrackedPrice
 import app.dirhamrub.domain.price.orientedWidth
+import app.dirhamrub.domain.price.livePriceBlocks
 import app.dirhamrub.domain.price.photoPrices
 import app.dirhamrub.domain.wallet.Currency
 import com.google.mlkit.vision.text.Text
@@ -169,7 +170,7 @@ class PricePipeline(private val metrics: LabelMetrics) {
             if (paused) return
             // Границы экрана: цены у левого и правого края могли обрезаться — их не показываем.
             val bounds = if (viewWidth > 0f && viewHeight > 0f) Box(0f, 0f, viewWidth, viewHeight) else null
-            val candidates = parser.parse(OcrMapper.map(text), bounds)
+            val candidates = parser.parse(livePriceBlocks(OcrMapper.map(text), spend), bounds)
             lastTracked = tracker.update(candidates, nowMs)
             lastNowMs = nowMs
             publish()

@@ -3,7 +3,11 @@ package app.dirhamrub.domain.wallet
 import java.math.BigDecimal
 import java.time.LocalDate
 
-enum class BankOperation { PURCHASE, TRANSFER, REFUND, UNKNOWN }
+enum class BankOperation {
+    PURCHASE, TRANSFER, REFUND, UNSUCCESSFUL, UNKNOWN;
+
+    val blocked: Boolean get() = this == REFUND || this == UNSUCCESSFUL
+}
 
 data class BankImportCandidate(
     val operation: BankOperation,
@@ -21,8 +25,11 @@ object BankImport {
     private val refund = Regex("(?iuU)^\\s*(?:возврат|отмена|refund|reversal)\\b")
     private val total = Regex("(?iuU)^\\s*(?:итого|всего списано|total)\\b")
     private val debit = Regex("(?iuU)^\\s*(?:отправлено|отправили|списано|списали|sent|debited)\\b")
+    private val charged = Regex("(?iuU)^\\s*(?:списано|списали|debited)\\b")
     private val credit = Regex("(?iuU)^\\s*(?:зачислено|получено|пришло|received|credited)\\b")
     private val fee = Regex("(?iuU)^\\s*(?:комиссия|fee)\\b")
+    private val includedFee = Regex("""(?iuU)\b(?:с\s+уч[её]том\s+комиссии|включая\s+комиссию|комиссия\s+включена|including\s+(?:the\s+)?fee|incl\.?\s+fee|fee\s+included)\b""")
+    private val unsuccessful = Regex("""(?iuU)\b(?:отклонен[аоы]?|отмен[её]н[аоы]?|не\s+выполнен[аоы]?|не\s+прош[её]л|не\s+прошла|неуспешн\p{L}*|в\s+обработке|declined|failed|unsuccessful|cancelled|canceled|pending)\b""")
     private val datePattern = Regex("""\b(\d{1,2})[./](\d{1,2})[./](\d{4})\b|\b(\d{4})-(\d{2})-(\d{2})\b""")
 
     private fun operation(text: String): BankOperation = when {
@@ -35,11 +42,12 @@ object BankImport {
     fun candidates(lines: List<String>, card: Currency): List<BankImportCandidate> {
         val groups = mutableListOf<IntRange>()
         var first = 0
-        for (index in lines.indices) {
-            if (index > first && operation(lines[index]) != BankOperation.UNKNOWN) {
-                groups += first until index
-                first = index
-            }
+        for ((index, line) in lines.withIndex()) {
+            if (index <= first || operation(line) == BankOperation.UNKNOWN) continue
+            // Some bank screenshots repeat the operation name in a status line below the amounts.
+            if (unsuccessful.containsMatchIn(line) && ReceiptScanner.amounts(listOf(line)).isEmpty()) continue
+            groups += first until index
+            first = index
         }
         if (first < lines.size) groups += first..lines.lastIndex
         return groups.mapNotNull { range -> candidate(lines, range, card) }
@@ -54,15 +62,22 @@ object BankImport {
         fun unique(items: List<Money>): Money? = items.distinctBy { it.currency to it.amount.stripTrailingZeros() }.singleOrNull()
         fun marked(pattern: Regex, currency: (Currency) -> Boolean) =
             unique(relevant.filter { pattern.containsMatchIn(it.first) }.flatMap { it.second }.filter { currency(it.currency) })
-        val kind = text.firstNotNullOfOrNull { operation(it).takeUnless { type -> type == BankOperation.UNKNOWN } }
+        val detected = text.firstNotNullOfOrNull { operation(it).takeUnless { type -> type == BankOperation.UNKNOWN } }
             ?: BankOperation.UNKNOWN
+        val kind = if (detected != BankOperation.REFUND && text.any { unsuccessful.containsMatchIn(it) }) {
+            BankOperation.UNSUCCESSFUL
+        } else detected
         val exactTotal = marked(total) { it != card }
+        val debitWithFee = unique(relevant.filter {
+            debit.containsMatchIn(it.first) && includedFee.containsMatchIn(it.first)
+        }.flatMap { it.second }.filter { it.currency != card })
+        val chargedTotal = marked(charged) { it != card }
         val sent = marked(debit) { it != card }
         val sourceFee = sent?.let { base ->
             unique(rows.filter { fee.containsMatchIn(it.first) }.flatMap { it.second }.filter { it.currency == base.currency })
         }
         val other = when (kind) {
-            BankOperation.TRANSFER -> exactTotal ?: sent?.let { amount ->
+            BankOperation.TRANSFER -> exactTotal ?: debitWithFee ?: chargedTotal ?: sent?.let { amount ->
                 sourceFee?.let { amount.copy(amount = amount.amount.add(it.amount)) } ?: amount
             }
             else -> null
@@ -80,6 +95,6 @@ object BankImport {
                 else LocalDate.of(parts[4].toInt(), parts[5].toInt(), parts[6].toInt())
             }.getOrNull()
         }
-        return BankImportCandidate(kind, other, onCard, date, range, kind == BankOperation.TRANSFER && (exactTotal != null || sourceFee != null))
+        return BankImportCandidate(kind, other, onCard, date, range, kind == BankOperation.TRANSFER && (exactTotal != null || debitWithFee != null || chargedTotal != null || sourceFee != null))
     }
 }

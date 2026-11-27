@@ -47,7 +47,7 @@ class AtmTest {
     }
 
     @Test
-    fun `карту удалили — валюта списания по ЦБ`() {
+    fun `старое снятие без данных карты использует справочный курс`() {
         val cash = atm(yuan, "2000")
         val q = quote(cash, listOf(cash))
         assertEquals(RateBasis.ESTIMATE, q.basis)
@@ -63,4 +63,16 @@ class AtmTest {
         assertEquals(listOf("cny", "atm"), all.quotes.map { it.card.id })
         assertEquals(0, quote(cash, wallet.cards).homePerUnit.compareTo(all.of("atm")!!.homePerUnit))
     }
+    @Test fun `deleting a linked card preserves the course of current and archived withdrawals`() {
+        val cash = atm(yuan, "2000")
+        val wallet = Wallet(cards = listOf(yuan, cash.copy(history = listOf(cash.transfer!!))), spend = Currency.AED)
+        val before = quote(cash, wallet.cards)
+        val removed = wallet.remove(yuan.id, cbr)
+        val restored = WalletCodec.decode(WalletCodec.encode(removed))!!.cards.single()
+        val after = quote(restored, listOf(restored))
+        assertEquals(before.basis, after.basis)
+        assertEquals(0, before.homePerUnit.compareTo(after.homePerUnit))
+        assertEquals(restored.transfer!!.bought, restored.history.single().bought)
+    }
+
 }

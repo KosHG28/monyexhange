@@ -2,11 +2,14 @@ package app.dirhamrub
 
 import app.dirhamrub.ui.theme.AdaptiveFrameRate
 import android.os.Bundle
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.createLifecycleAwareWindowRecomposer
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -26,6 +29,13 @@ import app.dirhamrub.ui.theme.DirhamTheme
 import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity() {
+    private var incomingScreen by mutableStateOf<Intent?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        incomingScreen = intent
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         CrashLog.install(this)
         enableEdgeToEdge()
@@ -82,6 +92,8 @@ class MainActivity : ComponentActivity() {
                         startStep = intent?.getIntExtra(EXTRA_STEP, 0) ?: 0,
                         startCurrency = intent?.getStringExtra(EXTRA_CURRENCY),
                         vm = vm,
+                        incomingScreen = incomingScreen,
+                        onScreenHandled = { incomingScreen = null },
                     )
                     CrashReportDialog()
                 }

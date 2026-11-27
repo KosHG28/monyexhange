@@ -253,6 +253,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         val hasFraction: Boolean,
         val digits: Int,
         var isOld: Boolean,
+        val explicitlyCurrent: Boolean,
         val extent: Box,
         val angle: Float,
         val height: Float,
@@ -287,10 +288,15 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         mask(PHONE_PREFIX)
 
         val currencies = currency.pattern.findAll(text).map { it.range }.toList()
-        val oldKeyword = OLD_WORD.containsMatchIn(text) ||
-            (prevLine != null && OLD_WORD.containsMatchIn(prevLine.text) && NUMBER.find(prevLine.text) == null)
+        val priceTags = PRICE_STATUS.findAll(text).toList()
+        val numbers = currency.number.findAll(text).toList()
+        val previousTag = prevLine?.text?.takeIf { NUMBER.find(it) == null }?.let { PRICE_STATUS.find(it) }
 
-        for (m in currency.number.findAll(text)) {
+        for (m in numbers) {
+            val tag = priceTags.lastOrNull { it.range.last < m.range.first }
+                ?: priceTags.singleOrNull()?.takeIf { numbers.size == 1 } ?: previousTag
+            val explicitlyCurrent = tag?.groups?.get("current") != null
+            val explicitlyOld = tag?.groups?.get("old") != null
             if (m.range.any { masked[it] }) continue
             val numberText = m.value
             val after = text.substring(m.range.last + 1)
@@ -315,7 +321,8 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
                 blockCurrency = blockCurrency,
                 hasFraction = currency.fraction.containsMatchIn(numberText),
                 digits = numberText.count { it.isDigit() },
-                isOld = oldKeyword,
+                isOld = explicitlyOld,
+                explicitlyCurrent = explicitlyCurrent,
                 extent = extent,
                 angle = angle,
                 height = tokens.filter { maxOf(it.start, m.range.first) < minOf(it.end, m.range.last + 1) }.maxOfOrNull { it.height } ?: box.height,
@@ -427,7 +434,7 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
      */
     private fun markStruckOut(items: List<Raw>) {
         for (small in items) {
-            if (small.isOld) continue
+            if (small.isOld || small.explicitlyCurrent) continue
             for (big in items) {
                 if (big === small || big.isOld) continue
                 if (small.box.height >= STRUCK_HEIGHT_RATIO * big.box.height) continue
@@ -492,8 +499,8 @@ class PriceParser(private val currency: PriceCurrency = PriceCurrency.AED) {
         private val THOUSANDS = Regex("""\d{1,3}(?:,\d{3})+(?:\.\d{1,3})?""")
         private val INDIAN = Regex("""\d{1,2}(?:,\d{2})+,\d{3}(?:\.\d{1,2})?""")
 
-        private val OLD_WORD = Regex(
-            """(?<![A-Za-z])(?:WAS|OLD|BEFORE|RRP|REG|REGULAR|ORIGINAL)(?![A-Za-z])""",
+        private val PRICE_STATUS = Regex(
+            """(?<![\p{L}])(?:(?<old>WAS|OLD|BEFORE|RRP|REG|REGULAR|ORIGINAL|БЫЛО)|(?<current>NOW|TODAY|SALE|ТЕПЕРЬ|СЕЙЧАС))(?![\p{L}])""",
             RegexOption.IGNORE_CASE,
         )
 

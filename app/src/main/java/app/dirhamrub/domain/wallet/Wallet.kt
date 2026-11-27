@@ -18,6 +18,7 @@ data class TransferReceipt(
     val boughtAt: BigDecimal? = null,
     val boughtIn: Currency? = null,
     val fromCard: String? = null,
+    val sourceRateEstimated: Boolean = false,
 ) {
     /** Почём купили отправленную валюту, если это известно: (курс, в какой валюте). */
     val bought: Pair<BigDecimal, Currency>?
@@ -107,6 +108,9 @@ data class BankCard(
     val customColor: Int? = null,
     val material: CardMaterial = CardMaterial.SATIN,
 ) {
+    val latestTransfer: TransferReceipt?
+        get() = (listOfNotNull(transfer) + history).filter { it.isValid }.maxByOrNull { it.date }
+
     /**
      * Пополнение, по которому считается курс: последнее, а в режиме «в среднем» — сводное по всем
      * пополнениям из той же валюты (и с той же карты у банкомата): суммы складываются, «почём купили» —
@@ -114,11 +118,10 @@ data class BankCard(
      */
     val effectiveTransfer: TransferReceipt?
         get() {
-            val last = transfer?.takeIf { it.isValid } ?: return transfer
+            val last = latestTransfer ?: return null
             if (transferMode != TransferMode.AVERAGE) return last
-            val same = listOf(last) + history.filter {
-                it.isValid && it.sentCurrency == last.sentCurrency && it.fromCard == last.fromCard
-            }
+            val stored = listOfNotNull(transfer) + history
+            val same = stored.filter { it.isValid && it.sentCurrency == last.sentCurrency && it.fromCard == last.fromCard }
             if (same.size < 2) return last
             val sent = same.fold(java.math.BigDecimal.ZERO) { acc, t -> acc.add(t.sent) }
             val got = same.fold(java.math.BigDecimal.ZERO) { acc, t -> acc.add(t.got) }
@@ -129,12 +132,20 @@ data class BankCard(
             } else {
                 null
             }
-            return last.copy(sent = sent, got = got, boughtAt = bought, boughtIn = bought?.let { boughtIn })
+            return last.copy(
+                sent = sent, got = got, boughtAt = bought, boughtIn = bought?.let { boughtIn },
+                sourceRateEstimated = same.any { it.sourceRateEstimated },
+            )
         }
 
     /** Записать новое пополнение: прежнее уходит в историю (не больше [HISTORY_MAX]). */
     fun withNewTransfer(next: TransferReceipt): BankCard =
-        copy(transfer = next, history = (listOfNotNull(transfer) + history).take(HISTORY_MAX))
+        withTransfers(listOf(next) + listOfNotNull(transfer) + history)
+
+    fun withTransfers(receipts: List<TransferReceipt>): BankCard {
+        val ordered = receipts.sortedByDescending { it.date }
+        return copy(transfer = ordered.firstOrNull(), history = ordered.drop(1).take(HISTORY_MAX))
+    }
 
     /** Платёжная система для справочника: указанная, а у карты UnionPay без указанной — UnionPay российского банка. */
     val paymentNetwork: CardNetwork? get() = network ?: CardNetwork.UNIONPAY.takeIf { unionPay }
@@ -146,7 +157,7 @@ data class BankCard(
     fun purchaseFor(spend: Currency): PurchaseReceipt? {
         var latest: PurchaseReceipt? = null
         for (purchase in purchases) {
-            if (purchase.spend == spend && purchase.isValid && (latest == null || purchase.date.isAfter(latest.date))) latest = purchase
+            if (purchase.spend == spend && purchase.isValid && (latest == null || !purchase.date.isBefore(latest.date))) latest = purchase
         }
         return latest
     }
@@ -218,8 +229,16 @@ data class Wallet(
         return copy(cards = next)
     }
 
-    fun remove(id: String): Wallet {
-        val next = cards.filterNot { it.id == id }
+    fun remove(id: String, reference: OfficialRates? = null): Wallet {
+        val removed = cards.firstOrNull { it.id == id } ?: return this
+        val next = cards.filterNot { it.id == id }.map { card ->
+            if (removed.kind != CardKind.CARD || card.kind != CardKind.CASH) card else {
+                card.copy(
+                    transfer = card.transfer?.preserveWithdrawalCost(removed, home, reference),
+                    history = card.history.map { it.preserveWithdrawalCost(removed, home, reference) },
+                )
+            }
+        }
         return copy(cards = next, selectedId = selectedId?.takeIf { it != id })
     }
 
@@ -230,4 +249,19 @@ data class Wallet(
         const val CARD_STYLES = 7
         const val RECENT = 6
     }
+}
+
+private fun TransferReceipt.preserveWithdrawalCost(
+    source: BankCard,
+    home: Currency,
+    reference: OfficialRates?,
+): TransferReceipt {
+    if (fromCard != source.id || sentCurrency != source.currency || bought != null) return this
+    // A 1:1 quote in the debited currency carries no information about the original cost.
+    val funding = source.effectiveTransfer
+    val fundingCurrency = funding?.bought?.second ?: funding?.sentCurrency
+    val anchor = fundingCurrency?.takeUnless { it == sentCurrency }
+        ?: home.takeUnless { it == sentCurrency } ?: Currency.RUB.takeUnless { it == sentCurrency } ?: return this
+    val (rate, basis) = RateEngine.cardToHome(source, anchor, reference) ?: return this
+    return copy(boughtAt = rate, boughtIn = anchor, sourceRateEstimated = basis != RateBasis.RECEIPTS)
 }

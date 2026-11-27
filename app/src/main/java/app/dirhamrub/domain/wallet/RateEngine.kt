@@ -126,7 +126,7 @@ object RateEngine {
         val manual = card.manualFor(spend, home)
         val homePerCard = homePerCard(card, home, official, cards)
         val (cardPerSpend, spendBasis) = cardPerSpend(card, spend, official, unionPay) ?: (null to RateBasis.OFFICIAL)
-        val officialRate = official?.cross(spend, home)
+        val officialRate = referenceRate(spend, home, official)
         val via = official?.viaUnionPay(spend, home) == true
 
         if (manual != null) {
@@ -147,9 +147,12 @@ object RateEngine {
         return CardQuote(card, value, cardPerSpend, basis, percent(value, officialRate), via)
     }
 
+    private fun referenceRate(spend: Currency, home: Currency, official: OfficialRates?): BigDecimal? =
+        if (spend == home) BigDecimal.ONE else official?.cross(spend, home)
+
     fun quoteAll(wallet: Wallet, official: OfficialRates?, unionPay: UnionPayRates? = null): WalletQuote = WalletQuote(
         quotes = wallet.cards.mapNotNull { quote(it, wallet.spend, wallet.home, official, unionPay, wallet.cards) },
-        official = official?.cross(wallet.spend, wallet.home),
+        official = referenceRate(wallet.spend, wallet.home, official),
         viaUnionPay = official?.viaUnionPay(wallet.spend, wallet.home) == true,
     )
 
@@ -183,7 +186,7 @@ object RateEngine {
             val sentPerCard = t.sent.divide(t.got, MC)
             // Наличные из банкомата: списали с карты — дальше по курсу этой карты (без цепочек глубже).
             val source = t.fromCard?.let { id -> cards.firstOrNull { it.id == id && it.kind == CardKind.CARD } }
-            if (source != null && source.currency == t.sentCurrency) {
+            if (source != null && source.currency == t.sentCurrency && t.bought == null) {
                 val (leg, legBasis) = homePerCard(source, home, official) ?: return null
                 return sentPerCard.multiply(leg, MC) to (if (legBasis == RateBasis.RECEIPTS) RateBasis.RECEIPTS else RateBasis.ESTIMATE)
             }
@@ -192,7 +195,8 @@ object RateEngine {
             val bought = t.bought
             if (bought != null) {
                 val (rate, inCurrency) = bought
-                if (inCurrency == home) return sentPerCard.multiply(rate, MC) to RateBasis.RECEIPTS
+                if (inCurrency == home) return sentPerCard.multiply(rate, MC) to
+                    (if (t.sourceRateEstimated) RateBasis.ESTIMATE else RateBasis.RECEIPTS)
                 val toHome = official?.cross(inCurrency, home) ?: return null
                 return sentPerCard.multiply(rate, MC).multiply(toHome, MC) to RateBasis.ESTIMATE
             }

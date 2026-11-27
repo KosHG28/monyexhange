@@ -1,5 +1,6 @@
 package app.dirhamrub.domain.price
 
+import app.dirhamrub.domain.wallet.Currency
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -414,4 +415,20 @@ class PriceParserTest {
         val output = photoPrices(listOf(OcrBlock(listOf(line("12,50")))), app.dirhamrub.domain.wallet.Currency.AED, null)
         assertTrue(output.single().needsReview)
     }
+    @Test fun `live mode ignores explicit foreign prices and a Japanese yen sign uses JPY in photo mode`() {
+        val foreign = OcrBlock(listOf(line("19.99", "USD"), line("20", "AED", y = 180f)))
+        val live = parser.parse(livePriceBlocks(listOf(foreign), Currency.AED))
+        assertEquals(listOf(BigDecimal("20")), live.map { it.value })
+        val japanese = OcrBlock(listOf(line("¥500")))
+        val frozen = photoPrices(listOf(japanese), Currency.JPY, null).single()
+        assertEquals(Currency.JPY, frozen.currency)
+        assertFalse(frozen.needsReview)
+    }
+
+    @Test fun `old and current prices can share one OCR line`() {
+        val prices = parse(line("WAS", "59.00", "AED", "NOW", "39.00", "AED"))
+        assertEquals(setOf("59.00"), prices.filter { it.isOld }.map { it.value.toPlainString() }.toSet())
+        assertEquals(setOf("39.00"), prices.filterNot { it.isOld }.map { it.value.toPlainString() }.toSet())
+    }
+
 }

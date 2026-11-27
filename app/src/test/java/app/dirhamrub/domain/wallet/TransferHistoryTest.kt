@@ -67,4 +67,13 @@ class TransferHistoryTest {
         repeat(HISTORY_MAX + 5) { i -> c = c.withNewTransfer(first.copy(got = d((1000 + i).toString()))) }
         assertEquals(HISTORY_MAX, c.history.size)
     }
+    @Test fun `older import stays in history and a blank draft still uses the latest receipt`() {
+        val imported = first.copy(sent = d("7000"), date = first.date.minusDays(1))
+        val withImport = card.withNewTransfer(imported)
+        assertEquals(second, withImport.transfer)
+        assertEquals(listOf(first, imported), withImport.history)
+        val blank = withImport.copy(transfer = null, history = listOf(second) + withImport.history)
+        assertEquals(rate(card), rate(blank))
+    }
+
 }

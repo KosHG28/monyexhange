@@ -45,4 +45,27 @@ class BankImportTest {
         assertEquals(BankOperation.PURCHASE, result.operation)
         assertEquals(Currency.RUB, result.counterpart?.currency)
     }
+    @Test fun `confirmed debit with fee is never increased again`() {
+        for (label in listOf("Списано с учётом комиссии", "Списано")) {
+            val receipt = BankImport.candidates(
+                listOf("Пополнение", "$label 10 100 RUB", "Комиссия 100 RUB", "Зачислено 100 USD"),
+                Currency.USD,
+            ).single()
+            assertEquals(BigDecimal("10100"), receipt.counterpart?.amount)
+        }
+    }
+
+    @Test fun `a declined or pending operation cannot be applied as a receipt`() {
+        for (status in listOf("Операция отклонена", "В обработке", "Payment declined")) {
+            val receipt = BankImport.candidates(
+                listOf("Оплата", status, "Списано 75 USD", "5000 JPY"), Currency.USD,
+            ).last()
+            assertTrue(receipt.operation.blocked)
+        }
+        val statusBelowAmounts = BankImport.candidates(
+            listOf("Payment 5000 JPY", "Debited 75 USD", "Payment declined"), Currency.USD,
+        ).single()
+        assertTrue(statusBelowAmounts.operation.blocked)
+    }
+
 }

@@ -207,9 +207,9 @@ data class Wallet(
         return copy(cards = ordered + cards.filter { it !in ordered })
     }
 
-    /** Reorder the displayed ways to pay and retain the slots of methods hidden in this country. */
-    fun reorderPayments(ids: List<String>): Wallet {
-        val visible = usable.mapTo(HashSet()) { it.id }
+    /** The calculator supplies the visible cards; the wallet can also move cards from other countries. */
+    fun reorderPayments(ids: List<String>, entireWallet: Boolean = false): Wallet {
+        val visible = (if (entireWallet) cards else usable).mapTo(HashSet()) { it.id }
         val ordered = ids.distinct().filter(visible::contains)
         if (ordered.size < 2) return this
         val moved = ordered.toSet()

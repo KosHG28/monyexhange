@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Check material optics and placement of the settings refresh action.
+# Check the payment wallet, previews and the updated rate controls.
 set -euo pipefail
 mkdir -p screens
 exec > >(tee screens/scenario.log) 2>&1
@@ -17,12 +17,12 @@ adb shell wm density 288
 adb logcat -b crash -c
 timeout 180s adb logcat -b crash -b main -b system -v brief AndroidRuntime:E libc:F DEBUG:F OpenGLRenderer:E '*:S' > screens/app-log.txt 2>&1 &
 android_log_pid=$!
-python3 tools/ui-materials.py
+python3 tools/ui-wallet-160.py
 kill "$android_log_pid" 2>/dev/null || true
 python3 - <<'PY'
 from pathlib import Path
 import struct, zlib
-for name in ('materials-1592.png', 'material-calculator-1592.png', 'settings-1592.png'):
+for name in ('wallet-160.png', 'payment-previews-160.png', 'calculator-notes-160.png', 'settings-rates-160.png'):
     path = Path('screens') / name
     data = path.read_bytes()
     assert data[:8] == b'\x89PNG\r\n\x1a\n', path

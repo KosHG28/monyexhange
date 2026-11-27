@@ -81,6 +81,7 @@ import app.dirhamrub.domain.wallet.cbrPublishes
 import app.dirhamrub.ui.currency.CurrencyPickerScreen
 import app.dirhamrub.ui.main.MainUiState
 import app.dirhamrub.ui.theme.AppTheme
+import app.dirhamrub.ui.theme.LocalReduceMotion
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -171,12 +172,6 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
             Column(Modifier.cascade(cascade, 3)) { CameraSection(state, actions) }
             Column(Modifier.cascade(cascade, 4)) { LookSection(state, actions) }
             Column(Modifier.cascade(cascade, 5)) { AboutSection(onOnboarding = actions.onOnboarding, onCrash = { crashOpen = true }) }
-            ScreenAction(
-                label = stringResource(if (state.ratesLoading) R.string.settings_loading_button else R.string.settings_refresh),
-                onClick = actions.onRefresh,
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                loading = state.ratesLoading,
-            )
         }
     }
     if (roundingPicker) {
@@ -281,6 +276,12 @@ private fun RatesSection(state: MainUiState, actions: SettingsActions) {
             stringResource(R.string.settings_wifi_only_sub),
             state.settings.wifiOnly,
             actions.onWifiOnly,
+        )
+        ScreenAction(
+            label = stringResource(if (state.ratesLoading) R.string.settings_loading_button else R.string.settings_refresh),
+            onClick = actions.onRefresh,
+            modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+            loading = state.ratesLoading,
         )
     }
 }
@@ -399,11 +400,26 @@ private fun LookSection(state: MainUiState, actions: SettingsActions) {
             Divider()
         }
         val motions = MotionMode.entries
+        val motion = state.settings.motion
+        val reduced = LocalReduceMotion.current
+        var pendingMotion by remember(motion) { mutableStateOf<MotionMode?>(null) }
         ChoiceRow(
             stringResource(R.string.settings_motion),
             listOf(stringResource(R.string.settings_as_system), stringResource(R.string.settings_motion_off)),
-            motions.indexOf(state.settings.motion),
-        ) { actions.onMotion(motions[it]) }
+            motions.indexOf(pendingMotion ?: motion),
+            onIndicatorSettled = { index ->
+                pendingMotion?.takeIf { it == motions[index] }?.let(actions.onMotion)
+            },
+        ) { index ->
+            val next = motions[index]
+            if (next == motion) {
+                pendingMotion = null
+            } else if (reduced) {
+                actions.onMotion(next)
+            } else {
+                pendingMotion = next
+            }
+        }
         Divider()
         SwitchRow(
             stringResource(R.string.settings_key_haptics),

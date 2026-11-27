@@ -4,7 +4,6 @@ import app.dirhamrub.ui.components.*
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.wrapContentSize
 
-import app.dirhamrub.ui.theme.sheen
 import app.dirhamrub.ui.theme.parallaxOf
 import app.dirhamrub.ui.theme.LocalTilt
 import app.dirhamrub.ui.theme.LocalCardTilt
@@ -50,6 +49,8 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.FontFamily
+import java.time.Year
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -70,7 +71,6 @@ import app.dirhamrub.R
 import app.dirhamrub.ui.components.rateLabel
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
-import app.dirhamrub.domain.wallet.CardMaterial
 import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.RateBasis
@@ -79,7 +79,8 @@ import app.dirhamrub.ui.components.RollingText
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.cardMaterial
 import app.dirhamrub.ui.theme.forMaterial
-import app.dirhamrub.ui.theme.banknotePattern
+import app.dirhamrub.ui.theme.banknoteSurface
+import app.dirhamrub.ui.theme.banknoteTheme
 import app.dirhamrub.ui.theme.CardPalette
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import app.dirhamrub.ui.theme.motion
@@ -111,17 +112,16 @@ internal fun BankCardView(
     val colors = AppTheme.colors
     val type = AppTheme.type
     val cash = card.kind == CardKind.CASH
-    val material = card.material.takeUnless { cash }
+    val material = card.material
     val palette = CardPalette.style(card)
-    val style = if (material == null) palette else palette.forMaterial(material)
+    val style = if (cash) palette.copy(ink = Color.White) else palette.forMaterial(material)
     val corner = if (cash) 8.dp else CARD_RADIUS
     val cardShape = if (cash) RoundedCornerShape(corner) else CARD_SHAPE
-    val finish = when {
+    val surface = when {
+        cash -> Modifier.banknoteSurface(banknoteTheme(card.currency), corner, tilt = reflectionTilt)
         reflectionTilt != null -> Modifier.cardReflection(style, material, reflectionTilt, colorSweep, corner)
-        material != null -> Modifier.cardMaterial(style, material, corner, tilt = LocalCardTilt.current)
-        else -> Modifier.cardMaterial(style, CardMaterial.SATIN, corner).sheen(halfWidth = 46.dp)
+        else -> Modifier.cardMaterial(style, material, corner, tilt = LocalCardTilt.current)
     }
-    val surface = finish.then(if (cash) Modifier.banknotePattern(style.ink) else Modifier)
     val dim by animateFloatAsState(if (selected) 1f else 0.82f, motion(), label = "cardDim")
     // Невыбранные карты чуть меньше: выбранная — «впереди».
     val shrink by animateFloatAsState(if (selected) 1f else 0.96f, motion(260), label = "cardScale")
@@ -210,8 +210,11 @@ internal fun BankCardView(
                     role = Role.RadioButton
                 },
         ) {
-            if (tripPreview) Box(Modifier.matchParentSize().tripSharedBounds(TRIP_CARD)
-                .clip(cardShape).then(surface))
+            if (!tripPreview) {
+                PaymentPreviewFace(card, style.ink, style.chip, sumText, textAlpha)
+                return@Box
+            }
+            Box(Modifier.matchParentSize().tripSharedBounds(TRIP_CARD).clip(cardShape).then(surface))
             // Водяной знак валюты карты: при наклоне отстаёт на 6 dp — будто глубже в пластике.
             val mark = card.currency.mark
             val tilt = LocalTilt.current
@@ -221,7 +224,7 @@ internal fun BankCardView(
                     lineHeight = 92.sp, letterSpacing = 0.sp)
                 Box(
                     Modifier.align(Alignment.BottomEnd)
-                        .then(if (tripPreview) Modifier.tripExit(TripExit.DECORATION) else Modifier)
+                        .tripExit(TripExit.DECORATION)
                         .offset(x = 6.dp, y = markY)
                         .graphicsLayer {
                             val angle = reflectionTilt?.value
@@ -237,14 +240,14 @@ internal fun BankCardView(
                     Text(mark, style = markStyle, color = style.mark.copy(alpha = 0.2f), maxLines = 1)
                 }
             }
-            if (tripPreview) Box(Modifier.matchParentSize().clip(cardShape), content = watermark) else watermark()
+            Box(Modifier.matchParentSize().clip(cardShape), content = watermark)
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer { alpha = textAlpha() }
                     .padding(horizontal = if (compact) 10.dp else 13.dp, vertical = if (compact) 9.dp else 11.dp),
             ) {
-                val decoration = if (tripPreview) Modifier.tripExit(TripExit.DECORATION) else Modifier
+                val decoration = Modifier.tripExit(TripExit.DECORATION)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                         Text(
@@ -253,7 +256,7 @@ internal fun BankCardView(
                             color = style.ink.copy(alpha = 0.92f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = if (tripPreview) Modifier.tripSharedTitle() else Modifier,
+                            modifier = Modifier.tripSharedTitle(),
                         )
                     }
                     if (inlineChip) {
@@ -277,7 +280,7 @@ internal fun BankCardView(
                 Spacer(Modifier.weight(1f))
                 // Сумма меняется на каждом нажатии — перекатываются только изменившиеся цифры.
                 val sumStyle = type.number.copy(fontSize = sumSize, lineHeight = sumSize * 1.15f, fontWeight = FontWeight.Medium, letterSpacing = 0.sp)
-                Row(if (tripPreview) Modifier.tripSharedBounds(TRIP_HERO) else Modifier) {
+                Row(Modifier.tripSharedBounds(TRIP_HERO)) {
                     if (sum != null) {
                         if (approx.isNotEmpty()) Text(approx, style = sumStyle, color = style.ink, maxLines = 1, softWrap = false)
                         RollingText(sum, style = sumStyle, color = style.ink)
@@ -288,15 +291,9 @@ internal fun BankCardView(
                 }
                 Spacer(Modifier.height(3.dp))
                 val rateStyle = type.caption.copy(fontSize = 11.5.sp, lineHeight = 14.sp, color = style.ink.copy(alpha = 0.88f))
-                // Курс не сокращается многоточием: на узкой карте шрифт сам уменьшается, пока строка не влезет.
-                val rateText: @Composable (Modifier) -> Unit = { m ->
-                    if (tripPreview) {
-                        Text(rate, style = rateStyle, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            modifier = m.tripSharedBounds(TRIP_RATE))
-                    } else {
-                        BasicText(text = rate, style = rateStyle, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            autoSize = TextAutoSize.StepBased(minFontSize = RATE_MIN_SP, maxFontSize = 11.5.sp, stepSize = 0.25.sp), modifier = m)
-                    }
+                val rateText: @Composable (Modifier) -> Unit = { modifier ->
+                    Text(rate, style = rateStyle, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = modifier.tripSharedBounds(TRIP_RATE))
                 }
                 val vsChip: @Composable () -> Unit = {
                     if (vs != null) {
@@ -311,7 +308,7 @@ internal fun BankCardView(
                             },
                             maxLines = 1,
                             modifier = Modifier
-                                .then(if (tripPreview) Modifier.tripExit(TripExit.DECORATION) else Modifier)
+                                .tripExit(TripExit.DECORATION)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(CardPalette.chipScrim.copy(alpha = 0.62f))
                                 .padding(horizontal = 5.dp, vertical = 1.dp),
@@ -334,6 +331,62 @@ internal fun BankCardView(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PaymentPreviewFace(
+    card: BankCard,
+    ink: Color,
+    chip: Color,
+    sum: String,
+    textAlpha: () -> Float,
+) {
+    val cash = card.kind == CardKind.CASH
+    val type = AppTheme.type
+    val nameStyle = type.bodyStrong.copy(color = ink, fontSize = 14.sp, lineHeight = 16.sp)
+    val designCode = card.currency.code
+    Column(
+        Modifier.fillMaxSize().graphicsLayer { alpha = textAlpha() }.padding(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            BasicText(
+                card.name, Modifier.weight(1f), style = nameStyle,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                autoSize = TextAutoSize.StepBased(10.sp, 14.sp, 0.5.sp),
+            )
+            Spacer(Modifier.width(5.dp))
+            if (cash) {
+                Text(
+                    "№ ${remember { Year.now().value }}·$designCode",
+                    style = type.caption.copy(fontFamily = FontFamily.Monospace, fontSize = 8.sp),
+                    color = ink.copy(alpha = 0.45f), maxLines = 1,
+                )
+            } else {
+                Icon(painterResource(R.drawable.ic_card_contactless), null, Modifier.size(20.dp),
+                    tint = ink.copy(alpha = 0.65f))
+            }
+        }
+        if (!cash) {
+            Spacer(Modifier.height(5.dp))
+            EmvChip(chip, Modifier.size(width = 28.dp, height = 20.dp))
+        }
+        Spacer(Modifier.weight(1f))
+        Row(verticalAlignment = Alignment.Bottom) {
+            BasicText(
+                sum, Modifier.weight(1f), style = type.number.copy(
+                    color = ink, lineHeight = 26.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.sp,
+                ),
+                autoSize = TextAutoSize.StepBased(12.sp, 23.sp, 0.5.sp),
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.width(5.dp))
+            val watermark = type.number.copy(
+                color = ink.copy(alpha = 0.27f), fontSize = 24.sp, lineHeight = 26.sp, letterSpacing = 0.sp,
+                drawStyle = if (cash) Stroke(with(LocalDensity.current) { 0.65.dp.toPx() }) else null,
+            )
+            Text(designCode, style = watermark, maxLines = 1, modifier = Modifier.offset(x = if (cash) 0.dp else 2.dp))
         }
     }
 }

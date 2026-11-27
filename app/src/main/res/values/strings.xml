@@ -129,13 +129,11 @@
     <string name="scan_transfer">Заполнили пополнение: %1$s → %2$s. Проверьте и сохраните.</string>
     <string name="editor_title_new">Новая карта</string>
     <string name="editor_title_edit">Карта</string>
-    <string name="editor_title_new_cash">Новые наличные</string>
     <string name="editor_title_cash">Наличные</string>
     <string name="kind_card">Карта</string>
     <string name="kind_cash">Наличные</string>
     <string name="cash_default_name">Наличные %1$s</string>
     <string name="editor_currency_cash">Валюта наличных</string>
-    <string name="receipt_exchange">Обмен</string>
     <string name="receipt_gave">Отдал</string>
     <string name="receipt_received">Получил</string>
     <string name="receipt_exchange_hint">Сколько отдали в обменнике и сколько получили на руки — курс наличных будет точным.</string>
@@ -292,7 +290,7 @@
     <string name="settings_receipts_auto">Курсы для старых чеков загружаются автоматически</string>
     <string name="settings_badge_unionpay">UP</string>
     <string name="settings_unionpay">UnionPay</string>
-    <string name="settings_refresh">Обновить сейчас</string>
+    <string name="settings_refresh">Обновить</string>
     <string name="settings_loading_button">Обновляем…</string>
     <string name="settings_fetched_today">сегодня %1$s</string>
     <string name="settings_fetched_yesterday">вчера %1$s</string>
@@ -395,8 +393,11 @@
     <string name="money_only_in">платят только в %1$s</string>
     <string name="money_topped_up">пополнение %1$s</string>
     <string name="money_exchanged">обмен %1$s</string>
-    <string name="money_order_hint">Чтобы изменить порядок, удерживайте и перетащите карту на главном экране.</string>
-    <string name="money_add">＋ Добавить карту или наличные</string>
+    <string name="money_order_hint">Удерживайте и перетаскивайте карточки, чтобы изменить порядок.</string>
+    <string name="money_add_card">Добавить карту</string>
+    <string name="money_add_card_sub">По чеку или NFC</string>
+    <string name="money_add_cash">Добавить наличные</string>
+    <string name="money_add_cash_sub">Обменник или банкомат</string>
     <!-- Главный экран (вариант Б) -->
     <string name="place_a11y">Где тратите: %1$s. Сменить страну</string>
     <string name="hero_copy">Скопировать итог</string>

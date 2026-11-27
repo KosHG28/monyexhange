@@ -17,9 +17,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
@@ -28,12 +26,8 @@ import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import app.dirhamrub.domain.wallet.CardMaterial
-import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.sqrt
@@ -147,84 +141,21 @@ internal class CardTiltFilter {
 @Composable
 internal fun Modifier.cardReflection(
     style: CardStyle,
-    material: CardMaterial?,
+    material: CardMaterial,
     tilt: State<Offset>,
     sweep: State<Float>?,
     radius: Dp,
 ): Modifier = key(style.ink) {
     val start by animateColorAsState(style.start, motion(240), label = "cardSurfaceStart")
     val end by animateColorAsState(style.end, motion(240), label = "cardSurfaceEnd")
-    val dark = AppTheme.colors.isDark
     drawWithCache {
         val background = Brush.linearGradient(listOf(start, end))
-        val finish = material?.let { cardMaterialLayer(it, radius, tilt, sweep) }
-        val edgeWidth = 1.dp.toPx()
-        val inset = edgeWidth / 2f
-        val edgeSize = Size(size.width - edgeWidth, size.height - edgeWidth)
-        val corner = CornerRadius(radius.toPx() - inset)
-        val stroke = Stroke(edgeWidth)
-        val clearLight = Color.White.copy(alpha = 0f)
+        val finish = cardMaterialLayer(material, radius, tilt, sweep)
         onDrawBehind {
             drawRect(background)
-            if (finish != null) {
-                finish(this)
-                return@onDrawBehind
-            }
-            // Наличные имеют собственные динамические блики поверх бумажного рисунка.
-            drawCardGrain(alpha = 0.025f)
-            val angle = tilt.value
-            val strength = maxOf(abs(angle.x), abs(angle.y))
-            val progress = sweep?.value ?: 1f
-            val sweepAlpha = REFLECTION_PEAK * sin(progress.coerceIn(0f, 1f) * PI).toFloat()
-            val spotAlpha = (0.15f + 0.07f * strength).coerceAtMost(REFLECTION_PEAK - sweepAlpha)
-            val hotspot = center + Offset(size.width * angle.x * 0.36f, size.height * angle.y * 0.41f)
-            val spread = size.width * 0.48f
-            if (spotAlpha > 0.001f) withTransform({
-                rotate(-32f, pivot = hotspot)
-                scale(1f, 0.5f, pivot = hotspot)
-            }) {
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        0f to Color.White.copy(alpha = spotAlpha),
-                        0.38f to Color.White.copy(alpha = spotAlpha * 0.72f),
-                        1f to clearLight,
-                        center = hotspot,
-                        radius = spread,
-                    ),
-                    radius = spread,
-                    center = hotspot,
-                )
-            }
-            if (sweepAlpha > 0.001f) {
-                val band = Offset(size.width * (-0.26f + 1.52f * progress), size.height * 0.5f)
-                val feather = Offset(size.width * 0.19f, size.height * 0.19f)
-                drawRect(
-                    Brush.linearGradient(listOf(clearLight, Color.White.copy(alpha = sweepAlpha), clearLight), band - feather, band + feather),
-                )
-            }
-            val phase = PI * (-0.5 + 0.64 * angle.x + 0.36 * angle.y)
-            val direction = Offset(cos(phase).toFloat(), sin(phase).toFloat())
-            val edgeScale = maxOf(abs(direction.x), abs(direction.y))
-            val edgePosition = center + Offset(direction.x * edgeSize.width, direction.y * edgeSize.height) / (2f * edgeScale)
-            if (dark) {
-                val baseWidth = DarkSurfaceOutlineWidth.toPx()
-                drawRoundRect(DARK_SURFACE_OUTLINE, Offset(baseWidth / 2f, baseWidth / 2f),
-                    Size(size.width - baseWidth, size.height - baseWidth), CornerRadius(radius.toPx() - baseWidth / 2f),
-                    style = Stroke(baseWidth))
-            }
-            drawRoundRect(
-                brush = Brush.radialGradient(
-                    listOf(Color.White.copy(alpha = 0.14f + 0.18f * strength), clearLight),
-                    edgePosition, size.height * 0.66f,
-                ),
-                topLeft = Offset(inset, inset),
-                size = edgeSize,
-                cornerRadius = corner,
-                style = stroke,
-            )
+            finish(this)
         }
     }
 }
 
 private const val TILT_RANGE = 0.38f
-private const val REFLECTION_PEAK = 0.22f

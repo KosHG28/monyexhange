@@ -22,7 +22,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.foundation.Canvas
 import app.dirhamrub.ui.theme.fieldGlow
 import app.dirhamrub.ui.theme.surfaceOutline
-import app.dirhamrub.ui.theme.banknotePattern
+import app.dirhamrub.ui.theme.banknoteSurface
+import app.dirhamrub.ui.theme.banknoteTheme
 import app.dirhamrub.ui.theme.cardMaterial
 import app.dirhamrub.ui.theme.forMaterial
 import app.dirhamrub.ui.theme.HighFrameRate
@@ -43,14 +44,12 @@ import app.dirhamrub.ui.theme.Springs
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.animateFloatAsState
 import app.dirhamrub.ui.components.flightOrigin
-import app.dirhamrub.ui.theme.LocalCardTilt
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -83,9 +82,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -93,17 +90,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.onPlaced
-import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -589,38 +579,8 @@ private fun PayList(
     val ids = remember(cards) { cards.map { it.id } }
     val byId = remember(cards) { cards.associateBy { it.id } }
     val drag = remember(ids, state.wallet.spend) { PaymentDrag(ids) }
-    val commit by rememberUpdatedState(onReorder)
-    val density = LocalDensity.current
-    val edge = with(density) { 34.dp.toPx() }
-    val step = with(density) { 7.dp.toPx() }
-    LaunchedEffect(drag, drag.dragged, edge, step) {
-        while (drag.dragged != null) {
-            withFrameNanos {
-                val delta = drag.edgeScroll(edge, step)
-                if (delta != 0f) drag.dragBy(scroll.dispatchRawDelta(delta))
-            }
-        }
-    }
     val movable = ids.size > 1
-    val gesture = if (!movable) Modifier else Modifier
-        .onGloballyPositioned {
-            val full = it.boundsInWindow(clipBounds = false)
-            val visible = it.boundsInWindow()
-            drag.viewport = visible.translate(-full.topLeft)
-        }
-        .pointerInput(drag, haptics) {
-            detectDragGesturesAfterLongPress(
-                onDragStart = { if (drag.start(it)) haptics.play(Haptic.TICK) },
-                onDrag = { change, delta ->
-                    if (drag.dragged != null) {
-                        change.consume()
-                        drag.dragBy(delta.y)
-                    }
-                },
-                onDragCancel = drag::cancel,
-                onDragEnd = { drag.finish()?.let(commit) },
-            )
-        }
+    val gesture = Modifier.paymentDragGesture(drag, scroll, movable, onReorder)
     val editLabel = stringResource(R.string.card_edit_a11y)
     val up = stringResource(R.string.payment_move_up)
     val down = stringResource(R.string.payment_move_down)
@@ -638,10 +598,7 @@ private fun PayList(
             }
             key(id) { Box(
                 Modifier.zIndex(if (drag.dragged == id) 2f else if (selected) 1f else 0f)
-                    .onPlaced { coordinates ->
-                        val origin = coordinates.positionInParent()
-                        drag.place(id, Rect(origin, origin + Offset(coordinates.size.width.toFloat(), coordinates.size.height.toFloat())))
-                    },
+                    .paymentDragSlot(drag, id),
             ) { PayRow(
                 state = state,
                 card = card,
@@ -798,7 +755,7 @@ private fun PayRow(
             .padding(start = 12.dp, end = 18.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PayIcon(card, flight = true, lightMoves = selected)
+        PayIcon(card, flight = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(card.name, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -855,7 +812,7 @@ private fun SelectedMark(color: androidx.compose.ui.graphics.Color, progress: Fl
  * [flight] — на главном: отсюда карта «перелетает» в настройку карты ([flightOrigin]).
  */
 @Composable
-internal fun PayIcon(card: BankCard, flight: Boolean = false, lightMoves: Boolean = false) {
+internal fun PayIcon(card: BankCard, flight: Boolean = false) {
     RecompositionProbe("PayIcon")
     val shared = flight && card.id == LocalTripSharedTransition.current?.primaryCardId
     val sharedModifier = if (shared) Modifier.tripSharedBounds(TRIP_CARD) else Modifier
@@ -863,9 +820,9 @@ internal fun PayIcon(card: BankCard, flight: Boolean = false, lightMoves: Boolea
     val palette = CardPalette.style(card)
     val style = if (cash) palette else palette.forMaterial(card.material)
     val finish = if (cash) {
-        Modifier.background(Brush.linearGradient(listOf(style.start, style.end))).banknotePattern(style.ink)
+        Modifier.banknoteSurface(banknoteTheme(card.currency), 3.dp, miniature = true)
     } else {
-        Modifier.cardMaterial(style, card.material, 5.dp, tilt = if (lightMoves) LocalCardTilt.current else null)
+        Modifier.cardMaterial(style, card.material, 5.dp)
     }
     Box(
         Modifier.then(if (flight) Modifier.flightOrigin(card.id) else Modifier)
@@ -884,7 +841,7 @@ internal fun PayIcon(card: BankCard, flight: Boolean = false, lightMoves: Boolea
             Text(
                 mark,
                 style = AppTheme.type.caption.copy(fontSize = 7.sp, lineHeight = 8.sp, fontWeight = FontWeight.Bold),
-                color = style.ink,
+                color = if (cash) Color.White else style.ink,
                 maxLines = 1,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 3.dp, bottom = 2.dp)
                     .then(if (shared) Modifier.tripMainEnter(TripEnter.BADGE) else Modifier),

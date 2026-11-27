@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 internal fun EmvChip(metal: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val rim = 0.65.dp.toPx()
-        val corner = CornerRadius(3.2.dp.toPx())
+        val corner = CornerRadius(4.dp.toPx().coerceAtMost(size.height / 4f))
         val topLeft = Offset(rim / 2f, rim / 2f)
         val plate = Size(size.width - rim, size.height - rim)
         val warm = lerp(metal, Color(0xFF36302C), 0.46f)

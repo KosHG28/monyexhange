@@ -383,6 +383,8 @@ fun DirhamApp(
                 onBack = { moneyOpen = false },
                 onEditCard = { editing = Editing(it, isNew = false) },
                 onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
+                onAddCash = { editing = Editing(vm.newCard().copy(kind = CardKind.CASH), isNew = true) },
+                onReorder = vm::reorderWallet,
             ),
         )
     }

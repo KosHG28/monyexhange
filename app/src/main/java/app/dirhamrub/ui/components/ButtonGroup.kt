@@ -51,6 +51,7 @@ internal fun SlidingSelection(
     color: Color,
     modifier: Modifier = Modifier,
     corner: Dp = 50.dp,
+    onIndicatorSettled: ((Int) -> Unit)? = null,
     content: @Composable SlidingSelectionScope.() -> Unit,
 ) {
     val positions = remember { mutableStateMapOf<Int, Rect>() }
@@ -58,7 +59,14 @@ internal fun SlidingSelection(
     val target = positions[selected]?.translate(-origin)
     val reduced = LocalReduceMotion.current
     val indicator = if (target != null) {
-        animateRectAsState(target, if (reduced) snap() else spring(dampingRatio = 0.78f, stiffness = 420f), label = "segment")
+        animateRectAsState(
+            target,
+            if (reduced) snap() else spring(dampingRatio = 0.78f, stiffness = 420f),
+            label = "segment",
+            finishedListener = onIndicatorSettled?.let { onSettled ->
+                { bounds -> if (bounds == target) onSettled(selected) }
+            },
+        )
     } else null
     val moving by remember(indicator, target) { derivedStateOf { indicator?.value != target } }
     HighFrameRate(!reduced && moving)
@@ -105,10 +113,14 @@ fun ButtonGroup(
     indicatorColor: Color = AppTheme.colors.accent,
     indicatorText: Color = AppTheme.colors.onAccent,
     showCheck: Boolean = true,
+    onIndicatorSettled: ((Int) -> Unit)? = null,
 ) {
     val colors = AppTheme.colors
     val shape = RoundedCornerShape(14.dp)
-    SlidingSelection(selected, indicatorColor, modifier.fillMaxWidth().clip(shape).background(trackColor).padding(3.dp), corner = 11.dp) {
+    SlidingSelection(
+        selected, indicatorColor, modifier.fillMaxWidth().clip(shape).background(trackColor).padding(3.dp),
+        corner = 11.dp, onIndicatorSettled = onIndicatorSettled,
+    ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             options.forEachIndexed { index, label ->
                 val active = index == selected

@@ -380,7 +380,6 @@ fun CardEditorScreen(
             onBack = { back() },
             title = stringResource(
                 when {
-                    cash && isNew -> R.string.editor_title_new_cash
                     cash -> R.string.editor_title_cash
                     isNew -> R.string.editor_title_new
                     else -> R.string.editor_title_edit
@@ -639,10 +638,18 @@ fun CardEditorScreen(
                         SubTitle(stringResource(R.string.receipt_transfer))
                         EmptyReceipts(stringResource(R.string.transfer_empty), stringResource(R.string.transfer_add_first)) { transferOpen = true }
                     } else {
-                        SubTitle(
-                            stringResource(if (cash) R.string.receipt_exchange else R.string.receipt_transfer),
+                        if (cash) {
+                            val date = draft.transfer?.date?.let(RuDates::short)
+                            if (date != null) {
+                                Text(date, style = AppTheme.type.caption, color = AppTheme.colors.muted,
+                                    modifier = Modifier.align(Alignment.End).padding(top = 8.dp, bottom = 6.dp))
+                            } else {
+                                Spacer(Modifier.height(10.dp))
+                            }
+                        } else SubTitle(
+                            stringResource(R.string.receipt_transfer),
                             trailing = draft.transfer?.date?.let(RuDates::short),
-                            action = if (!cash && (sent.isNotBlank() || got.isNotBlank())) {
+                            action = if (sent.isNotBlank() || got.isNotBlank()) {
                                 {
                                     Icon(
                                         painterResource(R.drawable.ic_close),
@@ -945,7 +952,7 @@ private const val EDITOR_CHIPS = 4
 
 /** Карточка-предпросмотр в редакторе. */
 private val PREVIEW_WIDTH = 190.dp
-private val PREVIEW_HEIGHT = 100.dp
+private val PREVIEW_HEIGHT = 120.dp
 private val PREVIEW_AMOUNT = BigDecimal(100)
 
 private fun CardNetwork?.isUnionPay(): Boolean = this == CardNetwork.UNIONPAY || this == CardNetwork.UNIONPAY_FOREIGN

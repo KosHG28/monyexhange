@@ -47,6 +47,17 @@ class CashTest {
     }
 
     @Test
+    fun `кошелёк сохраняет порядок наличных другой страны`() {
+        val wallet = Wallet(cards = listOf(tenge, cash, yuan), spend = Currency.AMD, selectedId = "kzt")
+        val reordered = wallet.reorderPayments(listOf("cash", "cny", "kzt"), entireWallet = true)
+        val restored = WalletCodec.decode(WalletCodec.encode(reordered))!!
+        assertEquals(true, restored.manualPaymentOrder)
+        assertEquals("kzt", restored.selectedId)
+        assertEquals(listOf("cny", "kzt"), restored.usable.map { it.id })
+        assertEquals(listOf("cash", "cny", "kzt"), restored.withSpend(Currency.AED).usable.map { it.id })
+    }
+
+    @Test
     fun `меняли доллары на драмы — почём купили доллары`() {
         val usd = OfficialRates(day, cbr.rubPerUnit + (Currency.USD to BigDecimal("81.79")))
         val exchange = TransferReceipt(BigDecimal("100"), Currency.USD, BigDecimal("41000"), day)

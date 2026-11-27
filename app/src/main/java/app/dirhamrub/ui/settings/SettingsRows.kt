@@ -115,7 +115,13 @@ internal fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onCha
 
 /** Выбор одного из вариантов: заголовок и группа кнопок Expressive под ним. */
 @Composable
-internal fun ChoiceRow(title: String, options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+internal fun ChoiceRow(
+    title: String,
+    options: List<String>,
+    selected: Int,
+    onIndicatorSettled: ((Int) -> Unit)? = null,
+    onSelect: (Int) -> Unit,
+) {
     val colors = AppTheme.colors
     val type = AppTheme.type
     Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
@@ -127,6 +133,7 @@ internal fun ChoiceRow(title: String, options: List<String>, selected: Int, onSe
             onSelect = onSelect,
             textStyle = type.caption.copy(fontSize = 13.sp),
             showCheck = false,
+            onIndicatorSettled = onIndicatorSettled,
         )
     }
 }

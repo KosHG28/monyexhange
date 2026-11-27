@@ -423,7 +423,7 @@ fun CardEditorScreen(
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 12.dp),
         ) {
-            Spacer(Modifier.height(6.dp))
+            if (!isNew) Spacer(Modifier.height(6.dp))
             // Черновик из полей и его курс — для предпросмотра сверху и итога ниже.
             val draft = build()
             val previewSpend = if (cash) currency else spend
@@ -442,8 +442,9 @@ fun CardEditorScreen(
             if (morph != null) SideEffect {
                 morph.card = { textAlpha -> PreviewCard(preview, reflectionTilt, textAlpha) }
             }
+            val previewInset = if (isNew) 8.dp else 0.dp
             Box(
-                Modifier.fillMaxWidth().height(PREVIEW_HEIGHT + RING_GAP * 2)
+                Modifier.fillMaxWidth().height(PREVIEW_HEIGHT + (RING_GAP + previewInset) * 2)
                     .clearAndSetSemantics { },
                 contentAlignment = Alignment.Center,
             ) {
@@ -478,13 +479,16 @@ fun CardEditorScreen(
                                 }
                             },
                             label = "CardKindPreview",
-                        ) { shown -> PreviewCard(shown, reflectionTilt) }
+                        ) { shown ->
+                            // The fading layer includes space for the card shadow on every side.
+                            Box(Modifier.padding(previewInset)) { PreviewCard(shown, reflectionTilt) }
+                        }
                     } else {
                         PreviewCard(preview, reflectionTilt)
                     }
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            if (!isNew) Spacer(Modifier.height(8.dp))
             // Карта или наличные из обменника: у наличных вместо пополнения — обмен, покупок по чекам нет.
             if (isNew) {
                 KindSwitch(kind) { newKind = it }

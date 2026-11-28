@@ -352,6 +352,11 @@ fun DirhamApp(
     val place = remember(state.wallet.spend, state.wallet.place, country) {
         placeOf(state.wallet.spend, state.wallet.place, country)
     }
+    fun editPaymentFromMain(card: BankCard, addPurchase: Currency? = null) {
+        val morph = if (reduceWelcome) null else cardFlight.originOf(card.id)?.let { CardMorph(it, card.id) }
+        editing = Editing(card, isNew = false, fromMain = true, morph = morph, addPurchase = addPurchase)
+    }
+
     PageUnderlay(
         pageOnTop = guideOpen || settingsOpen || moneyOpen || proOpen,
         editorOnTop = editing?.let { it.fromMain && it.morph == null } == true && !editorClosing,
@@ -369,11 +374,8 @@ fun DirhamApp(
             onKey = vm::press,
             onSelectCard = vm::selectCard,
             onReorderPayments = vm::reorderPaymentWays,
-            onEditCard = { card ->
-                val origin = if (card.kind == CardKind.CARD && !reduceWelcome) cardFlight.originOf(card.id) else null
-                editing = Editing(card, isNew = false, fromMain = true, morph = origin?.let { CardMorph(it, card.id) })
-            },
-            onAddReceipt = { editing = Editing(it, isNew = false, fromMain = true, addPurchase = state.wallet.spend) },
+            onEditCard = { editPaymentFromMain(it) },
+            onAddReceipt = { editPaymentFromMain(it, state.wallet.spend) },
             onAddCard = { editing = Editing(vm.newCard(), isNew = true, fromMain = true) },
             onSelectLine = vm::setActive,
             onOpenCountries = { currenciesOpen = true },

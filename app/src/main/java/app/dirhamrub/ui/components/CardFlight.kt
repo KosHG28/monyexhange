@@ -2,7 +2,7 @@ package app.dirhamrub.ui.components
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
@@ -14,16 +14,18 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 
 /**
- * Откуда карта «перелетает» в настройку карты: где на главном мини-карта каждой строки (координаты окна) и какая
+ * Откуда карта «перелетает» в настройку карты: где на главном миниатюра каждой строки (координаты корневого экрана) и какая
  * сейчас в полёте — её мини-карта в строке пустая («улетела»).
  */
 internal class CardFlight {
@@ -44,14 +46,14 @@ internal fun Modifier.flightOrigin(id: String): Modifier = composed {
     val flight = LocalCardFlight.current ?: return@composed this
     DisposableEffect(id, flight) { onDispose { flight.place(id, null) } }
     this
-        // Не обрезаем координаты границами прокрутки: они нужны для перелёта в редактор.
-        .onGloballyPositioned {
-            val full = it.boundsInWindow(clipBounds = false)
-            val visible = it.boundsInWindow()
-            flight.place(id, full.takeIf { !it.isEmpty && visible.width >= it.width * 0.9f && visible.height >= it.height * 0.9f })
+        .onGloballyPositioned { coordinates ->
+            flight.place(id, coordinates.cardFlightBounds().takeUnless { it.isEmpty })
         }
         .graphicsLayer { alpha = if (flight.flying == id) 0f else 1f }
 }
+
+internal fun LayoutCoordinates.cardFlightBounds(): Rect =
+    Rect(positionInRoot(), Size(size.width.toFloat(), size.height.toFloat()))
 
 /**
  * Перелёт карты для [FullScreen]: из [origin] (мини-карта на главном) в место превью на экране настройки
@@ -91,7 +93,7 @@ internal fun CardMorphOverlay(morph: CardMorph) {
     val o = morph.returnOrigin ?: morph.origin
     Box(
         Modifier
-            .offset { IntOffset(target.left.roundToInt(), target.top.roundToInt()) }
+            .absoluteOffset { IntOffset(target.left.roundToInt(), target.top.roundToInt()) }
             .size(with(density) { target.width.toDp() }, with(density) { target.height.toDp() })
             .graphicsLayer {
                 val p = morph.progress.value.coerceIn(0f, 1f)

@@ -866,6 +866,7 @@ private fun PayIcon(card: BankCard, shared: Boolean) {
     RecompositionProbe("PayIcon")
     val cash = card.kind == CardKind.CASH
     val slot = Modifier.size(PAYMENT_THUMBNAIL_WIDTH, PAYMENT_THUMBNAIL_HEIGHT)
+        .flightOrigin(card.id)
     if (cash) {
         val corner = 3.dp
         Box(slot.then(if (shared) Modifier.tripSharedBounds(TRIP_CARD) else Modifier)
@@ -887,8 +888,7 @@ private fun PayIcon(card: BankCard, shared: Boolean) {
         lerp(CARD_RADIUS, CARD_THUMBNAIL_RADIUS, trip.cardProgress.value)
     } else CARD_THUMBNAIL_RADIUS
     val style = CardPalette.style(card).forMaterial(card.material)
-    Box(slot.flightOrigin(card.id)
-        .then(if (shared) Modifier.tripCardElement(TRIP_CARD) else Modifier)
+    Box(slot.then(if (shared) Modifier.tripCardElement(TRIP_CARD) else Modifier)
         .clip(RoundedCornerShape(corner))
         .cardMaterial(style, card.material, corner),
     ) {

@@ -6,6 +6,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import app.dirhamrub.ui.components.CardMorph
+import app.dirhamrub.ui.components.cardFlightBounds
 import kotlinx.coroutines.delay
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -583,9 +584,8 @@ fun CardEditorScreen(
                         val bounds = it.boundsInWindow()
                         previewVisible = !bounds.isEmpty
                         if (morph != null && !saveReduce) {
-                            val full = it.boundsInWindow(clipBounds = false)
-                            morph.target = full.takeIf {
-                                !it.isEmpty && bounds.width >= it.width * 0.9f && bounds.height >= it.height * 0.9f
+                            morph.target = it.cardFlightBounds().takeUnless { target ->
+                                target.isEmpty || morph.settled && bounds.isEmpty
                             }
                             morph.targetMeasured = true
                         }

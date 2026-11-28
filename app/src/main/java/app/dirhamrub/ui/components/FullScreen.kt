@@ -152,6 +152,34 @@ fun FullScreen(
     if (visible.isIdle && !visible.currentState && !visible.targetState) {
         LaunchedEffect(Unit) { (pending.value ?: onDismissRequest)() }
     }
+    val animatedScreen: @Composable () -> Unit = {
+        HighFrameRate(!visible.isIdle || flight?.progress?.isRunning == true)
+        AnimatedVisibility(
+            visibleState = visible,
+            enter = when {
+                reduceMotion || flight != null -> EnterTransition.None
+                editorMotion -> fadeIn(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)) +
+                    slideInVertically(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)) { (it * 0.08f).toInt() } +
+                    scaleIn(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing), initialScale = 0.96f)
+                else -> Springs.screenIn
+            },
+            exit = when {
+                reduceMotion -> ExitTransition.None
+                flight?.fallback == true -> fadeOut(tween(120))
+                flight != null -> ExitTransition.None
+                editorMotion -> fadeOut(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)) +
+                    slideOutVertically(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)) { (it * 0.08f).toInt() } +
+                    scaleOut(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing), targetScale = 0.96f)
+                else -> Springs.screenOut
+            },
+        ) { screen() }
+    }
+    if (flight != null) {
+        // Both thumbnails and the editor preview are positioned in the same Compose root.
+        BackHandler(enabled = backEnabled, onBack = close)
+        animatedScreen()
+        return
+    }
     Dialog(
         onDismissRequest = close,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
@@ -169,26 +197,7 @@ fun FullScreen(
             }
         }
         AdaptiveFrameRate {
-            HighFrameRate(!visible.isIdle || flight?.progress?.isRunning == true)
-            AnimatedVisibility(
-                visibleState = visible,
-                enter = when {
-                    reduceMotion || flight != null -> EnterTransition.None
-                    editorMotion -> fadeIn(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)) +
-                        slideInVertically(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)) { (it * 0.08f).toInt() } +
-                        scaleIn(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing), initialScale = 0.96f)
-                    else -> Springs.screenIn
-                },
-                exit = when {
-                    reduceMotion -> ExitTransition.None
-                    flight?.fallback == true -> fadeOut(tween(120))
-                    flight != null -> ExitTransition.None
-                    editorMotion -> fadeOut(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)) +
-                        slideOutVertically(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)) { (it * 0.08f).toInt() } +
-                        scaleOut(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing), targetScale = 0.96f)
-                    else -> Springs.screenOut
-                },
-            ) { screen() }
+            animatedScreen()
         }
     }
 }

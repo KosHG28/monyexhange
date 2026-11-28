@@ -55,6 +55,8 @@ import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
 import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.RateBasis
+import app.dirhamrub.ui.components.CardFlightSource
+import app.dirhamrub.ui.components.flightOrigin
 import app.dirhamrub.ui.components.CollapsingBar
 import app.dirhamrub.ui.components.LargeTitle
 import app.dirhamrub.ui.components.rateLabel
@@ -127,7 +129,10 @@ fun MoneyScreen(state: MainUiState, actions: MoneyActions, reflectLight: Boolean
                                 WalletCard(state, card, quote.of(id), id == bestId, false, tilt, Modifier) {}
                             }
                         } else {
-                            WalletCard(state, card, quote.of(id), id == bestId, false, tilt, accessible) { actions.onEditCard(card) }
+                            WalletCard(
+                                state, card, quote.of(id), id == bestId, false, tilt,
+                                accessible.flightOrigin(id, CardFlightSource.WALLET),
+                            ) { actions.onEditCard(card) }
                         }
                         Spacer(Modifier.height(if (index == order.lastIndex) 14.dp else 10.dp))
                     }

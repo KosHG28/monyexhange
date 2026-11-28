@@ -40,6 +40,10 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -126,27 +130,36 @@ fun FullScreen(
     }
     val visible = remember { MutableTransitionState(reduceMotion || flight != null).apply { targetState = true } }
     val cardFlight = LocalCardFlight.current
-    val hasFlightTarget = flight?.target?.isEmpty == false
-    LaunchedEffect(flight, hasFlightTarget, flight?.targetMeasured, closing.value) {
+    LaunchedEffect(flight, closing.value) {
+        val flightSpec = tween<Float>(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)
         if (closing.value) {
             onExitStarted()
-            val returnOrigin = flight?.let { cardFlight?.originOf(it.cardId) }
-            if (flight != null && hasFlightTarget && returnOrigin != null) {
-                flight.returnOrigin = returnOrigin
+            val origin = flight?.let { cardFlight?.originOf(it.key) }
+            val target = flight?.target
+            if (flight != null && target != null && origin != null && !flight.fallback) {
+                flight.returnOrigin = origin
+                flight.movingTarget = target
                 flight.closing = true
-                flight.progress.animateTo(0f, tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing))
+                withFrameNanos { }
+                flight.progress.animateTo(0f, flightSpec)
             } else if (flight != null) {
                 flight.fallback = true
             }
             visible.targetState = false
         } else if (flight != null && !flight.settled) {
-            if (hasFlightTarget) {
-                flight.progress.animateTo(1f, tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing))
-                flight.settled = true
-            } else if (flight.targetMeasured) {
-                flight.fallback = true
-                flight.settled = true
+            // The preview is a lazy item. Its placement and drawing content may arrive separately.
+            val target = withTimeoutOrNull(EDITOR_SURFACE_MOTION_MS.toLong() * 3) {
+                snapshotFlow { flight.target?.takeIf { flight.card != null } }.first { it != null }
             }
+            if (target != null) {
+                flight.movingTarget = target
+                withFrameNanos { }
+                flight.progress.animateTo(1f, flightSpec)
+            } else {
+                flight.fallback = true
+            }
+            flight.settled = true
+            flight.movingTarget = null
         }
     }
     if (visible.isIdle && !visible.currentState && !visible.targetState) {

@@ -24,32 +24,33 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 
-/**
- * Откуда карта «перелетает» в настройку карты: где на главном миниатюра каждой строки (координаты корневого экрана) и какая
- * сейчас в полёте — её мини-карта в строке пустая («улетела»).
- */
+internal enum class CardFlightSource { CALCULATOR, WALLET }
+
+internal data class CardFlightKey(val cardId: String, val source: CardFlightSource)
+
+/** The same payment can be present on both screens, with a different origin on each. */
 internal class CardFlight {
-    private val origins = mutableStateMapOf<String, Rect>()
-    var flying by mutableStateOf<String?>(null)
+    private val origins = mutableStateMapOf<CardFlightKey, Rect>()
+    var flying by mutableStateOf<CardFlightKey?>(null)
 
-    fun originOf(id: String): Rect? = origins[id]?.takeIf { it.width > 0f && it.height > 0f }
+    fun originOf(key: CardFlightKey): Rect? = origins[key]
 
-    internal fun place(id: String, bounds: Rect?) {
-        if (bounds == null) origins.remove(id) else origins[id] = bounds
+    internal fun place(key: CardFlightKey, bounds: Rect?) {
+        if (bounds == null) origins.remove(key) else origins[key] = bounds
     }
 }
 
 internal val LocalCardFlight = staticCompositionLocalOf<CardFlight?> { null }
 
-/** Мини-карта строки [id]: запоминает своё место для перелёта и прячется, пока карта «в полёте». */
-internal fun Modifier.flightOrigin(id: String): Modifier = composed {
+internal fun Modifier.flightOrigin(cardId: String, source: CardFlightSource = CardFlightSource.CALCULATOR): Modifier = composed {
     val flight = LocalCardFlight.current ?: return@composed this
-    DisposableEffect(id, flight) { onDispose { flight.place(id, null) } }
+    val key = CardFlightKey(cardId, source)
+    DisposableEffect(key, flight) { onDispose { flight.place(key, null) } }
     this
         .onGloballyPositioned { coordinates ->
-            flight.place(id, coordinates.cardFlightBounds().takeUnless { it.isEmpty })
+            flight.place(key, coordinates.cardFlightBounds().takeUnless { it.isEmpty })
         }
-        .graphicsLayer { alpha = if (flight.flying == id) 0f else 1f }
+        .graphicsLayer { alpha = if (flight.flying == key) 0f else 1f }
 }
 
 internal fun LayoutCoordinates.cardFlightBounds(): Rect =
@@ -60,13 +61,13 @@ internal fun LayoutCoordinates.cardFlightBounds(): Rect =
  * ([target] — его сообщает сам экран). [progress] 0 — карта на главном, 1 — на месте. Пока летит, превью на экране
  * прячется ([flying]), а поверх всего рисуется [card] — та же карта; ей передаётся, насколько проявить надписи.
  */
-class CardMorph(val origin: Rect, val cardId: String, initialProgress: Float = 0f) {
+class CardMorph internal constructor(val origin: Rect, internal val key: CardFlightKey) {
     var target by mutableStateOf<Rect?>(null)
-    internal var targetMeasured by mutableStateOf(false)
     var card by mutableStateOf<(@Composable (textAlpha: () -> Float) -> Unit)?>(null)
-    internal val progress = Animatable(initialProgress)
+    internal val progress = Animatable(0f)
     internal var closing by mutableStateOf(false)
     internal var returnOrigin by mutableStateOf<Rect?>(null)
+    internal var movingTarget by mutableStateOf<Rect?>(null)
     internal var fallback by mutableStateOf(false)
     internal var settled by mutableStateOf(false)
 
@@ -81,13 +82,13 @@ class CardMorph(val origin: Rect, val cardId: String, initialProgress: Float = 0
 /** Летящая карта поверх экрана: от мини-карты к превью, надписи проявляются во второй половине пути. */
 @Composable
 internal fun CardMorphOverlay(morph: CardMorph) {
-    val target = morph.target?.takeIf { it.width > 0f && it.height > 0f } ?: return
+    val target = morph.movingTarget ?: morph.target ?: return
     val card = morph.card ?: return
     if (!morph.flying) return
     val flight = LocalCardFlight.current ?: return
     DisposableEffect(morph) {
-        flight.flying = morph.cardId
-        onDispose { if (flight.flying == morph.cardId) flight.flying = null }
+        flight.flying = morph.key
+        onDispose { if (flight.flying == morph.key) flight.flying = null }
     }
     val density = LocalDensity.current
     val o = morph.returnOrigin ?: morph.origin

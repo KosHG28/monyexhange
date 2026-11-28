@@ -587,7 +587,6 @@ fun CardEditorScreen(
                             morph.target = it.cardFlightBounds().takeUnless { target ->
                                 target.isEmpty || morph.settled && bounds.isEmpty
                             }
-                            morph.targetMeasured = true
                         }
                     }.graphicsLayer { if (morph?.flying == true && !saveReduce) alpha = 0f },
                 ) {

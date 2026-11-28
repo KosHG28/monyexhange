@@ -25,6 +25,8 @@ import app.dirhamrub.ui.components.LocalTripSharedTransition
 import app.dirhamrub.ui.components.TripSharedTransition
 import app.dirhamrub.ui.components.PageUnderlay
 import app.dirhamrub.ui.components.CardFlight
+import app.dirhamrub.ui.components.CardFlightKey
+import app.dirhamrub.ui.components.CardFlightSource
 import app.dirhamrub.ui.components.LocalCardFlight
 import app.dirhamrub.ui.components.CardMorph
 import app.dirhamrub.ui.components.SlidePage
@@ -352,9 +354,11 @@ fun DirhamApp(
     val place = remember(state.wallet.spend, state.wallet.place, country) {
         placeOf(state.wallet.spend, state.wallet.place, country)
     }
-    fun editPaymentFromMain(card: BankCard, addPurchase: Currency? = null) {
-        val morph = if (reduceWelcome) null else cardFlight.originOf(card.id)?.let { CardMorph(it, card.id) }
-        editing = Editing(card, isNew = false, fromMain = true, morph = morph, addPurchase = addPurchase)
+    fun editPayment(card: BankCard, source: CardFlightSource, addPurchase: Currency? = null) {
+        val key = CardFlightKey(card.id, source)
+        val morph = if (reduceWelcome) null else cardFlight.originOf(key)?.let { CardMorph(it, key) }
+        editing = Editing(card, isNew = false, fromMain = source == CardFlightSource.CALCULATOR,
+            morph = morph, addPurchase = addPurchase)
     }
 
     PageUnderlay(
@@ -374,8 +378,8 @@ fun DirhamApp(
             onKey = vm::press,
             onSelectCard = vm::selectCard,
             onReorderPayments = vm::reorderPaymentWays,
-            onEditCard = { editPaymentFromMain(it) },
-            onAddReceipt = { editPaymentFromMain(it, state.wallet.spend) },
+            onEditCard = { editPayment(it, CardFlightSource.CALCULATOR) },
+            onAddReceipt = { editPayment(it, CardFlightSource.CALCULATOR, state.wallet.spend) },
             onAddCard = { editing = Editing(vm.newCard(), isNew = true, fromMain = true) },
             onSelectLine = vm::setActive,
             onOpenCountries = { currenciesOpen = true },
@@ -448,18 +452,20 @@ fun DirhamApp(
         }
     }
     SlidePage(moneyOpen) {
-        BackHandler(enabled = moneyOpen) { moneyOpen = false }
-        MoneyScreen(
-            state = state,
-            reflectLight = moneyOpen && !showOnboarding && editing == null && !cameraOpen && !cameraFromTile && !proOpen && !cardStyleOpen,
-            actions = MoneyActions(
-                onBack = { moneyOpen = false },
-                onEditCard = { editing = Editing(it, isNew = false) },
-                onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
-                onAddCash = { editing = Editing(vm.newCard().copy(kind = CardKind.CASH), isNew = true) },
-                onReorder = vm::reorderWallet,
-            ),
-        )
+        BackHandler(enabled = moneyOpen && editing == null) { moneyOpen = false }
+        PageUnderlay(pageOnTop = false, editorOpen = editing?.morph?.key?.source == CardFlightSource.WALLET) {
+            MoneyScreen(
+                state = state,
+                reflectLight = moneyOpen && !showOnboarding && editing == null && !cameraOpen && !cameraFromTile && !proOpen && !cardStyleOpen,
+                actions = MoneyActions(
+                    onBack = { moneyOpen = false },
+                    onEditCard = { editPayment(it, CardFlightSource.WALLET) },
+                    onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
+                    onAddCash = { editing = Editing(vm.newCard().copy(kind = CardKind.CASH), isNew = true) },
+                    onReorder = vm::reorderWallet,
+                ),
+            )
+        }
     }
     // Камера раскрывается кругом из кнопки «Ценник» и сворачивается в неё обратно; главный экран — под ней.
     val reveal = remember { Animatable(if (cameraOpen) 1f else 0f) }

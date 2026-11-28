@@ -157,7 +157,6 @@ internal fun BankCardView(
     // Узкая карта (три в ряд): сумма мельче, наценка — строкой под курсом, а не рядом.
     val compact = width < COMPACT_CARD_WIDTH
     val physicalCard = !cash && !compact
-    val inlineChip = physicalCard && LocalDensity.current.fontScale >= 1.3f
     val contactShadow = if (physicalCard) Modifier.shadow(
         elevation = 3.dp, shape = cardShape, clip = false,
         ambientColor = Color.Black.copy(alpha = 0.18f),
@@ -210,7 +209,10 @@ internal fun BankCardView(
                 PaymentPreviewFace(card, style.ink, sumText, textAlpha)
                 return@Box
             }
-            Box(Modifier.matchParentSize().tripSharedBounds(TRIP_CARD, cash = cash).clip(cardShape).then(surface))
+            val sharedSurface = if (cash) Modifier.tripSharedBounds(TRIP_CARD) else Modifier.tripCardElement(TRIP_CARD)
+            Box(Modifier.matchParentSize().then(sharedSurface).clip(cardShape).then(surface)) {
+                if (!cash) PlasticCardMarks(card, style.ink, Modifier.matchParentSize())
+            }
             // Водяной знак валюты карты: при наклоне отстаёт на 6 dp — будто глубже в пластике.
             val mark = card.currency.mark
             val tilt = LocalTilt.current
@@ -252,12 +254,8 @@ internal fun BankCardView(
                             color = style.ink.copy(alpha = 0.92f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.tripSharedTitle(),
+                            modifier = Modifier.tripCardElement(TRIP_TITLE, cash = cash),
                         )
-                    }
-                    if (inlineChip) {
-                        Spacer(Modifier.width(8.dp))
-                        EmvChip(style.ink, decoration.size(width = 22.dp, height = 15.dp))
                     }
                     if (physicalCard) {
                         Spacer(Modifier.width(8.dp))
@@ -265,10 +263,6 @@ internal fun BankCardView(
                     }
                     // Звезду лучшей карты рисует ряд: при смене лучшей она перелетает к другой карте.
                     if (best != null) Spacer(Modifier.width(STAR_SLOT))
-                }
-                if (physicalCard && !inlineChip) {
-                    Spacer(Modifier.height(7.dp))
-                    EmvChip(style.ink, decoration.size(width = 26.dp, height = 19.dp))
                 }
                 Spacer(Modifier.weight(1f))
                 // Сумма меняется на каждом нажатии — перекатываются только изменившиеся цифры.

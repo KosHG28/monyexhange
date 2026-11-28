@@ -21,13 +21,12 @@ class TripChoreographyTest {
         assertTrue(rows.all { it.delay < TRIP_BOUNDS_DURATION })
         assertEquals(880, rows.last().end)
     }
-    @Test fun `cards actions and badge appear during the shared flight`() {
+    @Test fun `primary plastic row finishes together with the card flight`() {
         assertEquals(TripWindow(280, 480), tripEnterWindow(TripEnter.PAYMENT, 0))
         assertEquals(TripWindow(360, 480), tripEnterWindow(TripEnter.PAYMENT, 1))
         assertEquals(TripWindow(420, 380), tripEnterWindow(TripEnter.ADD))
-        assertEquals(TripWindow(650, 200), tripEnterWindow(TripEnter.BADGE))
-        assertEquals(TRIP_BOUNDS_DURATION, tripEnterWindow(TripEnter.BADGE).end)
-        assertTrue(tripEnterWindow(TripEnter.PRIMARY_DETAILS).end < tripEnterWindow(TripEnter.BADGE).delay)
+        assertEquals(270, TRIP_CARD_FLIGHT_DURATION)
+        assertEquals(TripWindow(0, TRIP_CARD_FLIGHT_DURATION), tripEnterWindow(TripEnter.PRIMARY_CARD_ROW))
     }
     @Test fun `old and new hero price and rate text never overlap`() {
         val incoming = tripTextEnterWindow()

@@ -43,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -88,6 +89,7 @@ fun FullScreen(
     inline: Boolean = false,
     backEnabled: Boolean = true,
     editorMotion: Boolean = false,
+    morph: CardMorph? = null,
     onExitStarted: () -> Unit = {},
     content: @Composable FullScreenScope.() -> Unit,
 ) {
@@ -97,10 +99,20 @@ fun FullScreen(
     val reduceMotion = LocalReduceMotion.current
     val colors = AppTheme.colors
     val background = MaterialTheme.colorScheme.background
+    val flight = morph?.takeIf { !reduceMotion && !inline }
     val screen: @Composable () -> Unit = {
-        Box(Modifier.fillMaxSize().background(background)) {
-            backdrop()
-            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) { scope.content() }
+        val backdropLayer = if (flight == null) Modifier else Modifier.graphicsLayer {
+            alpha = if (flight.fallback) 1f else flight.backgroundAlpha
+        }
+        val contentLayer = if (flight == null) Modifier else Modifier.graphicsLayer {
+            alpha = if (flight.fallback) 1f else flight.contentAlpha
+        }
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().then(backdropLayer).background(background), content = backdrop)
+            Box(Modifier.fillMaxSize().then(contentLayer).windowInsetsPadding(WindowInsets.safeDrawing)) {
+                scope.content()
+            }
+            if (flight != null) CardMorphOverlay(flight)
         }
     }
     val close = { if (!interceptBack()) scope.close() }
@@ -112,11 +124,29 @@ fun FullScreen(
         screen()
         return
     }
-    val visible = remember { MutableTransitionState(reduceMotion).apply { targetState = true } }
-    LaunchedEffect(closing.value) {
+    val visible = remember { MutableTransitionState(reduceMotion || flight != null).apply { targetState = true } }
+    val cardFlight = LocalCardFlight.current
+    val hasFlightTarget = flight?.target?.isEmpty == false
+    LaunchedEffect(flight, hasFlightTarget, flight?.targetMeasured, closing.value) {
         if (closing.value) {
             onExitStarted()
+            val returnOrigin = flight?.let { cardFlight?.originOf(it.cardId) }
+            if (flight != null && hasFlightTarget && returnOrigin != null) {
+                flight.returnOrigin = returnOrigin
+                flight.closing = true
+                flight.progress.animateTo(0f, tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing))
+            } else if (flight != null) {
+                flight.fallback = true
+            }
             visible.targetState = false
+        } else if (flight != null && !flight.settled) {
+            if (hasFlightTarget) {
+                flight.progress.animateTo(1f, tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing))
+                flight.settled = true
+            } else if (flight.targetMeasured) {
+                flight.fallback = true
+                flight.settled = true
+            }
         }
     }
     if (visible.isIdle && !visible.currentState && !visible.targetState) {
@@ -139,11 +169,11 @@ fun FullScreen(
             }
         }
         AdaptiveFrameRate {
-            HighFrameRate(!visible.isIdle)
+            HighFrameRate(!visible.isIdle || flight?.progress?.isRunning == true)
             AnimatedVisibility(
                 visibleState = visible,
                 enter = when {
-                    reduceMotion -> EnterTransition.None
+                    reduceMotion || flight != null -> EnterTransition.None
                     editorMotion -> fadeIn(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)) +
                         slideInVertically(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)) { (it * 0.08f).toInt() } +
                         scaleIn(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing), initialScale = 0.96f)
@@ -151,6 +181,8 @@ fun FullScreen(
                 },
                 exit = when {
                     reduceMotion -> ExitTransition.None
+                    flight?.fallback == true -> fadeOut(tween(120))
+                    flight != null -> ExitTransition.None
                     editorMotion -> fadeOut(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)) +
                         slideOutVertically(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)) { (it * 0.08f).toInt() } +
                         scaleOut(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing), targetScale = 0.96f)

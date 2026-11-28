@@ -120,6 +120,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.dirhamrub.R
@@ -135,7 +136,6 @@ import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.wallet.sign
 import app.dirhamrub.domain.wallet.BankCard
 import app.dirhamrub.domain.wallet.CardKind
-import app.dirhamrub.domain.wallet.CardNetwork
 import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.Countries
 import app.dirhamrub.domain.wallet.Currency
@@ -728,7 +728,7 @@ private fun PayRow(
                 else -> null
             }
             sub = when {
-                date != null -> RuDates.short(date)
+                date != null -> RuDates.long(date)
                 q.basis == RateBasis.OFFICIAL && !q.viaUnionPay -> stringResource(R.string.pay_basis_official)
                 q.basis == RateBasis.UNIONPAY || q.viaUnionPay -> stringResource(R.string.pay_basis_unionpay)
                 else -> basisShort(q)
@@ -759,75 +759,84 @@ private fun PayRow(
         if (reduce) snap() else spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
         label = "payLift",
     )
-    Row(
-        modifier
-            .fillMaxWidth()
-            .heightIn(min = 58.dp)
-            .tripMainEnter(if (isPrimary) TripEnter.PRIMARY_DETAILS else TripEnter.PAYMENT, entranceIndex)
-            .graphicsLayer {
-                val s = (1f + LIFT_SCALE * lift) * (1f + (if (reduce) 0f else 0.02f) * grab)
-                scaleX = s
-                scaleY = s
-                shadowElevation = if (colors.isDark) 0f else elevation.toPx()
-                spotShadowColor = PayRowShadow.spot
-                ambientShadowColor = PayRowShadow.ambient
-                this.shape = shape
-            }
-            .paymentRowShadow(enabled = !colors.isDark, opacity = { shadowAlpha.value })
-            .clip(shape)
-            .background(bg)
-            .surfaceOutline(shape)
-            .drawWithContent {
-                val amount = grab
-                if (amount > 0f) drawRect(grabTint.copy(alpha = grabTint.alpha * amount))
-                drawContent()
-                if (amount > 0f) {
-                    val half = 0.5.dp.toPx()
-                    inset(half) {
-                        drawRoundRect(color = colors.accent.copy(alpha = 0.38f * amount),
-                            cornerRadius = CornerRadius(16.dp.toPx() - half), style = Stroke(half * 2f))
+    val cash = card.kind == CardKind.CASH
+    val entry = when {
+        !isPrimary -> TripEnter.PAYMENT
+        cash -> TripEnter.PRIMARY_DETAILS
+        else -> TripEnter.PRIMARY_CARD_ROW
+    }
+    Box(modifier.fillMaxWidth().tripMainEnter(entry, entranceIndex)) {
+        Box(
+            Modifier.matchParentSize()
+                .graphicsLayer {
+                    val s = (1f + LIFT_SCALE * lift) * (1f + (if (reduce) 0f else 0.02f) * grab)
+                    scaleX = s
+                    scaleY = s
+                    shadowElevation = if (colors.isDark) 0f else elevation.toPx()
+                    spotShadowColor = PayRowShadow.spot
+                    ambientShadowColor = PayRowShadow.ambient
+                    this.shape = shape
+                }
+                .paymentRowShadow(enabled = !colors.isDark, opacity = { shadowAlpha.value })
+                .clip(shape)
+                .background(bg)
+                .surfaceOutline(shape)
+                .drawWithContent {
+                    val amount = grab
+                    if (amount > 0f) drawRect(grabTint.copy(alpha = grabTint.alpha * amount))
+                    drawContent()
+                    if (amount > 0f) {
+                        val half = 0.5.dp.toPx()
+                        inset(half) {
+                            drawRoundRect(color = colors.accent.copy(alpha = 0.38f * amount),
+                                cornerRadius = CornerRadius(16.dp.toPx() - half), style = Stroke(half * 2f))
+                        }
                     }
+                },
+        )
+        // The surface lifts independently so the thumbnail and its title keep their exact grid positions.
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 58.dp).clip(shape)
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = editLabel)
+                .clearAndSetSemantics {
+                    contentDescription = a11y
+                    role = Role.RadioButton
+                    this.selected = selected
+                    customActions = actions
+                }
+                .padding(start = 12.dp, end = 18.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PayIcon(card, isPrimary)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(card.name, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = if (isPrimary) Modifier.tripCardElement(TRIP_TITLE, cash = cash) else Modifier)
+                if (sub.isNotEmpty()) {
+                    Text(sub, style = type.caption, color = if (isBest && hasAmount) colors.good else colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = editLabel)
-            .clearAndSetSemantics {
-                contentDescription = a11y
-                role = Role.RadioButton
-                this.selected = selected
-                customActions = actions
+            Spacer(Modifier.width(10.dp))
+            // Связь строки с крупным итогом: у выбранного способа (по нему итог сверху) — галочка и сумма плотным цветом
+            // (синим, у самого выгодного — зелёным); у остальных — сумма серая, обычным начертанием.
+            val mark = if (isBest) colors.good else colors.accent
+            SelectedMark(mark, lift)
+            Spacer(Modifier.width(6.dp))
+            Column(horizontalAlignment = Alignment.End) {
+                // Длинная сумма (донги, рупии) — мельче, чтобы не прилипать к краю.
+                val size = when {
+                    right.length > 12 -> 14.sp
+                    right.length > 9 -> 16.sp
+                    else -> 19.sp
+                }
+                Text(
+                    right,
+                    style = type.number.copy(fontSize = size, lineHeight = size * 1.2f, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal),
+                    color = if (selected) mark else colors.muted,
+                    maxLines = 1,
+                    softWrap = false,
+                )
             }
-            .padding(start = 12.dp, end = 18.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        PayIcon(card, flight = true)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(card.name, style = type.body.copy(fontWeight = FontWeight.Medium), color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = if (isPrimary) Modifier.tripSharedTitle() else Modifier)
-            if (sub.isNotEmpty()) {
-                Text(sub, style = type.caption, color = if (isBest && hasAmount) colors.good else colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        Spacer(Modifier.width(10.dp))
-        // Связь строки с крупным итогом: у выбранного способа (по нему итог сверху) — галочка и сумма плотным цветом
-        // (синим, у самого выгодного — зелёным); у остальных — сумма серая, обычным начертанием.
-        val mark = if (isBest) colors.good else colors.accent
-        SelectedMark(mark, lift)
-        Spacer(Modifier.width(6.dp))
-        Column(horizontalAlignment = Alignment.End) {
-            // Длинная сумма (донги, рупии) — мельче, чтобы не прилипать к краю.
-            val size = when {
-                right.length > 12 -> 14.sp
-                right.length > 9 -> 16.sp
-                else -> 19.sp
-            }
-            Text(
-                right,
-                style = type.number.copy(fontSize = size, lineHeight = size * 1.2f, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal),
-                color = if (selected) mark else colors.muted,
-                maxLines = 1,
-                softWrap = false,
-            )
         }
     }
 }
@@ -851,51 +860,40 @@ private fun SelectedMark(color: androidx.compose.ui.graphics.Color, progress: Fl
     }
 }
 
-/**
- * Значок способа: у наличных — купюра, у карты — мини-карта в цветах её оформления с подписью системы.
- * [flight] связывает значок на главном экране с превью онбординга.
- */
+/** Wallet thumbnails keep the same slot before, during and after the onboarding flight. */
 @Composable
-internal fun PayIcon(card: BankCard, flight: Boolean = false) {
+private fun PayIcon(card: BankCard, shared: Boolean) {
     RecompositionProbe("PayIcon")
-    val shared = flight && card.id == LocalTripSharedTransition.current?.primaryCardId
     val cash = card.kind == CardKind.CASH
-    val sharedModifier = if (shared) Modifier.tripSharedBounds(TRIP_CARD, cash = cash) else Modifier
-    val palette = CardPalette.style(card)
-    val style = if (cash) palette else palette.forMaterial(card.material)
-    val finish = if (cash) {
-        Modifier.banknoteSurface(banknoteTheme(card.currency), 3.dp, miniature = true)
-    } else {
-        Modifier.cardMaterial(style, card.material, 5.dp)
-    }
-    Box(
-        Modifier.size(width = 38.dp, height = 26.dp)
-            .then(if (cash) sharedModifier else Modifier),
-    ) {
-        Box(Modifier.matchParentSize().then(if (cash) Modifier else sharedModifier)
-            .clip(RoundedCornerShape(if (cash) 3.dp else 5.dp)).then(finish))
-        if (!cash) {
-            EmvChip(style.ink, Modifier.align(Alignment.CenterStart).padding(start = 5.dp).size(8.dp, 6.dp))
-        }
-        ((if (cash) null else networkMark(card.paymentNetwork)) ?: card.currency.code).let { mark ->
+    val slot = Modifier.size(PAYMENT_THUMBNAIL_WIDTH, PAYMENT_THUMBNAIL_HEIGHT)
+    if (cash) {
+        val corner = 3.dp
+        Box(slot.then(if (shared) Modifier.tripSharedBounds(TRIP_CARD) else Modifier)
+            .clip(RoundedCornerShape(corner))
+            .banknoteSurface(banknoteTheme(card.currency), corner, miniature = true),
+        ) {
             Text(
-                mark,
+                card.currency.code,
                 style = AppTheme.type.caption.copy(fontSize = 7.sp, lineHeight = 8.sp, fontWeight = FontWeight.Bold),
-                color = if (cash) Color.White else style.ink,
+                color = Color.White,
                 maxLines = 1,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 3.dp, bottom = 2.dp)
-                    .then(if (shared && !cash) Modifier.tripMainEnter(TripEnter.BADGE) else Modifier),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 3.dp, bottom = 2.dp),
             )
         }
+        return
     }
-}
-
-@Composable
-private fun networkMark(n: CardNetwork?): String? = when (n) {
-    CardNetwork.UNIONPAY, CardNetwork.UNIONPAY_FOREIGN -> stringResource(R.string.network_unionpay_short)
-    CardNetwork.MIR -> stringResource(R.string.network_mir_short)
-    CardNetwork.VISA_MC_FOREIGN -> stringResource(R.string.network_visa_mc_short)
-    null -> null
+    val trip = LocalTripSharedTransition.current
+    val corner = if (shared && trip != null && !LocalReduceMotion.current) {
+        lerp(CARD_RADIUS, CARD_THUMBNAIL_RADIUS, trip.cardProgress.value)
+    } else CARD_THUMBNAIL_RADIUS
+    val style = CardPalette.style(card).forMaterial(card.material)
+    Box(slot.flightOrigin(card.id)
+        .then(if (shared) Modifier.tripCardElement(TRIP_CARD) else Modifier)
+        .clip(RoundedCornerShape(corner))
+        .cardMaterial(style, card.material, corner),
+    ) {
+        PlasticCardMarks(card, style.ink, Modifier.matchParentSize())
+    }
 }
 
 @Composable

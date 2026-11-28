@@ -25,7 +25,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
@@ -108,10 +107,10 @@ internal suspend fun settleTitleWhenIdle(isScrolling: () -> Boolean, settle: sus
 
 /** Строка экрана: «←» и заголовок, который появляется, когда крупный заголовок уехал. */
 @Composable
-fun CollapsingBar(title: String, onBack: () -> Unit, state: CollapsingTitle, fillOnCollapse: Boolean = false) {
+fun CollapsingBar(title: String, onBack: () -> Unit, state: CollapsingTitle, transparent: Boolean = false) {
     val colors = AppTheme.colors
     val compactTitleVisible by remember(state) { derivedStateOf { state.progress >= 0.5f } }
-    Column(if (fillOnCollapse) Modifier.drawBehind { drawRect(colors.bg, alpha = state.progress) } else Modifier.background(colors.bg)) {
+    Column(if (transparent) Modifier else Modifier.background(colors.bg)) {
         Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             val back = stringResource(R.string.settings_back)
             Box(
@@ -132,7 +131,7 @@ fun CollapsingBar(title: String, onBack: () -> Unit, state: CollapsingTitle, fil
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .weight(1f)
-                    .then(if (fillOnCollapse && compactTitleVisible) Modifier.semantics { heading() }
+                    .then(if (transparent && compactTitleVisible) Modifier.semantics { heading() }
                         else Modifier.clearAndSetSemantics { })
                     .graphicsLayer {
                         val p = state.progress

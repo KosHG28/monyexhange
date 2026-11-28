@@ -5,7 +5,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.geometry.center
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithCache
@@ -154,11 +156,13 @@ fun CountryGuideScreen(
     val collapsing = rememberCollapsingTitle(scroll, titleHeight)
     val titleCollapsed by remember(collapsing) { derivedStateOf { collapsing.progress >= 0.5f } }
     FullScreen(onDismissRequest = onDismiss, inline = true, backEnabled = backEnabled, backdrop = {
-        FlagBackdrop(iso, Modifier.align(Alignment.TopEnd)) { 1f - collapsing.progress }
+        Box(Modifier.matchParentSize().clipToBounds()) {
+            FlagBackdrop(iso, Modifier.align(Alignment.TopEnd))
+        }
     }) {
       Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-        CollapsingBar(currency.noun, onBack = { close() }, collapsing, fillOnCollapse = true)
+        CollapsingBar(currency.noun, onBack = { close() }, collapsing, transparent = true)
         Column(
             Modifier
                 .fillMaxWidth()
@@ -276,7 +280,7 @@ private val DIGIT_SPACES = Regex("(?<=\\d) +(?=\\d{3}(?!\\d))")
 
 /** The source SVG is rendered at the actual size of the background. */
 @Composable
-private fun FlagBackdrop(iso: String?, modifier: Modifier, opacity: () -> Float) {
+private fun FlagBackdrop(iso: String?, modifier: Modifier) {
     val code = iso?.takeIf { it.length == 2 && it.all { symbol -> symbol in 'A'..'Z' || symbol in 'a'..'z' } }
         ?.lowercase(Locale.ROOT) ?: return
     val context = LocalContext.current
@@ -286,26 +290,27 @@ private fun FlagBackdrop(iso: String?, modifier: Modifier, opacity: () -> Float)
             .decoderFactory(SvgDecoder.Factory(renderToBitmap = false))
             .build()
     }
-    val opacityByTheme = if (AppTheme.colors.isDark) 0.30f else 0.22f
+    val opacityByTheme = if (AppTheme.colors.isDark) 0.32f else 0.24f
     AsyncImage(
         model = request,
         contentDescription = null,
         contentScale = ContentScale.FillBounds,
         modifier = modifier
-            .size(width = 200.dp, height = 150.dp)
+            .size(width = 230.dp, height = 170.dp)
             .graphicsLayer {
                 rotationZ = -8f
-                alpha = opacityByTheme * opacity().coerceIn(0f, 1f)
+                transformOrigin = TransformOrigin(1f, 0f)
+                alpha = opacityByTheme
             }
-            .blur(8.dp, BlurredEdgeTreatment.Unbounded)
+            .blur(6.dp, BlurredEdgeTreatment.Unbounded)
             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
             .drawWithCache {
                 val mask = Brush.radialGradient(
                     0f to Color.Black,
-                    0.44f to Color.Black,
+                    0.12f to Color.Black,
                     1f to Color.Transparent,
-                    center = size.center,
-                    radius = size.minDimension * 0.5f,
+                    center = Offset(size.width * 0.92f, size.height * 0.08f),
+                    radius = size.width * 0.95f,
                 )
                 onDrawWithContent {
                     drawContent()

@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import app.dirhamrub.R
+import app.dirhamrub.ui.components.edgeHaptic
 import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.diag.CrashLog
 import app.dirhamrub.domain.MotionMode
@@ -135,7 +136,9 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .fadingScroll(scroll, bottomEdge = 32.dp, topEdge = 0.dp)
+                // Draw directly on first entry. The settings viewport does not need a blend layer.
+                .edgeHaptic(scroll)
+                .verticalScroll(scroll)
                 .padding(horizontal = 14.dp)
                 .padding(bottom = 24.dp),
         ) {

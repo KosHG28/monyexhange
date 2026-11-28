@@ -24,8 +24,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import app.dirhamrub.ui.components.LocalTripSharedTransition
 import app.dirhamrub.ui.components.TripSharedTransition
 import app.dirhamrub.ui.components.PageUnderlay
+import app.dirhamrub.ui.components.CardFlight
+import app.dirhamrub.ui.components.LocalCardFlight
+import app.dirhamrub.ui.components.CardMorph
 import app.dirhamrub.ui.components.SlidePage
 import app.dirhamrub.ui.components.TRIP_DURATION
+import app.dirhamrub.ui.components.TRIP_CARD_FLIGHT_DURATION
+import app.dirhamrub.ui.components.TripEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.LinearEasing
@@ -114,6 +119,7 @@ private data class Editing(
     val isNew: Boolean,
     val addPurchase: Currency? = null,
     val fromMain: Boolean = false,
+    val morph: CardMorph? = null,
     /** Сразу открыть выбор скриншота банка (Pro: ярлык «Чек из скриншота»). */
     val scan: Boolean = false,
     val fromOnboarding: Boolean = false,
@@ -159,7 +165,7 @@ fun DirhamApp(
     val state by vm.navigation.collectAsStateWithLifecycle()
     app.dirhamrub.diag.RecompositionProbe("Navigation")
     val ioScope = rememberCoroutineScope()
-    var completionCardId by remember { mutableStateOf<String?>(null) }
+    var completionCard by remember { mutableStateOf<BankCard?>(null) }
     val reduceWelcome = LocalReduceMotion.current
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -181,6 +187,7 @@ fun DirhamApp(
     var onboardingReshown by rememberSaveable { mutableStateOf(false) }
     var editing by rememberSaveable(stateSaver = editingSaver) { mutableStateOf<Editing?>(null) }
     var editorClosing by remember { mutableStateOf(false) }
+    val cardFlight = remember { CardFlight() }
     var cameraOrigin by remember { mutableStateOf<Offset?>(null) }
     // Pro: ярлыки «Чек из скриншота» и «Вернуться в …» — сразу после загрузки.
     LaunchedEffect(state.loaded) {
@@ -260,19 +267,29 @@ fun DirhamApp(
     navigation.animateFloat(transitionSpec = {
         if (reduceWelcome || !initialState || targetState) snap() else tween(TRIP_DURATION, easing = LinearEasing)
     }, label = "tripOneSecondClock") { if (it) 0f else 1f }
+    val cardProgress = navigation.animateFloat(transitionSpec = {
+        if (reduceWelcome || !initialState || targetState) snap()
+        else tween(TRIP_CARD_FLIGHT_DURATION, easing = TripEasing)
+    }, label = "tripCardFlight") { if (it) 0f else 1f }
     app.dirhamrub.ui.theme.HighFrameRate(navigation.isRunning)
+    CompositionLocalProvider(LocalCardFlight provides cardFlight) {
     androidx.compose.animation.SharedTransitionLayout {
     val sharedScope = this
     Box(Modifier.fillMaxSize().background(AppTheme.colors.bg)) {
     navigation.AnimatedContent(
         transitionSpec = {
-            (if (reduceWelcome) EnterTransition.None else fadeIn(tween(if (initialState && !targetState) 350 else 160))) togetherWith
+            val enterMillis = when {
+                !initialState || targetState -> 160
+                completionCard?.kind == CardKind.CARD -> TRIP_CARD_FLIGHT_DURATION
+                else -> 350
+            }
+            (if (reduceWelcome) EnterTransition.None else fadeIn(tween(enterMillis))) togetherWith
                 (if (reduceWelcome || initialState && !targetState) ExitTransition.None else fadeOut(tween(130))) using SizeTransform(clip = false)
         },
     ) { onboarding ->
     val visibilityScope = this
-    val tripShared = remember(sharedScope, visibilityScope, completionCardId) {
-        TripSharedTransition(sharedScope, visibilityScope, completionCardId)
+    val tripShared = remember(sharedScope, visibilityScope, completionCard?.id, cardProgress) {
+        TripSharedTransition(sharedScope, visibilityScope, completionCard?.id, cardProgress)
     }
     val transitioning = navigation.currentState != navigation.targetState || navigation.isRunning
     val transitionInput = if (transitioning) Modifier.clearAndSetSemantics { hideFromAccessibility() }
@@ -306,7 +323,7 @@ fun DirhamApp(
                 if (showOnboarding) {
                     focus.clearFocus(force = true)
                     keyboard?.hide()
-                    completionCardId = card?.id
+                    completionCard = card
                     finishOnboarding(card, amount)
                 }
             },
@@ -337,7 +354,7 @@ fun DirhamApp(
     }
     PageUnderlay(
         pageOnTop = guideOpen || settingsOpen || moneyOpen || proOpen,
-        editorOnTop = editing?.fromMain == true && !editorClosing,
+        editorOnTop = editing?.let { it.fromMain && it.morph == null } == true && !editorClosing,
         editorOpen = editing?.fromMain == true,
     ) {
         MainScreen(
@@ -352,7 +369,10 @@ fun DirhamApp(
             onKey = vm::press,
             onSelectCard = vm::selectCard,
             onReorderPayments = vm::reorderPaymentWays,
-            onEditCard = { editing = Editing(it, isNew = false, fromMain = true) },
+            onEditCard = { card ->
+                val origin = if (card.kind == CardKind.CARD && !reduceWelcome) cardFlight.originOf(card.id) else null
+                editing = Editing(card, isNew = false, fromMain = true, morph = origin?.let { CardMorph(it, card.id) })
+            },
             onAddReceipt = { editing = Editing(it, isNew = false, fromMain = true, addPurchase = state.wallet.spend) },
             onAddCard = { editing = Editing(vm.newCard(), isNew = true, fromMain = true) },
             onSelectLine = vm::setActive,
@@ -414,7 +434,7 @@ fun DirhamApp(
                     onRounding = vm::setRounding,
                     onOnboarding = {
                         settingsOpen = false
-                        completionCardId = null
+                        completionCard = null
                         onboardingReshown = true
                         vm.restartOnboarding()
                     },
@@ -542,7 +562,7 @@ fun DirhamApp(
                 val saved = vm.saveCard(card)
                 if (saved) {
                     if (e.fromOnboarding) {
-                        completionCardId = null
+                        completionCard = null
                         finishOnboarding(card, e.onboardingAmount ?: card.purchaseFor(editorSpend)?.price)
                     }
                     if (images.isNotEmpty() || staleShots.isNotEmpty()) ioScope.launch {
@@ -564,6 +584,7 @@ fun DirhamApp(
             amount = editorState.totals.spend,
             rounding = state.settings.rounding,
             editorMotion = e.fromMain,
+            morph = e.morph,
             onExitStarted = { editorClosing = true },
             pro = state.settings.pro,
             startScan = e.scan,
@@ -611,6 +632,7 @@ fun DirhamApp(
     }
     } // root Box
     } // SharedTransitionLayout
+    } // CardFlight
 }
 
 /** Круг с центром [center] и радиусом [radius] — форма раскрытия камеры. */

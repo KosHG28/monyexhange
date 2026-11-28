@@ -55,8 +55,8 @@ class CascadeTiming(val delayMs: Float, val stepMs: Float, val itemMs: Float, va
 }
 
 @Composable
-fun rememberCascade(timing: CascadeTiming = CascadeTiming.Screen, lastIndex: Int = MAX_INDEX): CascadeState {
-    val reduceMotion = LocalReduceMotion.current
+fun rememberCascade(timing: CascadeTiming = CascadeTiming.Screen, lastIndex: Int = MAX_INDEX, enabled: Boolean = true): CascadeState {
+    val reduceMotion = !enabled || LocalReduceMotion.current
     val scope = rememberCoroutineScope()
     val total = timing.delayMs + lastIndex.coerceIn(0, MAX_INDEX) * timing.stepMs + timing.itemMs
     val clock = remember { Animatable(if (reduceMotion) total else 0f) }

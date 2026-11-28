@@ -2,13 +2,9 @@ package app.dirhamrub.ui.cards
 
 import app.dirhamrub.data.ReceiptShots
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.DisposableEffect
 import kotlinx.coroutines.delay
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.runtime.SideEffect
-import app.dirhamrub.ui.components.CardMorph
 import app.dirhamrub.ui.theme.Haptic
 import app.dirhamrub.ui.theme.rememberHaptics
 import app.dirhamrub.ui.theme.LocalReduceMotion
@@ -108,6 +104,7 @@ import app.dirhamrub.R
 import app.dirhamrub.ui.components.FullScreen
 import app.dirhamrub.ui.components.FullScreenScope
 import app.dirhamrub.ui.components.ScreenBar
+import app.dirhamrub.ui.components.ScrollBarDivider
 import app.dirhamrub.ui.components.fadingEdges
 import app.dirhamrub.ui.components.finishCascadeOnTouch
 import app.dirhamrub.domain.MC
@@ -173,8 +170,8 @@ fun CardEditorScreen(
     amount: BigDecimal = BigDecimal.ZERO,
     /** Округление итогов из настроек — сумма на карточке-предпросмотре такая же, как на главном. */
     rounding: Rounding = Rounding.WHOLE,
-    /** Перелёт с главного: мини-карта строки вырастает в карточку-предпросмотр (null — экран выезжает снизу). */
-    morph: CardMorph? = null,
+    editorMotion: Boolean = false,
+    onExitStarted: () -> Unit = {},
     /** Pro: скриншот банка сохраняется при чеке. */
     pro: Boolean = false,
     /** Сразу открыть выбор скриншота банка (Pro: ярлык «Чек из скриншота»). */
@@ -455,7 +452,8 @@ fun CardEditorScreen(
         if (dirty()) confirmExit = true else close()
     }
 
-    FullScreen(onDismissRequest = onDismiss, interceptBack = { pendingSave != null || deleting || dirty().also { if (it) confirmExit = true } }, morph = morph) {
+    FullScreen(onDismissRequest = onDismiss, interceptBack = { pendingSave != null || deleting || dirty().also { if (it) confirmExit = true } },
+        editorMotion = editorMotion, onExitStarted = onExitStarted) {
       screen[0] = this
       val saveReduce = LocalReduceMotion.current
       LaunchedEffect(pendingSave) {
@@ -489,6 +487,7 @@ fun CardEditorScreen(
           }
       }
       Column(Modifier.fillMaxSize()) {
+        val editorScroll = rememberLazyListState()
         ScreenBar(
             onBack = { back() },
             title = stringResource(
@@ -513,11 +512,11 @@ fun CardEditorScreen(
                 )
             }
         }
-        // Блоки редактора появляются каскадом.
-        val cascade = rememberCascade(lastIndex = 1)
+        ScrollBarDivider(editorScroll.canScrollBackward)
+        // Блоки редактора на остальных маршрутах могут появляться каскадом.
+        val cascade = rememberCascade(lastIndex = 1, enabled = !editorMotion)
         // «Сохранить» всегда внизу экрана, прокручивается только содержимое над ней: последний элемент
         // докручивается выше кнопки. Касание мимо полей убирает клавиатуру.
-        val editorScroll = rememberLazyListState()
         val pick = stringResource(R.string.editor_pick_currency)
         val blockTitle = stringResource(if (cash) R.string.editor_block_cash else R.string.editor_block_rate)
         fun addPurchase() {
@@ -549,7 +548,7 @@ fun CardEditorScreen(
             modifier = Modifier.weight(1f).fillMaxWidth()
                 .pointerInput(Unit) { detectTapGestures(onTap = { focus.clearFocus() }) }
                 .finishCascadeOnTouch(cascade)
-                .fadingEdges(editorScroll, bottomEdge = 32.dp),
+                .fadingEdges(editorScroll, edge = 0.dp, bottomEdge = 32.dp),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp),
         ) {
           item(key = "main") {
@@ -557,17 +556,8 @@ fun CardEditorScreen(
             if (!isNew) Spacer(Modifier.height(6.dp))
             var previewVisible by remember { mutableStateOf(false) }
             val reflectionTilt = rememberReflectionTilt(
-                active = !coveredByCamera && previewVisible && !isClosing && !cardPicker && !confirmExit && !confirmDelete && morph?.flying != true,
+                active = !coveredByCamera && previewVisible && !isClosing && !cardPicker && !confirmExit && !confirmDelete,
             )
-            if (morph != null) {
-                SideEffect { morph.card = { textAlpha -> PreviewCard(preview, reflectionTilt, textAlpha) } }
-                DisposableEffect(morph) {
-                    onDispose {
-                        morph.target = null
-                        morph.card = null
-                    }
-                }
-            }
             val previewInset = if (isNew) 8.dp else 0.dp
             Box(
                 Modifier.fillMaxWidth().height(PREVIEW_HEIGHT + (RING_GAP + previewInset) * 2)
@@ -578,12 +568,7 @@ fun CardEditorScreen(
                     Modifier.onGloballyPositioned {
                         val bounds = it.boundsInWindow()
                         previewVisible = !bounds.isEmpty
-                        if (morph != null) {
-                            val full = it.boundsInWindow(clipBounds = false)
-                            morph.target = full.takeIf { !full.isEmpty && bounds.width >= full.width * 0.9f && bounds.height >= full.height * 0.9f }
-                            morph.targetMeasured = true
-                        }
-                    }.graphicsLayer { if (morph?.flying == true && !saveReduce) alpha = 0f },
+                    },
                 ) {
                     if (isNew) {
                         AnimatedContent(
@@ -1219,12 +1204,12 @@ private data class EditorCardPreview(
 )
 
 @Composable
-private fun PreviewCard(preview: EditorCardPreview, tilt: State<Offset>, textAlpha: () -> Float = { 1f }) {
+private fun PreviewCard(preview: EditorCardPreview, tilt: State<Offset>) {
     BankCardView(
         card = preview.card, quote = preview.quote, spend = preview.spend, home = preview.home,
         sum = preview.sum, selected = true, best = null, onClick = {}, onLongClick = {},
         width = PREVIEW_WIDTH, height = PREVIEW_HEIGHT, needsReceipt = preview.needsReceipt,
-        flipOnChange = false, textAlpha = textAlpha, reflectionTilt = tilt,
+        flipOnChange = false, reflectionTilt = tilt,
     )
 }
 

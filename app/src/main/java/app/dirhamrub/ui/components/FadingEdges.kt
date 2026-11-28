@@ -30,42 +30,40 @@ import androidx.compose.ui.unit.dp
  */
 fun Modifier.fadingEdges(state: ScrollableState, edge: Dp = 24.dp, bottomEdge: Dp = edge): Modifier = this
     .edgeHaptic(state)
-    // Отдельный буфер нужен только для смешивания краёв: когда прокручивать некуда, рисуем как обычно.
+    // Separate only the edges that will mix with the scroll content.
     .graphicsLayer {
-        compositingStrategy = if (state.canScrollBackward || state.canScrollForward) {
-            CompositingStrategy.Offscreen
-        } else {
-            CompositingStrategy.Auto
-        }
+        val fadesTop = edge > 0.dp && state.canScrollBackward
+        val fadesBottom = bottomEdge > 0.dp && state.canScrollForward
+        compositingStrategy = if (fadesTop || fadesBottom) CompositingStrategy.Offscreen else CompositingStrategy.Auto
     }
     .drawWithCache {
         val topHeight = edge.toPx().coerceAtMost(size.height / 3f)
         val bottomHeight = bottomEdge.toPx().coerceAtMost(size.height / 3f)
-        val top = Brush.verticalGradient(listOf(Color.Transparent, Color.Black), startY = 0f, endY = topHeight)
-        val bottom = Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = size.height - bottomHeight, endY = size.height)
+        val top = if (topHeight > 0f) {
+            Brush.verticalGradient(listOf(Color.Transparent, Color.Black), startY = 0f, endY = topHeight)
+        } else null
+        val bottom = if (bottomHeight > 0f) {
+            Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = size.height - bottomHeight, endY = size.height)
+        } else null
         onDrawWithContent {
-        drawContent()
-        if (state.canScrollBackward) {
-            drawRect(
-                brush = top,
-                size = Size(size.width, topHeight),
-                blendMode = BlendMode.DstIn,
-            )
-        }
-        if (state.canScrollForward) {
-            drawRect(
-                brush = bottom,
-                topLeft = Offset(0f, size.height - bottomHeight),
-                size = Size(size.width, bottomHeight),
-                blendMode = BlendMode.DstIn,
-            )
-        }
+            drawContent()
+            if (top != null && state.canScrollBackward) {
+                drawRect(brush = top, size = Size(size.width, topHeight), blendMode = BlendMode.DstIn)
+            }
+            if (bottom != null && state.canScrollForward) {
+                drawRect(
+                    brush = bottom,
+                    topLeft = Offset(0f, size.height - bottomHeight),
+                    size = Size(size.width, bottomHeight),
+                    blendMode = BlendMode.DstIn,
+                )
+            }
         }
     }
 
 /** Вертикальная прокрутка с затуханием у краёв ([fadingEdges]). */
-fun Modifier.fadingScroll(state: ScrollState, bottomEdge: Dp = 24.dp): Modifier =
-    fadingEdges(state, bottomEdge = bottomEdge).verticalScroll(state)
+fun Modifier.fadingScroll(state: ScrollState, bottomEdge: Dp = 24.dp, topEdge: Dp = 24.dp): Modifier =
+    fadingEdges(state, edge = topEdge, bottomEdge = bottomEdge).verticalScroll(state)
 
 /** Затухание у скрытых краёв горизонтально прокручиваемого ряда. */
 fun Modifier.fadingHorizontalEdges(state: ScrollableState, edge: Dp = 14.dp): Modifier = this

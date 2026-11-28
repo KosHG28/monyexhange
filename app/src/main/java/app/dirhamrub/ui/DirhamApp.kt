@@ -7,8 +7,6 @@ import app.dirhamrub.data.ReceiptShots
 import app.dirhamrub.data.ProFeatures
 import app.dirhamrub.ui.theme.Springs
 import app.dirhamrub.domain.wallet.CardKind
-import app.dirhamrub.ui.components.LocalCardFlight
-import app.dirhamrub.ui.components.CardMorph
 import android.app.StatusBarManager
 import android.content.ComponentName
 import android.content.Context
@@ -25,6 +23,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.CompositionLocalProvider
 import app.dirhamrub.ui.components.LocalTripSharedTransition
 import app.dirhamrub.ui.components.TripSharedTransition
+import app.dirhamrub.ui.components.PageUnderlay
+import app.dirhamrub.ui.components.SlidePage
 import app.dirhamrub.ui.components.TRIP_DURATION
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.snap
@@ -113,8 +113,7 @@ private data class Editing(
     val card: BankCard,
     val isNew: Boolean,
     val addPurchase: Currency? = null,
-    /** Перелёт карты из строки главного в настройку (null — экран выезжает снизу). */
-    val morph: CardMorph? = null,
+    val fromMain: Boolean = false,
     /** Сразу открыть выбор скриншота банка (Pro: ярлык «Чек из скриншота»). */
     val scan: Boolean = false,
     val fromOnboarding: Boolean = false,
@@ -125,13 +124,13 @@ private val editingSaver = listSaver<Editing?, String>(
     save = { edit ->
         if (edit == null) emptyList() else listOf(
             WalletCodec.encode(Wallet(cards = listOf(edit.card))), edit.isNew.toString(), edit.addPurchase?.code.orEmpty(),
-            edit.scan.toString(), edit.fromOnboarding.toString(), edit.onboardingAmount?.toPlainString().orEmpty(),
+            edit.scan.toString(), edit.fromOnboarding.toString(), edit.onboardingAmount?.toPlainString().orEmpty(), edit.fromMain.toString(),
         )
     },
     restore = { data ->
         WalletCodec.decode(data[0])?.cards?.singleOrNull()?.let { card ->
             Editing(card, data[1].toBoolean(), Currency.byCode(data[2]), scan = data[3].toBoolean(),
-                fromOnboarding = data[4].toBoolean(), onboardingAmount = data[5].toBigDecimalOrNull())
+                fromOnboarding = data[4].toBoolean(), onboardingAmount = data[5].toBigDecimalOrNull(), fromMain = data.getOrNull(6).toBoolean())
         }
     },
 )
@@ -160,7 +159,6 @@ fun DirhamApp(
     val state by vm.navigation.collectAsStateWithLifecycle()
     app.dirhamrub.diag.RecompositionProbe("Navigation")
     val ioScope = rememberCoroutineScope()
-    val cardFlight = LocalCardFlight.current
     var completionCardId by remember { mutableStateOf<String?>(null) }
     val reduceWelcome = LocalReduceMotion.current
     val focus = LocalFocusManager.current
@@ -182,6 +180,7 @@ fun DirhamApp(
     // Знакомство открыли повторно из настроек: валюту трат по стране сети уже не подставляем.
     var onboardingReshown by rememberSaveable { mutableStateOf(false) }
     var editing by rememberSaveable(stateSaver = editingSaver) { mutableStateOf<Editing?>(null) }
+    var editorClosing by remember { mutableStateOf(false) }
     var cameraOrigin by remember { mutableStateOf<Offset?>(null) }
     // Pro: ярлыки «Чек из скриншота» и «Вернуться в …» — сразу после загрузки.
     LaunchedEffect(state.loaded) {
@@ -250,7 +249,7 @@ fun DirhamApp(
         vm.putItems(items)
     }
 
-    val offer = country?.takeIf { state.settings.countryHint }?.let { iso ->
+    val offer = country?.let { iso ->
         Currency.forCountry(iso)
             ?.takeIf { it != state.wallet.spend && iso != state.countryHandled }
             ?.let { CountryOffer(iso, it) }
@@ -336,36 +335,38 @@ fun DirhamApp(
     val place = remember(state.wallet.spend, state.wallet.place, country) {
         placeOf(state.wallet.spend, state.wallet.place, country)
     }
-    MainScreen(
-        states = vm.state,
-        place = place,
-        countryOffer = offer,
-        tileOffer = tileOffer,
-        onTileOffer = { accept ->
-            if (accept && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ProFeatures.requestCameraTile(context)
-            vm.markTileOffered()
-        },
-        onKey = vm::press,
-        onSelectCard = vm::selectCard,
-        onReorderPayments = vm::reorderPaymentWays,
-        onEditCard = { card ->
-            // С главного карта «перелетает» из своей строки; наличные — экран снизу, как раньше.
-            val origin = if (card.kind == CardKind.CARD) cardFlight.originOf(card.id) else null
-            editing = Editing(card, isNew = false, morph = origin?.let { CardMorph(it, card.id) })
-        },
-        onAddReceipt = { editing = Editing(it, isNew = false, addPurchase = state.wallet.spend) },
-        onAddCard = { editing = Editing(vm.newCard(), isNew = true) },
-        onSelectLine = vm::setActive,
-        onOpenCountries = { currenciesOpen = true },
-        onOpenPlace = { guideOpen = true },
-        onOpenSettings = { settingsOpen = true },
-        onCountry = { accept -> offer?.let { vm.handleCountry(it.iso, if (accept) it.currency else null) } },
-        onRefreshRates = vm::refreshRates,
-        onOpenCamera = { cameraOpen = true },
-        onCameraPlaced = { cameraOrigin = it },
-    )
+    PageUnderlay(
+        pageOnTop = guideOpen || settingsOpen || moneyOpen || proOpen,
+        editorOnTop = editing?.fromMain == true && !editorClosing,
+        editorOpen = editing?.fromMain == true,
+    ) {
+        MainScreen(
+            states = vm.state,
+            place = place,
+            countryOffer = offer,
+            tileOffer = tileOffer,
+            onTileOffer = { accept ->
+                if (accept && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ProFeatures.requestCameraTile(context)
+                vm.markTileOffered()
+            },
+            onKey = vm::press,
+            onSelectCard = vm::selectCard,
+            onReorderPayments = vm::reorderPaymentWays,
+            onEditCard = { editing = Editing(it, isNew = false, fromMain = true) },
+            onAddReceipt = { editing = Editing(it, isNew = false, fromMain = true, addPurchase = state.wallet.spend) },
+            onAddCard = { editing = Editing(vm.newCard(), isNew = true, fromMain = true) },
+            onSelectLine = vm::setActive,
+            onOpenCountries = { currenciesOpen = true },
+            onOpenPlace = { guideOpen = true },
+            onOpenSettings = { settingsOpen = true },
+            onCountry = { accept -> offer?.let { vm.handleCountry(it.iso, if (accept) it.currency else null) } },
+            onRefreshRates = vm::refreshRates,
+            onOpenCamera = { cameraOpen = true },
+            onCameraPlaced = { cameraOrigin = it },
+        )
+    }
     val reduceMotion = LocalReduceMotion.current
-    if (guideOpen) {
+    SlidePage(guideOpen) {
         CountryGuideScreen(
             guide = guide,
             place = place,
@@ -373,6 +374,7 @@ fun DirhamApp(
             currency = state.wallet.spend,
             cards = state.wallet.cards,
             onDismiss = { guideOpen = false },
+            backEnabled = guideOpen,
         )
     }
     // «Где вы тратите?» — полноэкранный выбор страны, въезжает снизу.
@@ -394,44 +396,36 @@ fun DirhamApp(
         )
     }
     // Настройки — экран поверх главного, въезжает справа.
-    AnimatedVisibility(
-        visible = settingsOpen,
-        enter = if (reduceMotion) EnterTransition.None else Springs.sideIn,
-        exit = if (reduceMotion) ExitTransition.None else Springs.sideOut,
-    ) {
-        BackHandler(enabled = settingsOpen) { settingsOpen = false }
-        SettingsScreen(
-            state = state,
-            actions = SettingsActions(
-                onBack = { settingsOpen = false },
-                onRefresh = vm::refreshRates,
-                onRatesUpdate = vm::setRatesUpdate,
-                onHome = vm::setHome,
-                onCountryHint = vm::setCountryHint,
-                onCameraEmbedded = vm::setCameraEmbedded,
-                onTheme = vm::setTheme,
-                onMotion = vm::setMotion,
-                onKeyHaptics = vm::setKeyHaptics,
-                onWifiOnly = vm::setWifiOnly,
-                onRounding = vm::setRounding,
-                onOnboarding = {
-                    settingsOpen = false
-                    completionCardId = null
-                    onboardingReshown = true
-                    vm.restartOnboarding()
-                },
-                onCards = { moneyOpen = true },
-                onOpenPro = { proOpen = true },
-                onDynamicColor = vm::setDynamicColor,
-            ),
-        )
+    SlidePage(settingsOpen) {
+        BackHandler(enabled = settingsOpen && !moneyOpen && !proOpen) { settingsOpen = false }
+        PageUnderlay(pageOnTop = moneyOpen || proOpen) {
+            SettingsScreen(
+                state = state,
+                actions = SettingsActions(
+                    onBack = { settingsOpen = false },
+                    onRefresh = vm::refreshRates,
+                    onRatesUpdate = vm::setRatesUpdate,
+                    onHome = vm::setHome,
+                    onCameraEmbedded = vm::setCameraEmbedded,
+                    onTheme = vm::setTheme,
+                    onMotion = vm::setMotion,
+                    onKeyHaptics = vm::setKeyHaptics,
+                    onWifiOnly = vm::setWifiOnly,
+                    onRounding = vm::setRounding,
+                    onOnboarding = {
+                        settingsOpen = false
+                        completionCardId = null
+                        onboardingReshown = true
+                        vm.restartOnboarding()
+                    },
+                    onCards = { moneyOpen = true },
+                    onOpenPro = { proOpen = true },
+                    onDynamicColor = vm::setDynamicColor,
+                ),
+            )
+        }
     }
-    // «Карты и наличные» — поверх настроек, выезжает снизу (справа — только настройки).
-    AnimatedVisibility(
-        visible = moneyOpen,
-        enter = if (reduceMotion) EnterTransition.None else Springs.screenIn,
-        exit = if (reduceMotion) ExitTransition.None else Springs.screenOut,
-    ) {
+    SlidePage(moneyOpen) {
         BackHandler(enabled = moneyOpen) { moneyOpen = false }
         MoneyScreen(
             state = state,
@@ -496,7 +490,7 @@ fun DirhamApp(
             )
         }
     }
-    if (proOpen) {
+    SlidePage(proOpen) {
         ProScreen(
             settings = state.settings,
             cards = state.wallet.cards,
@@ -505,6 +499,7 @@ fun DirhamApp(
             onAppIcon = vm::setAppIcon,
             onActivate = vm::activatePro,
             onDismiss = { proOpen = false },
+            backEnabled = proOpen && !cardStyleOpen,
         )
     }
     if (cardStyleOpen) {
@@ -563,12 +558,13 @@ fun DirhamApp(
             },
             onDismiss = {
                 editing = null
-                cardFlight.flying = null
+                editorClosing = false
             },
             addPurchaseFor = e.addPurchase,
             amount = editorState.totals.spend,
             rounding = state.settings.rounding,
-            morph = e.morph,
+            editorMotion = e.fromMain,
+            onExitStarted = { editorClosing = true },
             pro = state.settings.pro,
             startScan = e.scan,
             coveredByCamera = cameraFromTile,

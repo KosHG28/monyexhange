@@ -1,12 +1,16 @@
 package app.dirhamrub.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -27,6 +31,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,7 +43,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -72,62 +77,53 @@ class FullScreenScope internal constructor(
     }
 }
 
-/**
- * Экран поверх всего (вместо шторки): своё окно на весь экран, выезжает снизу и уезжает вниз (справа —
- * только настройки); закрывается «←» ([FullScreenScope.close]) и системным «Назад». Шторки тянулись пальцем и
- * застревали на полпути, у экрана тянуть нечего. [interceptBack] — перехватить «Назад» (несохранённые правки):
- * true — экран остаётся. Своё окно — чтобы экран ложился поверх чего угодно (главного, настроек, знакомства).
- */
+internal const val EDITOR_SURFACE_MOTION_MS = 260
+
+/** Fullscreen content with safe insets, either inside the navigation stack or in its own window. */
 @Composable
 fun FullScreen(
     onDismissRequest: () -> Unit,
     interceptBack: () -> Boolean = { false },
-    /** Фон на весь экран, под строкой состояния (флаг страны) — без отступов от краёв. */
     backdrop: @Composable BoxScope.() -> Unit = {},
-    /**
-     * Перелёт карты с главного: экран не выезжает снизу, а проявляется, пока карта летит на своё место
-     * ([CardMorph]); закрытие — в обратную сторону. Без анимаций в системе — как обычный экран.
-     */
-    morph: CardMorph? = null,
-    slideFromRight: Boolean = false,
+    inline: Boolean = false,
+    backEnabled: Boolean = true,
+    editorMotion: Boolean = false,
+    onExitStarted: () -> Unit = {},
     content: @Composable FullScreenScope.() -> Unit,
 ) {
-    val reduceMotion = LocalReduceMotion.current
-    val flight = morph?.takeIf { !reduceMotion }
-    val visible = remember { MutableTransitionState(reduceMotion || flight != null).apply { targetState = true } }
     val pending = remember { mutableStateOf<(() -> Unit)?>(null) }
     val closing = remember { mutableStateOf(false) }
     val scope = remember { FullScreenScope(pending, closing) }
-    val cardFlight = LocalCardFlight.current
-    val targetKnown = flight?.target?.let { it.width > 0f && it.height > 0f } == true
-    LaunchedEffect(flight, targetKnown, flight?.targetMeasured, closing.value) {
-        if (closing.value) {
-            val origin = flight?.let { cardFlight.originOf(it.cardId) }
-            if (flight != null && targetKnown && origin != null) {
-                flight.returnOrigin = origin
-                flight.closing = true
-                flight.progress.animateTo(0f, Springs.exit())
-            } else if (flight != null) {
-                flight.fallback = true
-            }
-            visible.targetState = false
-        } else if (flight != null && !flight.settled) {
-            if (targetKnown) {
-                flight.progress.animateTo(1f, Springs.spatial())
-                flight.settled = true
-            } else if (flight.targetMeasured) {
-                flight.fallback = true
-                flight.settled = true
-            }
+    val reduceMotion = LocalReduceMotion.current
+    val colors = AppTheme.colors
+    val background = MaterialTheme.colorScheme.background
+    val screen: @Composable () -> Unit = {
+        Box(Modifier.fillMaxSize().background(background)) {
+            backdrop()
+            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) { scope.content() }
         }
     }
-    // Уехал совсем — тогда сообщаем наверх (и выполняем отложенное действие).
+    val close = { if (!interceptBack()) scope.close() }
+    if (inline) {
+        BackHandler(enabled = backEnabled, onBack = close)
+        LaunchedEffect(closing.value) {
+            if (closing.value) (pending.value ?: onDismissRequest)()
+        }
+        screen()
+        return
+    }
+    val visible = remember { MutableTransitionState(reduceMotion).apply { targetState = true } }
+    LaunchedEffect(closing.value) {
+        if (closing.value) {
+            onExitStarted()
+            visible.targetState = false
+        }
+    }
     if (visible.isIdle && !visible.currentState && !visible.targetState) {
         LaunchedEffect(Unit) { (pending.value ?: onDismissRequest)() }
     }
-    val colors = AppTheme.colors
     Dialog(
-        onDismissRequest = { if (!interceptBack()) scope.close() },
+        onDismissRequest = close,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
         val view = LocalView.current
@@ -143,42 +139,32 @@ fun FullScreen(
             }
         }
         AdaptiveFrameRate {
-        // Въезд, уход и перелёт карты — на высокой частоте кадров (120 Гц).
-        HighFrameRate(!visible.isIdle || flight?.progress?.isRunning == true)
-        val plain = reduceMotion || flight != null
-        AnimatedVisibility(
-            visibleState = visible,
-            enter = when {
-                plain -> EnterTransition.None
-                slideFromRight -> Springs.sideIn
-                else -> Springs.screenIn
-            },
-            exit = when {
-                reduceMotion -> ExitTransition.None
-                flight?.fallback == true -> fadeOut(tween(120))
-                plain -> ExitTransition.None
-                slideFromRight -> Springs.sideOut
-                else -> Springs.screenOut
-            },
-        ) {
-            Box(Modifier.fillMaxSize()) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { if (flight != null && !flight.fallback) alpha = flight.backgroundAlpha }
-                        .background(colors.bg),
-                ) { backdrop() }
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { if (flight != null && !flight.fallback) alpha = flight.contentAlpha }
-                        .windowInsetsPadding(WindowInsets.safeDrawing),
-                ) { scope.content() }
-                if (flight != null) CardMorphOverlay(flight)
-            }
-        }
+            HighFrameRate(!visible.isIdle)
+            AnimatedVisibility(
+                visibleState = visible,
+                enter = when {
+                    reduceMotion -> EnterTransition.None
+                    editorMotion -> fadeIn(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)) +
+                        slideInVertically(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)) { (it * 0.08f).toInt() } +
+                        scaleIn(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing), initialScale = 0.96f)
+                    else -> Springs.screenIn
+                },
+                exit = when {
+                    reduceMotion -> ExitTransition.None
+                    editorMotion -> fadeOut(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)) +
+                        slideOutVertically(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing)) { (it * 0.08f).toInt() } +
+                        scaleOut(tween(EDITOR_SURFACE_MOTION_MS, easing = FastOutSlowInEasing), targetScale = 0.96f)
+                    else -> Springs.screenOut
+                },
+            ) { screen() }
         }
     }
+}
+
+@Composable
+internal fun ScrollBarDivider(scrolled: Boolean) {
+    val color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (scrolled) 0.4f else 0f)
+    HorizontalDivider(thickness = 0.5.dp, color = color)
 }
 
 /** Верх экрана: «←», заголовок (может не быть) и действия справа (корзина). */

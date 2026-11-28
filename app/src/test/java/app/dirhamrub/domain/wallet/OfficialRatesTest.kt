@@ -46,6 +46,31 @@ class OfficialRatesTest {
     }
 
     @Test
+    fun `предыдущая котировка нормализуется по номиналу и сохраняется`() {
+        val rates = CbrParser.parseJson(json)!!
+        assertEquals("0,211", Numbers.rate(rates.previousRubPerUnit.getValue(Currency.AMD)))
+        assertEquals("−0,5", Numbers.percent(rates.dailyTrend(Currency.AMD, Currency.RUB, null, null)!!))
+        assertEquals("−0,8", Numbers.percent(rates.dailyTrend(Currency.AMD, Currency.USD, null, null)!!))
+        assertEquals(rates, WalletCodec.decodeRates(WalletCodec.encodeRates(rates)))
+
+        val xmlWithPrevious = xml.replace("<Value>15,9000</Value>", "<Value>15,9000</Value><Previous>15,8000</Previous>")
+        assertEquals("0,158", Numbers.rate(CbrParser.parseXml(xmlWithPrevious)!!.previousRubPerUnit.getValue(Currency.KZT)))
+        assertNull(CbrParser.parseXml(xml)!!.dailyTrend(Currency.KZT, Currency.RUB, null, null))
+    }
+
+    @Test
+    fun `для UnionPay берём только сохранённую котировку за предыдущие сутки`() {
+        val date = LocalDate.of(2026, 11, 25)
+        val rates = OfficialRates(date, mapOf(Currency.USD to BigDecimal("81")),
+            previousRubPerUnit = mapOf(Currency.USD to BigDecimal("80")))
+        val current = UnionPayRates(date, mapOf(Currency.USD to mapOf(Currency.LKR to BigDecimal("0.004"))))
+        val previous = UnionPayRates(date.minusDays(1), mapOf(Currency.USD to mapOf(Currency.LKR to BigDecimal("0.005"))))
+        assertEquals("−19", Numbers.percent(rates.dailyTrend(Currency.LKR, Currency.RUB, current, previous)!!))
+        assertNull(rates.dailyTrend(Currency.LKR, Currency.RUB, current, previous.copy(date = date.minusDays(2))))
+        assertNull(rates.dailyTrend(Currency.LKR, Currency.RUB, current, null))
+    }
+
+    @Test
     fun `кросс-курс`() {
         val r = CbrParser.parseXml(xml)!!
         // 1 AED в тенге: 22,19 / 0,159

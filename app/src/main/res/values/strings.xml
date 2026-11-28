@@ -307,8 +307,6 @@
     <string name="settings_currencies">Валюты</string>
     <string name="settings_home">Итог считать в</string>
     <string name="settings_home_sub">Рубль или валюта с курсом ЦБ</string>
-    <string name="settings_country_hint">Подсказка в другой стране</string>
-    <string name="settings_country_hint_sub">«Вы в Армении — считать в драмах?» по сотовой сети</string>
     <string name="settings_camera">Камера</string>
     <string name="settings_camera_mode">Суммы на ценниках</string>
     <string name="settings_camera_embed">Вписывать в ценник</string>
@@ -421,12 +419,10 @@
     <string name="network_mir_short">МИР</string>
     <string name="network_visa_mc">Visa/MC</string>
     <string name="network_visa_mc_short">V/MC</string>
-    <string name="cbr_label">Курс ЦБ</string>
-    <string name="cbr_label_unionpay">Курс UnionPay</string>
+    <string name="cbr_label">Курс</string>
+    <string name="pay_basis_official">по курсу ЦБ</string>
+    <string name="pay_basis_unionpay">по курсу UnionPay</string>
     <string name="cbr_line">%1$s: %2$s</string>
-    <string name="cbr_line_time">%1$s: %2$s · %3$s</string>
-    <string name="cbr_today">сегодня %1$s</string>
-    <string name="cbr_yesterday">вчера %1$s</string>
     <string name="cbr_loading">Курс ЦБ: обновляем…</string>
     <string name="cbr_none">Курса ЦБ пока нет · обновить</string>
     <string name="money_add_short">Добавить карту или наличные</string>
@@ -577,7 +573,7 @@
     <string name="style_satin">Сатин</string>
     <string name="style_metal">Металл</string>
     <string name="style_carbon">Карбон</string>
-    <string name="style_glass">Стекло</string>
+    <string name="style_hologram">Голограмма</string>
     <string name="style_custom">Свой цвет</string>
     <string name="style_hex">Цвет HEX</string>
     <string name="style_hex_error">Введите 6 символов: 0–9, A–F</string>

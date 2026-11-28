@@ -112,6 +112,7 @@ data class MainUiState(
     val tileOffered: Boolean = true,
     /** Курсы UnionPay: карты UnionPay и справочный курс валют, которых нет у ЦБ. */
     val unionPay: UnionPayRates? = null,
+    val previousUnionPay: UnionPayRates? = null,
     val settings: AppSettings = AppSettings(),
     /** Когда скачаны курсы ЦБ (мс, 0 — никогда) и откуда — для настроек. */
     val officialFetchedAt: Long = 0L,
@@ -220,6 +221,7 @@ class MainViewModel(
                 cameraUsed = stored.cameraUsed,
                 tileOffered = stored.tileOffered,
                 unionPay = stored.unionPay,
+                previousUnionPay = stored.previousUnionPay,
                 settings = stored.settings,
                 officialFetchedAt = stored.officialFetchedAt,
                 officialSource = stored.officialSource,
@@ -459,13 +461,13 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 val incoming = sources.official()
-                val latestDate = _state.value.official?.date
-                val fetched = incoming?.takeUnless { latestDate != null && it.rates.date.isBefore(latestDate) }
+                val cached = _state.value.official
+                val fetched = incoming?.takeUnless { cached != null && it.rates.date.isBefore(cached.date) }
                 val at = System.currentTimeMillis()
-                if (fetched != null) repository.saveOfficial(fetched.rates, at, fetched.source)
+                val rates = fetched?.let { repository.saveOfficial(it.rates.withCachedPrevious(cached), at, it.source) }
                 publishMarket {
                     it.copy(
-                        official = fetched?.rates ?: it.official,
+                        official = rates?.withCachedPrevious(it.official) ?: it.official,
                         officialFetchedAt = if (fetched != null) at else it.officialFetchedAt,
                         officialSource = fetched?.source ?: it.officialSource,
                         ratesLoading = false,
@@ -477,8 +479,34 @@ class MainViewModel(
                 _state.update { it.copy(ratesFailed = true) }
             } finally { _state.update { it.copy(ratesLoading = false) } }
             if (manual) {
+                refreshOfficialPrevious()
                 refreshWeekAgo()
                 refreshReceiptRates()
+            }
+        }
+    }
+
+    private var previousLoading = false
+
+    private fun refreshOfficialPrevious() {
+        val current = _state.value.official ?: return
+        if (current.previousRubPerUnit.isNotEmpty() || previousLoading) return
+        previousLoading = true
+        viewModelScope.launch {
+            try {
+                val previous = sources.onDate(current.date.minusDays(1))
+                    ?.takeIf { it.date.isBefore(current.date) } ?: return@launch
+                repository.saveOfficialPrevious(current.date, previous.rubPerUnit)
+                _state.update { state ->
+                    val table = state.official
+                    if (table?.date == current.date && table.previousRubPerUnit.isEmpty()) {
+                        state.copy(official = table.copy(previousRubPerUnit = previous.rubPerUnit))
+                    } else state
+                }
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (_: Exception) { /* The trend stays hidden when yesterday's table is unavailable. */
+            } finally {
+                previousLoading = false
             }
         }
     }
@@ -519,11 +547,17 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 val rates = sources.unionPay()
-                val currentDate = _state.value.unionPay?.date
-                if (rates != null && (currentDate == null || !rates.date.isBefore(currentDate))) {
+                val current = _state.value
+                val cached = current.unionPay
+                if (rates != null && (cached == null || !rates.date.isBefore(cached.date))) {
+                    val previous = when (cached?.date) {
+                        rates.date -> current.previousUnionPay
+                        rates.date.minusDays(1) -> cached.copy(rates = cached.rates.filterKeys { it == Currency.USD })
+                        else -> null
+                    }
                     val at = System.currentTimeMillis()
-                    repository.saveUnionPay(rates, at)
-                    publishMarket { it.copy(unionPay = rates, unionPayFetchedAt = at) }
+                    repository.saveUnionPay(rates, at, previous)
+                    publishMarket { it.copy(unionPay = rates, previousUnionPay = previous, unionPayFetchedAt = at) }
                 } else {
                     _state.update { it.copy(unionPayFailed = true) }
                 }
@@ -546,7 +580,6 @@ class MainViewModel(
     }
 
     fun setRatesUpdate(value: RatesUpdate) = updateSettings { it.copy(ratesUpdate = value) }
-    fun setCountryHint(value: Boolean) = updateSettings { it.copy(countryHint = value) }
     fun setTheme(value: ThemeMode) = updateSettings { it.copy(theme = value) }
     fun setMotion(value: MotionMode) = updateSettings { it.copy(motion = value) }
     fun setWifiOnly(value: Boolean) = updateSettings { it.copy(wifiOnly = value) }

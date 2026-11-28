@@ -68,9 +68,6 @@ import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import app.dirhamrub.R
 import app.dirhamrub.ui.components.fadingScroll
-import app.dirhamrub.ui.components.finishCascadeOnTouch
-import app.dirhamrub.ui.components.rememberCascade
-import app.dirhamrub.ui.components.cascade
 import app.dirhamrub.diag.CrashLog
 import app.dirhamrub.domain.MotionMode
 import app.dirhamrub.domain.RatesUpdate
@@ -94,7 +91,6 @@ class SettingsActions(
     val onRefresh: () -> Unit,
     val onRatesUpdate: (RatesUpdate) -> Unit,
     val onHome: (Currency) -> Unit,
-    val onCountryHint: (Boolean) -> Unit,
     val onCameraEmbedded: (Boolean) -> Unit,
     val onTheme: (ThemeMode) -> Unit,
     val onMotion: (MotionMode) -> Unit,
@@ -135,19 +131,16 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
         val scroll = rememberScrollState()
         val collapsing = rememberCollapsingTitle(scroll)
         CollapsingBar(stringResource(R.string.settings_title), actions.onBack, collapsing)
-        // Разделы выплывают снизу по очереди; касание — сразу всё на месте.
-        val cascade = rememberCascade(lastIndex = 5)
         Column(
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .finishCascadeOnTouch(cascade)
-                .fadingScroll(scroll, bottomEdge = 32.dp)
+                .fadingScroll(scroll, bottomEdge = 32.dp, topEdge = 0.dp)
                 .padding(horizontal = 14.dp)
                 .padding(bottom = 24.dp),
         ) {
             LargeTitle(stringResource(R.string.settings_title), collapsing)
-            Column(Modifier.cascade(cascade, 0)) {
+            Column {
                 SectionTitle(stringResource(R.string.settings_section_main))
                 Group {
                     LinkRow(
@@ -165,13 +158,13 @@ fun SettingsScreen(state: MainUiState, actions: SettingsActions) {
                     )
                 }
             }
-            Column(Modifier.cascade(cascade, 1)) { RatesSection(state, actions) }
-            Column(Modifier.cascade(cascade, 2)) {
+            Column { RatesSection(state, actions) }
+            Column {
                 CurrenciesSection(state, actions, onPickHome = { homePicker = true }, onPickRounding = { roundingPicker = true })
             }
-            Column(Modifier.cascade(cascade, 3)) { CameraSection(state, actions) }
-            Column(Modifier.cascade(cascade, 4)) { LookSection(state, actions) }
-            Column(Modifier.cascade(cascade, 5)) { AboutSection(onOnboarding = actions.onOnboarding, onCrash = { crashOpen = true }) }
+            Column { CameraSection(state, actions) }
+            Column { LookSection(state, actions) }
+            Column { AboutSection(onOnboarding = actions.onOnboarding, onCrash = { crashOpen = true }) }
         }
     }
     if (roundingPicker) {
@@ -297,13 +290,6 @@ private fun CurrenciesSection(state: MainUiState, actions: SettingsActions, onPi
         } else {
             LinkRow(stringResource(R.string.settings_rounding), null, labels[current], onPickRounding)
         }
-        Divider()
-        SwitchRow(
-            stringResource(R.string.settings_country_hint),
-            stringResource(R.string.settings_country_hint_sub),
-            state.settings.countryHint,
-            actions.onCountryHint,
-        )
     }
 }
 

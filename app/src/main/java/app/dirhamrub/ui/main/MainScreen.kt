@@ -43,10 +43,10 @@ import androidx.compose.animation.core.Animatable
 import app.dirhamrub.ui.theme.Springs
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.animateFloatAsState
-import app.dirhamrub.ui.components.flightOrigin
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -69,6 +69,7 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
@@ -146,6 +147,7 @@ import app.dirhamrub.ui.theme.Haptic
 import app.dirhamrub.ui.theme.rememberHaptics
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -262,17 +264,23 @@ fun MainScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val fetchedAt = if (quote.viaUnionPay) state.unionPayFetchedAt else state.officialFetchedAt
+                val dailyTrend = remember(state.official, state.unionPay, state.previousUnionPay, wallet.spend, wallet.home) {
+                    state.official?.dailyTrend(wallet.spend, wallet.home, state.unionPay, state.previousUnionPay)
+                }
                 CbrLine(
-                    quote.official, quote.viaUnionPay, wallet.spend, wallet.home, state.ratesLoading,
+                    quote.official, dailyTrend, wallet.spend, wallet.home, (if (quote.viaUnionPay) state.unionPayLoading else state.ratesLoading),
                     fetchedAt, LocalDate.now().toEpochDay(), ZoneId.systemDefault().id,
-                    Modifier.weight(1f).padding(end = if (compactAdd) 8.dp else 0.dp), onRefreshRates,
+                    Modifier.weight(1f).padding(end = if (compactAdd) 12.dp else 0.dp), onRefreshRates,
                 )
                 if (compactAdd) {
                     RoundAction(
                         R.drawable.ic_plus, stringResource(R.string.money_add_short), 28.dp, 16.dp, onAddCard,
-                        modifier = Modifier.tripMainEnter(TripEnter.ADD),
-                        background = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
+                        modifier = Modifier.tripMainEnter(TripEnter.ADD)
+                            .width(28.dp)
+                            .wrapContentSize(Alignment.Center, unbounded = true),
+                        background = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                         tint = MaterialTheme.colorScheme.primary,
+                        borderColor = if (colors.isDark) MaterialTheme.colorScheme.primary.copy(alpha = 0.30f) else null,
                     )
                 }
             }
@@ -338,8 +346,8 @@ private fun Header(flag: String, name: String, onCountries: () -> Unit, onPlace:
         RoundAction(
             R.drawable.ic_tune, stringResource(R.string.settings_title), 38.dp, 22.dp, onSettings,
             modifier = Modifier.tripMainEnter(TripEnter.HEADER, 1),
-            background = colors.surface,
-            tint = colors.ink,
+            background = Color.Transparent,
+            tint = MaterialTheme.colorScheme.onSurface,
         )
     }
 }
@@ -354,6 +362,7 @@ private fun RoundAction(
     modifier: Modifier = Modifier,
     background: Color,
     tint: Color,
+    borderColor: Color? = null,
 ) {
     Box(
         modifier.size(48.dp).clip(CircleShape)
@@ -361,7 +370,8 @@ private fun RoundAction(
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.size(diameter).background(background, CircleShape), contentAlignment = Alignment.Center) {
+        val outline = if (borderColor == null) Modifier else Modifier.border(0.75.dp, borderColor, CircleShape)
+        Box(Modifier.size(diameter).background(background, CircleShape).then(outline), contentAlignment = Alignment.Center) {
             Icon(painterResource(icon), null, Modifier.size(iconSize), tint = tint)
         }
     }
@@ -675,7 +685,6 @@ private fun PayRow(
     val hasAmount = !state.expression.isEmpty && if (homeInput) state.expression.value.signum() > 0 else amount.signum() > 0
     val rounding = state.settings.rounding
     val approx = q != null && (q.basis.approximate || q.basis == RateBasis.OFFICIAL)
-    val network = networkName(card.paymentNetwork)
     val sub: String
     val right: String
     when {
@@ -694,8 +703,8 @@ private fun PayRow(
                 ?.takeIf { !isBest && it.signum() > 0 }
             sub = when {
                 isBest -> stringResource(R.string.pay_best_most)
-                less != null -> join(network, stringResource(R.string.pay_less, Numbers.saving(less, digits) + " " + wallet.spend.code)) ?: ""
-                else -> network ?: ""
+                less != null -> stringResource(R.string.pay_less, Numbers.saving(less, digits) + " " + wallet.spend.code)
+                else -> ""
             }
             right = (if (approx) "≈ " else "") + big(spend, state.settings.rounding, wallet.spend) + " " + wallet.spend.code
         }
@@ -707,14 +716,23 @@ private fun PayRow(
             }?.takeIf { !isBest && it.signum() > 0 }
             sub = when {
                 isBest -> stringResource(R.string.pay_best)
-                dearer != null -> join(network, stringResource(R.string.pay_dearer, Numbers.saving(dearer, digits) + " " + wallet.home.mark)) ?: ""
-                else -> network ?: ""
+                dearer != null -> stringResource(R.string.pay_dearer, Numbers.saving(dearer, digits) + " " + wallet.home.mark)
+                else -> ""
             }
             right = (if (approx) "≈ " else "") + big(amount.multiply(q.homePerUnit, MC), state.settings.rounding, wallet.home) + " " + wallet.home.mark
         }
         else -> {
-            // Ничего не набрано: курс способа и когда пополняли.
-            sub = join(network, lastTopUp(card)) ?: ""
+            val date = when (q.basis) {
+                RateBasis.RECEIPTS -> card.purchaseFor(wallet.spend)?.date ?: card.latestTransfer?.date
+                RateBasis.ESTIMATE -> card.latestTransfer?.date
+                else -> null
+            }
+            sub = when {
+                date != null -> RuDates.short(date)
+                q.basis == RateBasis.OFFICIAL && !q.viaUnionPay -> stringResource(R.string.pay_basis_official)
+                q.basis == RateBasis.UNIONPAY || q.viaUnionPay -> stringResource(R.string.pay_basis_unionpay)
+                else -> basisShort(q)
+            }
             right = rateLabel(q.homePerUnit, wallet.spend, wallet.home, approximate = approx)
         }
     }
@@ -835,14 +853,14 @@ private fun SelectedMark(color: androidx.compose.ui.graphics.Color, progress: Fl
 
 /**
  * Значок способа: у наличных — купюра, у карты — мини-карта в цветах её оформления с подписью системы.
- * [flight] — на главном: отсюда карта «перелетает» в настройку карты ([flightOrigin]).
+ * [flight] связывает значок на главном экране с превью онбординга.
  */
 @Composable
 internal fun PayIcon(card: BankCard, flight: Boolean = false) {
     RecompositionProbe("PayIcon")
     val shared = flight && card.id == LocalTripSharedTransition.current?.primaryCardId
-    val sharedModifier = if (shared) Modifier.tripSharedBounds(TRIP_CARD) else Modifier
     val cash = card.kind == CardKind.CASH
+    val sharedModifier = if (shared) Modifier.tripSharedBounds(TRIP_CARD, cash = cash) else Modifier
     val palette = CardPalette.style(card)
     val style = if (cash) palette else palette.forMaterial(card.material)
     val finish = if (cash) {
@@ -851,10 +869,11 @@ internal fun PayIcon(card: BankCard, flight: Boolean = false) {
         Modifier.cardMaterial(style, card.material, 5.dp)
     }
     Box(
-        Modifier.then(if (flight) Modifier.flightOrigin(card.id) else Modifier)
-            .size(width = 38.dp, height = 26.dp),
+        Modifier.size(width = 38.dp, height = 26.dp)
+            .then(if (cash) sharedModifier else Modifier),
     ) {
-        Box(Modifier.matchParentSize().then(sharedModifier).clip(RoundedCornerShape(if (cash) 3.dp else 5.dp)).then(finish))
+        Box(Modifier.matchParentSize().then(if (cash) Modifier else sharedModifier)
+            .clip(RoundedCornerShape(if (cash) 3.dp else 5.dp)).then(finish))
         if (!cash) {
             EmvChip(style.ink, Modifier.align(Alignment.CenterStart).padding(start = 5.dp).size(8.dp, 6.dp))
         }
@@ -865,18 +884,10 @@ internal fun PayIcon(card: BankCard, flight: Boolean = false) {
                 color = if (cash) Color.White else style.ink,
                 maxLines = 1,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 3.dp, bottom = 2.dp)
-                    .then(if (shared) Modifier.tripMainEnter(TripEnter.BADGE) else Modifier),
+                    .then(if (shared && !cash) Modifier.tripMainEnter(TripEnter.BADGE) else Modifier),
             )
         }
     }
-}
-
-@Composable
-private fun networkName(n: CardNetwork?): String? = when (n) {
-    CardNetwork.UNIONPAY, CardNetwork.UNIONPAY_FOREIGN -> stringResource(R.string.network_unionpay)
-    CardNetwork.MIR -> stringResource(R.string.network_mir)
-    CardNetwork.VISA_MC_FOREIGN -> stringResource(R.string.network_visa_mc)
-    null -> null
 }
 
 @Composable
@@ -887,33 +898,41 @@ private fun networkMark(n: CardNetwork?): String? = when (n) {
     null -> null
 }
 
-/** «обмен 9 ноя» у наличных, «пополнение 8 ноя» у карты; без пополнения — ничего. */
 @Composable
-private fun lastTopUp(card: BankCard): String? {
-    val date = card.transfer?.takeIf { it.isValid }?.date ?: return null
-    return stringResource(if (card.kind == CardKind.CASH) R.string.money_exchanged else R.string.money_topped_up, RuDates.short(date))
-}
-
-private fun join(a: String?, b: String?): String? = listOfNotNull(a?.takeIf { it.isNotEmpty() }, b?.takeIf { it.isNotEmpty() })
-    .joinToString(" · ")
-    .ifEmpty { null }
-
-/** «Курс ЦБ: 100 AMD = 22,00 ₽ · сегодня 09:40» — мелко серым под списком; касание — обновить курсы. */
-@Composable
-private fun CbrLine(rate: BigDecimal?, viaUnionPay: Boolean, spend: Currency, home: Currency,
+private fun CbrLine(rate: BigDecimal?, dailyTrend: BigDecimal?, spend: Currency, home: Currency,
     loading: Boolean, fetchedAtMillis: Long, todayEpochDay: Long, zone: String,
     modifier: Modifier, onRefresh: () -> Unit,
 ) {
     RecompositionProbe("CbrLine")
     val colors = AppTheme.colors
-    val text = when {
+    val plainText = when {
         loading -> stringResource(R.string.cbr_loading)
         rate == null -> stringResource(R.string.cbr_none)
-        else -> {
-            val label = stringResource(if (viaUnionPay) R.string.cbr_label_unionpay else R.string.cbr_label)
-            val pair = rateLabel(rate, spend, home, approximate = viaUnionPay)
-            val time = fetchedAt(fetchedAtMillis, todayEpochDay, zone)
-            if (time == null) stringResource(R.string.cbr_line, label, pair) else stringResource(R.string.cbr_line_time, label, pair, time)
+        else -> stringResource(R.string.cbr_line, stringResource(R.string.cbr_label), rateLabel(rate, spend, home, approximate = false))
+    }
+    val text = buildAnnotatedString {
+        append(plainText)
+        if (rate != null && !loading) {
+            dailyTrend?.takeIf { it.abs() >= BigDecimal("0.05") }?.let { trend ->
+                val up = trend.signum() > 0
+                val color = when {
+                    up && colors.isDark -> Color(0xFF4ADE80)
+                    up -> Color(0xFF2E9E5B)
+                    colors.isDark -> Color(0xFFF87171)
+                    else -> Color(0xFFD94E4E)
+                }
+                val percent = trend.abs().setScale(1, RoundingMode.HALF_UP).toPlainString().replace('.', ',')
+                append(" · ")
+                withStyle(SpanStyle(color = color, fontWeight = FontWeight.Medium)) {
+                    append(if (up) "↑ " else "↓ ")
+                    append(percent)
+                    append("%")
+                }
+            }
+            fetchedAt(fetchedAtMillis, todayEpochDay, zone)?.let {
+                append(" · ")
+                append(it)
+            }
         }
     }
     val refresh = stringResource(R.string.official_refresh)
@@ -934,18 +953,13 @@ private fun CbrLine(rate: BigDecimal?, viaUnionPay: Boolean, spend: Currency, ho
     )
 }
 
-/** «сегодня 09:40», «вчера 18:02», «3 ноя»; ещё не скачивали — null. */
-@Composable
+/** Время сегодняшней загрузки или дата более ранней. */
 private fun fetchedAt(at: Long, todayEpochDay: Long, zone: String): String? {
     if (at <= 0L) return null
     val t = Instant.ofEpochMilli(at).atZone(ZoneId.of(zone))
     val time = "%02d:%02d".format(t.hour, t.minute)
     val today = LocalDate.ofEpochDay(todayEpochDay)
-    return when (val day = t.toLocalDate()) {
-        today -> stringResource(R.string.cbr_today, time)
-        today.minusDays(1) -> stringResource(R.string.cbr_yesterday, time)
-        else -> RuDates.short(day)
-    }
+    return if (t.toLocalDate() == today) time else RuDates.short(t.toLocalDate())
 }
 
 /** Призрачная кнопка «＋ Добавить карту или наличные» — без рамки и подложки. */

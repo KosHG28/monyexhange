@@ -149,7 +149,7 @@ internal fun Modifier.cardReflection(
     val end by animateColorAsState(style.end, motion(240), label = "cardSurfaceEnd")
     drawWithCache {
         val background = Brush.linearGradient(listOf(start, end))
-        val finish = cardMaterialLayer(material, radius, tilt, sweep)
+        val finish = cardMaterialLayer(material, radius, tilt, sweep, lightCard = style.isLightCard())
         onDrawBehind {
             drawRect(background)
             finish(this)

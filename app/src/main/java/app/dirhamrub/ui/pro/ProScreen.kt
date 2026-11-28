@@ -73,6 +73,7 @@ import app.dirhamrub.ui.theme.proPalette
 import app.dirhamrub.ui.theme.motion
 import app.dirhamrub.ui.components.FullScreen
 import app.dirhamrub.ui.components.ScreenBar
+import app.dirhamrub.ui.components.ScrollBarDivider
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.Haptic
 import app.dirhamrub.ui.theme.rememberHaptics
@@ -87,6 +88,7 @@ fun ProScreen(
     onAppIcon: (AppIcon) -> Unit,
     onActivate: (String) -> Boolean,
     onDismiss: () -> Unit,
+    backEnabled: Boolean,
 ) {
     val pro = settings.pro
     val context = LocalContext.current
@@ -112,11 +114,13 @@ fun ProScreen(
             }
         }
     }
-    FullScreen(onDismissRequest = onDismiss, slideFromRight = true) {
+    FullScreen(onDismissRequest = onDismiss, inline = true, backEnabled = backEnabled) {
         Column(Modifier.fillMaxSize().imePadding()) {
+            val scroll = rememberScrollState()
             ScreenBar(onBack = { close() })
+            ScrollBarDivider(scroll.canScrollBackward)
             // Единая прокрутка сохраняет доступ к активации на коротком экране и при крупном шрифте.
-            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(scroll)
                 .padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.pro_brand_title), style = type.title.copy(fontSize = 30.sp, lineHeight = 36.sp),
@@ -344,7 +348,7 @@ private fun CardColorsOption(pro: Boolean, cards: List<BankCard>, onClick: () ->
         Row(Modifier.padding(top = 10.dp).height(38.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             for ((slot, index) in listOf(0, 1, 3, 6).withIndex()) {
                 val card = bankCards.getOrNull(slot)
-                val material = card?.material ?: CardMaterial.SATIN
+                val material = card?.material ?: if (index == 3) CardMaterial.HOLOGRAM else CardMaterial.SATIN
                 val style = (card?.let(CardPalette::style) ?: CardPalette.style(index)).forMaterial(material)
                 val shape = RoundedCornerShape(6.dp)
                 Box(Modifier.weight(1f).fillMaxHeight().clip(shape).cardMaterial(style, material, 6.dp)) {

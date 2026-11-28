@@ -40,6 +40,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.delay
 import java.io.IOException
+import java.math.BigDecimal
 import java.time.LocalDate
 
 val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -76,6 +77,7 @@ data class StoredState(
     val tileOffered: Boolean,
     /** Курсы UnionPay — для карт UnionPay и справочного курса валют без ЦБ. */
     val unionPay: UnionPayRates?,
+    val previousUnionPay: UnionPayRates?,
     /** Когда курсы UnionPay скачаны (мс), 0 — никогда или со старым справочником валют. */
     val unionPayFetchedAt: Long,
     /** Откуда в последний раз пришли курсы ЦБ: «cbr.ru» или зеркало. */
@@ -171,13 +173,13 @@ class WalletRepository(
             cameraUsed = p[CAMERA_USED] ?: false,
             tileOffered = p[TILE_OFFERED] ?: false,
             unionPay = WalletCodec.decodeUnionPay(u[UNIONPAY]),
+            previousUnionPay = WalletCodec.decodeUnionPay(u[UNIONPAY_PREVIOUS]),
             unionPayFetchedAt = if (WalletCodec.isCurrentTable(u[UNIONPAY])) u[UNIONPAY_AT] ?: 0L else 0L,
             officialSource = r[OFFICIAL_SOURCE],
             guideText = r[GUIDE],
             selectionAuto = p[SELECTION_AUTO] == true,
             settings = AppSettings(
                 ratesUpdate = RatesUpdate.entries.firstOrNull { it.name == p[SET_RATES_UPDATE] } ?: RatesUpdate.EVERY_6H,
-                countryHint = p[SET_COUNTRY_HINT] ?: true,
                 theme = ThemeMode.entries.firstOrNull { it.name == p[SET_THEME] } ?: ThemeMode.SYSTEM,
                 motion = MotionMode.entries.firstOrNull { it.name == p[SET_MOTION] } ?: MotionMode.SYSTEM,
                 keyHaptics = p[SET_KEY_HAPTICS] ?: true,
@@ -195,7 +197,6 @@ class WalletRepository(
     suspend fun saveSettings(settings: AppSettings) {
         store.edit { p ->
             p[SET_RATES_UPDATE] = settings.ratesUpdate.name
-            p[SET_COUNTRY_HINT] = settings.countryHint
             p[SET_THEME] = settings.theme.name
             p[SET_MOTION] = settings.motion.name
             p[SET_KEY_HAPTICS] = settings.keyHaptics
@@ -208,11 +209,14 @@ class WalletRepository(
         }
     }
 
-    suspend fun saveUnionPay(rates: UnionPayRates, fetchedAt: Long) {
-        val encoded = withContext(decodeDispatcher) { WalletCodec.encodeUnionPay(rates) }
+    suspend fun saveUnionPay(rates: UnionPayRates, fetchedAt: Long, previous: UnionPayRates? = null) {
+        val (encoded, yesterday) = withContext(decodeDispatcher) {
+            WalletCodec.encodeUnionPay(rates) to previous?.let(WalletCodec::encodeUnionPay)
+        }
         unionPayStore.edit { p ->
             p[UNIONPAY] = encoded
             p[UNIONPAY_AT] = fetchedAt
+            if (yesterday == null) p.remove(UNIONPAY_PREVIOUS) else p[UNIONPAY_PREVIOUS] = yesterday
         }
     }
 
@@ -357,12 +361,24 @@ class WalletRepository(
         }
     }
 
-    suspend fun saveOfficial(rates: OfficialRates, fetchedAt: Long, source: String) {
-        val encoded = withContext(decodeDispatcher) { WalletCodec.encodeRates(rates) }
+    suspend fun saveOfficial(rates: OfficialRates, fetchedAt: Long, source: String): OfficialRates =
+        withContext(decodeDispatcher) {
+            var saved = rates
+            ratesStore.edit { p ->
+                saved = rates.withCachedPrevious(WalletCodec.decodeRates(p[OFFICIAL]))
+                p[OFFICIAL] = WalletCodec.encodeRates(saved)
+                p[OFFICIAL_AT] = fetchedAt
+                p[OFFICIAL_SOURCE] = source
+            }
+            saved
+        }
+
+    suspend fun saveOfficialPrevious(date: LocalDate, rates: Map<Currency, BigDecimal>) {
         ratesStore.edit { p ->
-            p[OFFICIAL] = encoded
-            p[OFFICIAL_AT] = fetchedAt
-            p[OFFICIAL_SOURCE] = source
+            val current = WalletCodec.decodeRates(p[OFFICIAL]) ?: return@edit
+            if (current.date == date && current.previousRubPerUnit.isEmpty()) {
+                p[OFFICIAL] = WalletCodec.encodeRates(current.copy(previousRubPerUnit = rates))
+            }
         }
     }
 
@@ -426,7 +442,6 @@ class WalletRepository(
         /** Ключи курсов ЦБ: живут в своём файле (до 1.20 — в общем с кошельком). */
         val RATE_KEYS: List<Preferences.Key<*>> = listOf(OFFICIAL, OFFICIAL_AT, OFFICIAL_SOURCE, OFFICIAL_WEEK, RATES_HISTORY)
         val SET_RATES_UPDATE = stringPreferencesKey("settings_rates_update")
-        val SET_COUNTRY_HINT = booleanPreferencesKey("settings_country_hint")
         val SET_THEME = stringPreferencesKey("settings_theme")
         val SET_MOTION = stringPreferencesKey("settings_motion")
         val SET_WIFI_ONLY = booleanPreferencesKey("settings_wifi_only")
@@ -438,6 +453,7 @@ class WalletRepository(
         val SET_APP_ICON = stringPreferencesKey("settings_app_icon")
         val SELECTION_AUTO = booleanPreferencesKey("selection_auto")
         val UNIONPAY = stringPreferencesKey("unionpay_rates")
+        val UNIONPAY_PREVIOUS = stringPreferencesKey("unionpay_previous_rates")
         val UNIONPAY_AT = longPreferencesKey("unionpay_fetched_at")
     }
 }

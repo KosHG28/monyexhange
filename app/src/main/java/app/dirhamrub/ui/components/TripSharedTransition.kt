@@ -76,19 +76,20 @@ internal fun Modifier.tripClip(shape: Shape): Modifier {
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-internal fun Modifier.tripSharedBounds(key: String): Modifier {
+internal fun Modifier.tripSharedBounds(key: String, cash: Boolean = false): Modifier {
     val trip = LocalTripSharedTransition.current ?: return this
     if (LocalReduceMotion.current) return this
     val text = key in setOf(TRIP_HERO, TRIP_RATE, TRIP_VALUE)
     val incoming = tripTextEnterWindow()
     val outgoing = tripTextExitWindow(key)
+    val cardFadeDelay = if (cash) 450 else 650
     return with(trip.shared) {
         sharedBounds(
             sharedContentState = rememberSharedContentState(key), animatedVisibilityScope = trip.visibility,
             boundsTransform = { _, _ -> tween(TRIP_BOUNDS_DURATION, easing = TripEasing) },
             resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(if (key == TRIP_CARD || key == TRIP_PRICE) ContentScale.FillBounds else ContentScale.Fit, Alignment.CenterStart),
-            enter = when { text -> fadeIn(tween(incoming.duration, delayMillis = incoming.delay)); key == TRIP_CARD -> fadeIn(tween(200, delayMillis = 650)); else -> fadeIn(tween(300)) },
-            exit = when { text -> fadeOut(tween(outgoing.duration)); key == TRIP_CARD -> fadeOut(tween(200, delayMillis = 650)); else -> fadeOut(tween(300)) },
+            enter = when { text -> fadeIn(tween(incoming.duration, delayMillis = incoming.delay)); key == TRIP_CARD -> fadeIn(tween(200, delayMillis = cardFadeDelay)); else -> fadeIn(tween(300)) },
+            exit = when { text -> fadeOut(tween(outgoing.duration)); key == TRIP_CARD -> fadeOut(tween(200, delayMillis = cardFadeDelay)); else -> fadeOut(tween(300)) },
             clipInOverlayDuringTransition = UnclippedTripOverlay,
             zIndexInOverlay = when(key) { TRIP_TITLE -> 5f; TRIP_CARD -> 4f; TRIP_HERO, TRIP_VALUE -> 6f; else -> 3f },
         )

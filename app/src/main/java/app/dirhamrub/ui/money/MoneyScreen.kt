@@ -57,10 +57,7 @@ import app.dirhamrub.domain.wallet.CardQuote
 import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.ui.components.CollapsingBar
 import app.dirhamrub.ui.components.LargeTitle
-import app.dirhamrub.ui.components.cascade
-import app.dirhamrub.ui.components.finishCascadeOnTouch
 import app.dirhamrub.ui.components.rateLabel
-import app.dirhamrub.ui.components.rememberCascade
 import app.dirhamrub.ui.components.rememberCollapsingTitle
 import app.dirhamrub.ui.main.EmvChip
 import app.dirhamrub.ui.main.MainUiState
@@ -104,14 +101,13 @@ fun MoneyScreen(state: MainUiState, actions: MoneyActions, reflectLight: Boolean
         val scroll = rememberLazyListState()
         val collapsing = rememberCollapsingTitle(scroll)
         CollapsingBar(title, actions.onBack, collapsing)
-        val cascade = rememberCascade(lastIndex = 1)
         val order = drag.order
         val held = drag.held
         val scale by animateFloatAsState(if (held == null) 1f else 1.02f, motion(170), label = "walletCardLift")
         Box(Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
             LazyColumn(
                 state = scroll,
-                modifier = Modifier.fillMaxSize().finishCascadeOnTouch(cascade).fadingEdges(scroll)
+                modifier = Modifier.fillMaxSize().fadingEdges(scroll, edge = 0.dp, bottomEdge = 24.dp)
                     .walletDragGesture(drag, scroll, ids.size > 1, actions.onReorder),
                 contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp),
             ) {
@@ -125,7 +121,7 @@ fun MoneyScreen(state: MainUiState, actions: MoneyActions, reflectLight: Boolean
                             if (index < order.lastIndex) add(CustomAccessibilityAction(down) { actions.onReorder(order.moved(index, index + 1)); true })
                         }
                     }
-                    Column(Modifier.cascade(cascade, 0)) {
+                    Column {
                         if (held == id) {
                             Box(Modifier.graphicsLayer { alpha = 0f }.clearAndSetSemantics { }) {
                                 WalletCard(state, card, quote.of(id), id == bestId, false, tilt, Modifier) {}
@@ -137,7 +133,7 @@ fun MoneyScreen(state: MainUiState, actions: MoneyActions, reflectLight: Boolean
                     }
                 }
                 item {
-                    Row(Modifier.cascade(cascade, 1).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         AddTile(R.drawable.ic_card, R.string.money_add_card, R.string.money_add_card_sub, Modifier.weight(1f), actions.onAddCard)
                         AddTile(R.drawable.ic_cash, R.string.money_add_cash, R.string.money_add_cash_sub, Modifier.weight(1f), actions.onAddCash)
                     }

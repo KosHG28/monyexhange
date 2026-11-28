@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.dirhamrub.domain.wallet.CardMaterial
@@ -38,13 +39,7 @@ internal fun CardStyle.forMaterial(material: CardMaterial): CardStyle = when (ma
         end = lerp(Color(0xFF111820), end, 0.28f),
         ink = Color.White,
     )
-    CardMaterial.GLASS -> copy(
-        start = lerp(start, Color(0xFFE3F1F8), 0.58f).copy(alpha = 0.90f),
-        end = lerp(end, Color(0xFFBED2E1), 0.64f).copy(alpha = 0.94f),
-        ink = Color(0xFF111D28),
-        mark = Color(0xFF223C50),
-    )
-    CardMaterial.SATIN, CardMaterial.METAL -> this
+    CardMaterial.SATIN, CardMaterial.METAL, CardMaterial.HOLOGRAM -> this
 }
 
 /** Шлифовка: короткие штрихи разной длины, без случайного мерцания при перерисовке. */
@@ -87,12 +82,18 @@ internal fun Modifier.cardMaterial(
     tilt: State<Offset>? = null,
 ): Modifier = drawWithCache {
     val fill = Brush.linearGradient(listOf(style.start, style.end))
-    val finish = cardMaterialLayer(material, radius, tilt)
+    val finish = cardMaterialLayer(material, radius, tilt, lightCard = style.isLightCard())
     onDrawBehind {
         drawRect(fill)
         finish(this)
     }
 }
+
+internal fun CardStyle.isLightCard(): Boolean = (start.luminance() + end.luminance()) / 2f >= 0.42f
+
+private val hologramColors = listOf(
+    Color(0xFF7DD3FC), Color(0xFFC4B5FD), Color(0xFFF9A8D4), Color(0xFFFDE68A), Color(0xFF6EE7B7),
+)
 
 private val lightAngle = Math.toRadians(35.0)
 // Нормаль поперёк блика, сама полоса лежит под углом 35°.
@@ -103,6 +104,7 @@ internal fun CacheDrawScope.cardMaterialLayer(
     radius: Dp,
     tilt: State<Offset>?,
     sweep: State<Float>? = null,
+    lightCard: Boolean = false,
 ): DrawScope.() -> Unit {
     if (size.minDimension <= 0f) return {}
     val bounds = size
@@ -116,9 +118,9 @@ internal fun CacheDrawScope.cardMaterialLayer(
         listOf(Color.White.copy(alpha = 0.26f), Color.Black.copy(alpha = 0.36f)),
         end = Offset(bounds.width, bounds.height),
     )
-    val outside = edge(radius, if (material == CardMaterial.GLASS) 0.75.dp else 0.85.dp)
+    val outside = edge(radius, 0.85.dp)
     val inner = when (material) {
-        CardMaterial.GLASS -> edge(radius, 1.5.dp, inset = 0.75.dp)
+        CardMaterial.HOLOGRAM -> edge(radius, 1.dp)
         CardMaterial.CARBON -> edge(radius, 1.1.dp, inset = 0.85.dp)
         else -> edge(radius, 1.1.dp)
     }
@@ -206,25 +208,30 @@ internal fun CacheDrawScope.cardMaterialLayer(
             }
             draw
         }
-        CardMaterial.GLASS -> {
-            val haze = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.13f), Color.White.copy(alpha = 0.025f)))
+        CardMaterial.HOLOGRAM -> {
+            val opacity = if (lightCard) 0.24f else 0.20f
+            val blend = if (lightCard) BlendMode.Overlay else BlendMode.Screen
+            val palette = hologramColors.map { it.copy(alpha = opacity) }
+            val rim = Brush.linearGradient(
+                listOf(hologramColors[0], hologramColors[2], hologramColors[3]).map { it.copy(alpha = 0.35f) },
+                end = Offset(bounds.width, bounds.height),
+            )
             val draw: DrawScope.() -> Unit = {
                 val angle = tilt?.value ?: Offset.Zero
-                val position = Offset(bounds.width * (0.23f + angle.x * 0.40f), bounds.height * (0.42f + angle.y * 0.30f))
-                val feather = lightNormal * (bounds.minDimension * 0.36f)
-                val band = Color.White.copy(alpha = 0.25f)
-                drawRect(haze)
+                val direction = lightAngle + (angle.x - angle.y) * 0.18
+                val normal = Offset(sin(direction).toFloat(), cos(direction).toFloat())
+                val progress = sweep?.value ?: 1f
+                val travel = if (progress < 1f) (progress - 0.5f) * 0.80f else 0f
+                val center = bounds.center + Offset(bounds.width * (angle.x * 0.21f + travel), bounds.height * angle.y * 0.25f)
+                val span = normal * (bounds.width * abs(normal.x) + bounds.height * abs(normal.y)) * 0.56f
                 drawRect(depth)
+                drawRect(Brush.linearGradient(palette, start = center - span, end = center + span), blendMode = blend)
+                val feather = span * 0.35f
                 drawRect(Brush.linearGradient(
-                    0f to Color.Transparent, 0.025f to band, 0.972f to band, 1f to Color.Transparent,
-                    start = position - feather, end = position + feather,
-                ))
-                outside.draw(this, SolidColor(Color.Black.copy(alpha = 0.10f)))
-                val rim = rimPoint(bounds, Offset(-0.68f + angle.x * 1.87f, -0.84f + angle.y * 2f))
-                inner.draw(this, Brush.radialGradient(
-                    listOf(Color.White.copy(alpha = 0.50f), Color.White.copy(alpha = 0.12f)),
-                    center = rim, radius = bounds.width * 0.77f,
-                ))
+                    listOf(Color.Transparent, Color.White.copy(alpha = 0.13f), Color.Transparent),
+                    start = center - feather, end = center + feather,
+                ), blendMode = blend)
+                inner.draw(this, rim)
             }
             draw
         }

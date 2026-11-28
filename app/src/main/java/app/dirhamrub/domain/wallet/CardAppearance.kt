@@ -1,6 +1,13 @@
 package app.dirhamrub.domain.wallet
 
-enum class CardMaterial { SATIN, METAL, CARBON, GLASS }
+enum class CardMaterial {
+    SATIN, METAL, CARBON, HOLOGRAM;
+
+    companion object {
+        fun fromStorage(value: String?): CardMaterial =
+            if (value == "GLASS") HOLOGRAM else entries.firstOrNull { it.name == value } ?: SATIN
+    }
+}
 
 /** Opaque RGB only; formatting and pricing never depend on this value. */
 object CardAppearance {

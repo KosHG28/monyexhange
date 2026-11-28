@@ -198,7 +198,7 @@ private fun MaterialOptions(draft: BankCard, enabled: Boolean, onPick: (CardMate
                 CardMaterial.SATIN -> R.string.style_satin
                 CardMaterial.METAL -> R.string.style_metal
                 CardMaterial.CARBON -> R.string.style_carbon
-                CardMaterial.GLASS -> R.string.style_glass
+                CardMaterial.HOLOGRAM -> R.string.style_hologram
             })
             val shape = RoundedCornerShape(12.dp)
             val fill by animateColorAsState(if (selected) colors.accentSoft else colors.surface2, motion(180), label = "materialFill")

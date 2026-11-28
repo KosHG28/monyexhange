@@ -93,6 +93,7 @@ object WalletCodec {
         p[TABLE] = RATES_TABLE.toString()
         p["date"] = rates.date.toString()
         for ((c, v) in rates.rubPerUnit) p["rub." + c.code] = v.toPlainString()
+        for ((c, v) in rates.previousRubPerUnit) p["previous." + c.code] = v.toPlainString()
         return store(p)
     }
 
@@ -100,13 +101,15 @@ object WalletCodec {
         if (text.isNullOrBlank()) return null
         val p = load(text) ?: return null
         val date = p.date("date") ?: return null
-        val map = HashMap<Currency, BigDecimal>()
-        for (name in p.stringPropertyNames()) {
-            if (!name.startsWith("rub.")) continue
-            val c = Currency.byCode(name.removePrefix("rub.")) ?: continue
-            p.decimal(name)?.let { map[c] = it }
+        fun readRates(prefix: String) = buildMap {
+            for (name in p.stringPropertyNames()) {
+                if (!name.startsWith(prefix)) continue
+                val currency = Currency.byCode(name.removePrefix(prefix)) ?: continue
+                p.decimal(name)?.let { put(currency, it) }
+            }
         }
-        return if (map.isEmpty()) null else OfficialRates(date, map)
+        val current = readRates("rub.")
+        return if (current.isEmpty()) null else OfficialRates(date, current, previousRubPerUnit = readRates("previous."))
     }
 
     private fun card(p: Properties, k: String): BankCard? {
@@ -138,7 +141,7 @@ object WalletCodec {
             currency = currency,
             style = p.int(k + "style") ?: 0,
             customColor = p.getProperty(k + "color")?.takeIf { it.matches(Regex("[0-9a-fA-F]{6}")) }?.toIntOrNull(16),
-            material = CardMaterial.entries.firstOrNull { it.name == p.getProperty(k + "material") } ?: CardMaterial.SATIN,
+            material = CardMaterial.fromStorage(p.getProperty(k + "material")),
             transfer = transfer,
             purchases = purchases,
             manual = manual,

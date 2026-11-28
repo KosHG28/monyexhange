@@ -15,7 +15,7 @@ android {
         targetSdk = 37
         // В CI номер сборки растёт, поэтому каждое новое APK ставится поверх старого.
         versionCode = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull() ?: 1
-        versionName = "1.61.4"
+        versionName = "1.61.5"
         ndk {
             // Только 64-битные телефоны: копия распознавания текста для 32-битных весила 6,8 МБ из 23.
             abiFilters += listOf("arm64-v8a")
@@ -97,6 +97,8 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.svg)
     debugImplementation(libs.androidx.compose.ui.tooling)
     // Только отладочная сборка: проверка Gemini Nano (src/debug/…/nanolab). В релиз не попадает.
     debugImplementation(libs.mlkit.genai.prompt)

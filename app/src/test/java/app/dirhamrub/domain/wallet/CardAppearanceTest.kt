@@ -39,9 +39,10 @@ class CardAppearanceTest {
     }
 
     @Test fun `custom color persists and malformed or legacy properties use the old palette`() {
-        val wallet = Wallet(cards = listOf(card.copy(customColor = 0x00AB0C, material = CardMaterial.GLASS)), selectedId = card.id)
+        val wallet = Wallet(cards = listOf(card.copy(customColor = 0x00AB0C, material = CardMaterial.HOLOGRAM)), selectedId = card.id)
         assertEquals(wallet, WalletCodec.decode(WalletCodec.encode(wallet)))
         val base = "cards=1\ncard.0.id=usd\ncard.0.name=Travel\ncard.0.currency=USD\ncard.0.style=3\n"
+        assertEquals(CardMaterial.HOLOGRAM, WalletCodec.decode(base + "card.0.material=GLASS")!!.cards.single().material)
         for (suffix in listOf("", "card.0.color=oops", "card.0.color=ff123456", "card.0.color=-12345", "card.0.material=UNKNOWN")) {
             val decoded = WalletCodec.decode(base + suffix)!!.cards.single()
             assertNull(decoded.customColor)

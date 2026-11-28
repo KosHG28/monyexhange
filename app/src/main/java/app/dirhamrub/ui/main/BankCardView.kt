@@ -210,7 +210,7 @@ internal fun BankCardView(
                 PaymentPreviewFace(card, style.ink, sumText, textAlpha)
                 return@Box
             }
-            Box(Modifier.matchParentSize().tripSharedBounds(TRIP_CARD).clip(cardShape).then(surface))
+            Box(Modifier.matchParentSize().tripSharedBounds(TRIP_CARD, cash = cash).clip(cardShape).then(surface))
             // Водяной знак валюты карты: при наклоне отстаёт на 6 dp — будто глубже в пластике.
             val mark = card.currency.mark
             val tilt = LocalTilt.current

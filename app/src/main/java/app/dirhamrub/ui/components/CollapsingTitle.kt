@@ -111,7 +111,7 @@ internal suspend fun settleTitleWhenIdle(isScrolling: () -> Boolean, settle: sus
 fun CollapsingBar(title: String, onBack: () -> Unit, state: CollapsingTitle, fillOnCollapse: Boolean = false) {
     val colors = AppTheme.colors
     val compactTitleVisible by remember(state) { derivedStateOf { state.progress >= 0.5f } }
-    Column(if (fillOnCollapse) Modifier.drawBehind { drawRect(colors.bg, alpha = state.progress) } else Modifier) {
+    Column(if (fillOnCollapse) Modifier.drawBehind { drawRect(colors.bg, alpha = state.progress) } else Modifier.background(colors.bg)) {
         Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             val back = stringResource(R.string.settings_back)
             Box(
@@ -141,13 +141,8 @@ fun CollapsingBar(title: String, onBack: () -> Unit, state: CollapsingTitle, fil
                     },
             )
         }
-        if (!fillOnCollapse) Box(
-            Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .graphicsLayer { alpha = state.progress }
-                .background(colors.line),
-        )
+        val scrolled by remember(state) { derivedStateOf { state.progress > 0f } }
+        ScrollBarDivider(scrolled)
     }
 }
 

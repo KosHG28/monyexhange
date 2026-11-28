@@ -2,38 +2,26 @@ package app.dirhamrub.ui.guide
 
 import app.dirhamrub.ui.theme.surfaceOutline
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.geometry.center
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.svg.SvgDecoder
+import java.util.Locale
 
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.Canvas as BitmapCanvas
-import android.graphics.LightingColorFilter
-import android.graphics.Paint
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
-import android.graphics.RadialGradient
-import android.graphics.Rect as BitmapRect
-import android.graphics.RectF
-import android.graphics.Shader
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
-import kotlin.math.roundToInt
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.foundation.Canvas
-import app.dirhamrub.ui.theme.parallaxOf
-import app.dirhamrub.ui.theme.rememberTilt
 import app.dirhamrub.ui.components.CollapsingBar
 import app.dirhamrub.ui.components.rememberCollapsingTitle
 import app.dirhamrub.ui.components.fadingScroll
-import app.dirhamrub.ui.components.finishCascadeOnTouch
-import app.dirhamrub.ui.components.rememberCascade
-import app.dirhamrub.ui.components.cascade
 import app.dirhamrub.ui.components.FullScreen
 import app.dirhamrub.domain.wallet.noun
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -45,7 +33,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -74,8 +61,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -157,6 +142,7 @@ fun CountryGuideScreen(
     currency: Currency,
     cards: List<BankCard>,
     onDismiss: () -> Unit,
+    backEnabled: Boolean,
 ) {
     val colors = AppTheme.colors
     val type = AppTheme.type
@@ -167,19 +153,16 @@ fun CountryGuideScreen(
     val titleHeight = with(LocalDensity.current) { headerHeight.toDp() }.coerceAtLeast(56.dp)
     val collapsing = rememberCollapsingTitle(scroll, titleHeight)
     val titleCollapsed by remember(collapsing) { derivedStateOf { collapsing.progress >= 0.5f } }
-    FullScreen(onDismissRequest = onDismiss, slideFromRight = true, backdrop = {
-        FlagBackdrop(place.first, Modifier.align(Alignment.TopEnd)) { 1f - collapsing.progress }
+    FullScreen(onDismissRequest = onDismiss, inline = true, backEnabled = backEnabled, backdrop = {
+        FlagBackdrop(iso, Modifier.align(Alignment.TopEnd)) { 1f - collapsing.progress }
     }) {
       Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
         CollapsingBar(currency.noun, onBack = { close() }, collapsing, fillOnCollapse = true)
-        // Шапка — сразу, блоки ниже выплывают снизу по очереди; касание — сразу всё на месте.
-        val cascade = rememberCascade()
         Column(
             Modifier
                 .fillMaxWidth()
-                .finishCascadeOnTouch(cascade)
-                .fadingScroll(scroll)
+                .fadingScroll(scroll, topEdge = 0.dp)
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 20.dp),
         ) {
@@ -195,7 +178,7 @@ fun CountryGuideScreen(
                 Spacer(Modifier.height(16.dp))
                 Column(
                     Modifier
-                        .cascade(cascade, 0)
+
                         .guideCard()
                         .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 4.dp),
                 ) {
@@ -207,9 +190,9 @@ fun CountryGuideScreen(
             val local = Countries.byIso(guide.iso)?.currency
             // Наличные в чужой валюте здесь не платят — это и так понятно, строку не показываем.
             val shown = cards.filterNot { local != null && it.kind == CardKind.CASH && guide.verdict(it, local) == null }
-            var step = 0
+
             if (local != null && shown.isNotEmpty()) {
-              Column(Modifier.cascade(cascade, step++)) {
+              Column {
                 Section(stringResource(R.string.guide_your_cards))
                 Group(shown) { card ->
                     val verdict = guide.verdict(card, local)
@@ -220,7 +203,7 @@ fun CountryGuideScreen(
                 }
               }
             }
-            Column(Modifier.cascade(cascade, step++)) {
+            Column {
             Section(stringResource(R.string.guide_networks))
             Group(CardNetwork.entries.filter { it in guide.networks }) { n ->
                     val note = guide.networks.getValue(n)
@@ -228,17 +211,17 @@ fun CountryGuideScreen(
             }
             }
             // Наличные — зелёной купюрой (без знаков валют), банкоматы — серым, советы — жёлтой лампочкой.
-            Items(stringResource(R.string.guide_cash), R.drawable.ic_cash, colors.good, guide.cash, Modifier.cascade(cascade, step++))
+            Items(stringResource(R.string.guide_cash), R.drawable.ic_cash, colors.good, guide.cash)
             // Ввоз и вывоз — жёлтым: местную валюту нельзя вывезти, крупные суммы декларируют.
-            Items(stringResource(R.string.guide_export), R.drawable.ic_alert, colors.warn, guide.export, Modifier.cascade(cascade, step++))
+            Items(stringResource(R.string.guide_export), R.drawable.ic_alert, colors.warn, guide.export)
             // Ходовые купюры: номиналы и код валюты — чтобы узнавать деньги в руках.
             guide.notes?.let { n ->
                 val code = local?.code.orEmpty()
                 val denominations = DIGIT_SPACES.replace(n.title, "\u00A0")
-                Items(stringResource(R.string.guide_notes), R.drawable.ic_cash, colors.muted, listOf(GuideItem("$denominations $code".trimEnd(), n.text)), Modifier.cascade(cascade, step++))
+                Items(stringResource(R.string.guide_notes), R.drawable.ic_cash, colors.muted, listOf(GuideItem("$denominations $code".trimEnd(), n.text)))
             }
-            Items(stringResource(R.string.guide_atm), R.drawable.ic_atm, colors.muted, guide.atm, Modifier.cascade(cascade, step++))
-            Items(stringResource(R.string.guide_tips), R.drawable.ic_tip, colors.warn, guide.tips, Modifier.cascade(cascade, step++))
+            Items(stringResource(R.string.guide_atm), R.drawable.ic_atm, colors.muted, guide.atm)
+            Items(stringResource(R.string.guide_tips), R.drawable.ic_tip, colors.warn, guide.tips)
             Spacer(Modifier.height(12.dp))
             val stale = guide.isStale(LocalDate.now())
             Text(
@@ -291,102 +274,46 @@ internal fun Header(country: String, currency: Currency, modifier: Modifier = Mo
 private const val HEADER_SP = 40f
 private val DIGIT_SPACES = Regex("(?<=\\d) +(?=\\d{3}(?!\\d))")
 
-/**
- * Мягкий флаг, растушёванный от угла. При прокрутке меняется только прозрачность готовой картинки.
- */
+/** The source SVG is rendered at the actual size of the background. */
 @Composable
-private fun FlagBackdrop(flag: String, modifier: Modifier, opacity: () -> Float) {
-    val colors = AppTheme.colors
-    val matte = colors.bg.takeUnless { colors.isDark }
-    val key = flag to matte
-    val image by androidx.compose.runtime.key(key) {
-        produceState(flagImages.get(key), key) {
-            if (value == null) value = withContext(Dispatchers.Default) {
-                flagImages.get(key) ?: flagBitmap(flag, matte)?.also { flagImages.put(key, it) }
+private fun FlagBackdrop(iso: String?, modifier: Modifier, opacity: () -> Float) {
+    val code = iso?.takeIf { it.length == 2 && it.all { symbol -> symbol in 'A'..'Z' || symbol in 'a'..'z' } }
+        ?.lowercase(Locale.ROOT) ?: return
+    val context = LocalContext.current
+    val request = remember(context, code) {
+        ImageRequest.Builder(context)
+            .data("file:///android_asset/flags/$code.svg")
+            .decoderFactory(SvgDecoder.Factory(renderToBitmap = false))
+            .build()
+    }
+    val opacityByTheme = if (AppTheme.colors.isDark) 0.30f else 0.22f
+    AsyncImage(
+        model = request,
+        contentDescription = null,
+        contentScale = ContentScale.FillBounds,
+        modifier = modifier
+            .size(width = 200.dp, height = 150.dp)
+            .graphicsLayer {
+                rotationZ = -8f
+                alpha = opacityByTheme * opacity().coerceIn(0f, 1f)
             }
-        }
-    }
-    val backdrop = image ?: return
-    val shown by remember(opacity) { derivedStateOf { opacity() > 0f } }
-    val tilt = rememberTilt(active = shown)
-    val depth = with(LocalDensity.current) { FLAG_DEPTH.toPx() }
-    Canvas(modifier.size(FLAG_SIZE).clipToBounds().clearAndSetSemantics { }) {
-        val alpha = opacity()
-        if (alpha <= 0f) return@Canvas
-        drawImage(
-            backdrop,
-            dstOffset = IntOffset(parallaxOf(tilt, depth).roundToInt(), 0),
-            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-            alpha = alpha,
-            filterQuality = FilterQuality.High,
-        )
-    }
+            .blur(8.dp, BlurredEdgeTreatment.Unbounded)
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithCache {
+                val mask = Brush.radialGradient(
+                    0f to Color.Black,
+                    0.44f to Color.Black,
+                    1f to Color.Transparent,
+                    center = size.center,
+                    radius = size.minDimension * 0.5f,
+                )
+                onDrawWithContent {
+                    drawContent()
+                    drawRect(mask, blendMode = BlendMode.DstIn)
+                }
+            },
+    )
 }
-
-/** Обрезка по эмодзи, сглаживание при масштабировании и угловая маска на одном программном слое. */
-private fun flagBitmap(flag: String, matte: Color?): ImageBitmap? {
-    val px = FLAG_BITMAP_PX
-    val full = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
-    val paint = android.text.TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = px * 0.75f
-        textAlign = Paint.Align.CENTER
-    }
-    val metrics = paint.fontMetrics
-    BitmapCanvas(full).drawText(flag, px / 2f, px / 2f - (metrics.ascent + metrics.descent) / 2f, paint)
-    var left = px
-    var top = px
-    var right = -1
-    var bottom = -1
-    val row = IntArray(px)
-    for (y in 0 until px) {
-        full.getPixels(row, 0, px, 0, y, px, 1)
-        for (x in 0 until px) {
-            if ((row[x] ushr 24) > 40) {
-                if (x < left) left = x
-                if (x > right) right = x
-                if (y < top) top = y
-                if (y > bottom) bottom = y
-            }
-        }
-    }
-    if (right < left || bottom < top) {
-        full.recycle()
-        return null
-    }
-    val crop = BitmapRect(left, top, right + 1, bottom + 1)
-    val aspect = crop.width().toFloat() / crop.height()
-    val softHeight = minOf(crop.height(), 64)
-    val softWidth = (softHeight * aspect).roundToInt().coerceAtLeast(1)
-    val softened = Bitmap.createBitmap(softWidth, softHeight, Bitmap.Config.ARGB_8888)
-    val filter = Paint(Paint.FILTER_BITMAP_FLAG)
-    BitmapCanvas(softened).drawBitmap(full, crop, BitmapRect(0, 0, softWidth, softHeight), filter)
-    full.recycle()
-
-    val output = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
-    val canvas = BitmapCanvas(output)
-    val height = px * 1.05f
-    val width = height * aspect
-    val x = px - width * 0.82f
-    val y = -px * 0.08f
-    if (matte != null) filter.colorFilter = LightingColorFilter(matte.toArgb(), 0)
-    canvas.drawBitmap(softened, null, RectF(x, y, x + width, y + height), filter)
-    softened.recycle()
-    val mask = Paint().apply {
-        shader = RadialGradient(px.toFloat(), 0f, px.toFloat(),
-            intArrayOf(0x73000000, 0x61000000, 0x29000000, 0), floatArrayOf(0f, 0.3f, 0.55f, 0.8f), Shader.TileMode.CLAMP)
-        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
-    }
-    canvas.drawRect(0f, 0f, px.toFloat(), px.toFloat(), mask)
-    return output.asImageBitmap()
-}
-
-private const val FLAG_BITMAP_PX = 256
-private val flagImages = android.util.LruCache<Pair<String, Color?>, ImageBitmap>(4)
-
-/** На сколько флаг отстаёт от наклона телефона (на полном наклоне, ±20°). */
-private val FLAG_DEPTH = 14.dp
-
-private val FLAG_SIZE = 280.dp
 
 /** «Сообщить о неточности» / «Подсказать, что добавить»: задача в GitHub с готовым текстом. */
 @Composable

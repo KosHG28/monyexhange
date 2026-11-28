@@ -21,6 +21,7 @@ data class OfficialRates(
     val rubPerUnit: Map<Currency, BigDecimal>,
     /** Валюты, курс которых не от ЦБ, а по UnionPay к доллару и курсу ЦБ доллара. */
     val derived: Set<Currency> = emptySet(),
+    val previousRubPerUnit: Map<Currency, BigDecimal> = emptyMap(),
 ) {
     /** Курс пары [from] → [to] взят не только у ЦБ, но и у UnionPay — подписывать «UnionPay». */
     fun viaUnionPay(from: Currency, to: Currency): Boolean = from in derived || to in derived
@@ -51,6 +52,36 @@ data class OfficialRates(
         return if (t.signum() == 0) null else f.divide(t, MC)
     }
 
+    internal fun withCachedPrevious(cached: OfficialRates?): OfficialRates {
+        val previous = when (cached?.date) {
+            date -> cached.previousRubPerUnit
+            date.minusDays(1) -> cached.rubPerUnit
+            else -> emptyMap()
+        }
+        return if (previous.isEmpty() || previous.all { (currency, _) -> currency in previousRubPerUnit }) {
+            this
+        } else copy(previousRubPerUnit = previous + previousRubPerUnit)
+    }
+
+    /** A UnionPay reference combines its USD quote with the matching day's CBR rates. */
+    fun dailyTrend(from: Currency, to: Currency, unionPay: UnionPayRates?, previousUnionPay: UnionPayRates?): BigDecimal? {
+        if (from == to) return null
+        val reference = withUnionPay(unionPay)
+        if (!reference.viaUnionPay(from, to)) {
+            val earlier = OfficialRates(date.minusDays(1), previousRubPerUnit)
+            return trendPercent(earlier, from, to)
+        }
+        if (unionPay == null || previousUnionPay?.date != unionPay.date.minusDays(1)) return null
+        val cbrBefore = when {
+            date <= previousUnionPay.date -> this
+            date == unionPay.date -> OfficialRates(previousUnionPay.date, previousRubPerUnit)
+            else -> return null
+        }
+        val earlier = cbrBefore.withUnionPay(previousUnionPay)
+        if (!earlier.viaUnionPay(from, to)) return null
+        return reference.copy(date = unionPay.date).trendPercent(earlier, from, to)
+    }
+
     private fun rub(c: Currency): BigDecimal? = if (c == Currency.RUB) BigDecimal.ONE else rubPerUnit[c]
 
     /**
@@ -76,36 +107,46 @@ object CbrParser {
     private val xmlDate = Regex("""<ValCurs[^>]*\sDate="(\d{2})\.(\d{2})\.(\d{4})"""")
     private val xmlValute = Regex("""<Valute\b[^>]*>(.*?)</Valute>""", RegexOption.DOT_MATCHES_ALL)
     private val jsonDate = Regex(""""Date"\s*:\s*"(\d{4})-(\d{2})-(\d{2})""")
-    private val jsonValute = Regex(
-        """"([A-Z]{3})"\s*:\s*\{[^{}]*?"Nominal"\s*:\s*(\d+)[^{}]*?"Value"\s*:\s*([\d.]+)""",
-    )
+    private val jsonValute = Regex(""""([A-Z]{3})"\s*:\s*\{([^\{\}]*)\}""")
+    private val jsonNominal = jsonField("Nominal")
+    private val jsonValue = jsonField("Value")
+    private val jsonPrevious = jsonField("Previous")
+
+    private fun jsonField(name: String) = Regex(""""$name"\s*:\s*([0-9]+(?:\.[0-9]+)?)""")
+    private fun String?.decimal() = this?.replace(',', '.')?.replace(" ", "")?.toBigDecimalOrNull()
+        ?.takeIf { it.signum() > 0 }
 
     fun parseXml(xml: String): OfficialRates? {
         val d = xmlDate.find(xml) ?: return null
         val date = LocalDate.of(d.groupValues[3].toInt(), d.groupValues[2].toInt(), d.groupValues[1].toInt())
         val rates = HashMap<Currency, BigDecimal>()
+        val previous = HashMap<Currency, BigDecimal>()
         for (m in xmlValute.findAll(xml)) {
             val body = m.groupValues[1]
             val code = tag(body, "CharCode") ?: continue
             val currency = Currency.byCode(code) ?: continue
-            val nominal = tag(body, "Nominal")?.toBigDecimalOrNull() ?: continue
-            val value = tag(body, "Value")?.replace(',', '.')?.replace(" ", "")?.toBigDecimalOrNull() ?: continue
-            if (nominal.signum() > 0) rates[currency] = value.divide(nominal, MC)
+            val nominal = tag(body, "Nominal").decimal() ?: continue
+            val value = tag(body, "Value").decimal() ?: continue
+            rates[currency] = value.divide(nominal, MC)
+            tag(body, "Previous").decimal()?.let { previous[currency] = it.divide(nominal, MC) }
         }
-        return if (rates.isEmpty()) null else OfficialRates(date, rates)
+        return if (rates.isEmpty()) null else OfficialRates(date, rates, previousRubPerUnit = previous)
     }
 
     fun parseJson(json: String): OfficialRates? {
         val d = jsonDate.find(json) ?: return null
         val date = LocalDate.of(d.groupValues[1].toInt(), d.groupValues[2].toInt(), d.groupValues[3].toInt())
         val rates = HashMap<Currency, BigDecimal>()
+        val previous = HashMap<Currency, BigDecimal>()
         for (m in jsonValute.findAll(json)) {
             val currency = Currency.byCode(m.groupValues[1]) ?: continue
-            val nominal = m.groupValues[2].toBigDecimalOrNull() ?: continue
-            val value = m.groupValues[3].toBigDecimalOrNull() ?: continue
-            if (nominal.signum() > 0) rates[currency] = value.divide(nominal, MC)
+            val body = m.groupValues[2]
+            val nominal = jsonNominal.find(body)?.groupValues?.get(1).decimal() ?: continue
+            val value = jsonValue.find(body)?.groupValues?.get(1).decimal() ?: continue
+            rates[currency] = value.divide(nominal, MC)
+            jsonPrevious.find(body)?.groupValues?.get(1).decimal()?.let { previous[currency] = it.divide(nominal, MC) }
         }
-        return if (rates.isEmpty()) null else OfficialRates(date, rates)
+        return if (rates.isEmpty()) null else OfficialRates(date, rates, previousRubPerUnit = previous)
     }
 
     private fun tag(body: String, name: String): String? =

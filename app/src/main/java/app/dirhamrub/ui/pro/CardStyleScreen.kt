@@ -90,7 +90,8 @@ internal fun CardStyleScreen(state: MainUiState, onApply: (String, Int, Int?, Ca
                 } else preset != savedPreset
                 val changed = colorChanged || material != card.material
                 val q = state.quote.of(card.id)
-                val sum = q?.let { Numbers.total(state.totals.spend.multiply(it.homePerUnit, MC), state.settings.rounding) }
+                val sum = q?.let { Numbers.total(state.totals.spend.multiply(it.homePerUnit, MC), state.settings.rounding,
+                    state.wallet.home.digits.coerceAtLeast(2)) }
                 val focus = LocalFocusManager.current
                 val reflectionTilt = rememberReflectionTilt(active = !isClosing)
                 val reduce = LocalReduceMotion.current

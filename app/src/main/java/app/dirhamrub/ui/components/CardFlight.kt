@@ -60,6 +60,7 @@ fun Modifier.flightOrigin(id: String): Modifier = composed {
  */
 class CardMorph(val origin: Rect, val cardId: String, initialProgress: Float = 0f) {
     var target by mutableStateOf<Rect?>(null)
+    internal var targetMeasured by mutableStateOf(false)
     var card by mutableStateOf<(@Composable (textAlpha: () -> Float) -> Unit)?>(null)
     internal val progress = Animatable(initialProgress)
     internal var closing by mutableStateOf(false)

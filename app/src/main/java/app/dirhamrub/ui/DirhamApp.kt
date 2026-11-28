@@ -1,6 +1,5 @@
 package app.dirhamrub.ui
 
-import kotlinx.coroutines.delay
 import app.dirhamrub.widget.QuoteWidget
 import app.dirhamrub.ui.pro.ProScreen
 import app.dirhamrub.domain.AppIcon
@@ -60,6 +59,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalFocusManager
@@ -104,6 +104,8 @@ import app.dirhamrub.ui.settings.SettingsScreen
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import java.math.BigDecimal
+import app.dirhamrub.domain.wallet.Wallet
+import app.dirhamrub.domain.wallet.WalletCodec
 import kotlin.math.hypot
 
 /** Карта в редакторе: новая или существующая; [addPurchase] — сразу добавить чек покупки в этой валюте. */
@@ -117,6 +119,21 @@ private data class Editing(
     val scan: Boolean = false,
     val fromOnboarding: Boolean = false,
     val onboardingAmount: BigDecimal? = null,
+)
+
+private val editingSaver = listSaver<Editing?, String>(
+    save = { edit ->
+        if (edit == null) emptyList() else listOf(
+            WalletCodec.encode(Wallet(cards = listOf(edit.card))), edit.isNew.toString(), edit.addPurchase?.code.orEmpty(),
+            edit.scan.toString(), edit.fromOnboarding.toString(), edit.onboardingAmount?.toPlainString().orEmpty(),
+        )
+    },
+    restore = { data ->
+        WalletCodec.decode(data[0])?.cards?.singleOrNull()?.let { card ->
+            Editing(card, data[1].toBoolean(), Currency.byCode(data[2]), scan = data[3].toBoolean(),
+                fromOnboarding = data[4].toBoolean(), onboardingAmount = data[5].toBigDecimalOrNull())
+        }
+    },
 )
 
 /** Страна сотовой сети («KZ»); без SIM, в авиарежиме или на планшете — null. Интернет не нужен. */
@@ -164,11 +181,11 @@ fun DirhamApp(
     var onboardingForced by rememberSaveable { mutableStateOf(startScreen == MainActivity.SCREEN_ONBOARDING) }
     // Знакомство открыли повторно из настроек: валюту трат по стране сети уже не подставляем.
     var onboardingReshown by rememberSaveable { mutableStateOf(false) }
-    var editing by remember { mutableStateOf<Editing?>(null) }
+    var editing by rememberSaveable(stateSaver = editingSaver) { mutableStateOf<Editing?>(null) }
     var cameraOrigin by remember { mutableStateOf<Offset?>(null) }
     // Pro: ярлыки «Чек из скриншота» и «Вернуться в …» — сразу после загрузки.
     LaunchedEffect(state.loaded) {
-        if (!state.loaded || !state.settings.pro) return@LaunchedEffect
+        if (!state.loaded || !state.settings.pro || editing != null) return@LaunchedEffect
         when (startScreen) {
             MainActivity.SCREEN_SCAN -> editing = Editing(vm.newCard(), isNew = true, scan = true)
             MainActivity.SCREEN_SPEND -> Currency.entries.firstOrNull { it.code == startCurrency }?.let { vm.setSpend(it) }
@@ -176,7 +193,7 @@ fun DirhamApp(
     }
     // Скриншоты CI: сразу редактор выбранной карты.
     LaunchedEffect(state.loaded) {
-        if (state.loaded && startScreen == MainActivity.SCREEN_EDITOR) {
+        if (state.loaded && editing == null && startScreen == MainActivity.SCREEN_EDITOR) {
             if (startCard == MainActivity.CARD_NEW) {
                 editing = Editing(vm.newCard(), isNew = true)
             } else {
@@ -185,6 +202,11 @@ fun DirhamApp(
         }
     }
     val context = LocalContext.current
+    LaunchedEffect(vm, context) {
+        vm.storageErrors.collect {
+            android.widget.Toast.makeText(context, R.string.editor_storage_failed, android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
     // Страну сети перечитываем при каждом возвращении в приложение: прилетели — подсказка уже на месте.
     var country by remember { mutableStateOf<String?>(null) }
     // Страну сети уже прочитали (null после этого — российская SIM или её нет).
@@ -202,6 +224,10 @@ fun DirhamApp(
         // DataStore читается за доли секунды; до этого — пустой фон без мигания чисел.
         Box(Modifier.fillMaxSize().background(AppTheme.colors.bg))
         return
+    }
+
+    LaunchedEffect(vm, context) {
+        vm.widgetUpdates.collect { QuoteWidget.refresh(context.applicationContext) }
     }
 
     LaunchedEffect(incomingScreen, state.loaded) {
@@ -364,6 +390,7 @@ fun DirhamApp(
             country = country,
             selectedPlaceIso = state.wallet.place,
             official = state.reference,
+            backEnabled = currenciesOpen,
         )
     }
     // Настройки — экран поверх главного, въезжает справа.
@@ -372,7 +399,7 @@ fun DirhamApp(
         enter = if (reduceMotion) EnterTransition.None else Springs.sideIn,
         exit = if (reduceMotion) ExitTransition.None else Springs.sideOut,
     ) {
-        BackHandler { settingsOpen = false }
+        BackHandler(enabled = settingsOpen) { settingsOpen = false }
         SettingsScreen(
             state = state,
             actions = SettingsActions(
@@ -405,7 +432,7 @@ fun DirhamApp(
         enter = if (reduceMotion) EnterTransition.None else Springs.screenIn,
         exit = if (reduceMotion) ExitTransition.None else Springs.screenOut,
     ) {
-        BackHandler { moneyOpen = false }
+        BackHandler(enabled = moneyOpen) { moneyOpen = false }
         MoneyScreen(
             state = state,
             reflectLight = moneyOpen && !showOnboarding && editing == null && !cameraOpen && !cameraFromTile && !proOpen && !cardStyleOpen,
@@ -491,11 +518,6 @@ fun DirhamApp(
             ProFeatures.applyAppIcon(context, if (pro) state.settings.appIcon else AppIcon.CLASSIC)
         }
         LaunchedEffect(Unit) { ProFeatures.retireShortcuts(context) }
-        LaunchedEffect(pro, state.wallet, state.reference) {
-            // Кошелёк сохраняется чуть позже — виджет перечитывает его после паузы.
-            delay(WIDGET_REFRESH_DELAY_MS)
-            QuoteWidget.refresh(context)
-        }
         LaunchedEffect(Unit) {
             val cutoff = System.currentTimeMillis()
             withContext(Dispatchers.IO) {
@@ -509,9 +531,10 @@ fun DirhamApp(
     } // Transition input and semantics
     } // AnimatedContent
     editing?.let { e ->
-      key(e) {
+      key(e.card.id) {
         val editorState by vm.state.collectAsStateWithLifecycle()
-        val (editorSpend, editorHome) = remember(e) { state.wallet.spend to state.wallet.home }
+        val editorSpend = rememberSaveable { state.wallet.spend }
+        val editorHome = rememberSaveable { state.wallet.home }
         CardEditorScreen(
             card = e.card,
             isNew = e.isNew,
@@ -521,21 +544,22 @@ fun DirhamApp(
             unionPay = state.unionPay,
             cards = state.wallet.cards,
             onSave = { card, images, staleShots ->
-                if (e.fromOnboarding) {
-                    completionCardId = null
-                    finishOnboarding(card, e.onboardingAmount ?: card.purchaseFor(editorSpend)?.price)
-                } else vm.saveCard(card)
-                if (images.isNotEmpty() || staleShots.isNotEmpty()) ioScope.launch {
-                    ReceiptShots.update(context.applicationContext, card.id, images, staleShots)
+                val saved = vm.saveCard(card)
+                if (saved) {
+                    if (e.fromOnboarding) {
+                        completionCardId = null
+                        finishOnboarding(card, e.onboardingAmount ?: card.purchaseFor(editorSpend)?.price)
+                    }
+                    if (images.isNotEmpty() || staleShots.isNotEmpty()) ioScope.launch {
+                        ReceiptShots.update(context.applicationContext, card.id, images, staleShots)
+                    }
                 }
-                editing = null
-                cardFlight.flying = null
+                saved
             },
             onDelete = {
-                vm.deleteCard(e.card.id)
-                ioScope.launch { ReceiptShots.deleteCard(context.applicationContext, e.card.id) }
-                editing = null
-                cardFlight.flying = null
+                val deleted = vm.deleteCard(e.card.id)
+                if (deleted) ioScope.launch { ReceiptShots.deleteCard(context.applicationContext, e.card.id) }
+                deleted
             },
             onDismiss = {
                 editing = null
@@ -603,4 +627,3 @@ private class CircleReveal(private val center: Offset, private val radius: Float
 private val START_RADIUS = 24.dp
 
 /** Через сколько после изменения кошелька обновить виджет (кошелёк к этому времени сохранён). */
-private const val WIDGET_REFRESH_DELAY_MS = 1500L

@@ -368,7 +368,8 @@ private fun RoundAction(
 }
 
 /** Сумма для показа по настройке округления: «3 706», «3 710», «3 706,06»; меньше 10 — с копейками. */
-private fun big(value: BigDecimal, rounding: Rounding): String = Numbers.total(value, rounding)
+private fun big(value: BigDecimal, rounding: Rounding, currency: Currency): String =
+    Numbers.total(value, rounding, currency.digits.coerceAtLeast(2))
 
 /** Приблизительный ли курс выбранного способа (оценка, UnionPay, ЦБ или карт нет вовсе). */
 private fun approxNow(state: MainUiState): Boolean =
@@ -384,10 +385,14 @@ private fun Hero(state: MainUiState, short: Boolean, airy: Boolean, onSelectLine
     val colors = AppTheme.colors
     val homeInput = state.active == Line.HOME
     val currency = if (homeInput) state.wallet.spend else state.wallet.home
-    val value = if (homeInput) state.totals.spend else state.totals.home
+    val value = if (homeInput) state.displaySpend else state.totals.home
     val empty = state.expression.isEmpty || value == null
     val approx = !empty && approxNow(state)
-    val number = if (empty) "0" else big(value!!, state.settings.rounding)
+    val number = when {
+        value == null && (!state.expression.isEmpty || state.pendingConversion != null) -> "—"
+        empty -> "0"
+        else -> big(value, state.settings.rounding, currency)
+    }
     // Самая крупная строка — единственное место, где валюта знаком у любой валюты, у которой он есть («800 ֏»):
     // крупно знак смотрится лучше кода. Везде ещё — код ([Currency.mark]); TalkBack читает код.
     val sign = currency.sign
@@ -528,7 +533,7 @@ private fun PriceField(state: MainUiState) {
     val homeInput = state.active == Line.HOME
     val currency = if (homeInput) state.wallet.home else state.wallet.spend
     val label = stringResource(if (homeInput) R.string.field_home_input else R.string.field_price)
-    val value = state.activeText
+    val value = if (state.pendingConversion != null && state.expression.isEmpty) "—" else state.activeText
     val a11y = stringResource(R.string.field_a11y, label, value, currency.code)
     val shape = RoundedCornerShape(18.dp)
     Column(
@@ -667,7 +672,7 @@ private fun PayRow(
     val homeInput = state.active == Line.HOME
     val amount = state.totals.spend
     // Отрицательный итог («100 − 250») картам не сумма: показываем их курсы.
-    val hasAmount = !state.expression.isEmpty && amount.signum() > 0
+    val hasAmount = !state.expression.isEmpty && if (homeInput) state.expression.value.signum() > 0 else amount.signum() > 0
     val rounding = state.settings.rounding
     val approx = q != null && (q.basis.approximate || q.basis == RateBasis.OFFICIAL)
     val network = networkName(card.paymentNetwork)
@@ -684,25 +689,28 @@ private fun PayRow(
             val spend = if (q.homePerUnit.signum() == 0) BigDecimal.ZERO else home.divide(q.homePerUnit, MC)
             val bestSpend = best?.homePerUnit?.takeIf { it.signum() != 0 }?.let { home.divide(it, MC) }
             // Разница — из показанных сумм, чтобы сходилась с ними на экране.
-            val less = bestSpend?.let { Numbers.rounded(it, rounding).subtract(Numbers.rounded(spend, rounding)) }
+            val digits = wallet.spend.digits.coerceAtLeast(2)
+            val less = bestSpend?.let { Numbers.rounded(it, rounding, digits).subtract(Numbers.rounded(spend, rounding, digits)) }
                 ?.takeIf { !isBest && it.signum() > 0 }
             sub = when {
                 isBest -> stringResource(R.string.pay_best_most)
-                less != null -> join(network, stringResource(R.string.pay_less, Numbers.saving(less) + " " + wallet.spend.code)) ?: ""
+                less != null -> join(network, stringResource(R.string.pay_less, Numbers.saving(less, digits) + " " + wallet.spend.code)) ?: ""
                 else -> network ?: ""
             }
-            right = (if (approx) "≈ " else "") + big(spend, state.settings.rounding) + " " + wallet.spend.code
+            right = (if (approx) "≈ " else "") + big(spend, state.settings.rounding, wallet.spend) + " " + wallet.spend.code
         }
         hasAmount -> {
+            val digits = wallet.home.digits.coerceAtLeast(2)
             val dearer = best?.let {
-                Numbers.rounded(amount.multiply(q.homePerUnit, MC), rounding).subtract(Numbers.rounded(amount.multiply(it.homePerUnit, MC), rounding))
+                Numbers.rounded(amount.multiply(q.homePerUnit, MC), rounding, digits)
+                    .subtract(Numbers.rounded(amount.multiply(it.homePerUnit, MC), rounding, digits))
             }?.takeIf { !isBest && it.signum() > 0 }
             sub = when {
                 isBest -> stringResource(R.string.pay_best)
-                dearer != null -> join(network, stringResource(R.string.pay_dearer, Numbers.saving(dearer) + " " + wallet.home.mark)) ?: ""
+                dearer != null -> join(network, stringResource(R.string.pay_dearer, Numbers.saving(dearer, digits) + " " + wallet.home.mark)) ?: ""
                 else -> network ?: ""
             }
-            right = (if (approx) "≈ " else "") + big(amount.multiply(q.homePerUnit, MC), state.settings.rounding) + " " + wallet.home.mark
+            right = (if (approx) "≈ " else "") + big(amount.multiply(q.homePerUnit, MC), state.settings.rounding, wallet.home) + " " + wallet.home.mark
         }
         else -> {
             // Ничего не набрано: курс способа и когда пополняли.

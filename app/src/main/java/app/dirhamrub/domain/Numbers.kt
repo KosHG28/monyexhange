@@ -37,8 +37,8 @@ object Numbers {
     }
 
     /** Деньги: 2 знака, целые суммы без дробной части. 511.276 → «511,28», 8507 → «8 507». */
-    fun money(value: BigDecimal): String {
-        val rounded = value.setScale(2, RoundingMode.HALF_UP)
+    fun money(value: BigDecimal, fractionDigits: Int = 2): String {
+        val rounded = value.setScale(fractionDigits, RoundingMode.HALF_UP)
         return if (rounded.remainder(BigDecimal.ONE).signum() == 0) {
             format(rounded.setScale(0, RoundingMode.HALF_UP))
         } else {
@@ -50,15 +50,15 @@ object Numbers {
      * Итог по настройке округления: без округления — с копейками («3 706,06»); до целых — целыми,
      * а меньше 10 — с копейками («3 706», «5,40»); до десятков — до ближайших 10 («3 710»), меньше 10 — как до целых.
      */
-    fun total(value: BigDecimal, rounding: Rounding): String =
-        if (rounding == Rounding.NONE || value.abs() < TEN) money(value) else moneyWhole(rounded(value, rounding))
+    fun total(value: BigDecimal, rounding: Rounding, fractionDigits: Int = 2): String =
+        if (rounding == Rounding.NONE || value.abs() < TEN) money(value, fractionDigits) else moneyWhole(rounded(value, rounding))
 
     /**
      * Сумма так, как её показывает [total], — числом: разницу между картами считаем из показанных сумм,
      * чтобы «на 43 ₽ дороже» сходилось с «3 749» и «3 706» на экране.
      */
-    fun rounded(value: BigDecimal, rounding: Rounding): BigDecimal = when {
-        rounding == Rounding.NONE || value.abs() < TEN -> value.setScale(2, RoundingMode.HALF_UP)
+    fun rounded(value: BigDecimal, rounding: Rounding, fractionDigits: Int = 2): BigDecimal = when {
+        rounding == Rounding.NONE || value.abs() < TEN -> value.setScale(fractionDigits, RoundingMode.HALF_UP)
         rounding == Rounding.TENS -> value.divide(TEN).setScale(0, RoundingMode.HALF_UP).multiply(TEN)
         else -> value.setScale(0, RoundingMode.HALF_UP)
     }
@@ -85,8 +85,8 @@ object Numbers {
         if (value.abs() < THOUSAND) money2(value) else moneyWhole(value)
 
     /** Разница между картами: меньше 10 — с копейками («0,54», «5»), дальше — целыми («11», «132»). */
-    fun saving(value: BigDecimal): String =
-        if (value.abs() < TEN) money(value) else moneyWhole(value)
+    fun saving(value: BigDecimal, fractionDigits: Int = 2): String =
+        if (value.abs() < TEN) money(value, fractionDigits) else moneyWhole(value)
 
     /** Процент с одним знаком: «3,4». */
     fun percent(value: BigDecimal): String = format(stripZeros(value.setScale(1, RoundingMode.HALF_UP)))
@@ -120,12 +120,21 @@ object Numbers {
      * разряды поле показывает само. «15 000.5» → «15000,5», «,5» → «0,5».
      */
     fun cleanInput(text: String): String {
+        val dot = text.lastIndexOf('.')
+        val commaIndex = text.lastIndexOf(',')
+        // In a pasted amount with both separators, the rightmost one is decimal.
+        val decimal = if (dot >= 0 && commaIndex >= 0) maxOf(dot, commaIndex) else -1
+        val separator = if (dot >= 0) '.' else ','
+        if (decimal < 0 && text.indexOf(separator) < maxOf(dot, commaIndex)) {
+            val groups = text.filter { it.isDigit() || it == separator }.split(separator)
+            if (groups.first().length in 1..3 && groups.drop(1).all { it.length == 3 }) return groups.joinToString("")
+        }
         val out = StringBuilder()
         var comma = false
-        for (ch in text) {
+        for ((index, ch) in text.withIndex()) {
             when {
                 ch.isDigit() -> out.append(ch)
-                (ch == ',' || ch == '.') && !comma -> {
+                (ch == ',' || ch == '.') && !comma && (decimal < 0 || index == decimal) -> {
                     comma = true
                     out.append(if (out.isEmpty()) "0," else ",")
                 }

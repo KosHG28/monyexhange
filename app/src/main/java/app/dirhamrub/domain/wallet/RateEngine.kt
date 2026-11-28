@@ -74,8 +74,9 @@ data class WalletQuote(
     val viaUnionPay: Boolean = false,
 ) {
     val best: CardQuote? by lazy(LazyThreadSafetyMode.PUBLICATION) { quotes.minByOrNull { it.homePerUnit } }
+    private val byId by lazy(LazyThreadSafetyMode.PUBLICATION) { quotes.associateBy { it.card.id } }
 
-    fun of(id: String?): CardQuote? = quotes.firstOrNull { it.card.id == id }
+    fun of(id: String?): CardQuote? = id?.let(byId::get)
 
     /** Выбранная карта против самой дешёвой из остальных; null, если карта одна или не выбрана. */
     fun compare(selectedId: String?): CardComparison? {

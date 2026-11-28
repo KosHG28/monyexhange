@@ -29,7 +29,7 @@ object BankImport {
     private val credit = Regex("(?iuU)^\\s*(?:зачислено|получено|пришло|received|credited)\\b")
     private val fee = Regex("(?iuU)^\\s*(?:комиссия|fee)\\b")
     private val includedFee = Regex("""(?iuU)\b(?:с\s+уч[её]том\s+комиссии|включая\s+комиссию|комиссия\s+включена|including\s+(?:the\s+)?fee|incl\.?\s+fee|fee\s+included)\b""")
-    private val unsuccessful = Regex("""(?iuU)\b(?:отклонен[аоы]?|отмен[её]н[аоы]?|не\s+выполнен[аоы]?|не\s+прош[её]л|не\s+прошла|неуспешн\p{L}*|в\s+обработке|declined|failed|unsuccessful|cancelled|canceled|pending)\b""")
+    private val unsuccessful = Regex("""(?iuU)\b(?:отклон[её]н[аоы]?|отмен[её]н[аоы]?|отказано|не\s+(?:выполнен|провед[её]н|соверш[её]н|подтвержд[её]н)[аоы]?|не\s+прош[её]л|не\s+прошла|неуспешн\p{L}*|в\s+обработке|declined|failed|unsuccessful|cancelled|canceled|pending)\b""")
     private val datePattern = Regex("""\b(\d{1,2})[./](\d{1,2})[./](\d{4})\b|\b(\d{4})-(\d{2})-(\d{2})\b""")
 
     private fun operation(text: String): BankOperation = when {
@@ -43,9 +43,16 @@ object BankImport {
         val groups = mutableListOf<IntRange>()
         var first = 0
         for ((index, line) in lines.withIndex()) {
-            if (index <= first || operation(line) == BankOperation.UNKNOWN) continue
-            // Some bank screenshots repeat the operation name in a status line below the amounts.
-            if (unsuccessful.containsMatchIn(line) && ReceiptScanner.amounts(listOf(line)).isEmpty()) continue
+            val kind = operation(line)
+            if (index <= first || kind == BankOperation.UNKNOWN) continue
+            // A repeated failure status can include the original amount. In ambiguous cases,
+            // block the preceding receipt rather than importing an unsuccessful operation.
+            if (kind != BankOperation.REFUND && unsuccessful.containsMatchIn(line)) {
+                val amounts = ReceiptScanner.amounts(listOf(line))
+                if (amounts.isEmpty()) continue
+                val preceding = ReceiptScanner.amounts(lines.subList(first, index))
+                if (amounts.any { a -> preceding.any { it.currency == a.currency && it.amount.compareTo(a.amount) == 0 } }) continue
+            }
             groups += first until index
             first = index
         }

@@ -81,6 +81,9 @@ internal class PaymentDrag(private val initial: List<String>) {
 
 internal fun List<String>.moved(from: Int, to: Int): List<String> = toMutableList().apply { add(to, removeAt(from)) }
 
+internal fun frameScrollDistance(previous: Long, now: Long, pixelsPerSecond: Float): Float =
+    ((now - previous) / 1_000_000_000f).coerceIn(0f, 0.032f) * pixelsPerSecond
+
 /** The list owns the gesture and scrolls the common viewport while a card is held near an edge. */
 @Composable
 internal fun Modifier.paymentDragGesture(
@@ -94,10 +97,14 @@ internal fun Modifier.paymentDragGesture(
     val commit by rememberUpdatedState(onReorder)
     val density = LocalDensity.current
     val edge = with(density) { 34.dp.toPx() }
-    val step = with(density) { 7.dp.toPx() }
-    LaunchedEffect(drag, drag.dragged, edge, step) {
+    val speed = with(density) { 420.dp.toPx() }
+    LaunchedEffect(drag, drag.dragged, edge, speed) {
+        if (drag.dragged == null) return@LaunchedEffect
+        var previous = withFrameNanos { it }
         while (drag.dragged != null) {
-            withFrameNanos {
+            withFrameNanos { now ->
+                val step = frameScrollDistance(previous, now, speed)
+                previous = now
                 val delta = drag.edgeScroll(edge, step)
                 if (delta != 0f) drag.dragBy(scroll.dispatchRawDelta(delta))
             }

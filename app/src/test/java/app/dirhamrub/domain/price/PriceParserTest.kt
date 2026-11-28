@@ -431,4 +431,16 @@ class PriceParserTest {
         assertEquals(setOf("39.00"), prices.filterNot { it.isOld }.map { it.value.toPlainString() }.toSet())
     }
 
+    @Test fun `aligned currency on a separate OCR line belongs to the price`() {
+        val block = OcrBlock(listOf(
+            OcrLine(listOf(OcrWord("USD", Box(50f, 50f, 85f, 75f)))),
+            OcrLine(listOf(OcrWord("19.99", Box(50f, 82f, 125f, 110f)))),
+        ))
+        assertTrue(parser.parse(livePriceBlocks(listOf(block), Currency.AED)).isEmpty())
+        val price = photoPrices(listOf(block), Currency.AED, null).single()
+        assertEquals(Currency.USD, price.currency)
+        assertEquals(BigDecimal("19.99"), price.candidate.value)
+        assertTrue(price.needsReview)
+    }
+
 }

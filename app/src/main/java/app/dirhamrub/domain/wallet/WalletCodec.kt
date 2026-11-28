@@ -178,6 +178,11 @@ object WalletCodec {
         }
     }
 
+    internal fun encodeTransfer(receipt: TransferReceipt): String =
+        store(Properties().apply { putTransfer(this, "", receipt) })
+
+    internal fun decodeTransfer(text: String): TransferReceipt? = load(text)?.let { transfer(it, "") }
+
     /** Курсы UnionPay: «CNY.LKR=0.02015521» — сколько валюты расчёта за 1 единицу валюты покупки. */
     fun encodeUnionPay(rates: UnionPayRates): String {
         val p = Properties()
@@ -217,20 +222,25 @@ object WalletCodec {
     fun decodeHistory(text: String?): Map<LocalDate, OfficialRates> {
         if (text.isNullOrEmpty()) return emptyMap()
         val p = load(text) ?: return emptyMap()
-        val out = HashMap<LocalDate, OfficialRates>()
+        val dates = HashMap<String, LocalDate>()
+        val groups = HashMap<String, MutableMap<Currency, BigDecimal>>()
         for (name in p.stringPropertyNames()) {
-            if (!name.endsWith(".date")) continue
-            val key = name.removeSuffix(".date")
-            val day = runCatching { LocalDate.parse(key) }.getOrNull() ?: continue
-            val date = p.date(name) ?: continue
-            val rates = p.stringPropertyNames().filter { it.startsWith("$key.rub.") }.mapNotNull { n ->
-                val c = Currency.byCode(n.removePrefix("$key.rub.")) ?: return@mapNotNull null
-                val v = p.decimal(n) ?: return@mapNotNull null
-                c to v
-            }.toMap()
-            if (rates.isNotEmpty()) out[day] = OfficialRates(date, rates)
+            val separator = name.indexOf('.')
+            if (separator < 0) continue
+            val key = name.substring(0, separator)
+            if (name.endsWith(".date") && name.length == separator + 5) {
+                p.date(name)?.let { dates[key] = it }
+            } else if (name.startsWith(".rub.", separator)) {
+                val currency = Currency.byCode(name.substring(separator + 5)) ?: continue
+                val value = p.decimal(name) ?: continue
+                groups.getOrPut(key) { HashMap() }[currency] = value
+            }
         }
-        return out
+        return dates.entries.mapNotNull { (key, date) ->
+            val rates = groups[key] ?: return@mapNotNull null
+            val day = runCatching { LocalDate.parse(key) }.getOrNull() ?: return@mapNotNull null
+            day to OfficialRates(date, rates)
+        }.toMap()
     }
 
     internal fun store(p: Properties): String = StringWriter().also { p.store(it, null) }.toString()

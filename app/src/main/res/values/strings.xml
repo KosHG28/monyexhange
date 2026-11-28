@@ -109,6 +109,7 @@
     <string name="widget_cbr">По курсу ЦБ — карт пока нет</string>
     <string name="widget_no_rate">Нет курса — откройте приложение</string>
     <string name="saved_a11y">Сохранено</string>
+    <string name="editor_saving">Сохраняем…</string>
     <string name="nfc_title">Приложите карту к задней панели</string>
     <string name="nfc_sub">Определим платёжную систему и валюту карты. Номер карты не читаем и не сохраняем.</string>
     <string name="nfc_disabled">NFC выключен</string>
@@ -287,10 +288,10 @@
     <string name="settings_cbr_empty">Нажмите «Обновить»</string>
     <string name="settings_badge_week">7д</string>
     <string name="settings_week">Неделю назад</string>
-    <string name="settings_week_sub">Для индикатора «↑ % за неделю»</string>
+    <string name="settings_week_sub">Архив ЦБ по кнопке «Обновить»</string>
     <string name="settings_receipts">На даты чеков</string>
     <string name="settings_badge_receipts">Чек</string>
-    <string name="settings_receipts_auto">Загружаются автоматически для старых чеков</string>
+    <string name="settings_receipts_auto">Архив для старых чеков по кнопке «Обновить»</string>
     <string name="settings_badge_unionpay">UP</string>
     <string name="settings_unionpay">UnionPay</string>
     <string name="settings_refresh">Обновить</string>
@@ -462,6 +463,9 @@
     <string name="purchases_empty">Пока чеков нет — ориентируемся на курс ЦБ (≈)</string>
     <string name="purchases_add_first">+ Добавить первый чек</string>
     <string name="exchange_new">+ Новый обмен</string>
+    <string name="withdrawal_new">+ Новое снятие</string>
+    <string name="editor_storage_failed">Не удалось записать изменения. Попробуйте ещё раз.</string>
+    <string name="editor_manual_invalid">Введите ручной курс больше нуля.</string>
     <string name="editor_result_why_bought">%1$s — по курсу ЦБ. Укажите, почём покупали, — станет точно</string>
     <string name="season_ru_title">Зимнее настроение</string>
     <string name="season_ru_description">Снежная зима в России выглядит по-разному: на севере она длиннее, на юге может быть совсем без снега.</string>

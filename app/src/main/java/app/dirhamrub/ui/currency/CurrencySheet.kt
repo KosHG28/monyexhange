@@ -180,6 +180,7 @@ fun CountryScreen(
     country: String? = null,
     official: OfficialRates? = null,
     selectedPlaceIso: String? = null,
+    backEnabled: Boolean = true,
 ) {
     val colors = AppTheme.colors
     val keyboard = LocalSoftwareKeyboardController.current
@@ -201,7 +202,7 @@ fun CountryScreen(
         withTimeoutOrNull(1200) { snapshotFlow { ime.getBottom(density) }.first { it == 0 } }
         currentBack()
     }
-    BackHandler { closeAfterKeyboard() }
+    BackHandler(enabled = backEnabled) { closeAfterKeyboard() }
     var query by rememberSaveable { mutableStateOf("") }
     val cascade = rememberCascade()
     Column(

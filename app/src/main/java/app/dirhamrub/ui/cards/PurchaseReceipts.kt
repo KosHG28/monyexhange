@@ -12,10 +12,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +33,7 @@ import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
 import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.OfficialRates
+import app.dirhamrub.domain.wallet.PurchaseReceipt
 import app.dirhamrub.domain.wallet.ReceiptCheck
 import app.dirhamrub.ui.main.signedPercent
 import java.math.BigDecimal
@@ -46,87 +47,72 @@ internal class PurchaseDraft(val key: Int, spend: Currency, paid: String, price:
     var paid by mutableStateOf(paid)
     var price by mutableStateOf(price)
     var date by mutableStateOf(date)
-    var imported by mutableStateOf(false)
+
+    val receipt by derivedStateOf {
+        val paid = Numbers.parse(this.paid)?.takeIf { it.signum() > 0 }
+        val price = Numbers.parse(this.price)?.takeIf { it.signum() > 0 }
+        if (paid == null || price == null) null else PurchaseReceipt(this.spend, paid, price, this.date)
+    }
 }
 
-/**
- * Чеки покупок карты в разных валютах трат: «Списали [55 ¥]» и «За [10 000 ₩ ⌄]» (валюту покупки выбирают
- * в самом поле), курс по чеку; ниже — «+ Чек покупки» и подсказка [hint]. Чеков нет — заглушка с крупной кнопкой.
- */
 @Composable
-internal fun PurchaseReceipts(
-    purchases: SnapshotStateList<PurchaseDraft>,
-    /** Подсветить ошибки в чеках (нажали «Сохранить»). */
+internal fun PurchaseReceiptFields(
+    draft: PurchaseDraft,
     showErrors: Boolean,
-    /** Курсы ЦБ — заметить опечатку в суммах чека. */
     official: OfficialRates?,
     cardCurrency: Currency,
     spend: Currency,
     pick: String,
-    hint: String?,
-    usesUnionPayRate: Boolean,
-    onAdd: () -> Unit,
+    onRemove: () -> Unit,
 ) {
+    val d = draft
     val colors = AppTheme.colors
     val type = AppTheme.type
-    SubTitle(stringResource(R.string.receipt_purchases))
-    if (purchases.isEmpty()) {
-        val message = if (usesUnionPayRate) R.string.purchases_empty_unionpay else R.string.purchases_empty
-        EmptyReceipts(stringResource(message), stringResource(R.string.purchases_add_first), onAdd)
-        return
-    }
-    purchases.forEachIndexed { i, d ->
-        if (i > 0) Spacer(Modifier.height(10.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                d.spend.nameRu,
-                style = type.caption,
-                color = colors.muted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).padding(start = 2.dp),
-            )
-            val remove = stringResource(R.string.receipt_remove)
-            Icon(
-                painterResource(R.drawable.ic_close),
-                contentDescription = remove,
-                tint = colors.muted,
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .clickable(role = Role.Button) { purchases.remove(d) }
-                    .padding(11.dp),
-            )
-        }
-        val paidLabel = stringResource(R.string.receipt_paid)
-        val forLabel = stringResource(R.string.receipt_for)
-        FieldPair(
-            first = { m ->
-                AmountField(
-                    paidLabel, d.paid, { d.paid = it }, paidLabel, m,
-                    imeAction = ImeAction.Next,
-                    error = amountError(showErrors, d.paid, d.price),
-                    trailing = { FieldSuffix(cardCurrency.receiptMark) },
-                )
-            },
-            second = { m ->
-                AmountField(
-                    forLabel, d.price, { d.price = it }, forLabel, m,
-                    error = amountError(showErrors, d.price, d.paid),
-                    trailing = { CurrencyDropdown(d.spend, (listOf(spend, d.spend) + Currency.POPULAR).distinct(), { d.spend = it }, pick, Currency.entries) },
-                    selectable = true,
-                )
-            },
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            d.spend.nameRu,
+            style = type.caption,
+            color = colors.muted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(start = 2.dp),
         )
-        val paid = Numbers.parse(d.paid)?.takeIf { it.signum() > 0 }
-        val price = Numbers.parse(d.price)?.takeIf { it.signum() > 0 }
-        if (paid != null && price != null) {
-            ReceiptRate(Numbers.transferRate(paid.divide(price, MC), cardCurrency.receiptMark, d.spend.receiptMark))
-            ReceiptTypo(paid, price, official?.cross(d.spend, cardCurrency))
-        }
+        val remove = stringResource(R.string.receipt_remove)
+        Icon(
+            painterResource(R.drawable.ic_close),
+            contentDescription = remove,
+            tint = colors.muted,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable(role = Role.Button, onClick = onRemove)
+                .padding(11.dp),
+        )
     }
-    AddAction(stringResource(R.string.receipt_add), onAdd)
-    hint?.let { Hint(it) }
+    val paidLabel = stringResource(R.string.receipt_paid)
+    val forLabel = stringResource(R.string.receipt_for)
+    FieldPair(
+        first = { m ->
+            AmountField(
+                paidLabel, d.paid, { d.paid = it }, paidLabel, m,
+                imeAction = ImeAction.Next,
+                error = amountError(showErrors, d.paid, d.price),
+                trailing = { FieldSuffix(cardCurrency.receiptMark) },
+            )
+        },
+        second = { m ->
+            AmountField(
+                forLabel, d.price, { d.price = it }, forLabel, m,
+                error = amountError(showErrors, d.price, d.paid),
+                trailing = { CurrencyDropdown(d.spend, (listOf(spend, d.spend) + Currency.POPULAR).distinct(), { d.spend = it }, pick, Currency.entries) },
+                selectable = true,
+            )
+        },
+    )
+    d.receipt?.let { (_, paid, price) ->
+        ReceiptRate(Numbers.transferRate(paid.divide(price, MC), cardCurrency.receiptMark, d.spend.receiptMark))
+        ReceiptTypo(paid, price, official?.cross(d.spend, cardCurrency))
+    }
 }
 
 /** Сумма в поле есть и она больше нуля. */

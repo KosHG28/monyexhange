@@ -22,6 +22,7 @@ class MarketRefreshTest {
     private class Sources : RateSources {
         var calls = 0
         var unionPayCalls = 0
+        var unionPayResult: CompletableDeferred<UnionPayRates?>? = null
         var fail = false
         val result = CompletableDeferred<CbrClient.Fetched?>()
         override suspend fun official(): CbrClient.Fetched? { calls++; if (fail) throw java.io.IOException("offline"); return result.await() }
@@ -33,7 +34,7 @@ class MarketRefreshTest {
         }
         override suspend fun unionPay(): UnionPayRates? {
             unionPayCalls++
-            return null
+            return unionPayResult?.await()
         }
         override suspend fun guide(): Pair<String, CountryGuides>? = null
     }
@@ -162,6 +163,57 @@ class MarketRefreshTest {
             runCurrent()
             assertTrue(source.archiveRequests.containsAll(days))
             assertNotNull(vm.state.value.ratesHistory[available])
+        } finally { store.clear(); runCurrent(); Dispatchers.resetMain() }
+    }
+
+    @Test fun `UnionPay keeps the manual refresh busy and cannot replace a newer table`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        Dispatchers.setMain(dispatcher)
+        val store = ViewModelStore()
+        try {
+            val previous = UnionPayRates(day, mapOf(Currency.RUB to mapOf(Currency.EUR to BigDecimal("91"))))
+            val up = MemoryPreferences(preferencesOf(
+                stringPreferencesKey("unionpay_rates") to WalletCodec.encodeUnionPay(previous),
+                longPreferencesKey("unionpay_fetched_at") to 123L,
+            ))
+            val source = Sources().apply { unionPayResult = CompletableDeferred() }
+            val repo = WalletRepository(preferences(), up, MemoryPreferences(), dispatcher)
+            val vm = MainViewModel(repo, guideDispatcher = dispatcher, calculationDispatcher = dispatcher, sources = source)
+            store.put("vm", vm)
+            runCurrent()
+            vm.refreshRates()
+            source.result.complete(CbrClient.Fetched(oldRates, "test"))
+            runCurrent()
+            assertFalse(vm.state.value.ratesLoading)
+            assertTrue(vm.state.value.ratesRefreshing)
+            vm.refreshRates()
+            assertEquals(1, source.calls)
+            source.unionPayResult!!.complete(previous.copy(date = day.minusDays(3)))
+            runCurrent()
+            assertFalse(vm.state.value.ratesRefreshing)
+            assertTrue(vm.state.value.unionPayFailed)
+            assertEquals(previous, repo.load().unionPay)
+            assertEquals(123L, vm.state.value.unionPayFetchedAt)
+        } finally { store.clear(); runCurrent(); Dispatchers.resetMain() }
+    }
+
+    @Test fun `automatic launch and card changes skip archive requests`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        Dispatchers.setMain(dispatcher)
+        val store = ViewModelStore()
+        try {
+            val setting = stringPreferencesKey("settings_rates_update")
+            val settings = preferences().also { it.updateData { p -> p.toMutablePreferences().apply { this[setting] = RatesUpdate.LAUNCH.name } } }
+            val source = Sources()
+            source.result.complete(CbrClient.Fetched(oldRates, "test"))
+            val vm = MainViewModel(WalletRepository(settings, MemoryPreferences(), MemoryPreferences(), dispatcher),
+                guideDispatcher = dispatcher, calculationDispatcher = dispatcher, sources = source)
+            store.put("vm", vm)
+            runCurrent()
+            vm.setSpend(Currency.USD)
+            runCurrent()
+            assertEquals(1, source.calls)
+            assertTrue(source.archiveRequests.isEmpty())
         } finally { store.clear(); runCurrent(); Dispatchers.resetMain() }
     }
 

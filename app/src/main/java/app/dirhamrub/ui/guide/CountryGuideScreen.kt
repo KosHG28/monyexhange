@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -73,6 +74,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -295,7 +298,15 @@ private val DIGIT_SPACES = Regex("(?<=\\d) +(?=\\d{3}(?!\\d))")
 private fun FlagBackdrop(flag: String, modifier: Modifier, opacity: () -> Float) {
     val colors = AppTheme.colors
     val matte = colors.bg.takeUnless { colors.isDark }
-    val image = remember(flag, matte) { flagBitmap(flag, matte) } ?: return
+    val key = flag to matte
+    val image by androidx.compose.runtime.key(key) {
+        produceState(flagImages.get(key), key) {
+            if (value == null) value = withContext(Dispatchers.Default) {
+                flagImages.get(key) ?: flagBitmap(flag, matte)?.also { flagImages.put(key, it) }
+            }
+        }
+    }
+    val backdrop = image ?: return
     val shown by remember(opacity) { derivedStateOf { opacity() > 0f } }
     val tilt = rememberTilt(active = shown)
     val depth = with(LocalDensity.current) { FLAG_DEPTH.toPx() }
@@ -303,7 +314,7 @@ private fun FlagBackdrop(flag: String, modifier: Modifier, opacity: () -> Float)
         val alpha = opacity()
         if (alpha <= 0f) return@Canvas
         drawImage(
-            image,
+            backdrop,
             dstOffset = IntOffset(parallaxOf(tilt, depth).roundToInt(), 0),
             dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
             alpha = alpha,
@@ -370,6 +381,7 @@ private fun flagBitmap(flag: String, matte: Color?): ImageBitmap? {
 }
 
 private const val FLAG_BITMAP_PX = 256
+private val flagImages = android.util.LruCache<Pair<String, Color?>, ImageBitmap>(4)
 
 /** На сколько флаг отстаёт от наклона телефона (на полном наклоне, ±20°). */
 private val FLAG_DEPTH = 14.dp

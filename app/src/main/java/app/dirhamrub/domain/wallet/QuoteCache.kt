@@ -39,9 +39,8 @@ class QuoteCache {
                     customColor = after.customColor, material = after.material,
                 ) == after
             }) {
-                val rebound = old.result.copy(quotes = old.result.quotes.map { q ->
-                    q.copy(card = wallet.cards.first { it.id == q.card.id })
-                })
+                val cardsById = wallet.cards.associateBy { it.id }
+                val rebound = old.result.copy(quotes = old.result.quotes.map { q -> q.copy(card = cardsById.getValue(q.card.id)) })
                 store(Entry(wallet, reference, up, rebound))
                 return rebound
             }

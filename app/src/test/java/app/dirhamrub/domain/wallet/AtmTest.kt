@@ -75,4 +75,15 @@ class AtmTest {
         assertEquals(restored.transfer!!.bought, restored.history.single().bought)
     }
 
+    @Test fun `a new top-up preserves old ATM cost including legacy receipts`() {
+        val cash = atm(yuan, "2000")
+        val wallet = Wallet(cards = listOf(yuan, cash), spend = Currency.AED)
+        val expected = quote(cash, wallet.cards).homePerUnit
+        val newTerms = yuan.withNewTransfer(TransferReceipt(BigDecimal("40000"), Currency.RUB, BigDecimal("2000"), day.plusDays(3)))
+        val updated = wallet.upsert(newTerms, cbr)
+        val updatedCash = updated.cards.single { it.id == cash.id }
+        assertEquals(0, expected.compareTo(quote(updatedCash, updated.cards).homePerUnit))
+        assertEquals(Currency.RUB, updatedCash.transfer!!.bought!!.second)
+    }
+
 }

@@ -227,9 +227,13 @@ private fun RatesSection(state: MainUiState, actions: SettingsActions) {
         SourceRow(
             badge = stringResource(R.string.settings_badge_unionpay),
             title = stringResource(R.string.settings_unionpay),
-            status = if (up != null) fetchedText(state.unionPayFetchedAt, today)
-                else stringResource(R.string.settings_no_rates),
-            warn = up == null,
+            status = when {
+                state.unionPayLoading -> stringResource(R.string.settings_loading)
+                state.unionPayFailed -> stringResource(R.string.settings_offline)
+                up == null -> stringResource(R.string.settings_no_rates)
+                else -> fetchedText(state.unionPayFetchedAt, today)
+            },
+            warn = !state.unionPayLoading && (up == null || state.unionPayFailed),
             subtitle = stringResource(R.string.settings_unionpay_sub),
         )
         Divider()
@@ -265,10 +269,10 @@ private fun RatesSection(state: MainUiState, actions: SettingsActions) {
             actions.onWifiOnly,
         )
         ScreenAction(
-            label = stringResource(if (state.ratesLoading) R.string.settings_loading_button else R.string.settings_refresh),
+            label = stringResource(if (state.ratesRefreshing) R.string.settings_loading_button else R.string.settings_refresh),
             onClick = actions.onRefresh,
             modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
-            loading = state.ratesLoading,
+            loading = state.ratesRefreshing,
         )
     }
 }

@@ -44,11 +44,11 @@ import app.dirhamrub.domain.wallet.OfficialRates
 import app.dirhamrub.domain.wallet.QuoteCache
 import app.dirhamrub.domain.wallet.RateEngine
 import app.dirhamrub.domain.wallet.ReceiptAge
-import app.dirhamrub.domain.wallet.StaleReceipt
 import app.dirhamrub.domain.wallet.UnionPayRates
 import app.dirhamrub.domain.wallet.Wallet
 import app.dirhamrub.domain.wallet.WalletQuote
 import java.math.BigDecimal
+import java.io.IOException
 import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.CoroutineDispatcher
@@ -62,6 +62,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.StateFlow
@@ -115,6 +117,8 @@ data class MainUiState(
     val officialFetchedAt: Long = 0L,
     val officialSource: String? = null,
     val unionPayFetchedAt: Long = 0L,
+    val unionPayLoading: Boolean = false,
+    val unionPayFailed: Boolean = false,
     /** Справочник «Чем платить в стране»: встроенный или скачанный, что свежее. */
     val guides: CountryGuides? = null,
     val pricing: QuoteCache = QuoteCache(),
@@ -122,12 +126,7 @@ data class MainUiState(
     /** Справочные курсы: ЦБ, а валюты без ЦБ — по UnionPay к доллару и ЦБ доллара (они в [OfficialRates.derived]). */
     val reference: OfficialRates? by lazy { pricing.reference(official, unionPay) }
 
-    /** Устаревший чек выбранной карты: давно, а ЦБ с тех пор заметно сдвинулся. */
-    val staleReceipt: StaleReceipt?
-        get() = selectedCard?.let { ReceiptAge.check(it, wallet.spend, wallet.home, LocalDate.now(), official, ratesHistory) }
-
-    /** Изменение курса ЦБ валюты трат к итоговой за неделю, в процентах. */
-    val weekTrend: BigDecimal? get() = official?.trendPercent(officialWeekAgo, wallet.spend, wallet.home)
+    val ratesRefreshing: Boolean get() = ratesLoading || unionPayLoading
 
     val quote: WalletQuote by lazy { pricing.quote(wallet, reference, unionPay) }
     /** Чем считаем: выбранный вручную способ, а без ручного выбора — самый выгодный ([Wallet.pick]). */
@@ -136,11 +135,14 @@ data class MainUiState(
 
     /** Курс для расчёта: выбранная карта, а без карт — курс ЦБ. */
     val homePerUnit: BigDecimal? get() = selectedQuote?.homePerUnit ?: quote.official
-    val cardPerUnit: BigDecimal? get() = selectedQuote?.cardPerUnit
+    val cardPerUnit: BigDecimal? get() = selectedQuote?.cardPerUnit?.takeIf { it.signum() > 0 }
 
     /** Строка валюты карты нужна, только если она отличается от валют трат и итога. */
     val showCardLine: Boolean
-        get() = selectedQuote != null && selectedCard!!.currency != wallet.spend && selectedCard!!.currency != wallet.home
+        get() = cardPerUnit != null && selectedCard!!.currency != wallet.spend && selectedCard!!.currency != wallet.home
+
+    val displaySpend: BigDecimal?
+        get() = totals.spend.takeUnless { active == Line.HOME && homePerUnit == null }
 
     val totals: Totals by lazy {
         val v = expression.value
@@ -188,7 +190,10 @@ class MainViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, _state.value)
     val settings = _state.map { it.settings }.distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, _state.value.settings)
-    private var unionPayLoading = false
+    internal val widgetUpdates = repository.widgetUpdates
+    private val _storageErrors = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val storageErrors = _storageErrors.asSharedFlow()
+    private val sessionWrites = Mutex()
     private var localGuideJob: Job? = null
     private val historyLoading = HashSet<LocalDate>()
     private val historyWrites = Mutex()
@@ -224,8 +229,7 @@ class MainViewModel(
             // Изменения, не касающиеся кошелька (курсы загружаются, настройки), запись не вызывают.
             launch(start = CoroutineStart.UNDISPATCHED) {
                 _state.map { it.wallet }.distinctUntilChanged().drop(1).collect {
-                    val latest = _state.value
-                    repository.saveSession(latest.wallet, latest.active, latest.expression, latest.inputSnapshot, latest.pendingConversion)
+                    sessionWrites.withLock { writeSession(_state.value) }
                 }
             }
             // Набираемую сумму — не чаще раза в 300 мс: collectLatest отменяет отложенную запись при новом нажатии.
@@ -233,8 +237,12 @@ class MainViewModel(
                 _state.map { listOf(it.active, it.expression, it.inputSnapshot, it.pendingConversion) }
                     .distinctUntilChanged().drop(1).collectLatest {
                         delay(SAVE_DELAY_MS)
-                        val latest = _state.value
-                        repository.saveInput(latest.active, latest.expression, latest.inputSnapshot, latest.pendingConversion)
+                        sessionWrites.withLock {
+                            val latest = _state.value
+                            if (!tryStorage { repository.saveInput(latest.active, latest.expression, latest.inputSnapshot, latest.pendingConversion) }) {
+                                _storageErrors.tryEmit(Unit)
+                            }
+                        }
                     }
             }
             // Справочник не задерживает готовый калькулятор; завершение меняет только guides.
@@ -242,8 +250,10 @@ class MainViewModel(
                 val guides = loadGuides(stored.guideText)
                 _state.update { it.withLoadedGuides(guides) }
             }
-            if (!stored.selectionAuto) repository.markSelectionAuto(_state.value.wallet)
-            repository.dropLegacy()
+            if (!tryStorage {
+                    if (!stored.selectionAuto) repository.markSelectionAuto(_state.value.wallet)
+                    repository.dropLegacy()
+                }) _storageErrors.tryEmit(Unit)
             refresh(Trigger.LAUNCH)
         }
     }
@@ -253,10 +263,27 @@ class MainViewModel(
         // Capture after dispatch: a queued pause must not persist an older expression over newer input.
         viewModelScope.launch {
             withContext(NonCancellable) {
-                val latest = _state.value
-                if (latest.loaded) repository.saveSession(latest.wallet, latest.active, latest.expression, latest.inputSnapshot, latest.pendingConversion)
+                sessionWrites.withLock {
+                    val latest = _state.value
+                    if (latest.loaded) writeSession(latest)
+                }
             }
         }
+    }
+
+    private suspend fun tryStorage(write: suspend () -> Unit): Boolean = try {
+        write()
+        true
+    } catch (_: IOException) {
+        false
+    }
+
+    private suspend fun writeSession(latest: MainUiState, notify: Boolean = true): Boolean {
+        val saved = tryStorage {
+            repository.saveSession(latest.wallet, latest.active, latest.expression, latest.inputSnapshot, latest.pendingConversion)
+        }
+        if (!saved && notify) _storageErrors.tryEmit(Unit)
+        return saved
     }
 
     fun press(key: Key) = _state.update { state ->
@@ -274,7 +301,7 @@ class MainViewModel(
     /** Коснулись поля «цена» ([Line.SPEND]) или «стоит вам» ([Line.HOME]): вводим в нём, сумма не меняется. */
     fun setActive(line: Line) = _state.update { s ->
         if (s.active == line || line == Line.CARD || s.homePerUnit == null) return@update s
-        val original = s.inputSnapshot
+        val original = s.reversibleInput()
         if (original?.line == line) {
             s.copy(active = line, expression = original.expression, inputSnapshot = null, inputLimit = null)
         } else {
@@ -300,7 +327,7 @@ class MainViewModel(
     fun setSpend(currency: Currency, place: String? = null) {
         _state.update { s ->
             if (s.wallet.spend == currency) return@update s.copy(wallet = s.wallet.withSpend(currency, place))
-            val source = s.pendingConversion ?: s.inputSnapshot
+            val source = s.pendingConversion ?: s.reversibleInput()
                 ?: InputSnapshot(s.inputCurrency, s.active, s.expression, s.totals.home)
             val next = s.copy(
                 wallet = s.wallet.withSpend(currency, place), active = Line.SPEND,
@@ -317,7 +344,6 @@ class MainViewModel(
                 else -> next.copy(expression = Expression(), pendingConversion = source).resolvePendingConversion()
             }
         }
-        refreshReceiptRates()
     }
 
     /** Другая итоговая валюта: сумма в валюте трат остаётся. */
@@ -325,16 +351,19 @@ class MainViewModel(
         _state.update { s ->
             if (s.wallet.home == currency) s
             else {
-                val original = s.inputSnapshot?.takeIf { it.line == Line.SPEND }?.expression
+                val original = s.reversibleInput()?.takeIf { it.line == Line.SPEND }?.expression
                 val expression = if (s.active == Line.SPEND) s.expression else original ?: Expression.of(s.totals.spend)
+                val pending = s.pendingConversion?.copy(homeAmount = null)
+                    ?: if (s.active == Line.HOME && s.homePerUnit == null && !s.expression.isEmpty) {
+                        InputSnapshot(s.wallet.home, Line.HOME, s.expression, null)
+                    } else null
                 s.copy(
                     wallet = s.wallet.copy(home = currency), active = Line.SPEND, expression = expression,
                     inputSnapshot = null, inputLimit = null,
-                    pendingConversion = s.pendingConversion?.copy(homeAmount = null),
+                    pendingConversion = pending,
                 ).resolvePendingConversion()
             }
         }
-        refreshReceiptRates()
     }
 
     /** Быстрая сумма в валюте трат: после «+» подставляется в выражение, иначе заменяет его. */
@@ -358,20 +387,25 @@ class MainViewModel(
         viewModelScope.launch { repository.saveCountryHandled(iso) }
     }
 
-    fun saveCard(card: BankCard) {
-        _state.update { s ->
-            val current = s.wallet.cards.firstOrNull { it.id == card.id }
-            val rebased = if (current == null) card else card.copy(
-                style = current.style, customColor = current.customColor, material = current.material,
-            )
-            s.copy(wallet = s.wallet.upsert(rebased)).resolvePendingConversion()
-        }
-        refreshReceiptRates()
+    suspend fun saveCard(card: BankCard): Boolean = commitWallet { s ->
+        val current = s.wallet.cards.firstOrNull { it.id == card.id }
+        val rebased = if (current == null) card else card.copy(
+            style = current.style, customColor = current.customColor, material = current.material,
+        )
+        s.copy(wallet = s.wallet.upsert(rebased, s.reference)).resolvePendingConversion()
     }
 
-    fun deleteCard(id: String) = _state.update { s ->
+    suspend fun deleteCard(id: String): Boolean = commitWallet { s ->
         val wallet = s.wallet.remove(id, s.reference)
         s.copy(wallet = wallet).resolvePendingConversion()
+    }
+
+    private suspend fun commitWallet(change: (MainUiState) -> MainUiState): Boolean = sessionWrites.withLock {
+        val before = _state.value
+        val saved = change(before)
+        if (!writeSession(saved, notify = false)) return@withLock false
+        _state.update { current -> if (current === before) saved else change(current) }
+        true
     }
 
     fun reorderPaymentWays(ids: List<String>) = _state.update { s ->
@@ -411,18 +445,15 @@ class MainViewModel(
         val s = _state.value
         // «Только по Wi-Fi»: по мобильной сети сами не ходим, кнопкой — всегда.
         if (!RatesPolicy.network(trigger, s.settings.wifiOnly, unmetered())) return
+        val manual = trigger == Trigger.BUTTON
+        if (manual && s.ratesRefreshing) return
         val now = System.currentTimeMillis()
         val update = s.settings.ratesUpdate
         val upAt = if (s.unionPay == null) 0L else s.unionPayFetchedAt
         if (RatesPolicy.due(update, trigger, upAt, now)) refreshUnionPay()
         if (s.ratesLoading) return
-        val allow = trigger == Trigger.BUTTON || RatesPolicy.auto(update)
         val cbrAt = if (s.official == null) 0L else s.officialFetchedAt
-        if (!RatesPolicy.due(update, trigger, cbrAt, now)) {
-            refreshWeekAgo(allow)
-            refreshReceiptRates(allow)
-            return
-        }
+        if (!RatesPolicy.due(update, trigger, cbrAt, now)) return
         _state.update { it.copy(ratesLoading = true, ratesFailed = false) }
         refreshGuide()
         viewModelScope.launch {
@@ -441,12 +472,14 @@ class MainViewModel(
                         ratesFailed = incoming == null,
                     )
                 }
-                refreshWeekAgo(allow)
-                refreshReceiptRates(allow)
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (_: Exception) {
                 _state.update { it.copy(ratesFailed = true) }
             } finally { _state.update { it.copy(ratesLoading = false) } }
+            if (manual) {
+                refreshWeekAgo()
+                refreshReceiptRates()
+            }
         }
     }
 
@@ -480,21 +513,24 @@ class MainViewModel(
         }
     }
 
-    /** Курсы UnionPay: тихо, без индикатора — не скачались, так остаются прежние (или ЦБ и чеки). */
     private fun refreshUnionPay() {
-        if (unionPayLoading) return
-        unionPayLoading = true
+        if (_state.value.unionPayLoading) return
+        _state.update { it.copy(unionPayLoading = true, unionPayFailed = false) }
         viewModelScope.launch {
             try {
                 val rates = sources.unionPay()
-                if (rates != null) {
+                val currentDate = _state.value.unionPay?.date
+                if (rates != null && (currentDate == null || !rates.date.isBefore(currentDate))) {
                     val at = System.currentTimeMillis()
                     repository.saveUnionPay(rates, at)
                     publishMarket { it.copy(unionPay = rates, unionPayFetchedAt = at) }
+                } else {
+                    _state.update { it.copy(unionPayFailed = true) }
                 }
             } catch (cancelled: CancellationException) { throw cancelled
-            } catch (_: Exception) { /* Keep previous rates; a later refresh can retry. */
-            } finally { unionPayLoading = false }
+            } catch (_: Exception) {
+                _state.update { it.copy(unionPayFailed = true) }
+            } finally { _state.update { it.copy(unionPayLoading = false) } }
         }
     }
 
@@ -504,19 +540,15 @@ class MainViewModel(
         val next = transform(before)
         if (next == before) return
         _state.update { it.copy(settings = next) }
-        viewModelScope.launch { repository.saveSettings(next) }
+        viewModelScope.launch {
+            if (!tryStorage { repository.saveSettings(next) }) _storageErrors.tryEmit(Unit)
+        }
     }
 
     fun setRatesUpdate(value: RatesUpdate) = updateSettings { it.copy(ratesUpdate = value) }
     fun setCountryHint(value: Boolean) = updateSettings { it.copy(countryHint = value) }
     fun setTheme(value: ThemeMode) = updateSettings { it.copy(theme = value) }
     fun setMotion(value: MotionMode) = updateSettings { it.copy(motion = value) }
-    /** Сами (не кнопкой) в сеть можно: обновление не ручное и не мешает «только по Wi-Fi». */
-    private fun autoNetwork(): Boolean {
-        val settings = _state.value.settings
-        return RatesPolicy.auto(settings.ratesUpdate) && RatesPolicy.network(Trigger.RESUME, settings.wifiOnly, unmetered())
-    }
-
     fun setWifiOnly(value: Boolean) = updateSettings { it.copy(wifiOnly = value) }
     fun setRounding(value: Rounding) = updateSettings { it.copy(rounding = value) }
     fun setKeyHaptics(value: Boolean) = updateSettings { it.copy(keyHaptics = value) }
@@ -546,21 +578,21 @@ class MainViewModel(
     }
 
     /**
-     * Курсы ЦБ на даты старых чеков (для «чек устарел»): качаем недостающие, не больше нескольких за раз.
-     * При обновлении «вручную» — только по кнопке ([allow]).
+     * Архив загружается только по явной команде «Обновить».
      */
-    private fun refreshReceiptRates(allow: Boolean = autoNetwork()) {
+    private fun refreshReceiptRates() {
         val s = _state.value
-        if (s.official == null || !allow) return
+        if (s.official == null) return
         val today = LocalDate.now()
-        val missing = s.wallet.cards
+        val relevant = s.wallet.cards
             .flatMap { ReceiptAge.datesToCheck(it, s.wallet.spend, s.wallet.home, today) }
             .distinct().sortedDescending().take(HISTORY_MAX)
-            .filter { it !in s.ratesHistory && it !in historyLoading }
+        val missing = relevant.filter { it !in s.ratesHistory && it !in historyLoading }
         if (missing.isEmpty()) return
         historyLoading += missing
         viewModelScope.launch {
             try {
+                val updates = mutableMapOf<LocalDate, OfficialRates>()
                 for (batch in missing.chunked(HISTORY_BATCH)) {
                     val loaded = coroutineScope {
                         batch.map { day ->
@@ -576,14 +608,17 @@ class MainViewModel(
                             }
                         }.awaitAll().filterNotNull()
                     }
-                    if (loaded.isNotEmpty()) {
-                        _state.update { st ->
-                            val recent = (st.ratesHistory + loaded).entries.sortedByDescending { it.key }.take(HISTORY_MAX)
-                            st.copy(ratesHistory = recent.associate { it.key to it.value })
-                        }
+                    updates.putAll(loaded)
+                }
+                if (updates.isNotEmpty()) historyWrites.withLock {
+                    val previous = _state.value.ratesHistory
+                    val recent = (previous + updates).entries.sortedByDescending { it.key }.take(HISTORY_MAX)
+                    val history = recent.associate { it.key to it.value }
+                    if (history != previous) {
+                        repository.saveRatesHistory(history)
+                        _state.update { it.copy(ratesHistory = history) }
                     }
                 }
-                historyWrites.withLock { repository.saveRatesHistory(_state.value.ratesHistory) }
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (_: Exception) { /* Retry still-missing dates on the next refresh. */
             } finally { historyLoading.removeAll(missing) }
@@ -593,9 +628,8 @@ class MainViewModel(
     private var weekLoading = false
 
     /** Курсы неделю назад для стрелки тренда: качаем, только если их нет или они не за ту неделю. */
-    private fun refreshWeekAgo(allow: Boolean) {
+    private fun refreshWeekAgo() {
         val s = _state.value
-        if (!allow) return
         val official = s.official ?: return
         val target = official.date.minusDays(WEEK_DAYS)
         val have = s.officialWeekAgo?.date
@@ -613,7 +647,7 @@ class MainViewModel(
             } catch (_: Exception) { /* Keep the previous reference. */
             } finally {
                 weekLoading = false
-                if (_state.value.official?.date?.minusDays(WEEK_DAYS) != target) refreshWeekAgo(allow)
+                if (_state.value.official?.date?.minusDays(WEEK_DAYS) != target) refreshWeekAgo()
             }
         }
     }
@@ -640,8 +674,9 @@ class MainViewModel(
     fun finishOnboarding(card: BankCard? = null, spendAmount: BigDecimal? = null) {
         // Одна публикация состояния: главный сразу получает карту, введённую цену и валюту ввода.
         _state.update { it.withCompletedOnboarding(card, spendAmount) }
-        if (card != null) refreshReceiptRates()
-        viewModelScope.launch { repository.saveOnboardingDone() }
+        viewModelScope.launch {
+            if (!tryStorage { repository.saveOnboardingDone() }) _storageErrors.tryEmit(Unit)
+        }
     }
 
     companion object {
@@ -676,6 +711,17 @@ private fun MainUiState.resolvePendingConversion(): MainUiState {
         active = Line.SPEND, expression = Expression.of(divideOrZero(sourceValue, rate)),
         pendingConversion = null, inputSnapshot = null, inputLimit = null,
     )
+}
+
+private fun MainUiState.reversibleInput(): InputSnapshot? {
+    val original = inputSnapshot ?: return null
+    val rate = homePerUnit ?: return null
+    val expected = when (original.line) {
+        Line.SPEND -> original.expression.value.multiply(rate, MC)
+        Line.HOME -> divideOrZero(original.expression.value, rate)
+        Line.CARD -> return null
+    }
+    return original.takeIf { expected.compareTo(expression.value) == 0 }
 }
 
 internal fun divideOrZero(value: BigDecimal, divisor: BigDecimal): BigDecimal =

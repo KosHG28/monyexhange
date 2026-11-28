@@ -100,7 +100,7 @@ fun FullScreen(
     val scope = remember { FullScreenScope(pending, closing) }
     val cardFlight = LocalCardFlight.current
     val targetKnown = flight?.target?.let { it.width > 0f && it.height > 0f } == true
-    LaunchedEffect(flight, targetKnown, closing.value) {
+    LaunchedEffect(flight, targetKnown, flight?.targetMeasured, closing.value) {
         if (closing.value) {
             val origin = flight?.let { cardFlight.originOf(it.cardId) }
             if (flight != null && targetKnown && origin != null) {
@@ -111,9 +111,14 @@ fun FullScreen(
                 flight.fallback = true
             }
             visible.targetState = false
-        } else if (flight != null && targetKnown && !flight.settled) {
-            flight.progress.animateTo(1f, Springs.spatial())
-            flight.settled = true
+        } else if (flight != null && !flight.settled) {
+            if (targetKnown) {
+                flight.progress.animateTo(1f, Springs.spatial())
+                flight.settled = true
+            } else if (flight.targetMeasured) {
+                flight.fallback = true
+                flight.settled = true
+            }
         }
     }
     // Уехал совсем — тогда сообщаем наверх (и выполняем отложенное действие).

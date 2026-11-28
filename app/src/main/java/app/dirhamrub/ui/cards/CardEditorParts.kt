@@ -1,5 +1,6 @@
 package app.dirhamrub.ui.cards
 
+import app.dirhamrub.ui.components.ScreenAction
 import app.dirhamrub.ui.components.ScreenActionHeight
 import app.dirhamrub.ui.components.ScreenActionRadius
 
@@ -418,13 +419,17 @@ internal fun NfcHint(read: NfcRead?, enabled: Boolean, animate: Boolean) {
 }
 
 /**
- * «Сохранить»: во всю ширину; [saving] — сжимается в круг 52 dp с «✓» (пружиной), нажать больше нельзя.
+ * Пока идёт запись, кнопка показывает загрузку. Галочка появляется после подтверждения записи.
  */
 @Composable
-internal fun SaveButton(saving: Boolean, onClick: () -> Unit) {
+internal fun SaveButton(saving: Boolean, saved: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    if (saving && !saved) {
+        ScreenAction(stringResource(R.string.editor_saving), onClick, Modifier.fillMaxWidth(), loading = true)
+        return
+    }
     val colors = AppTheme.colors
     val reduceMotion = LocalReduceMotion.current
-    val shrink by animateFloatAsState(if (saving) 1f else 0f, if (reduceMotion) snap() else Springs.spatial(), label = "save")
+    val shrink by animateFloatAsState(if (saved) 1f else 0f, if (reduceMotion) snap() else Springs.spatial(), label = "save")
     BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         val full = maxWidth
         val k = shrink.coerceIn(0f, 1.05f)
@@ -437,8 +442,11 @@ internal fun SaveButton(saving: Boolean, onClick: () -> Unit) {
                 .heightIn(min = ScreenActionHeight)
                 .clip(RoundedCornerShape(ScreenActionRadius + (ScreenActionHeight / 2 - ScreenActionRadius) * k.coerceAtMost(1f)))
                 .background(colors.accent)
-                .clickable(enabled = !saving, role = Role.Button, onClick = onClick)
-                .semantics { contentDescription = if (saving) done else label },
+                .clickable(enabled = enabled && !saved, role = Role.Button, onClick = onClick)
+                .semantics {
+                    contentDescription = if (saved) done else label
+                    if (saved) liveRegion = LiveRegionMode.Polite
+                },
             contentAlignment = Alignment.Center,
         ) {
             if (shrink < 0.5f) {

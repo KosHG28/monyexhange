@@ -77,9 +77,11 @@ class PriceTracker(
     fun update(candidates: List<PriceCandidate>, nowMs: Long): List<TrackedPrice> {
         for (t in tracks) t.history = (t.history shl 1) and windowMask
 
+        val byValue = if (tracks.size >= 8 && candidates.size >= 4) tracks.groupBy { it.value.stripTrailingZeros() } else null
         val matched = HashSet<Track>()
         for (c in candidates.sortedByDescending { it.score }) {
-            val track = bestMatch(c, matched)
+            val eligible = if (byValue == null) tracks else byValue[c.value.stripTrailingZeros()].orEmpty()
+            val track = bestMatch(c, eligible, matched)
             if (track == null) {
                 val t = Track(
                     id = nextId++, value = c.value,
@@ -149,10 +151,10 @@ class PriceTracker(
         return (1f - (missing - fadeStart).toFloat() / (holdMs - fadeStart)).coerceIn(0f, 1f)
     }
 
-    private fun bestMatch(c: PriceCandidate, taken: Set<Track>): Track? {
+    private fun bestMatch(c: PriceCandidate, candidates: List<Track>, taken: Set<Track>): Track? {
         var best: Track? = null
         var bestDistance = Float.MAX_VALUE
-        for (t in tracks) {
+        for (t in candidates) {
             if (t in taken || t.value.compareTo(c.value) != 0) continue
             val box = t.box
             val distance = box.centerDistance(c.box)

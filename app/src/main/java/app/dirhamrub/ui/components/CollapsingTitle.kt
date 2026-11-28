@@ -1,6 +1,7 @@
 package app.dirhamrub.ui.components
 
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -20,6 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,32 +43,67 @@ import app.dirhamrub.R
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.LocalReduceMotion
 import app.dirhamrub.ui.theme.Springs
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Заголовок экрана, который сжимается при прокрутке (Material 3 Expressive): сверху крупный (30 sp), прокрутили —
  * он уменьшается, гаснет и «садится» в строку рядом с «←» (18 sp), под строкой появляется тонкая черта. Отпустили
  * на полпути — доезжает пружиной туда, где ближе. [progress]: 0 — раскрыт, 1 — в строке.
  */
-class CollapsingTitle internal constructor(private val scroll: ScrollState, internal val rangePx: Float) {
-    internal val distance: Float get() = minOf(rangePx, scroll.maxValue.toFloat()).coerceAtLeast(1f)
-    val progress: Float get() = (scroll.value / distance).coerceIn(0f, 1f)
+class CollapsingTitle internal constructor(
+    private val offset: () -> Float,
+    private val range: () -> Float,
+) {
+    internal val distance: Float get() = range().coerceAtLeast(1f)
+    val progress: Float get() = (offset() / distance).coerceIn(0f, 1f)
 }
 
 @Composable
 fun rememberCollapsingTitle(scroll: ScrollState, titleHeight: Dp = LARGE_TITLE_HEIGHT): CollapsingTitle {
     val range = with(LocalDensity.current) { titleHeight.toPx() }
-    val title = remember(scroll, range) { CollapsingTitle(scroll, range) }
+    val title = remember(scroll, range) { CollapsingTitle({ scroll.value.toFloat() }, { minOf(range, scroll.maxValue.toFloat()) }) }
     val reduceMotion = LocalReduceMotion.current
-    LaunchedEffect(scroll.isScrollInProgress, title) {
-        if (scroll.isScrollInProgress) return@LaunchedEffect
-        val v = scroll.value
-        val distance = title.distance
-        if (v > 0 && v < distance.toInt()) {
-            val target = if (v < distance / 2f) 0 else distance.toInt()
-            if (reduceMotion) scroll.scrollTo(target) else scroll.animateScrollTo(target, Springs.spatial())
+    LaunchedEffect(scroll, title, reduceMotion) {
+        settleTitleWhenIdle({ scroll.isScrollInProgress }) {
+            val v = scroll.value
+            val distance = title.distance
+            if (v > 0 && v < distance.toInt()) {
+                val target = if (v < distance / 2f) 0 else distance.toInt()
+                if (reduceMotion) scroll.scrollTo(target) else scroll.animateScrollTo(target, Springs.spatial())
+            }
         }
     }
     return title
+}
+
+@Composable
+internal fun rememberCollapsingTitle(scroll: LazyListState): CollapsingTitle {
+    val range = with(LocalDensity.current) { LARGE_TITLE_HEIGHT.roundToPx() }
+    val title = remember(scroll, range) {
+        CollapsingTitle({ if (scroll.firstVisibleItemIndex == 0) scroll.firstVisibleItemScrollOffset.toFloat() else range.toFloat() },
+            { range.toFloat() })
+    }
+    val reduceMotion = LocalReduceMotion.current
+    LaunchedEffect(scroll, title, reduceMotion) {
+        settleTitleWhenIdle({ scroll.isScrollInProgress }) {
+            val offset = scroll.firstVisibleItemScrollOffset
+            if (scroll.firstVisibleItemIndex == 0 && offset in 1 until range) {
+                val target = if (offset < range / 2) 0 else range
+                if (target == 0 || scroll.canScrollForward) {
+                    if (reduceMotion) scroll.scrollToItem(0, target) else scroll.animateScrollToItem(0, target)
+                }
+            }
+        }
+    }
+    return title
+}
+
+internal suspend fun settleTitleWhenIdle(isScrolling: () -> Boolean, settle: suspend () -> Unit) = coroutineScope {
+    snapshotFlow(isScrolling).collect { scrolling ->
+        // A new gesture can cancel the scroll mutation without stopping the observer.
+        if (!scrolling) launch { settle() }.join()
+    }
 }
 
 /** Строка экрана: «←» и заголовок, который появляется, когда крупный заголовок уехал. */

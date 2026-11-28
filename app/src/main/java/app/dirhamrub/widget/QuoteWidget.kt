@@ -24,6 +24,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.io.IOException
+import java.math.BigDecimal
 
 /**
  * Pro: виджет «Курс по чеку» на рабочем столе — страна и ходовая сумма в местной валюте («🇹🇷 1 000 TRY»),
@@ -35,8 +39,12 @@ class QuoteWidget : AppWidgetProvider() {
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                val views = render(context)
-                for (id in ids) manager.updateAppWidget(id, views)
+                rendering.withLock {
+                    val views = render(context)
+                    for (id in ids) manager.updateAppWidget(id, views)
+                }
+            } catch (error: IOException) {
+                android.util.Log.w("QuoteWidget", "Не удалось прочитать данные виджета", error)
             } finally {
                 pending.finish()
             }
@@ -45,8 +53,8 @@ class QuoteWidget : AppWidgetProvider() {
 
     private suspend fun render(context: Context): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_quote)
-        val state = WalletRepository(context.settingsDataStore, context.unionPayDataStore, context.ratesDataStore).load()
-        if (!state.settings.pro) {
+        val state = WalletRepository(context.settingsDataStore, context.unionPayDataStore, context.ratesDataStore).loadWidget()
+        if (state == null) {
             views.setTextViewText(R.id.widget_place, context.getString(R.string.widget_title))
             views.setTextViewText(R.id.widget_sum, context.getString(R.string.pro_badge))
             views.setTextViewText(R.id.widget_card, context.getString(R.string.widget_locked))
@@ -61,10 +69,11 @@ class QuoteWidget : AppWidgetProvider() {
         val quote = RateEngine.quoteAll(wallet, reference, unionPay)
         val best = quote.best
         val perUnit = best?.homePerUnit ?: quote.official
-        val amount = QuickSums.chips(spend).getOrElse(4) { QuickSums.chips(spend).last() }
+        val chips = QuickSums.chips(spend)
+        val amount = chips.getOrElse(4) { chips.last() }
         val flag = Countries.placeFor(spend, wallet.place, null)?.flag ?: spend.flag
         views.setTextViewText(R.id.widget_place, "$flag ${Numbers.moneyWhole(amount)} ${spend.code}")
-        if (spend == home) {
+        if (spend == home && (best == null || best.homePerUnit.compareTo(BigDecimal.ONE) == 0)) {
             views.setTextViewText(R.id.widget_sum, "${Numbers.moneyWhole(amount)} ${home.mark}")
             views.setTextViewText(R.id.widget_card, context.getString(R.string.currency_home_label))
         } else if (perUnit == null) {
@@ -96,6 +105,7 @@ class QuoteWidget : AppWidgetProvider() {
     }
 
     companion object {
+        private val rendering = Mutex()
         /** Перерисовать все виджеты (сменили страну, карты, курсы, купили Pro). Виджетов нет — ничего. */
         fun refresh(context: Context) {
             val manager = AppWidgetManager.getInstance(context) ?: return

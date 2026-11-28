@@ -223,22 +223,21 @@ data class Wallet(
         return reorder(cards.map { if (it.id in moved) next.next() else it.id }).copy(manualPaymentOrder = true)
     }
 
-    fun upsert(card: BankCard): Wallet {
-        val exists = cards.any { it.id == card.id }
-        val next = if (exists) cards.map { if (it.id == card.id) card else it } else cards + card
+    fun upsert(card: BankCard, reference: OfficialRates? = null): Wallet {
+        val previous = cards.firstOrNull { it.id == card.id } ?: return copy(cards = cards + card)
+        val fundingChanged = previous.kind == CardKind.CARD &&
+            (previous.effectiveTransfer != card.effectiveTransfer || previous.currency != card.currency)
+        val next = cards.map {
+            if (it.id == card.id) card
+            else if (fundingChanged) it.preserveWithdrawals(previous, home, reference)
+            else it
+        }
         return copy(cards = next)
     }
 
     fun remove(id: String, reference: OfficialRates? = null): Wallet {
         val removed = cards.firstOrNull { it.id == id } ?: return this
-        val next = cards.filterNot { it.id == id }.map { card ->
-            if (removed.kind != CardKind.CARD || card.kind != CardKind.CASH) card else {
-                card.copy(
-                    transfer = card.transfer?.preserveWithdrawalCost(removed, home, reference),
-                    history = card.history.map { it.preserveWithdrawalCost(removed, home, reference) },
-                )
-            }
-        }
+        val next = cards.filterNot { it.id == id }.map { it.preserveWithdrawals(removed, home, reference) }
         return copy(cards = next, selectedId = selectedId?.takeIf { it != id })
     }
 
@@ -251,7 +250,14 @@ data class Wallet(
     }
 }
 
-private fun TransferReceipt.preserveWithdrawalCost(
+private fun BankCard.preserveWithdrawals(source: BankCard, home: Currency, reference: OfficialRates?): BankCard {
+    if (source.kind != CardKind.CARD || kind != CardKind.CASH) return this
+    val current = transfer?.preserveWithdrawalCost(source, home, reference)
+    val previous = history.map { it.preserveWithdrawalCost(source, home, reference) }
+    return if (current == transfer && previous == history) this else copy(transfer = current, history = previous)
+}
+
+internal fun TransferReceipt.preserveWithdrawalCost(
     source: BankCard,
     home: Currency,
     reference: OfficialRates?,

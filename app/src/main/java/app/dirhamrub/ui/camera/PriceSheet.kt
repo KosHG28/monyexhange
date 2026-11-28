@@ -93,8 +93,11 @@ fun PriceSheet(
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(q.card.name, style = type.label, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        val debit = q.cardPerUnit.takeIf { it.signum() > 0 }?.let {
+                            "${Numbers.money(amount.multiply(it, MC), q.card.currency.digits.coerceAtLeast(2))} ${q.card.currency.mark}"
+                        }
                         Text(
-                            "${Numbers.money(amount.multiply(q.cardPerUnit, MC))} ${q.card.currency.mark} · ${basisLabel(q)}",
+                            listOfNotNull(debit, basisLabel(q)).joinToString(" · "),
                             style = type.mono.copy(fontSize = 12.sp),
                             color = colors.muted,
                             maxLines = 1,

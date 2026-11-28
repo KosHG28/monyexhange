@@ -26,6 +26,10 @@ class TagColorAnalyzer(
     private val outerColors = IntArray(OUTER_POINTS)
     private val sideColors = IntArray(SIDE_POINTS)
     private val innerColors = IntArray(INNER_COLUMNS * INNER_ROWS)
+    private val sortedColors = IntArray(OUTER_POINTS)
+    private val sortedLuma = IntArray(OUTER_POINTS)
+    private val farthestColors = IntArray(3)
+    private val farthestDistances = IntArray(3)
 
     override fun getDefaultTargetResolution(): Size? = delegate.defaultTargetResolution
 
@@ -110,22 +114,46 @@ class TagColorAnalyzer(
 
     /** Цвет с медианной яркостью: блик или чужая надпись рядом не перекрашивают бумагу. */
     private fun medianByLuma(colors: IntArray): Int {
-        val sorted = colors.sortedBy { luma(it) }
-        return sorted[sorted.size / 2]
+        for (i in colors.indices) {
+            val color = colors[i]
+            val light = luma(color)
+            var insertion = i
+            while (insertion > 0 && sortedLuma[insertion - 1] > light) {
+                sortedLuma[insertion] = sortedLuma[insertion - 1]
+                sortedColors[insertion] = sortedColors[insertion - 1]
+                insertion--
+            }
+            sortedLuma[insertion] = light
+            sortedColors[insertion] = color
+        }
+        return sortedColors[colors.size / 2]
     }
 
     /** Среднее трёх точек, сильнее всего отличающихся от [paper]. */
     private fun farthest(colors: IntArray, paper: Int): Int {
-        val top = colors.sortedByDescending { distance(it, paper) }.take(3)
+        farthestDistances.fill(-1)
+        for (color in colors) {
+            val score = distance(color, paper)
+            for (i in farthestDistances.indices) {
+                if (score <= farthestDistances[i]) continue
+                for (j in farthestDistances.lastIndex downTo i + 1) {
+                    farthestDistances[j] = farthestDistances[j - 1]
+                    farthestColors[j] = farthestColors[j - 1]
+                }
+                farthestDistances[i] = score
+                farthestColors[i] = color
+                break
+            }
+        }
         var r = 0
         var g = 0
         var b = 0
-        for (c in top) {
+        for (c in farthestColors) {
             r += (c shr 16) and 0xFF
             g += (c shr 8) and 0xFF
             b += c and 0xFF
         }
-        return rgb(r / top.size, g / top.size, b / top.size)
+        return rgb(r / farthestColors.size, g / farthestColors.size, b / farthestColors.size)
     }
 
     /** Пиксели YUV_420_888: яркость и цветность (U, V — вдвое реже по обеим осям). */

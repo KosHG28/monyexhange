@@ -271,7 +271,7 @@ private fun CameraContent(
 
     // Камера и распознавание: анализ ~720p на отдельном потоке, всегда только последний кадр.
     val executor = analysisExecutor
-    val recognizerResult = remember { runCatching { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) } }
+    val recognizerResult = remember(lifecycleOwner) { runCatching { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) } }
     val recognizer = recognizerResult.getOrNull()
     if (recognizer == null) {
         // Вместо вылета — понятное сообщение; текст ошибки виден и попадает в logcat.
@@ -298,7 +298,7 @@ private fun CameraContent(
                 .build()
         }
     }
-    val analyzer = remember(pipeline) {
+    val analyzer = remember(pipeline, recognizer) {
         val mlKit = MlKitAnalyzer(listOf(recognizer), ImageAnalysis.COORDINATE_SYSTEM_VIEW_REFERENCED, executor) { result ->
             // Ошибка разбора одного кадра не должна ронять приложение: пропускаем кадр.
             try {
@@ -311,12 +311,6 @@ private fun CameraContent(
         TagColorAnalyzer(mlKit, pipeline)
     }
     DisposableEffect(lifecycleOwner) {
-        try {
-            camera.bindToLifecycle(lifecycleOwner)
-        } catch (e: Exception) {
-            Log.e(TAG, "Камера не подключилась", e)
-            bindError = e
-        }
         onDispose {
             camera.clearImageAnalysisAnalyzer()
             camera.unbind()
@@ -333,18 +327,26 @@ private fun CameraContent(
     DisposableEffect(camera) {
         onDispose { frozen = null }
     }
-    LaunchedEffect(paused, analyzer) {
+    LaunchedEffect(paused, analyzer, lifecycleOwner) {
         if (!paused) {
             frozen = null
             photoReading = false
             photoError = false
             pipeline.setPaused(false)
             camera.setImageAnalysisAnalyzer(executor, analyzer)
+            try {
+                camera.bindToLifecycle(lifecycleOwner)
+                bindError = null
+            } catch (e: Exception) {
+                Log.e(TAG, "Камера не подключилась", e)
+                bindError = e
+            }
             return@LaunchedEffect
         }
         val generation = pipeline.setPaused(true)
         val bitmap = runCatching { previewHolder[0]?.bitmap }.getOrNull()
         camera.clearImageAnalysisAnalyzer()
+        camera.unbind()
         if (bitmap == null) {
             photoError = true
             return@LaunchedEffect
@@ -378,7 +380,8 @@ private fun CameraContent(
     val bound = zoom != null
     // Фонарик и ночной режим камеры (Android 15, где телефон его умеет: в темноте кадр ярче за счёт выдержки)
     // вместе не работают: с фонариком ночной режим выключаем, без него — включаем.
-    LaunchedEffect(torch, bound) {
+    LaunchedEffect(torch, bound, paused) {
+        if (paused || !bound) return@LaunchedEffect
         val control = camera.cameraControl
         val lowLight = bound && runCatching { camera.cameraInfo?.isLowLightBoostSupported == true }.getOrDefault(false)
         if (torch) {
@@ -392,6 +395,7 @@ private fun CameraContent(
     // Зум меняли сами (кнопки, щипок) — автоприближение больше не вмешивается.
     var userZoomed by rememberSaveable { mutableStateOf(false) }
     var autoZoomed by rememberSaveable { mutableStateOf(false) }
+    var autoZoomRequested by remember { mutableStateOf(false) }
     // Несколько объективов за одной камерой (флагман с телевиком): при 2× телефон сам переключится на него.
     val multiLens = remember(bound) {
         bound && runCatching { (camera.cameraInfo?.physicalCameraInfos?.size ?: 0) > 1 }.getOrDefault(false)
@@ -502,17 +506,27 @@ private fun CameraContent(
                 h > 0 && labels.isNotEmpty() && labels.all { it.box.height() < h * TINY_PRICE }
             }
         }
-        LaunchedEffect(tiny, multiLens, paused) {
-            val zs = zoom ?: return@LaunchedEffect
+        LaunchedEffect(tiny, multiLens, paused, userZoomed) {
             if (!tiny || !multiLens || paused || autoZoomed || userZoomed) return@LaunchedEffect
-            if (zs.zoomRatio > 1.4f || zs.maxZoomRatio < AUTO_ZOOM) return@LaunchedEffect
             delay(AUTO_ZOOM_AFTER_MS)
-            autoZoomed = true
-            val from = zs.zoomRatio
-            val steps = if (reduceMotionHere) 1 else 12
-            for (i in 1..steps) {
-                camera.setZoomRatio(from + (AUTO_ZOOM - from) * i / steps)
-                if (steps > 1) delay(22)
+            if (!userZoomed && !paused && tiny) autoZoomRequested = true
+        }
+        // Once the ramp starts it must survive the OCR labels growing as a result of the zoom.
+        LaunchedEffect(autoZoomRequested, userZoomed, paused, reduceMotionHere) {
+            if (!autoZoomRequested) return@LaunchedEffect
+            try {
+                val zs = camera.zoomState.value ?: return@LaunchedEffect
+                if (paused || userZoomed || zs.zoomRatio > 1.4f || zs.maxZoomRatio < AUTO_ZOOM) return@LaunchedEffect
+                autoZoomed = true
+                val from = zs.zoomRatio
+                val steps = if (reduceMotionHere) 1 else 12
+                for (i in 1..steps) {
+                    if (paused || userZoomed) return@LaunchedEffect
+                    camera.setZoomRatio(from + (AUTO_ZOOM - from) * i / steps)
+                    if (i < steps) delay(22)
+                }
+            } finally {
+                autoZoomRequested = false
             }
         }
         if (!paused) Reticle(topReserve, bottomReserve)
@@ -545,9 +559,12 @@ private fun CameraContent(
                                     delay(REVEAL_DELAY_MS)
                                     reveal.value = true
                                 }
-                                tryAwaitRelease()
-                                show.cancel()
-                                reveal.value = false
+                                try {
+                                    tryAwaitRelease()
+                                } finally {
+                                    show.cancel()
+                                    reveal.value = false
+                                }
                             }
                         },
                     ) { p ->

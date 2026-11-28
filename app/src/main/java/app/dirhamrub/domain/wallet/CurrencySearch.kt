@@ -29,40 +29,61 @@ object CurrencySearch {
         "кипр" to "CY", "лимасол" to "CY", "пафос" to "CY", "крит" to "GR", "родос" to "GR", "афины" to "GR",
     )
 
+    private data class CurrencyTerms(val words: List<String>, val code: String, val symbol: String) {
+        fun matches(query: String): Boolean = words.any { it.startsWith(query) } || code.startsWith(query) || symbol == query
+    }
+
+    private data class CountryTerms(val country: Country, val name: String, val words: List<String>, val alias: List<String>)
+
+    private val currencyTerms by lazy {
+        Currency.entries.map { CurrencyTerms(words(it.nameRu), it.code.lowercase(), normalize(it.symbol)) }
+    }
+
+    private val countryTerms by lazy {
+        Countries.all.sortedBy { it.nameRu }.map { CountryTerms(it, normalize(it.nameRu), words(it.nameRu), words(it.alias)) }
+    }
+
     /** Страны, подходящие под запрос; пустой запрос — ничего. Сначала совпадение по названию страны. */
     fun countries(query: String): List<Country> {
         val q = normalize(query)
         if (q.isEmpty()) return emptyList()
-        val place = PLACES.filterKeys { it.startsWith(q) || q.length >= 4 && it.contains(q) }.values.toSet()
-        return Countries.all
-            .mapNotNull { c ->
-                val score = when {
-                    words(c.nameRu).any { it.startsWith(q) } || normalize(c.nameRu).startsWith(q) -> 0
-                    c.alias.isNotEmpty() && words(c.alias).any { it.startsWith(q) } -> 1
-                    c.iso in place -> 1
-                    matchesCurrency(c.currency, q) -> 2
-                    else -> return@mapNotNull null
-                }
-                score to c
+        return findCountries(q)
+    }
+
+    private fun findCountries(q: String): List<Country> {
+        val places = HashSet<String>()
+        for ((place, iso) in PLACES) {
+            if (place.startsWith(q) || q.length >= 4 && place.contains(q)) places += iso
+        }
+        val names = ArrayList<Country>()
+        val aliases = ArrayList<Country>()
+        val currencies = ArrayList<Country>()
+        for (row in countryTerms) {
+            when {
+                row.name.startsWith(q) || row.words.any { it.startsWith(q) } -> names += row.country
+                row.country.iso in places || row.alias.any { it.startsWith(q) } -> aliases += row.country
+                currencyTerms[row.country.currency.ordinal].matches(q) -> currencies += row.country
             }
-            .sortedWith(compareBy<Pair<Int, Country>> { it.first }.thenBy { it.second.nameRu })
-            .map { it.second }
+        }
+        names.addAll(aliases)
+        names.addAll(currencies)
+        return names
     }
 
     /** Валюты из [among], подходящие под запрос: по названию, коду, знаку или стране, где ими платят. */
     fun currencies(query: String, among: List<Currency>): List<Currency> {
         val q = normalize(query)
         if (q.isEmpty()) return among
-        val byCountry = countries(query).map { it.currency }.toSet()
-        return among
-            .filter { matchesCurrency(it, q) || it in byCountry }
-            .sortedBy { if (matchesCurrency(it, q)) 0 else 1 }
+        val byCountry = findCountries(q).mapTo(HashSet()) { it.currency }
+        val explicit = ArrayList<Currency>()
+        val implicit = ArrayList<Currency>()
+        for (currency in among) {
+            if (currencyTerms[currency.ordinal].matches(q)) explicit += currency
+            else if (currency in byCountry) implicit += currency
+        }
+        explicit.addAll(implicit)
+        return explicit
     }
-
-    private fun matchesCurrency(c: Currency, q: String): Boolean =
-        words(c.nameRu).any { it.startsWith(q) } ||
-            c.code.lowercase().startsWith(q) ||
-            normalize(c.symbol) == q
 
     private fun words(s: String): List<String> = normalize(s).split(' ', '-', ',', '(', ')').filter { it.isNotEmpty() }
 

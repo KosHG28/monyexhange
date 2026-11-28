@@ -33,7 +33,12 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retryWhen
+import kotlinx.coroutines.delay
 import java.io.IOException
 import java.time.LocalDate
 
@@ -83,6 +88,14 @@ data class StoredState(
     val settings: AppSettings,
 )
 
+internal data class StoredWidget(val wallet: Wallet, val official: OfficialRates?, val unionPay: UnionPayRates?)
+
+private fun DataStore<Preferences>.widgetPreferences() = data.retryWhen { error, attempt ->
+    if (error !is IOException) return@retryWhen false
+    delay(1_000L * (attempt + 1).coerceAtMost(10L))
+    true
+}
+
 /**
  * Хранит кошелёк (карты, чеки, валюты), курсы ЦБ, последнюю сумму и активную строку.
  * При первом запуске после обновления с «Дирхамов в рубли» (0.x) переносит две старые карты с чеками.
@@ -95,6 +108,24 @@ class WalletRepository(
 ) {
     private val writes = Mutex()
     private var encodedWallet: Pair<Wallet, String>? = null
+
+    /** Only committed preferences that affect a widget render. */
+    internal val widgetUpdates = combine(
+        store.widgetPreferences().map { it[WALLET] to it[SET_PRO] }.distinctUntilChanged(),
+        ratesStore.widgetPreferences().map { it[OFFICIAL] }.distinctUntilChanged(),
+        unionPayStore.widgetPreferences().map { it[UNIONPAY] }.distinctUntilChanged(),
+    ) { _, _, _ -> Unit }
+
+    internal suspend fun loadWidget(): StoredWidget? = withContext(decodeDispatcher) {
+        val preferences = store.data.first()
+        if (preferences[SET_PRO] != true) return@withContext null
+        val official = ratesStore.data.first()[OFFICIAL] ?: preferences[OFFICIAL]
+        StoredWidget(
+            WalletCodec.decode(preferences[WALLET]) ?: legacyWallet(preferences) ?: Wallet(),
+            WalletCodec.decodeRates(official),
+            WalletCodec.decodeUnionPay(unionPayStore.data.first()[UNIONPAY]),
+        )
+    }
 
     private suspend fun encodeWallet(wallet: Wallet): String {
         encodedWallet?.let { if (it.first == wallet) return it.second }
@@ -271,11 +302,25 @@ class WalletRepository(
 
     private suspend fun migrateRates(p: Preferences) {
         ratesStore.edit { r ->
-            p[OFFICIAL]?.let { r[OFFICIAL] = it }
-            p[OFFICIAL_AT]?.let { r[OFFICIAL_AT] = it }
-            p[OFFICIAL_SOURCE]?.let { r[OFFICIAL_SOURCE] = it }
-            p[OFFICIAL_WEEK]?.let { r[OFFICIAL_WEEK] = it }
-            p[RATES_HISTORY]?.let { r[RATES_HISTORY] = it }
+            val legacy = WalletCodec.decodeRates(p[OFFICIAL])
+            val current = WalletCodec.decodeRates(r[OFFICIAL])
+            if (legacy != null && (current == null || legacy.date > current.date ||
+                    (legacy.date == current.date && (p[OFFICIAL_AT] ?: 0L) > (r[OFFICIAL_AT] ?: 0L)))) {
+                r[OFFICIAL] = checkNotNull(p[OFFICIAL])
+                p[OFFICIAL_AT]?.let { r[OFFICIAL_AT] = it } ?: r.remove(OFFICIAL_AT)
+                p[OFFICIAL_SOURCE]?.let { r[OFFICIAL_SOURCE] = it } ?: r.remove(OFFICIAL_SOURCE)
+            }
+            val oldWeek = WalletCodec.decodeRates(p[OFFICIAL_WEEK])
+            val newWeek = WalletCodec.decodeRates(r[OFFICIAL_WEEK])
+            if (oldWeek != null && (newWeek == null || oldWeek.date > newWeek.date)) {
+                r[OFFICIAL_WEEK] = checkNotNull(p[OFFICIAL_WEEK])
+            }
+            val history = WalletCodec.decodeHistory(p[RATES_HISTORY])
+            if (history.isNotEmpty()) {
+                val combined = history + WalletCodec.decodeHistory(r[RATES_HISTORY])
+                r[RATES_HISTORY] = WalletCodec.encodeHistory(combined.entries.sortedByDescending { it.key }
+                    .take(30).associate { it.key to it.value })
+            }
         }
         store.edit { e -> RATE_KEYS.forEach { e.remove(it) } }
     }

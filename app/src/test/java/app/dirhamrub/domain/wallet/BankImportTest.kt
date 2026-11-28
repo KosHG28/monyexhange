@@ -68,4 +68,12 @@ class BankImportTest {
         assertTrue(statusBelowAmounts.operation.blocked)
     }
 
+    @Test fun `recognizes failure wording and associates repeated amounts with their operation`() {
+        val purchase = listOf("Покупка 5 000 JPY", "Списано 75 USD")
+        for (status in listOf("Оплата не проведена", "Операция не совершена", "Отказано", "Покупка отклонена 5 000 JPY")) {
+            assertEquals(BankOperation.UNSUCCESSFUL, BankImport.candidates(purchase + status, Currency.USD).single().operation)
+        }
+        val different = BankImport.candidates(purchase + "Покупка отклонена 7 000 JPY", Currency.USD)
+        assertEquals(listOf(BankOperation.PURCHASE, BankOperation.UNSUCCESSFUL), different.map { it.operation })
+    }
 }

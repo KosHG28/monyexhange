@@ -2,6 +2,13 @@ package app.dirhamrub.ui.money
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import app.dirhamrub.ui.components.fadingEdges
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,14 +26,12 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,7 +49,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import app.dirhamrub.R
 import app.dirhamrub.domain.RuDates
 import app.dirhamrub.domain.wallet.BankCard
@@ -54,17 +58,13 @@ import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.ui.components.CollapsingBar
 import app.dirhamrub.ui.components.LargeTitle
 import app.dirhamrub.ui.components.cascade
-import app.dirhamrub.ui.components.fadingScroll
 import app.dirhamrub.ui.components.finishCascadeOnTouch
 import app.dirhamrub.ui.components.rateLabel
 import app.dirhamrub.ui.components.rememberCascade
 import app.dirhamrub.ui.components.rememberCollapsingTitle
 import app.dirhamrub.ui.main.EmvChip
 import app.dirhamrub.ui.main.MainUiState
-import app.dirhamrub.ui.main.PaymentDrag
 import app.dirhamrub.ui.main.moved
-import app.dirhamrub.ui.main.paymentDragGesture
-import app.dirhamrub.ui.main.paymentDragSlot
 import app.dirhamrub.ui.theme.AppTheme
 import app.dirhamrub.ui.theme.CardPalette
 import app.dirhamrub.ui.theme.banknoteSurface
@@ -95,62 +95,69 @@ fun MoneyScreen(state: MainUiState, actions: MoneyActions, reflectLight: Boolean
     val ids = remember(cards) { cards.map { it.id } }
     val tilt = rememberReflectionTilt(active = reflectLight && cards.isNotEmpty())
     val byId = remember(cards) { cards.associateBy { it.id } }
-    val drag = remember(ids, wallet.spend) { PaymentDrag(ids) }
+    val drag = remember(ids) { WalletDrag(ids) }
     val bestId = quote.best?.card?.id?.takeIf { quote.quotes.size > 1 }
     val up = stringResource(R.string.payment_move_up)
     val down = stringResource(R.string.payment_move_down)
     val title = stringResource(R.string.cards_title)
     Column(Modifier.fillMaxSize().background(colors.bg).windowInsetsPadding(WindowInsets.safeDrawing)) {
-        val scroll = rememberScrollState()
+        val scroll = rememberLazyListState()
         val collapsing = rememberCollapsingTitle(scroll)
         CollapsingBar(title, actions.onBack, collapsing)
         val cascade = rememberCascade(lastIndex = 1)
-        Column(
-            Modifier.fillMaxWidth().weight(1f).finishCascadeOnTouch(cascade)
-                .fadingScroll(scroll).padding(horizontal = 14.dp).padding(bottom = 24.dp),
-        ) {
-            LargeTitle(title, collapsing)
-            if (cards.isNotEmpty()) {
-                Spacer(Modifier.height(4.dp))
-                Column(
-                    Modifier.fillMaxWidth().cascade(cascade, 0)
-                        .paymentDragGesture(drag, scroll, ids.size > 1, actions.onReorder),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    val order = drag.order
-                    for ((index, id) in order.withIndex()) key(id) {
-                        val card = byId.getValue(id)
-                        val held = drag.dragged == id
-                        val scale by animateFloatAsState(if (held) 1.02f else 1f, motion(170), label = "walletCardLift")
-                        val a11y = buildList {
+        val order = drag.order
+        val held = drag.held
+        val scale by animateFloatAsState(if (held == null) 1f else 1.02f, motion(170), label = "walletCardLift")
+        Box(Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
+            LazyColumn(
+                state = scroll,
+                modifier = Modifier.fillMaxSize().finishCascadeOnTouch(cascade).fadingEdges(scroll)
+                    .walletDragGesture(drag, scroll, ids.size > 1, actions.onReorder),
+                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp),
+            ) {
+                item { LargeTitle(title, collapsing) }
+                if (order.isNotEmpty()) item { Spacer(Modifier.height(4.dp)) }
+                itemsIndexed(order, key = { _, id -> id }) { index, id ->
+                    val card = byId.getValue(id)
+                    val accessible = Modifier.semantics {
+                        customActions = buildList {
                             if (index > 0) add(CustomAccessibilityAction(up) { actions.onReorder(order.moved(index, index - 1)); true })
                             if (index < order.lastIndex) add(CustomAccessibilityAction(down) { actions.onReorder(order.moved(index, index + 1)); true })
                         }
-                        Box(Modifier.zIndex(if (held) 1f else 0f).paymentDragSlot(drag, id)) {
-                            WalletCard(
-                                state, card, quote.of(id), id == bestId, held, tilt,
-                                Modifier.graphicsLayer {
-                                    translationY = drag.translationOf(id)
-                                    scaleX = scale
-                                    scaleY = scale
-                                }.semantics { customActions = a11y },
-                            ) { actions.onEditCard(card) }
+                    }
+                    Column(Modifier.cascade(cascade, 0)) {
+                        if (held == id) {
+                            Box(Modifier.graphicsLayer { alpha = 0f }.clearAndSetSemantics { }) {
+                                WalletCard(state, card, quote.of(id), id == bestId, false, tilt, Modifier) {}
+                            }
+                        } else {
+                            WalletCard(state, card, quote.of(id), id == bestId, false, tilt, accessible) { actions.onEditCard(card) }
                         }
+                        Spacer(Modifier.height(if (index == order.lastIndex) 14.dp else 10.dp))
                     }
                 }
-                Spacer(Modifier.height(14.dp))
+                item {
+                    Row(Modifier.cascade(cascade, 1).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        AddTile(R.drawable.ic_card, R.string.money_add_card, R.string.money_add_card_sub, Modifier.weight(1f), actions.onAddCard)
+                        AddTile(R.drawable.ic_cash, R.string.money_add_cash, R.string.money_add_cash_sub, Modifier.weight(1f), actions.onAddCash)
+                    }
+                }
+                if (ids.size > 1) item {
+                    Text(stringResource(R.string.money_order_hint), style = AppTheme.type.caption, color = colors.muted,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 14.dp))
+                }
             }
-            Row(
-                Modifier.cascade(cascade, 1).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                AddTile(R.drawable.ic_card, R.string.money_add_card, R.string.money_add_card_sub, Modifier.weight(1f), actions.onAddCard)
-                AddTile(R.drawable.ic_cash, R.string.money_add_cash, R.string.money_add_cash_sub, Modifier.weight(1f), actions.onAddCash)
-            }
-            if (ids.size > 1) {
-                Text(stringResource(R.string.money_order_hint), style = AppTheme.type.caption, color = colors.muted,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 14.dp))
+            if (held != null) {
+                val card = byId.getValue(held)
+                WalletCard(state, card, quote.of(held), held == bestId, true, tilt,
+                    Modifier.padding(horizontal = 14.dp).clearAndSetSemantics { }
+                        .graphicsLayer {
+                            translationY = drag.overlayY
+                            scaleX = scale
+                            scaleY = scale
+                        },
+                ) {}
             }
         }
     }

@@ -166,11 +166,17 @@ class PricePipeline(private val metrics: LabelMetrics) {
 
     /** Кадр OCR (фоновый поток). */
     fun onText(text: Text?, nowMs: Long) {
-        synchronized(this) {
+        val (generation, activeParser, spend) = synchronized(this) {
             if (paused) return
-            // Границы экрана: цены у левого и правого края могли обрезаться — их не показываем.
-            val bounds = if (viewWidth > 0f && viewHeight > 0f) Box(0f, 0f, viewWidth, viewHeight) else null
-            val candidates = parser.parse(livePriceBlocks(OcrMapper.map(text), spend), bounds)
+            Triple(photoGeneration, parser, spend)
+        }
+        // Границы экрана: цены у левого и правого края могли обрезаться — их не показываем.
+        val width = viewWidth
+        val height = viewHeight
+        val bounds = if (width > 0f && height > 0f) Box(0f, 0f, width, height) else null
+        val candidates = activeParser.parse(livePriceBlocks(OcrMapper.map(text), spend), bounds)
+        synchronized(this) {
+            if (paused || generation != photoGeneration || activeParser !== parser) return
             lastTracked = tracker.update(candidates, nowMs)
             lastNowMs = nowMs
             publish()

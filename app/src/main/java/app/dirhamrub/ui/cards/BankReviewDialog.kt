@@ -8,12 +8,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import app.dirhamrub.R
 import app.dirhamrub.data.ReceiptImages
 import app.dirhamrub.domain.Numbers
@@ -130,22 +132,21 @@ internal fun BankReviewDialog(
 @Composable
 private fun ScreenshotFragment(review: BankReview, range: IntRange) {
     val context = LocalContext.current.applicationContext
-    var bitmap by remember(review, range) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(review, range) {
-        bitmap = withContext(Dispatchers.IO) {
-            runCatching {
-                val source = ReceiptImages.decode(context, review.uri, 760) ?: return@runCatching null
-                val bounds = review.reading.bounds(range) ?: return@runCatching source.asImageBitmap()
-                val top = ((bounds.top - 0.035f) * source.height).toInt().coerceIn(0, source.height - 1)
-                val bottom = ((bounds.bottom + 0.035f) * source.height).toInt().coerceIn(top + 1, source.height)
-                val part = android.graphics.Bitmap.createBitmap(source, 0, top, source.width, bottom - top)
-                if (part !== source) source.recycle()
-                part.asImageBitmap()
-            }.getOrNull()
+    val bitmap by key(review) {
+        produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, review) {
+            value = withContext(Dispatchers.IO) {
+                runCatching { ReceiptImages.decode(context, review.uri, 760)?.asImageBitmap() }.getOrNull()
+            }
         }
     }
-    bitmap?.let {
-        Image(it, stringResource(R.string.scan_fragment), modifier = Modifier.fillMaxWidth().heightIn(max = 150.dp), contentScale = ContentScale.Fit)
+    bitmap?.let { source ->
+        val painter = remember(source, range) {
+            val bounds = review.reading.bounds(range)
+            val top = if (bounds == null) 0 else ((bounds.top - 0.035f) * source.height).toInt().coerceIn(0, source.height - 1)
+            val bottom = if (bounds == null) source.height else ((bounds.bottom + 0.035f) * source.height).toInt().coerceIn(top + 1, source.height)
+            BitmapPainter(source, IntOffset(0, top), IntSize(source.width, bottom - top))
+        }
+        Image(painter, stringResource(R.string.scan_fragment), modifier = Modifier.fillMaxWidth().heightIn(max = 150.dp), contentScale = ContentScale.Fit)
     } ?: Text(range.mapNotNull(review.reading.lines::getOrNull).joinToString("\n"),
         color = AppTheme.colors.muted, maxLines = 5)
 }

@@ -2,6 +2,7 @@ package app.dirhamrub.ui.cards
 
 import app.dirhamrub.data.ReceiptShots
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInWindow
@@ -34,6 +35,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.text.BasicTextField
@@ -57,10 +63,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -72,7 +76,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.toMutableStateList
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -80,6 +90,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalResources
@@ -96,7 +108,7 @@ import app.dirhamrub.R
 import app.dirhamrub.ui.components.FullScreen
 import app.dirhamrub.ui.components.FullScreenScope
 import app.dirhamrub.ui.components.ScreenBar
-import app.dirhamrub.ui.components.fadingScroll
+import app.dirhamrub.ui.components.fadingEdges
 import app.dirhamrub.ui.components.finishCascadeOnTouch
 import app.dirhamrub.domain.MC
 import app.dirhamrub.domain.Numbers
@@ -109,7 +121,6 @@ import app.dirhamrub.domain.wallet.Currency
 import app.dirhamrub.domain.wallet.HISTORY_MAX
 import app.dirhamrub.domain.wallet.ManualRate
 import app.dirhamrub.domain.wallet.OfficialRates
-import app.dirhamrub.domain.wallet.PurchaseReceipt
 import app.dirhamrub.domain.wallet.RateBasis
 import app.dirhamrub.domain.wallet.RateEngine
 import app.dirhamrub.domain.wallet.BankImport
@@ -117,6 +128,9 @@ import app.dirhamrub.domain.wallet.ScannedReceipt
 import app.dirhamrub.domain.wallet.TransferMode
 import app.dirhamrub.domain.wallet.TransferReceipt
 import app.dirhamrub.domain.wallet.UnionPayRates
+import app.dirhamrub.domain.wallet.Wallet
+import app.dirhamrub.domain.wallet.WalletCodec
+import app.dirhamrub.domain.wallet.preserveWithdrawalCost
 import app.dirhamrub.ui.components.CurrencyChips
 import app.dirhamrub.ui.components.CurrencyDropdown
 import app.dirhamrub.ui.components.cascade
@@ -126,10 +140,13 @@ import app.dirhamrub.ui.main.BankCardView
 import app.dirhamrub.ui.main.RING_GAP
 import app.dirhamrub.ui.main.basisLabel
 import app.dirhamrub.ui.components.rateLabel
+import app.dirhamrub.ui.theme.surfaceOutline
 import app.dirhamrub.ui.theme.AppTheme
 import java.math.BigDecimal
 import java.time.LocalDate
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Редактор карты: название, валюта, чек пополнения, чеки покупок в разных валютах трат
@@ -143,8 +160,8 @@ fun CardEditorScreen(
     spend: Currency,
     home: Currency,
     official: OfficialRates?,
-    onSave: (BankCard, Map<String, android.net.Uri>, Set<String>) -> Unit,
-    onDelete: () -> Unit,
+    onSave: suspend (BankCard, Map<String, android.net.Uri>, Set<String>) -> Boolean,
+    onDelete: suspend () -> Boolean,
     onDismiss: () -> Unit,
     /** Курсы UnionPay — для карт UnionPay. */
     unionPay: UnionPayRates? = null,
@@ -178,13 +195,13 @@ fun CardEditorScreen(
     var confirmExit by remember(card.id) { mutableStateOf(false) }
 
     val initialTemplate = stringResource(if (card.kind == CardKind.CASH) R.string.cash_default_name else R.string.card_default_name, card.currency.code)
-    var name by remember(card.id) { mutableStateOf(card.name.takeUnless { isNew && it == initialTemplate }.orEmpty()) }
-    var nameEdited by remember(card.id) { mutableStateOf(false) }
-    var currency by remember(card.id) { mutableStateOf(card.currency) }
-    var newKind by remember(card.id) { mutableStateOf(card.kind) }
+    var name by rememberSaveable(card.id) { mutableStateOf(card.name.takeUnless { isNew && it == initialTemplate }.orEmpty()) }
+    var nameEdited by rememberSaveable(card.id) { mutableStateOf(false) }
+    var currency by rememberSaveable(card.id) { mutableStateOf(card.currency) }
+    var newKind by rememberSaveable(card.id) { mutableStateOf(card.kind) }
     val kind = if (isNew) newKind else card.kind
     // UnionPay — одна из платёжных систем: выбрали её — карта считается картой UnionPay (без отдельного переключателя).
-    var network by remember(card.id) { mutableStateOf(card.paymentNetwork) }
+    var network by rememberSaveable(card.id) { mutableStateOf(card.paymentNetwork) }
     val cash = kind == CardKind.CASH
     val savedTransfers = remember(card.id) {
         (listOfNotNull(card.transfer) + card.history).sortedByDescending { it.date }
@@ -192,30 +209,30 @@ fun CardEditorScreen(
     val savedTransfer = savedTransfers.firstOrNull()
     val savedRegular = savedTransfers.firstOrNull { card.kind != CardKind.CASH || it.fromCard == null }
     val savedWithdrawal = savedTransfers.firstOrNull { card.kind == CardKind.CASH && it.fromCard != null }
-    val history = remember(card.id) {
+    val history = rememberSaveable(card.id, saver = transferDraftsSaver) {
         mutableStateListOf<TransferReceipt>().apply {
             addAll(savedTransfers.filter { it !== savedRegular && it !== savedWithdrawal })
         }
     }
-    var transferMode by remember(card.id) { mutableStateOf(card.transferMode) }
+    var transferMode by rememberSaveable(card.id) { mutableStateOf(card.transferMode) }
     val atmSources = cards.filter { it.kind == CardKind.CARD && it.id != card.id }
     val referenceAtOpen = remember(card.id) { official }
     fun boughtUnitFor(c: Currency, receipt: TransferReceipt?): BigDecimal = Numbers.unitFor(
-        referenceAtOpen?.cross(c, home)
-            ?: receipt?.bought?.takeIf { it.second == home && it.first.signum() > 0 }?.first
+        receipt?.bought?.takeIf { it.second == home && it.first.signum() > 0 }?.first
+            ?: referenceAtOpen?.cross(c, home)
             ?: BigDecimal.ONE,
     )
     fun displayBought(receipt: TransferReceipt?): String = receipt?.bought?.takeIf { it.second == home }?.let {
         Numbers.plain(it.first.multiply(boughtUnitFor(receipt.sentCurrency, receipt), MC), 4)
     }.orEmpty()
-    val regular = remember(card.id) {
+    val regular = rememberSaveable(card.id, saver = fundingDraftSaver) {
         FundingDraft(savedRegular, home, boughtAt = displayBought(savedRegular))
     }
-    val withdrawal = remember(card.id) {
+    val withdrawal = rememberSaveable(card.id, saver = fundingDraftSaver) {
         val first = atmSources.firstOrNull()
         FundingDraft(savedWithdrawal, first?.currency ?: home, defaultCard = first?.id)
     }
-    var atm by remember(card.id) { mutableStateOf(savedTransfer?.fromCard != null && card.kind == CardKind.CASH) }
+    var atm by rememberSaveable(card.id) { mutableStateOf(savedTransfer?.fromCard != null && card.kind == CardKind.CASH) }
     val funding = if (cash && atm) withdrawal else regular
     var sent by funding.sent
     var got by funding.got
@@ -223,7 +240,7 @@ fun CardEditorScreen(
     var fromCard by funding.fromCard
     var boughtAt by funding.boughtAt
     val boughtUnit = boughtUnitFor(sentCurrency, funding.original.value)
-    val purchases = remember(card.id) {
+    val purchases = rememberSaveable(card.id, saver = purchaseDraftsSaver) {
         mutableStateListOf<PurchaseDraft>().apply {
             card.purchases.forEachIndexed { i, p -> add(PurchaseDraft(i, p.spend, field(p.paid), field(p.price), p.date)) }
             // Открыли по подсказке «добавить чек»: сразу пустая строка покупки в валюте трат.
@@ -232,23 +249,26 @@ fun CardEditorScreen(
             }
         }
     }
-    var nextKey by remember(card.id) { mutableStateOf(purchases.size) }
+    var nextKey by rememberSaveable(card.id) { mutableStateOf(purchases.size) }
     // Свой курс — на ту же единицу, что в итоге и на картах («100 ₸ = …»); единица считается один раз при открытии,
     // чтобы не менялась, пока курс набирают.
-    val manualUnit = remember(card.id) {
+    val manualUnit = rememberSaveable(card.id) {
         val auto = RateEngine.quote(card.withoutManual(spend, home), spend, home, official, unionPay, cards)?.homePerUnit
         (auto ?: card.manualFor(spend, home)?.homePerUnit)?.let(Numbers::unitFor) ?: BigDecimal.ONE
     }
-    var manual by remember(card.id) {
-        mutableStateOf(card.manualFor(spend, home)?.homePerUnit?.let { Numbers.plain(it.multiply(manualUnit, MC), 4) }.orEmpty())
+    var manual by rememberSaveable(card.id) {
+        mutableStateOf(card.manualFor(spend, home)?.homePerUnit?.let { Numbers.exactInput(it.multiply(manualUnit)) }.orEmpty())
     }
     // Свой курс — за переключателем: выключен — считаем по чекам, второго курса на экране нет.
-    var manualOn by remember(card.id) { mutableStateOf(card.manualFor(spend, home) != null) }
+    var manualOn by rememberSaveable(card.id) { mutableStateOf(card.manualFor(spend, home) != null) }
     // Пополнение у новой карты — сначала заглушка с кнопкой «+ Добавить пополнение».
-    var transferOpen by remember(card.id) { mutableStateOf(card.transfer != null || card.history.isNotEmpty() || kind == CardKind.CASH) }
+    var transferOpen by rememberSaveable(card.id) { mutableStateOf(card.transfer != null || card.history.isNotEmpty() || kind == CardKind.CASH) }
     var confirmDelete by remember(card.id) { mutableStateOf(false) }
     // Сохраняем: кнопка показывает «✓», потом экран закрывается с этой картой.
     var pendingSave by remember(card.id) { mutableStateOf<BankCard?>(null) }
+    var saved by remember(card.id) { mutableStateOf(false) }
+    var deleting by remember(card.id) { mutableStateOf(false) }
+    var storageFailed by remember(card.id) { mutableStateOf(false) }
     // Нажали «Сохранить», а в чеке заполнена только одна сумма из двух — подсвечиваем вторую, шторку не закрываем.
     var showErrors by remember(card.id) { mutableStateOf(false) }
     var cardPicker by remember(card.id) { mutableStateOf(false) }
@@ -283,10 +303,12 @@ fun CardEditorScreen(
 
     fun removeCurrentTransfer() {
         focus.clearFocus()
-        stagedShots.remove(ReceiptShots.TRANSFER_KIND)
-        val previous = history.maxByOrNull { it.date }
+        if (!cash) stagedShots.remove(ReceiptShots.TRANSFER_KIND)
+        val source = funding.fromCard.value
+        val previous = history.filter { !cash || (it.fromCard != null) == atm }.maxByOrNull { it.date }
         if (previous != null) history.remove(previous)
-        regular.replace(previous, home, displayBought(previous))
+        funding.replace(previous, if (cash && atm) sentCurrency else home, displayBought(previous))
+        if (cash && atm && previous == null) funding.fromCard.value = source
         if (history.isEmpty()) transferMode = TransferMode.LAST
         transferOpen = previous != null
     }
@@ -295,7 +317,7 @@ fun CardEditorScreen(
     val resources = LocalResources.current
     var nfc by remember(card.id) { mutableStateOf<NfcRead?>(null) }
     val nfcAvailability = rememberNfcAvailability(observe = !cash)
-    NfcCardReader(enabled = nfcAvailability == NfcAvailability.READY && !cash && pendingSave == null && !coveredByCamera) { result ->
+    NfcCardReader(enabled = nfcAvailability == NfcAvailability.READY && !cash && pendingSave == null && !deleting && !coveredByCamera) { result ->
         nfc = result
         if (result is NfcRead.Found) {
             result.info.currency?.let { detected ->
@@ -329,20 +351,27 @@ fun CardEditorScreen(
     val pickScreenshot = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scan = ScanResult.Reading
+        val cardCurrency = currency
         scope.launch {
             val receipt = readBankScreenshot(context.applicationContext, uri)
-            val candidates = receipt?.let { BankImport.candidates(it.lines, currency) }.orEmpty()
+            val candidates = withContext(Dispatchers.Default) {
+                receipt?.let { BankImport.candidates(it.lines, cardCurrency) }.orEmpty()
+            }
             scan = when {
                 receipt == null -> ScanResult.ReadError
                 candidates.isEmpty() -> ScanResult.NotFound
                 else -> null
             }
-            if (receipt != null && candidates.isNotEmpty()) bankReview = BankReview(uri, receipt, candidates, currency)
+            if (receipt != null && candidates.isNotEmpty()) bankReview = BankReview(uri, receipt, candidates, cardCurrency)
             else haptics.play(Haptic.REJECT)
         }
     }
+    var autoScanLaunched by rememberSaveable(card.id) { mutableStateOf(false) }
     LaunchedEffect(card.id, startScan) {
-        if (startScan) pickScreenshot.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        if (startScan && !autoScanLaunched) {
+            autoScanLaunched = true
+            pickScreenshot.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        }
     }
 
     val defaultName = stringResource(if (cash) R.string.cash_default_name else R.string.card_default_name, currency.code)
@@ -360,16 +389,18 @@ fun CardEditorScreen(
             Numbers.parse(data.boughtAt.value)?.takeIf { it.signum() > 0 }?.divide(boughtUnitFor(sourceCurrency, original), MC)
         val unchangedRate = original?.bought == keptBought && (keptBought != null || newBought == null)
         if (sameAmounts && unchangedRate) return original
-        return TransferReceipt(
+        val receipt = TransferReceipt(
             sentValue,
             sourceCurrency,
             gotValue,
-            if (sameAmounts) original.date else LocalDate.now(),
+            data.original.value?.date ?: LocalDate.now(),
             keptBought?.first ?: newBought,
             keptBought?.second ?: newBought?.let { home },
             fromCard = sourceId,
             sourceRateEstimated = keptBought != null && original.sourceRateEstimated,
         )
+        val source = if (fromAtm) atmSources.firstOrNull { it.id == sourceId } else null
+        return if (source == null) receipt else receipt.preserveWithdrawalCost(source, home, official)
     }
 
     fun build(forSave: Boolean = false): BankCard {
@@ -382,16 +413,16 @@ fun CardEditorScreen(
         val saved = drafts + if (forSave) history.toList() else history.filter { !cash || (it.fromCard != null) == atm }
         // У наличных покупок по чекам нет: платят ровно ценой в той же валюте.
         val receipts = if (kind == CardKind.CASH) emptyList() else purchases.mapNotNull { d ->
-            val paid = Numbers.parse(d.paid) ?: return@mapNotNull null
-            val price = Numbers.parse(d.price) ?: return@mapNotNull null
-            if (paid.signum() <= 0 || price.signum() <= 0) return@mapNotNull null
+            val receipt = d.receipt ?: return@mapNotNull null
             val old = card.purchases.getOrNull(d.key)
-            val unchanged = old != null && old.paid.compareTo(paid) == 0 && old.price.compareTo(price) == 0 && old.spend == d.spend
-            if (unchanged) old else PurchaseReceipt(d.spend, paid, price, if (d.imported) d.date else today)
+            old?.takeIf { it.spend == receipt.spend && it.date == receipt.date &&
+                it.paid.compareTo(receipt.paid) == 0 && it.price.compareTo(receipt.price) == 0 } ?: receipt
         }
-        val manualValue = Numbers.parse(manual)?.takeIf { manualOn && it.signum() > 0 }?.divide(manualUnit, MC)
+        val manualValue = Numbers.parse(manual)?.takeIf { manualOn && it.signum() > 0 }?.divide(manualUnit)
         val oldManual = card.manualFor(spend, home)
-        val manualDate = if (oldManual != null && manualValue != null && oldManual.homePerUnit.compareTo(manualValue) == 0) oldManual.date else today
+        val updatedManual = manualValue?.let { value ->
+            oldManual?.takeIf { it.homePerUnit.compareTo(value) == 0 } ?: ManualRate(spend, home, value, today)
+        }
         val otherManual = card.manual.filterNot { it.spend == spend && it.home == home }
         val previewOrSaved = card.copy(
             name = name.trim().ifEmpty { defaultName },
@@ -405,25 +436,26 @@ fun CardEditorScreen(
             transferMode = if (saved.size <= 1) TransferMode.LAST else transferMode,
             transfer = null,
             purchases = receipts,
-            manual = otherManual + listOfNotNull(manualValue?.let { ManualRate(spend, home, it, manualDate) }),
+            manual = otherManual + listOfNotNull(updatedManual),
         )
         if (forSave) return previewOrSaved.withTransfers(saved)
         return previewOrSaved.copy(transfer = active, history = saved.drop(if (active != null) 1 else 0))
     }
 
     fun invalid(data: FundingDraft): Boolean = pairInvalid(data.sent.value, data.got.value)
-    fun invalid(): Boolean = invalid(regular) || (cash && invalid(withdrawal)) ||
+    fun invalidManual(): Boolean = manualOn && Numbers.parse(manual)?.signum() != 1
+    fun invalid(): Boolean = invalidManual() || invalid(regular) || (cash && invalid(withdrawal)) ||
         (!cash && purchases.any { pairInvalid(it.paid, it.price) })
 
     // A partially filled tab is dirty even when it contains no complete receipt yet.
-    val initial = remember(card.id) { build(forSave = true) }
+    val initial = rememberSaveable(card.id, saver = bankCardSaver) { build(forSave = true) }
     fun dirty(): Boolean = invalid() || build(forSave = true) != initial
     fun back() {
-        if (pendingSave != null) return
+        if (pendingSave != null || deleting) return
         if (dirty()) confirmExit = true else close()
     }
 
-    FullScreen(onDismissRequest = onDismiss, interceptBack = { pendingSave != null || dirty().also { if (it) confirmExit = true } }, morph = morph) {
+    FullScreen(onDismissRequest = onDismiss, interceptBack = { pendingSave != null || deleting || dirty().also { if (it) confirmExit = true } }, morph = morph) {
       screen[0] = this
       val saveReduce = LocalReduceMotion.current
       LaunchedEffect(pendingSave) {
@@ -437,7 +469,24 @@ fun CardEditorScreen(
           if (savedTransfer != null && savedTransfer !in (listOfNotNull(result.transfer) + result.history)) {
               staleShots += ReceiptShots.TRANSFER_KIND
           }
-          close { onSave(result, images, staleShots) }
+          if (onSave(result, images, staleShots)) {
+              saved = true
+              haptics.play(Haptic.CONFIRM)
+              if (!saveReduce) delay(SAVE_CONFIRMATION_MS)
+              close()
+          } else {
+              pendingSave = null
+              storageFailed = true
+              haptics.play(Haptic.REJECT)
+          }
+      }
+      LaunchedEffect(deleting) {
+          if (!deleting) return@LaunchedEffect
+          if (onDelete()) close() else {
+              deleting = false
+              storageFailed = true
+              haptics.play(Haptic.REJECT)
+          }
       }
       Column(Modifier.fillMaxSize()) {
         ScreenBar(
@@ -451,7 +500,7 @@ fun CardEditorScreen(
                 },
             ),
         ) {
-            if (!isNew && pendingSave == null) {
+            if (!isNew && pendingSave == null && !deleting) {
                 Icon(
                     painterResource(R.drawable.ic_delete),
                     contentDescription = stringResource(if (cash) R.string.editor_delete_cash else R.string.editor_delete),
@@ -468,36 +517,56 @@ fun CardEditorScreen(
         val cascade = rememberCascade(lastIndex = 1)
         // «Сохранить» всегда внизу экрана, прокручивается только содержимое над ней: последний элемент
         // докручивается выше кнопки. Касание мимо полей убирает клавиатуру.
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
+        val editorScroll = rememberLazyListState()
+        val pick = stringResource(R.string.editor_pick_currency)
+        val blockTitle = stringResource(if (cash) R.string.editor_block_cash else R.string.editor_block_rate)
+        fun addPurchase() {
+            val used = purchases.map { it.spend }.toSet()
+            val first = if (spend !in used) spend else Currency.POPULAR.firstOrNull { it !in used } ?: spend
+            purchases.add(PurchaseDraft(nextKey++, first, "", "", LocalDate.now()))
+        }
+        // Черновик из полей и его курс — для предпросмотра сверху и итога ниже.
+        val draft by remember(card, spend, home, kind, defaultName, funding, official, cards) { derivedStateOf { build() } }
+        val previewSpend = if (cash) currency else spend
+        val travelQuote = remember(draft, previewSpend, home, official, unionPay, cards) {
+            RateEngine.quote(draft, previewSpend, home, official, unionPay, cards)
+        }
+        val auto = remember(draft, travelQuote, previewSpend, spend, home, official, unionPay, cards) {
+            if (previewSpend == spend && travelQuote?.basis != RateBasis.MANUAL) travelQuote
+            else RateEngine.quote(draft.withoutManual(spend, home), spend, home, official, unionPay, cards)
+        }
+        val receipt = draft.effectiveTransfer?.takeIf { cash && it.isValid }
+        val previewHome = if (receipt != null && (travelQuote == null || currency == home)) receipt.sentCurrency else home
+        val q = if (previewHome == home) travelQuote else RateEngine.quote(draft, previewSpend, previewHome, official, unionPay, cards)
+        val amountInPreview = if (previewSpend == spend) previewAmount else PREVIEW_AMOUNT
+        val preview = EditorCardPreview(
+            draft, q, previewSpend, previewHome,
+            q?.let { Numbers.total(amountInPreview.multiply(it.homePerUnit, MC), rounding, previewHome.digits.coerceAtLeast(2)) },
+            needsReceipt = official?.cross(previewSpend, previewHome) == null,
+        )
+        LazyColumn(
+            state = editorScroll,
+            modifier = Modifier.weight(1f).fillMaxWidth()
                 .pointerInput(Unit) { detectTapGestures(onTap = { focus.clearFocus() }) }
                 .finishCascadeOnTouch(cascade)
-                .fadingScroll(rememberScrollState(), bottomEdge = 32.dp)
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 12.dp),
+                .fadingEdges(editorScroll, bottomEdge = 32.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp),
         ) {
+          item(key = "main") {
+            Column {
             if (!isNew) Spacer(Modifier.height(6.dp))
-            // Черновик из полей и его курс — для предпросмотра сверху и итога ниже.
-            val draft = build()
-            val previewSpend = if (cash) currency else spend
-            val travelQuote = RateEngine.quote(draft, previewSpend, home, official, unionPay, cards)
-            val receipt = draft.effectiveTransfer?.takeIf { cash && it.isValid }
-            val previewHome = if (receipt != null && (travelQuote == null || currency == home)) receipt.sentCurrency else home
-            val q = if (previewHome == home) travelQuote else RateEngine.quote(draft, previewSpend, previewHome, official, unionPay, cards)
-            val amountInPreview = if (previewSpend == spend) previewAmount else PREVIEW_AMOUNT
-            val preview = EditorCardPreview(
-                draft, q, previewSpend, previewHome,
-                q?.let { Numbers.total(amountInPreview.multiply(it.homePerUnit, MC), rounding) },
-                needsReceipt = official?.cross(previewSpend, previewHome) == null,
-            )
             var previewVisible by remember { mutableStateOf(false) }
             val reflectionTilt = rememberReflectionTilt(
                 active = !coveredByCamera && previewVisible && !isClosing && !cardPicker && !confirmExit && !confirmDelete && morph?.flying != true,
             )
-            if (morph != null) SideEffect {
-                morph.card = { textAlpha -> PreviewCard(preview, reflectionTilt, textAlpha) }
+            if (morph != null) {
+                SideEffect { morph.card = { textAlpha -> PreviewCard(preview, reflectionTilt, textAlpha) } }
+                DisposableEffect(morph) {
+                    onDispose {
+                        morph.target = null
+                        morph.card = null
+                    }
+                }
             }
             val previewInset = if (isNew) 8.dp else 0.dp
             Box(
@@ -509,7 +578,11 @@ fun CardEditorScreen(
                     Modifier.onGloballyPositioned {
                         val bounds = it.boundsInWindow()
                         previewVisible = !bounds.isEmpty
-                        if (morph != null) morph.target = bounds
+                        if (morph != null) {
+                            val full = it.boundsInWindow(clipBounds = false)
+                            morph.target = full.takeIf { !full.isEmpty && bounds.width >= full.width * 0.9f && bounds.height >= full.height * 0.9f }
+                            morph.targetMeasured = true
+                        }
                     }.graphicsLayer { if (morph?.flying == true && !saveReduce) alpha = 0f },
                 ) {
                     if (isNew) {
@@ -613,9 +686,14 @@ fun CardEditorScreen(
                 }
             }
 
-            // Блок 2. Курс карты или наличных и чеки.
             Spacer(Modifier.height(10.dp))
-            EditorBlock(stringResource(if (cash) R.string.editor_block_cash else R.string.editor_block_rate), Modifier.cascade(cascade, 1)) {
+            }
+          }
+          item(key = "funding") {
+            EditorRateSegment(top = true, modifier = Modifier.cascade(cascade, 1)) {
+                Text(blockTitle.uppercase(), style = type.section, color = colors.muted,
+                    modifier = Modifier.padding(bottom = 8.dp).semantics { heading() })
+
                 // Свой курс включён — чеки не нужны: блок с ними сворачивается, поле курса сразу на виду.
                 val reduceMotion = LocalReduceMotion.current
                 AnimatedVisibility(
@@ -633,13 +711,30 @@ fun CardEditorScreen(
                         )
                         if (pro && shots.isNotEmpty()) ReceiptShotRow(shots)
                     }
-                    val pick = stringResource(R.string.editor_pick_currency)
+                    val removeTransfer: (@Composable () -> Unit)? = if (sent.isNotBlank() || got.isNotBlank()) {
+                        {
+                            Icon(
+                                painterResource(R.drawable.ic_close),
+                                contentDescription = stringResource(R.string.transfer_remove_current),
+                                tint = AppTheme.colors.muted,
+                                modifier = Modifier.size(44.dp).clip(CircleShape)
+                                    .clickable(role = Role.Button, onClick = ::removeCurrentTransfer).padding(13.dp),
+                            )
+                        }
+                    } else null
                     // Наличные — из обменника или из банкомата (снятие с одной из карт).
                     if (cash) {
                         CashSourceSwitch(atm) { on ->
                             if (on != atm) {
                                 focus.clearFocus()
                                 atm = on
+                            }
+                        }
+                        val date = draft.transfer?.date?.let(RuDates::short)
+                        if (date != null || removeTransfer != null) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                                date?.let { Text(it, style = AppTheme.type.caption, color = AppTheme.colors.muted) }
+                                removeTransfer?.invoke()
                             }
                         }
                     }
@@ -703,28 +798,10 @@ fun CardEditorScreen(
                         SubTitle(stringResource(R.string.receipt_transfer))
                         EmptyReceipts(stringResource(R.string.transfer_empty), stringResource(R.string.transfer_add_first)) { transferOpen = true }
                     } else {
-                        if (cash) {
-                            val date = draft.transfer?.date?.let(RuDates::short)
-                            if (date != null) {
-                                Text(date, style = AppTheme.type.caption, color = AppTheme.colors.muted,
-                                    modifier = Modifier.align(Alignment.End).padding(top = 8.dp, bottom = 6.dp))
-                            } else {
-                                Spacer(Modifier.height(10.dp))
-                            }
-                        } else SubTitle(
+                        if (cash) Spacer(Modifier.height(10.dp)) else SubTitle(
                             stringResource(R.string.receipt_transfer),
                             trailing = draft.transfer?.date?.let(RuDates::short),
-                            action = if (sent.isNotBlank() || got.isNotBlank()) {
-                                {
-                                    Icon(
-                                        painterResource(R.drawable.ic_close),
-                                        contentDescription = stringResource(R.string.transfer_remove_current),
-                                        tint = AppTheme.colors.muted,
-                                        modifier = Modifier.size(44.dp).clip(CircleShape)
-                                            .clickable(role = Role.Button, onClick = ::removeCurrentTransfer).padding(13.dp),
-                                    )
-                                }
-                            } else null,
+                            action = removeTransfer,
                         )
                         val sentLabel = stringResource(if (cash) R.string.receipt_gave else R.string.receipt_sent)
                         val gotLabel = stringResource(if (cash) R.string.receipt_received else R.string.receipt_got)
@@ -768,25 +845,6 @@ fun CardEditorScreen(
                         } else {
                             Hint(stringResource(if (cash) R.string.receipt_exchange_hint else R.string.receipt_transfer_hint))
                         }
-                        // Прежние пополнения: «+ Новое пополнение» уносит заполненное в историю и очищает поля.
-                        TransferHistory(
-                            history = history.filter { it.fromCard == null },
-                            mode = transferMode,
-                            cardSymbol = currency.receiptMark,
-                            average = draft.effectiveTransfer?.takeIf { history.isNotEmpty() && transferMode == TransferMode.AVERAGE },
-                            canAddNew = transfer != null,
-                            newLabel = stringResource(if (cash) R.string.exchange_new else R.string.transfer_new),
-                            onMode = { transferMode = it },
-                            onRemove = {
-                                history.remove(it)
-                            },
-                            onNew = {
-                                transfer?.let { history.add(0, it) }
-                                trimHistory()
-                                regular.replace(null, sentCurrency)
-                                stagedShots.remove(ReceiptShots.TRANSFER_KIND)
-                            },
-                        )
                         if (sentCurrency != home) {
                             BoughtPlate(
                                 sentCurrency = sentCurrency,
@@ -800,36 +858,75 @@ fun CardEditorScreen(
                             )
                         }
                     }
-
-                    if (!cash) {
-                        PurchaseReceipts(
-                            purchases = purchases,
-                            showErrors = showErrors,
-                            official = official,
-                            cardCurrency = currency,
-                            spend = spend,
-                            pick = pick,
-                            usesUnionPayRate = draft.unionPay && currency != spend && unionPay?.cardRate(spend, currency) != null,
-                            // Подсказка — только если курс для валюты трат оценочный или идёт через UnionPay.
-                            hint = when {
-                                draft.purchases.isEmpty() -> null
-                                q?.basis == RateBasis.UNIONPAY ->
-                                    stringResource(R.string.receipt_unionpay_hint, spend.mark)
-                                q != null && q.basis == RateBasis.ESTIMATE && q.viaUnionPay ->
-                                    stringResource(R.string.receipt_estimate_hint_unionpay, spend.mark)
-                                q?.basis == RateBasis.ESTIMATE -> stringResource(R.string.receipt_estimate_hint, spend.mark)
-                                else -> null
+                    if (cash || transferOpen) {
+                        val records = history.filter { (it.fromCard != null) == (cash && atm) }
+                        TransferHistory(
+                            history = records,
+                            mode = transferMode,
+                            cardSymbol = currency.receiptMark,
+                            average = draft.effectiveTransfer?.takeIf { records.isNotEmpty() && transferMode == TransferMode.AVERAGE },
+                            canAddNew = draft.transfer != null && (!cash || !atm || atmSources.isNotEmpty()),
+                            newLabel = stringResource(when {
+                                !cash -> R.string.transfer_new
+                                atm -> R.string.withdrawal_new
+                                else -> R.string.exchange_new
+                            }),
+                            onMode = { transferMode = it },
+                            onRemove = {
+                                history.remove(it)
                             },
-                            onAdd = {
-                                val used = purchases.map { it.spend }.toSet()
-                                val first = if (spend !in used) spend else Currency.POPULAR.firstOrNull { it !in used } ?: spend
-                                purchases.add(PurchaseDraft(nextKey++, first, "", "", LocalDate.now()))
+                            onNew = {
+                                draft.transfer?.let { history.add(0, it) }
+                                trimHistory()
+                                val source = fromCard
+                                funding.replace(null, sentCurrency)
+                                if (cash && atm) funding.fromCard.value = source
+                                if (!cash) stagedShots.remove(ReceiptShots.TRANSFER_KIND)
                             },
                         )
                     }
 
+                }
+                }
+            }
+          }
+          if (!cash && !manualOn) {
+            item(key = "purchases") {
+                EditorRateSegment {
+                    SubTitle(stringResource(R.string.receipt_purchases))
+                    if (purchases.isEmpty()) {
+                        val union = draft.unionPay && currency != spend && unionPay?.cardRate(spend, currency) != null
+                        val message = if (union) R.string.purchases_empty_unionpay else R.string.purchases_empty
+                        EmptyReceipts(stringResource(message), stringResource(R.string.purchases_add_first), ::addPurchase)
+                    }
+                }
+            }
+            itemsIndexed(purchases, key = { _, draft -> "purchase-${draft.key}" }) { index, entry ->
+                EditorRateSegment {
+                    if (index > 0) Spacer(Modifier.height(10.dp))
+                    PurchaseReceiptFields(entry, showErrors, official, currency, spend, pick) { purchases.remove(entry) }
+                }
+            }
+          }
+          item(key = "rate") {
+            EditorRateSegment(bottom = true, modifier = Modifier.cascade(cascade, 1)) {
+                val reduceMotion = LocalReduceMotion.current
+                AnimatedVisibility(
+                    visible = !manualOn,
+                    enter = if (reduceMotion) EnterTransition.None else expandVertically(tween(260)) + fadeIn(tween(200)),
+                    exit = if (reduceMotion) ExitTransition.None else shrinkVertically(tween(260)) + fadeOut(tween(160)),
+                ) {
+                  Column {
+                    if (!cash && purchases.isNotEmpty()) {
+                        AddAction(stringResource(R.string.receipt_add), ::addPurchase)
+                        when {
+                            q?.basis == RateBasis.UNIONPAY -> Hint(stringResource(R.string.receipt_unionpay_hint, spend.mark))
+                            q?.basis == RateBasis.ESTIMATE && q.viaUnionPay ->
+                                Hint(stringResource(R.string.receipt_estimate_hint_unionpay, spend.mark))
+                            q?.basis == RateBasis.ESTIMATE -> Hint(stringResource(R.string.receipt_estimate_hint, spend.mark))
+                        }
+                    }
                     // Итог по чекам (без своего курса) — тот же расчёт, что на главном экране.
-                    val auto = RateEngine.quote(draft.withoutManual(spend, home), spend, home, official, unionPay, cards)
                     if (auto != null) {
                         val exact = auto.basis == RateBasis.RECEIPTS
                         ResultBox(
@@ -850,7 +947,6 @@ fun CardEditorScreen(
                 }
                 }
                 // Свой курс — за переключателем; включён — чеки выше свёрнуты.
-                val autoRate = RateEngine.quote(draft.withoutManual(spend, home), spend, home, official, unionPay, cards)?.homePerUnit
                 ManualRatePanel(
                     on = manualOn,
                     onToggle = { manualOn = it },
@@ -859,9 +955,10 @@ fun CardEditorScreen(
                     home = home,
                     value = manual,
                     onValueChange = { manual = it },
-                    auto = autoRate,
+                    auto = auto?.homePerUnit,
                 )
             }
+          }
         }
         Column(
             Modifier
@@ -870,9 +967,13 @@ fun CardEditorScreen(
                 .padding(horizontal = 16.dp)
                 .padding(top = 8.dp, bottom = 16.dp),
         ) {
-            if (showErrors && invalid()) {
+            if (storageFailed || showErrors && invalid()) {
                 Text(
-                    stringResource(R.string.editor_fix_fields),
+                    stringResource(when {
+                        storageFailed -> R.string.editor_storage_failed
+                        invalidManual() -> R.string.editor_manual_invalid
+                        else -> R.string.editor_fix_fields
+                    }),
                     style = type.caption.copy(fontSize = 13.sp),
                     color = colors.danger,
                     modifier = Modifier
@@ -884,17 +985,22 @@ fun CardEditorScreen(
                 )
                 Spacer(Modifier.height(8.dp))
             }
-            // «Сохранить» (Material 3 Expressive): нажали — кнопка сжимается в круг с «✓», чуть держит его и
-            // только потом экран закрывается: видно, что сохранилось. Ошибки — подсвечиваем, кнопку не блокируем.
             SaveButton(
                 saving = pendingSave != null,
+                saved = saved,
+                enabled = !deleting && !isClosing,
                 onClick = {
+                    storageFailed = false
                     if (invalid()) {
                         showErrors = true
-                        if (cash && !invalid(funding)) atm = !atm
+                        if (cash && invalid(if (atm) regular else withdrawal) && !invalid(funding)) atm = !atm
+                        if (!cash && !manualOn) {
+                            val invalidIndex = purchases.indexOfFirst { pairInvalid(it.paid, it.price) }
+                            if (invalidIndex >= 0) scope.launch { editorScroll.scrollToItem(3 + invalidIndex) }
+                        }
                         haptics.play(Haptic.REJECT)
                     } else {
-                        haptics.play(Haptic.CONFIRM)
+                        focus.clearFocus(force = true)
                         pendingSave = build(forSave = true)
                     }
                 },
@@ -914,9 +1020,7 @@ fun CardEditorScreen(
                                 Numbers.parse(it.price)?.compareTo(receipt.price) == 0
                         }
                         if (existing == null) {
-                            purchases.add(PurchaseDraft(nextKey++, receipt.spend, field(receipt.paid), field(receipt.price), date).apply {
-                                imported = true
-                            })
+                            purchases.add(PurchaseDraft(nextKey++, receipt.spend, field(receipt.paid), field(receipt.price), date))
                         }
                         if (pro && build().purchaseFor(receipt.spend)?.date == date) {
                             stagedShots[ReceiptShots.purchaseKind(receipt.spend.code)] =
@@ -992,7 +1096,8 @@ fun CardEditorScreen(
                 TextButton(onClick = {
                     confirmDelete = false
                     haptics.play(Haptic.THUD)
-                    close(onDelete)
+                    storageFailed = false
+                    deleting = true
                 }) { Text(stringResource(R.string.delete), style = type.bodyStrong, color = colors.danger) }
             },
             dismissButton = {
@@ -1035,9 +1140,67 @@ private class FundingDraft(
     }
 }
 
+@Composable
+private fun EditorRateSegment(
+    modifier: Modifier = Modifier,
+    top: Boolean = false,
+    bottom: Boolean = false,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    val radiusTop = if (top) 18.dp else 0.dp
+    val radiusBottom = if (bottom) 18.dp else 0.dp
+    val shape = RoundedCornerShape(radiusTop, radiusTop, radiusBottom, radiusBottom)
+    Column(modifier.fillMaxWidth().clip(shape).background(AppTheme.colors.surface)
+        .drawWithContent {
+            // Leave the joins open so all lazy rows read as one card.
+            val inset = 1.dp.toPx().coerceAtMost(size.height / 2f)
+            clipRect(top = if (top) 0f else inset, bottom = if (bottom) size.height else size.height - inset) {
+                this@drawWithContent.drawContent()
+            }
+        }
+        .surfaceOutline(shape)
+        .padding(start = 14.dp, end = 14.dp, top = if (top) 12.dp else 0.dp, bottom = if (bottom) 14.dp else 0.dp),
+        content = content,
+    )
+}
+
+private val fundingDraftSaver = listSaver<FundingDraft, String>(
+    save = { draft ->
+        listOf(draft.sent.value, draft.got.value, draft.sentCurrency.value.code, draft.fromCard.value.orEmpty(),
+            draft.boughtAt.value, draft.original.value?.let(WalletCodec::encodeTransfer).orEmpty())
+    },
+    restore = { fields ->
+        val currency = Currency.byCode(fields[2]) ?: Currency.RUB
+        FundingDraft(WalletCodec.decodeTransfer(fields[5]), currency, boughtAt = fields[4]).apply {
+            sent.value = fields[0]
+            got.value = fields[1]
+            sentCurrency.value = currency
+            fromCard.value = fields[3].ifEmpty { null }
+        }
+    },
+)
+
+private val transferDraftsSaver = listSaver<SnapshotStateList<TransferReceipt>, String>(
+    save = { list -> list.map(WalletCodec::encodeTransfer) },
+    restore = { list -> list.mapNotNull(WalletCodec::decodeTransfer).toMutableStateList() },
+)
+
+private val purchaseDraftsSaver = listSaver<SnapshotStateList<PurchaseDraft>, String>(
+    save = { list -> list.flatMap { listOf(it.key.toString(), it.spend.code, it.paid, it.price, it.date.toString()) } },
+    restore = { list -> list.chunked(5).map { entry ->
+        PurchaseDraft(entry[0].toInt(), Currency.byCode(entry[1]) ?: Currency.RUB, entry[2], entry[3], LocalDate.parse(entry[4]))
+    }.toMutableStateList() },
+)
+
+private val bankCardSaver = Saver<BankCard, String>(
+    save = { WalletCodec.encode(Wallet(cards = listOf(it))) },
+    restore = { WalletCodec.decode(it)?.cards?.singleOrNull() },
+)
+
 private fun field(value: BigDecimal): String = Numbers.exactInput(value)
 
 private const val MAX_NAME = 24
+private const val SAVE_CONFIRMATION_MS = 180L
 
 /** Что несут в обменник за местные наличные (кроме итоговой валюты — она есть всегда). */
 private val EXCHANGE_FROM = listOf(Currency.RUB, Currency.USD, Currency.EUR, Currency.CNY)

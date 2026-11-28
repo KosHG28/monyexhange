@@ -95,6 +95,10 @@ class NumbersTest {
         assertEquals("23,2398", Numbers.plain(bd("23.23980"), 4))
         assertEquals("15000", Numbers.plain(bd("15000.00")))
         assertEquals("8507,31", Numbers.plain(bd("8507.3125")))
+        assertEquals("1234,56", Numbers.cleanInput("1,234.56 USD"))
+        assertEquals("1234,56", Numbers.cleanInput("1.234,56 EUR"))
+        assertEquals("0,", Numbers.cleanInput(","))
+        assertEquals("0,001", Numbers.total(bd("0.001"), Rounding.NONE, 3))
     }
 
     @Test

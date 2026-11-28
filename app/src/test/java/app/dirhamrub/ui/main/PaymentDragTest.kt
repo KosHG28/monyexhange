@@ -31,4 +31,12 @@ class PaymentDragTest {
         assertTrue(drag.start(Offset(15f, 30f)))
         assertNull(drag.finish())
     }
+
+    @Test fun `edge scroll travels the same distance at 60 and 120 Hz`() {
+        val speed = 420f
+        val sixty = frameScrollDistance(0L, 16_666_667L, speed)
+        val oneTwenty = frameScrollDistance(0L, 8_333_333L, speed)
+        assertEquals(sixty, oneTwenty * 2f, 0.001f)
+        assertEquals(0f, frameScrollDistance(100L, 0L, speed), 0f)
+    }
 }
